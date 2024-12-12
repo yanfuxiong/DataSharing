@@ -1,0 +1,319 @@
+/* 去掉一些焦点框 */
+* {
+    outline:none;
+    font-family:"Microsoft YaHei";
+}
+
+/*
+QWidget#test {
+    background-color:#071D2D;
+    color:white;
+    border:1px solid red;
+}
+*/
+
+QGroupBox#top_box {
+    background-color:rgb(0,122,255);
+}
+
+QGroupBox#middle_box {
+    border:2px dashed blue;
+    border-radius:4px;
+}
+
+QGroupBox#bottom_box {
+    border:none;
+}
+
+QGroupBox#FileRecordWidgetBox {
+    background-color: white;
+    border-radius:8px;
+}
+
+QGroupBox#device_top_box, QGroupBox#device_bottom_box, QGroupBox#modify_box, QGroupBox#device_info_box {
+    border:1px solid lightgrey;
+    border-radius:4px;
+}
+
+QLabel#DeviceInfo {
+    background: transparent;
+    color:white;
+    font-size: 16px;
+    border:none;
+}
+
+QLabel#online_devices_label {
+    color:white;
+    background:transparent;
+}
+
+QLabel#empty_label {
+    background:transparent;
+}
+
+QLabel#device_icon_label {
+    border-image:url(:/resource/icon/DeviceComputer.svg);
+}
+
+QLabel#clear_selected_label {
+    color: blue;
+    background:transparent;
+}
+
+QLabel#record_title_label {
+    color:rgb(0,122,255);
+}
+
+QLabel#drag_drop_image_label {
+    background:transparent;
+    border-image:url(:/resource/icon/bk_1.png);
+}
+
+QLabel#accept_file_icon_label {
+    border-image:url(:/resource/file.svg);
+}
+
+QLabel#title_icon_1 {
+    border-image:url(:/resource/icon/Icons.svg);
+}
+
+QLabel#title_icon_2 {
+    border-image:url(:/resource/icon/Group_3.svg);
+}
+
+QLabel#title_label {
+    background:transparent;
+    color:white;
+}
+
+QLabel#icon_left {
+    border-image:url(:/resource/icon/Device.svg);
+}
+
+QLabel#icon_right {
+    border-image:url(:/resource/icon/garbage.svg);
+}
+
+QLabel#failed_icon_label {
+    border-image:url(:/resource/icon/check_small.svg);
+}
+
+QPushButton {
+    color:white;
+    /*background-color: #02356C;*/
+    background-color:rgb(37,116,237);
+    border: 1px solid #071D2D;
+    border-radius: 4px;
+}
+
+QPushButton:hover, QPushButton[focus_tag="true"] {
+    background-color: qlineargradient(spread:pad, x1:0.0, y1:0.0, x2:1.0, y2:0.5, stop:0 #0079D0, stop:1 #04E599);
+}
+
+QPushButton#openFile {
+    color:white;
+    border-image:url(:/resource/file.svg);
+    border: none;
+}
+
+QPushButton#openFile:hover {
+    border: 1px solid yellow;
+}
+
+/* ---------------------- 垂直滚动条设置 -------------------------------------- */
+
+QScrollBar:vertical {
+background:#0D2A40;
+padding:0px;
+border-radius:5px;
+max-width:12px;
+}
+
+QScrollBar::handle:vertical{
+background:#2B516D;
+min-height:50px;
+border-radius:5px;
+}
+
+QScrollBar::handle:vertical:hover{
+background:#003C66;
+}
+
+QScrollBar::handle:vertical:pressed{
+background:#003C66;
+}
+
+QScrollBar::add-page:vertical{
+background:none;
+}
+
+QScrollBar::sub-page:vertical{
+background:none;
+}
+
+QScrollBar::add-line:vertical{
+background:none;
+}
+
+QScrollBar::sub-line:vertical{
+background:none;
+}
+
+QScrollArea{
+border:0px;
+}
+
+/* ---------------------- 水平滚动条设置 -------------------------------------- */
+
+QScrollBar:horizontal{
+background:#0D2A40;
+padding:0px;
+border-radius:5px;
+max-height:12px;
+}
+
+QScrollBar::handle:horizontal{
+background:#2B516D;
+min-width:50px;
+border-radius:5px;
+}
+
+QScrollBar::handle:horizontal:hover{
+background:#003C66;
+}
+
+QScrollBar::handle:horizontal:pressed{
+background:#003C66;
+}
+
+QScrollBar::add-page:horizontal{
+background:none;
+}
+
+QScrollBar::sub-page:horizontal{
+background:none;
+}
+
+QScrollBar::add-line:horizontal{
+background:none;
+}
+
+QScrollBar::sub-line:horizontal{
+background:none;
+}
+
+/*---------水平滑动条------------------------*/
+
+QSlider::groove:horizontal{
+background:rgba(158,158,158,76); /* #9E9E9E opacity: 0.3; */
+height:8px;
+border-radius:4px;
+}
+
+QSlider::add-page:horizontal{
+background:rgba(158,158,158,76); /* #9E9E9E opacity: 0.3; */
+height:8px;
+border-radius:4px;
+}
+
+QSlider::sub-page:horizontal{
+background: qlineargradient(spread:pad, x1:0.0, y1:0.0, x2:1.0, y2:0.5, stop:0 #0079D0, stop:1 #04E599);
+height:8px;
+border-radius:4px;
+}
+
+QSlider::handle:horizontal{
+width:13px;
+margin-top:-3px;
+margin-bottom:-3px;
+border-radius:6px;
+background:#FFFFFF;
+}
+
+/*------------------- 垂直滑动条 -------------------*/
+
+QSlider::groove:vertical{
+background:rgba(158,158,158,76); /* #9E9E9E opacity: 0.3; */
+width:8px;
+border-radius:4px;
+}
+
+QSlider::add-page:vertical{
+background:rgba(158,158,158,76); /* #9E9E9E opacity: 0.3; */
+width:8px;
+border-radius:4px;
+}
+
+QSlider::sub-page:vertical{
+background: qlineargradient(spread:pad, x1:0.0, y1:0.0, x2:1.0, y2:0.5, stop:0 #0079D0, stop:1 #04E599);
+width:8px;
+border-radius:4px;
+}
+
+QSlider::handle:vertical{
+height:14px;
+margin-left:-3px;
+margin-right:-3px;
+border-radius:6px;
+background:#FFFFFF;
+}
+
+QRadioButton {
+color: white;
+}
+
+QRadioButton::indicator{
+width:15px;
+height:15px;
+}
+
+QRadioButton::indicator::unchecked{
+image:url(:/resource/radio_unchecked.svg);
+}
+
+QRadioButton::indicator::checked{
+image:url(:/resource/radio_checked.svg);
+}
+
+
+QGroupBox::indicator,QTreeWidget::indicator,QListWidget::indicator{
+padding:0px -3px 0px 3px;
+}
+
+
+QComboBox {
+    background-color: rgb(204,228,255);
+    border: 1px solid #0079D0;
+    border-radius: 3px;
+    color:black;
+}
+
+QComboBox::drop-down {
+    border-style:none; /* 去掉下拉小箭头 */
+}
+
+QComboBox QAbstractItemView::item {
+    color:white;
+    background-color:#113149;
+    min-height:26px;
+}
+
+QComboBox QAbstractItemView::item:hover {
+    background-color:#3595FF;
+}
+
+/*------------------------------- QProgressBar ------------------*/
+QProgressBar{
+min-height:10px;
+background:rgba(158,158,158,76); /* #9E9E9E opacity: 0.3; */
+border-radius:5px;
+text-align:center;
+color:white;
+/*border:1px solid #667481;*/
+}
+
+QProgressBar:chunk{
+border-radius:5px;
+background: qlineargradient(spread:pad, x1:0.0, y1:0.0, x2:1.0, y2:0.5, stop:0 #0079D0, stop:1 #04E599);
+}
+
