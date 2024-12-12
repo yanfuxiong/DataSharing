@@ -11,6 +11,7 @@ import (
 	"log"
 	"strings"
 	"time"
+	rtkUtils "rtk-cross-share/utils"
 
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/crypto"
@@ -110,7 +111,7 @@ func extractTCPIPandPort(maddr ma.Multiaddr) (string, string) {
 
 func handleStream(s network.Stream, handler *Handler, node host.Host) {
 	rw := bufio.NewReadWriter(bufio.NewReader(s), bufio.NewWriter(s))
-	go func() {
+	rtkUtils.GoSafe(func() {
 		defer s.Close()
 		log.Println("Wait for Node ...")
 		for {
@@ -118,11 +119,11 @@ func handleStream(s network.Stream, handler *Handler, node host.Host) {
 			err := json.NewDecoder(rw).Decode(&regMsg)
 			if err != nil {
 				if err == context.Canceled || err == context.DeadlineExceeded {
-					fmt.Println("Stream context canceled or deadline exceeded:", err)
+					log.Println("Stream context canceled or deadline exceeded:", err)
 					return
 				}
 				if err.Error() == "stream reset" {
-					fmt.Println("Stream reset by peer:", err)
+					log.Println("Stream reset by peer:", err)
 					return
 				}
 				continue
@@ -134,17 +135,17 @@ func handleStream(s network.Stream, handler *Handler, node host.Host) {
 			ip, port := extractTCPIPandPort(s.Conn().RemoteMultiaddr())
 			var regResonseMsg RegResponseMessage = RegResponseMessage{GUEST_LIST: handler.HostPool[regMsg.HOST].GuestList, GUEST_PUBLIC_TCP_IP: ip, GUEST_PUBLIC_TCP_PORT: port}
 			if err := json.NewEncoder(rw).Encode(&regResonseMsg); err != nil {
-				fmt.Println("failed to read register response message: %w", err)
+				log.Println("failed to read register response message: %w", err)
 				return
 			}
 			if err := rw.Flush(); err != nil {
-				fmt.Println("Error flushing write buffer: %w", err)
+				log.Println("Error flushing write buffer: %w", err)
 				return
 			}
 
 			time.Sleep(time.Second)
 		}
-	}()
+	})
 }
 
 func marshalPrivateKeyToPEM(key crypto.PrivKey) ([]byte, error) {
@@ -234,6 +235,6 @@ func setupNode() host.Host {
 func setupRegisterFunc(relayNode host.Host) {
 	handler := &Handler{HostPool: make(map[string]*Host)}
 	relayNode.SetStreamHandler(ProtocolID, func(s network.Stream) {
-		go handleStream(s, handler, relayNode)
+		rtkUtils.GoSafe(func() {handleStream(s, handler, relayNode)})
 	})
 }
