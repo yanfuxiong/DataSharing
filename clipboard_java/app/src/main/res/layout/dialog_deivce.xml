@@ -1,0 +1,60 @@
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="#FFFFFF"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center_horizontal">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:gravity="center"
+            android:text="File Transfer" />
+
+        <TextView
+            android:id="@+id/subtitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:layout_marginLeft="30dp"
+            android:layout_marginTop="20dp"
+            android:layout_marginRight="30dp"
+            android:layout_marginBottom="20dp"
+            android:text="xxx want to transfer test1203_119_galaxy_note20.pdf (4.7MB) to you, do you want to receive？" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_marginTop="20dp"
+        android:layout_marginBottom="20dp"
+        android:gravity="center"
+        android:orientation="vertical">
+        <Button
+            android:id="@+id/img_comf"
+            android:layout_width="260dp"
+            android:layout_height="44dp"
+            android:textAllCaps="false"
+            android:text="Confirm"
+            android:textColor="#FFFFFF"
+            android:background="#2574ED">
+        </Button>
+        <Button
+            android:id="@+id/img_canl"
+            android:layout_width="260dp"
+            android:layout_height="44dp"
+            android:layout_marginTop="8dp"
+            android:textAllCaps="false"
+            android:text="Cancel"
+            android:textColor="#000000"
+            android:background="#FFFFFF">
+        </Button>
+    </LinearLayout>
+</LinearLayout>

@@ -1,0 +1,77 @@
+# test in  [TSTAS-12][CrossShare][Fix]: Support cross-platform APP: selinux problem
+- Build steps for APK:
+- Put thirty-party/github.com/ files to overlay your local codes* ex.
+  C:\Users\nutnq\go\pkg\mod\github.com\libp2p\
+- *: please aware your version, ex. I uses go-libp2p@v0.37.0, you must overlay mdns.go under it
+- Enter data_sharing/ and open "Git Bash" and run "./build_android.sh" in windows
+- Put above jar into libs/ and open android studio
+- File>Open>select "clipboard_java"
+- Build>"Rebuild Project"
+- resuit: app\build\outputs\apk\debug\app-debug.apk
+
+- Build steps for client_windows.exe:
+- Enter data_sharing/ and open "Windows PowerShell" and run "build_windows.ps1" in windows
+
+- Open android selinux steps: (optional)
+- (Android) adb shell
+- (Android) su
+- (Android) setEnforce 1
+- (Android) getEnforce
+- (Android) result: Enforing
+
+- Test text/file/file transfer ok
+
+# test in [TSTAS-12][Libp2p][Feat]: Support cross-platform APP 1121
+- Follow README to build jar by mobilego
+- Put above jar into libs/ and build APK with android studio
+- PC and android connect 'same' wifi
+
+- Test1: pc > android
+- (PC) Execute windows_clipboard.exe and client_windows.exe
+- (Android) Execute app (launch app will connect automatically)
+- (PC) Select a file to transfer by using windows_clipboard.exe
+- (Android) Prompt dialog is showed and press "receive"
+- (Android) UI goes to TestGoLib and show a progess bar
+- (Android) Go to 3rd party app ex. Files, go to Download folder, you can see that file
+
+- Test2: android > pc
+- (PC) Execute windows_clipboard.exe and client_windows.exe
+- (Android) Go to 3rd party app ex. Files, long press and select "share" icon and then select "TestGoLib"
+- (Android) UI goes to TestGoLib, select an ip and press "COPY"
+- (PC) Prompt dialog is showed and press "receive"
+
+# test in [TSTAS-12][Libp2p][Feat]: Support cross-platform APP 1106
+- Follow README to build jar by mobilego
+- Put above jar into libs/ and build APK with android studio
+- PC and android connect 'same' wifi
+
+- Test1: pc > android
+- (PC) Execute client.exe
+- (Android) Execute app (launch app will connect automatically)
+- (PC) Press right key on test.mp4 and select "COPY" in drop-down list
+- (Android) Prompt dialog is showed and press "receive"
+- (Android shell) Check test.mp4 in /storage/emulated/0/Android/data/com.rtk.myapplication/files/ with different name
+
+- Test2: pc > android
+- (PC) Execute client.exe and check ip and port
+- (Android Studio) Write above info to String cliendid = "192.168.22.211:1518"; in TestActivity.java
+- (Android shell) enter /storage/emulated/0/Android/data/com.rtk.myapplication/files and rename transfer file's filename to "log.txt"
+- (Android) Press "Write Provider(.." button
+- (PC) Prompt dialog is showed and press "receive"
+
+# Steps to generate jar for android (Window)
+
+1,
+cd C:\Users\nutnq\p2p\1028\data_sharing_patch6\data_sharing and  HEAD is
+https://mm2sd.rtkbf.com/gerrit/c/kernel/rtk_aosp/device/realtek/native_app/data_sharing/+/455895
+patch6 and change mdns port to 23456
+
+2.
+Use net.go from data_sharing1028.zip
+and overlay local net.go  ex.
+C:\Users\nutnq\go\pkg\mod\github.com\multiformats\go-multiaddr@v0.13.0\net\net.go
+
+3.
+cd C:\Users\nutnq\p2p\1028\data_sharing_patch6\data_sharing\client\platform\libp2p_clipboard
+gomobile bind -target=android -androidapi 21 -ldflags "-checklinkname=0"
+

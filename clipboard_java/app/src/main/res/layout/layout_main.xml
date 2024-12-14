@@ -1,0 +1,247 @@
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- 透明上半部分 -->
+
+    <View
+
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_gravity="top"
+        android:background="#80000000" /> <!-- 半透明黑色背景，透明度可根据需要调整 -->
+
+
+    <!-- 实际内容，位于下半部分 -->
+
+    <LinearLayout
+        android:id="@+id/linearLayout"
+        android:layout_width="match_parent"
+        android:layout_height="383dp"
+        android:layout_gravity="bottom"
+        android:background="@android:color/white"
+        android:orientation="vertical"> <!-- 确保内容背景不透明 -->
+
+
+        <!-- 在这里添加你的UI元素 -->
+
+
+        <LinearLayout
+            android:id="@+id/handle"
+            android:layout_width="match_parent"
+            android:layout_height="24dp"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <ImageView
+                android:layout_width="64dp"
+                android:layout_height="4dp"
+                android:src="@drawable/handle"></ImageView>
+        </LinearLayout>
+
+
+        <LinearLayout
+            android:id="@+id/frame_7"
+            android:layout_width="match_parent"
+            android:layout_height="150dp"
+            android:orientation="vertical">
+
+            <LinearLayout
+                android:id="@+id/frame_8"
+                android:layout_width="match_parent"
+                android:layout_height="24dp"
+                android:gravity="center"
+                android:orientation="horizontal">
+
+                <ImageView
+                    android:id="@+id/back_icon"
+                    android:layout_width="7.4dp"
+                    android:layout_height="12dp"
+                    android:layout_marginLeft="15dp"
+                    android:src="@drawable/back">
+
+                </ImageView>
+
+
+                <LinearLayout
+                    android:id="@+id/frame_9"
+                    android:layout_width="match_parent"
+                    android:layout_height="24dp"
+                    android:layout_marginLeft="-10dp"
+                    android:gravity="center"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Cross Share"></TextView>
+                </LinearLayout>
+            </LinearLayout>
+
+
+            <LinearLayout
+                android:id="@+id/frame_10"
+                android:layout_width="match_parent"
+                android:layout_height="115dp"
+                android:layout_marginTop="5dp"
+                android:gravity="center"
+                android:orientation="horizontal">
+
+                <ImageView
+                    android:id="@+id/share_image"
+                    android:layout_width="172dp"
+                    android:layout_height="115dp"
+                    android:layout_marginLeft="0dp"
+                    android:src="@drawable/image_2"></ImageView>
+
+                <LinearLayout
+                    android:id="@+id/frame_file"
+                    android:layout_width="match_parent"
+                    android:layout_height="24dp"
+                    android:layout_marginLeft="-10dp"
+                    android:gravity="center"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/share_file"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="file name"></TextView>
+                </LinearLayout>
+            </LinearLayout>
+
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/divider"
+            android:layout_width="match_parent"
+            android:layout_height="20dp"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <ImageView
+                android:layout_width="328dp"
+                android:layout_height="1dp"
+                android:src="@drawable/line">
+
+            </ImageView>
+        </LinearLayout>
+
+
+        <LinearLayout
+            android:id="@+id/top_action2"
+            android:layout_width="match_parent"
+            android:layout_height="116dp"
+            android:orientation="horizontal">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="116dp"
+                android:orientation="vertical">
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/recycler_devicelist"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" />
+
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="72dp"
+                android:layout_height="116dp"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <ImageView
+                    android:layout_width="56dp"
+                    android:layout_height="59dp"
+                    android:src="@drawable/image_icon"></ImageView>
+
+                <TextView
+                    android:layout_width="64dp"
+                    android:layout_height="16dp"
+                    android:text="A"></TextView>
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="72dp"
+                android:layout_height="116dp"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <ImageView
+                    android:layout_width="56dp"
+                    android:layout_height="59dp"
+                    android:src="@drawable/image_icon"></ImageView>
+
+                <TextView
+                    android:layout_width="64dp"
+                    android:layout_height="16dp"
+                    android:text="A2"></TextView>
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="72dp"
+                android:layout_height="116dp"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <ImageView
+                    android:layout_width="56dp"
+                    android:layout_height="59dp"
+                    android:src="@drawable/image_icon"></ImageView>
+
+                <TextView
+                    android:layout_width="64dp"
+                    android:layout_height="16dp"
+                    android:text="A3"></TextView>
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="72dp"
+                android:layout_height="116dp"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <ImageView
+                    android:layout_width="56dp"
+                    android:layout_height="59dp"
+                    android:src="@drawable/image_icon"></ImageView>
+
+                <TextView
+                    android:layout_width="64dp"
+                    android:layout_height="16dp"
+                    android:text="A4"></TextView>
+            </LinearLayout>
+
+
+        </LinearLayout>
+
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="40dp"
+            android:gravity="center"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/img_button"
+                android:layout_width="320dp"
+                android:layout_height="40dp"
+                android:textAllCaps="false"
+                android:text="Transfer File"
+                android:textColor="#FFFFFF"
+                android:background="#2574ED"></Button>
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+
+</FrameLayout>

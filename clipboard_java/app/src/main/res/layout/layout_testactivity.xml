@@ -1,0 +1,301 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+
+    <Button
+        android:visibility="gone"
+        android:id="@+id/btnGetImage"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Get default image from clipboard" />
+
+    <RelativeLayout
+        android:visibility="gone"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        >
+        <TextView
+            android:id="@+id/textView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="10dp"
+            android:textColor="@android:color/holo_blue_bright"
+            android:layout_gravity="center" />
+
+        <ImageView
+            android:id="@+id/imageView4"
+            android:layout_width="50dp"
+            android:visibility="gone"
+            android:src="@drawable/liu"
+            android:layout_height="30dp" />
+        <TextView
+            android:id="@+id/textView_name"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="50dp"
+            android:layout_marginTop="-4dp"
+            android:textColor="@android:color/holo_blue_bright"
+            />
+        <TextView
+            android:id="@+id/textView_size"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="50dp"
+            android:layout_below="@+id/textView_name"
+            android:textColor="@android:color/holo_blue_bright"
+            />
+    </RelativeLayout>
+
+
+<LinearLayout
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content" >
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:visibility="gone"
+        android:id="@+id/my_recycler_view"
+        android:layout_width="wrap_content"
+        android:layout_height="100dp" />
+
+    <ImageView
+        android:visibility="gone"
+        android:id="@+id/imageView2"
+        android:layout_width="80dp"
+        android:layout_height="80dp" />
+
+    <ImageView
+        android:visibility="gone"
+        android:id="@+id/imageView3"
+        android:layout_width="80dp"
+        android:layout_height="80dp" />
+
+    <VideoView
+        android:visibility="gone"
+        android:id="@+id/videoview"
+        android:layout_width="150dp"
+        android:layout_height="150dp"/>
+
+
+
+</LinearLayout>
+
+
+    <Button
+        android:visibility="gone"
+        android:id="@+id/buttom"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="复制"
+         />
+
+
+
+    <LinearLayout
+        android:visibility="gone"
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:orientation="horizontal">
+    <Button
+        android:id="@+id/buttom_w"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:textAllCaps="false"
+        android:layout_weight="1"
+        android:text="发送默认文件log.txt"
+        />
+
+    <Button
+        android:visibility="gone"
+        android:id="@+id/buttom_r"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:textAllCaps="false"
+        android:layout_weight="1"
+        android:text="读取Provider"
+         />
+    </LinearLayout>
+
+    <Button
+        android:visibility="gone"
+        android:id="@+id/btnSetImage"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="设置默认图片到剪切版" />
+
+    <Button
+        android:visibility="gone"
+        android:id="@+id/bt_connlibp2p"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="20dp"
+        android:text="连接p2p service"/>
+    <Button
+        android:visibility="gone"
+        android:id="@+id/bt_getmsg"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="20dp"
+        android:text="获取剪贴板内容"/>
+    <Button
+        android:visibility="gone"
+        android:id="@+id/bt_setmsg"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="20dp"
+        android:text="设置剪贴板内容"/>
+    <Button
+        android:visibility="gone"
+        android:id="@+id/bt_requestfloatwindow"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="20dp"
+        android:text="获取悬浮窗权限"/>
+    <Button
+        android:visibility="gone"
+        android:id="@+id/bt_openfloatwindow"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="20dp"
+        android:text="开启悬浮窗"/>
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/my_recycler_view2"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+
+        <ProgressBar
+            android:id="@+id/progress_bar"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="400dp"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:visibility="invisible" />
+    </LinearLayout>
+
+    <ImageView
+        android:visibility="gone"
+        android:layout_width="100dp"
+        android:layout_height="100dp"
+        android:id="@+id/imageView"
+        android:src="@drawable/liu2"
+        />
+
+    <Button
+        android:visibility="gone"
+        android:id="@+id/bt_listenclip"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="20dp"
+        android:text="监听剪切板"/>
+    <Button
+        android:visibility="gone"
+        android:id="@+id/bt_addcallback"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="20dp"
+        android:text="增加回调接口"/>
+    <Button
+        android:visibility="gone"
+        android:id="@+id/bt_testcallback"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="20dp"
+        android:text="测试回调接口"/>
+
+    <TextView
+        android:visibility="gone"
+        android:layout_width="wrap_content"
+        android:layout_height="11dp"
+        android:layout_marginTop="10dp"
+        android:text="relayServerID"
+        android:textColor="@android:color/holo_green_dark"
+        android:textIsSelectable="true" />
+    <EditText
+        android:visibility="gone"
+        android:id="@+id/server_id"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="QmT4ZCzr1Jhnk2B81fgSsuu9t2qnexo8oP5b1m5eUcSxrg"
+        android:hint="relayServerID: ex. QmT4ZCzr1Jhnk2B81fgSsuu9t2qnexo8oP5b1m5eUcSxrg"/>
+    <TextView
+        android:visibility="gone"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:textIsSelectable="true"
+        android:textColor="@android:color/holo_green_dark"
+        android:text="relayServerIPInfo"/>
+    <EditText
+        android:visibility="gone"
+        android:id="@+id/server_ip_info"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="/ip4/180.218.164.96/tcp/8878/p2p/"
+        android:hint="relayServerIPInfo ex. /ip4/180.218.164.96/tcp/8878/p2p/"/>
+    <TextView
+        android:visibility="gone"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:textIsSelectable="true"
+        android:textColor="@android:color/holo_green_dark"
+        android:text="Server Status"/>
+    <TextView
+        android:visibility="gone"
+        android:id="@+id/status_server"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textIsSelectable="true"
+        android:layout_marginTop="10dp"
+        android:textColor="@android:color/holo_orange_dark"
+        android:text="Not started"/>
+    <TextView
+        android:visibility="gone"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:textIsSelectable="true"
+        android:textColor="@android:color/holo_green_dark"
+        android:text="Peer Status"/>
+    <TextView
+        android:visibility="gone"
+        android:id="@+id/status_client"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:textColor="@android:color/holo_orange_dark"
+        android:textIsSelectable="true"
+        android:text="Not started"/>
+    <TextView
+        android:visibility="gone"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:textIsSelectable="true"
+        android:textColor="@android:color/holo_green_dark"
+        android:text="Message From Peer"/>
+
+    <TextView
+        android:visibility="gone"
+        android:id="@+id/peer_message"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:text="Not started"
+        android:textColor="@android:color/holo_green_dark"
+        android:textIsSelectable="true" />
+
+    <EditText
+        android:visibility="gone"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Type and copy to test clipboard Copy via P2P"/>
+
+</LinearLayout>

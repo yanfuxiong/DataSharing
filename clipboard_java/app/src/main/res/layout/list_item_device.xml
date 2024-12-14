@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="72dp"
+    android:paddingLeft="20dp"
+    android:layout_height="116dp"
+    >
+
+    <ImageView
+        android:id="@+id/image"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:src="@drawable/image_icon">
+    </ImageView>
+
+    <TextView
+        android:id="@+id/text_view"
+        android:layout_below="@+id/image"
+        android:layout_width="56dp"
+        android:layout_height="wrap_content"
+        android:textColor="@android:color/holo_blue_bright"
+        android:text="Hello World!" />
+
+</RelativeLayout>
