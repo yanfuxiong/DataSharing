@@ -2,9 +2,11 @@ package filedrop
 
 import (
 	"context"
+	"log"
 	"path/filepath"
 	rtkCommon "rtk-cross-share/common"
 	rtkPlatform "rtk-cross-share/platform"
+	rtkUtils "rtk-cross-share/utils"
 	"sync"
 	"time"
 )
@@ -63,6 +65,8 @@ func updateFileDropRespData(ip string, cmd rtkCommon.FileDropCmd, filePath strin
 			fileDropData.DstFilePath = filePath
 			fileDropData.Cmd = cmd
 			fileDropDataMap[ip] = fileDropData
+		} else {
+			log.Printf("[%s %d] Err: Update file drop failed. Invalid state", rtkUtils.GetFuncName(), rtkUtils.GetLine())
 		}
 	}
 	fileDropDataMutex.Unlock()
@@ -115,7 +119,7 @@ func WatchFileDropRespEvent(ctx context.Context, ipAddr string, resultChan chan<
 	}
 }
 
-func SetupDstFileDrop(ip string, desc string, filePath string, platform string, fileSizeHigh uint32, fileSizeLow uint32) {
+func SetupDstFileDrop(ip, id, filePath, platform string, fileSizeHigh uint32, fileSizeLow uint32, timestamp int64) {
 	fileInfo := rtkCommon.FileInfo{
 		FileSize_: rtkCommon.FileSize{
 			SizeHigh: fileSizeHigh,
@@ -123,7 +127,7 @@ func SetupDstFileDrop(ip string, desc string, filePath string, platform string, 
 		},
 		FilePath: filePath,
 	}
-	// TODO: get correct timestamp
-	UpdateFileDropReqDataFromDst(ip, fileInfo, 0)
-	rtkPlatform.GoSetupFileDrop(ip, desc, filepath.Base(filePath), platform, fileSizeHigh, fileSizeLow)
+	UpdateFileDropReqDataFromDst(ip, fileInfo, timestamp)
+	fileSize := uint64(fileSizeHigh)<<32 | uint64(fileSizeLow)
+	rtkPlatform.GoSetupFileDrop(ip, id, filepath.Base(filePath), platform, fileSize, timestamp)
 }

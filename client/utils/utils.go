@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"bufio"
 	"crypto/md5"
 	"encoding/base64"
 	"encoding/pem"
@@ -262,17 +263,9 @@ func RemoveMySelfID(slice []string, s string) []string {
 	return slice[:i]
 }
 
-func ClearCachePeerInfo(peerId string) {
-	if val, ok := rtkGlobal.WaitConnPeerMap[peerId]; ok {
-		close(val.ChExitTimer)
-		delete(rtkGlobal.WaitConnPeerMap, peerId)
-		log.Println("peer:", peerId, " is connected, so clear cache Info")
-	}
-}
-
 func IsInMdnsClientList(peerID string) bool {
-	rtkGlobal.MdnsListRWMutex.Lock()
-	defer rtkGlobal.MdnsListRWMutex.Unlock()
+	rtkGlobal.MdnsListRWMutex.RLock()
+	defer rtkGlobal.MdnsListRWMutex.RUnlock()
 	for _, val := range rtkGlobal.MdnsClientList {
 		if strings.EqualFold(peerID, val.ID) {
 			return true
@@ -281,7 +274,7 @@ func IsInMdnsClientList(peerID string) bool {
 	return false
 }
 
-func InsertMdnsClientList(Id, IpAddr, platform string) {
+func InsertMdnsClientList(Id, IpAddr, platform, name string) {
 	rtkGlobal.MdnsListRWMutex.Lock()
 	defer rtkGlobal.MdnsListRWMutex.Unlock()
 	isExist := false
@@ -291,7 +284,7 @@ func InsertMdnsClientList(Id, IpAddr, platform string) {
 		}
 	}
 	if !isExist {
-		rtkGlobal.MdnsClientList = append(rtkGlobal.MdnsClientList, rtkCommon.ClientInfo{ID: Id, IpAddr: IpAddr, Platform: platform})
+		rtkGlobal.MdnsClientList = append(rtkGlobal.MdnsClientList, rtkCommon.ClientInfo{ID: Id, IpAddr: IpAddr, Platform: platform, DeviceName: name})
 	}
 }
 
@@ -322,25 +315,19 @@ func GetClientList() string {
 
 	var clientList string
 	for _, val := range rtkGlobal.MdnsClientList {
-		clientList += val.IpAddr + "-" + val.Platform + "#"
+		clientList += val.IpAddr + "#"
+		clientList += val.ID + "#"
+		deviceName := QueryDeviceName(val.ID)
+		if deviceName == "" {
+			clientList += val.DeviceName + ","
+		} else {
+			clientList += deviceName + ","
+		}
 	}
-	return strings.Trim(clientList, "#")
+	return strings.Trim(clientList, ",")
 }
 
-/*func GetNodeCBData(ipAddr string) (rtkCommon.ClipBoardData, bool) {
-	val, ok := rtkGlobal.CBData.Load(ipAddr)
-	if !ok {
-		log.Printf("Key:[%s] is not found", ipAddr)
-		return rtkCommon.ClipBoardData{}, ok
-	}
 
-	if cbData, ok := val.(rtkCommon.ClipBoardData); ok {
-		return cbData, ok
-	}
-
-	log.Printf("Key:[%+v] is not rtkCommon.ClipBoardData", val)
-	return rtkCommon.ClipBoardData{}, false
-}*/
 
 func Base64Decode(src string) []byte {
 	bytes, err := base64.StdEncoding.DecodeString(src)
@@ -354,4 +341,45 @@ func Base64Decode(src string) []byte {
 
 func Base64Encode(src []byte) string {
 	return base64.StdEncoding.EncodeToString(src)
+}
+
+// FIXME: hack code
+var (
+	HackDeviceNameMap map[string]string = make(map[string]string)
+)
+
+func InitDeviceTable(filename string) {
+	file, err := os.Open(filename)
+	if err != nil {
+		log.Printf("[%s %d] Err: Not found device table: %s", GetFuncName(), GetLine(), filename)
+		return
+	}
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		// skip space and mark symbol
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		parts := strings.SplitN(line, ":", 2)
+		if len(parts) < 2 {
+			log.Printf("[%s %d] Err: Invalid param count", GetFuncName(), GetLine())
+			return
+		}
+
+		id := string(parts[0])
+		name := string(parts[1])
+
+		HackDeviceNameMap[id] = name
+	}
+}
+
+func QueryDeviceName(id string) string {
+	if name, ok := HackDeviceNameMap[id]; ok {
+		return name
+	} else {
+		return ""
+	}
 }

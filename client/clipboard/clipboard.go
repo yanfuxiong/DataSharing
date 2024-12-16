@@ -7,22 +7,35 @@ import (
 	rtkGlobal "rtk-cross-share/global"
 	rtkPlatform "rtk-cross-share/platform"
 	rtkUtils "rtk-cross-share/utils"
+	"sync/atomic"
 	"time"
 )
 
-var lastClipboardData = rtkCommon.ClipBoardData{
+var kDefClipboardData = rtkCommon.ClipBoardData{
 	SourceID: "",
 	Hash:     "",
 	FmtType:  "",
 }
 
+var lastClipboardData atomic.Value
 func updateLastClipboardData(cbData rtkCommon.ClipBoardData) {
 	log.Println("updateLastClipboardData fmt = ", cbData.FmtType)
-	lastClipboardData = cbData
+	lastClipboardData.Store(cbData)
 }
 
 func GetLastClipboardData() rtkCommon.ClipBoardData {
-	return lastClipboardData
+    val := lastClipboardData.Load()
+    if val == nil {
+        lastClipboardData.Store(kDefClipboardData)
+        return kDefClipboardData
+    }
+    return val.(rtkCommon.ClipBoardData)
+}
+
+func ResetLastClipboardData() {
+	log.Println("ResetLastClipboardData")
+	lastClipboardData.Store(kDefClipboardData)
+	rtkPlatform.GoCleanClipboard()
 }
 
 func updateTextClipboardData(id string, text string) {
@@ -70,22 +83,23 @@ func WatchClipboardText(ctx context.Context, ipAddr string, resultChan chan<- rt
 		case text := <-contentText:
 			updateTextClipboardData(rtkGlobal.NodeInfo.ID, text)
 		case <-time.After(100 * time.Millisecond):
-			if GetLastClipboardData().SourceID == rtkGlobal.NodeInfo.ID {
+			lastData := GetLastClipboardData()
+			if lastData.SourceID == rtkGlobal.NodeInfo.ID {
 				var currentHash = ""
 				var currentTimeStamp = uint64(0)
-				if lastClipboardData.FmtType == rtkCommon.TEXT_CB {
-					currentHash = lastClipboardData.Hash
-					currentTimeStamp = lastClipboardData.TimeStamp
-	
-					if !rtkUtils.ContentEqual([]byte(lastHash), []byte(currentHash)) && lastTimeStamp != currentTimeStamp {	
-						if extData, ok := lastClipboardData.ExtData.(rtkCommon.ExtDataText); ok {
+				if lastData.FmtType == rtkCommon.TEXT_CB {
+					currentHash = lastData.Hash
+					currentTimeStamp = lastData.TimeStamp
+
+					if !rtkUtils.ContentEqual([]byte(lastHash), []byte(currentHash)) && lastTimeStamp != currentTimeStamp {
+						if extData, ok := lastData.ExtData.(rtkCommon.ExtDataText); ok {
 							if extData.Text == "" {
 								continue
 							}
 							log.Printf("[WatchClipboardText][%s] - got new message: %s", ipAddr, string(extData.Text))
 							lastHash = currentHash
 							lastTimeStamp = currentTimeStamp
-							resultChan <- lastClipboardData
+							resultChan <- lastData
 						} else {
 							log.Printf("[%s %d] Err: Invalid text extData", rtkUtils.GetFuncName(), rtkUtils.GetLine())
 						}
@@ -98,6 +112,7 @@ func WatchClipboardText(ctx context.Context, ipAddr string, resultChan chan<- rt
 
 func WatchClipboardImg(ctx context.Context, ipAddr string, resultChan chan<- rtkCommon.ClipBoardData) {
 	rtkPlatform.SetCopyImageCallback(func(filesize rtkCommon.FileSize, imageHeader rtkCommon.ImgHeader, data []byte) {
+		log.Printf("[%s %d] WatchClipboardImg and UpdateImage, ipAddr=%s", rtkUtils.GetFuncName(), rtkUtils.GetLine(), ipAddr)
 		updateImageClipboardData(rtkGlobal.NodeInfo.ID, filesize, imageHeader, data)
 	})
 	var lastHash string
@@ -108,14 +123,15 @@ func WatchClipboardImg(ctx context.Context, ipAddr string, resultChan chan<- rtk
 		case <-ctx.Done():
 			return
 		case <-time.After(100 * time.Millisecond):
-			if GetLastClipboardData().SourceID == rtkGlobal.NodeInfo.ID {
+			lastData := GetLastClipboardData()
+			if lastData.SourceID == rtkGlobal.NodeInfo.ID {
 				var currentHash = ""
 				var currentTimeStamp = uint64(0)
-				if lastClipboardData.FmtType == rtkCommon.IMAGE_CB {
-					currentHash = lastClipboardData.Hash
-					currentTimeStamp = lastClipboardData.TimeStamp
-					if !rtkUtils.ContentEqual([]byte(lastHash), []byte(currentHash)) && lastTimeStamp != currentTimeStamp {	
-						if extData, ok := lastClipboardData.ExtData.(rtkCommon.ExtDataImg); ok {
+				if lastData.FmtType == rtkCommon.IMAGE_CB {
+					currentHash = lastData.Hash
+					currentTimeStamp = lastData.TimeStamp
+					if !rtkUtils.ContentEqual([]byte(lastHash), []byte(currentHash)) && lastTimeStamp != currentTimeStamp {
+						if extData, ok := lastData.ExtData.(rtkCommon.ExtDataImg); ok {
 							log.Printf("[WatchClipboardImg][%s] - got new Image  Wight:%d Height:%d, content len:[%d] \n\n",
 							ipAddr,
 							extData.Header.Width,
@@ -123,7 +139,7 @@ func WatchClipboardImg(ctx context.Context, ipAddr string, resultChan chan<- rtk
 							len(extData.Data))
 							lastHash = currentHash
 							lastTimeStamp = currentTimeStamp
-							resultChan <- lastClipboardData
+							resultChan <- lastData
 						} else {
 							log.Printf("[%s %d] Err: Invalid text extData", rtkUtils.GetFuncName(), rtkUtils.GetLine())
 						}
@@ -135,11 +151,11 @@ func WatchClipboardImg(ctx context.Context, ipAddr string, resultChan chan<- rtk
 }
 
 // TODO: fix channel issues
-var isPasted = false
+var isPasted atomic.Bool
+var pasteEvent = make(chan struct{})
 func WatchClipboardPasteImg(ctx context.Context, ipAddr string, id string, resultChan chan<- bool) {
-	pasteEvent := make(chan struct{})
 	// FIXME: init settings
-	rtkPlatform.SetPasteImageCallback(func() { 
+	rtkPlatform.SetPasteImageCallback(func() {
 		pasteEvent <- struct{}{}
 	})
 	for {
@@ -147,13 +163,14 @@ func WatchClipboardPasteImg(ctx context.Context, ipAddr string, id string, resul
 		case <-ctx.Done():
 			return
 		case <-pasteEvent:
-			isPasted = true
+			isPasted.Store(true)
 		case <-time.After(100 * time.Millisecond):
-			if isPasted {
-				if GetLastClipboardData().SourceID == id {
-					if _, ok := lastClipboardData.ExtData.(rtkCommon.ExtDataImg); ok {
+			if isPasted.Load() {
+				lastData := GetLastClipboardData()
+				if lastData.SourceID == id {
+					if _, ok := lastData.ExtData.(rtkCommon.ExtDataImg); ok {
 						log.Printf("[WatchClipboardImgPaste][%s]", ipAddr)
-						isPasted = false
+						isPasted.Store(false)
 						resultChan <- true
 					} else {
 						log.Printf("[%s %d] Err: Invalid text extData", rtkUtils.GetFuncName(), rtkUtils.GetLine())
@@ -174,6 +191,8 @@ func SetupDstPasteImage(id string, desc string, content []byte, imgHeader rtkCom
 		SizeHigh: 0,
 		SizeLow:  dataSize,
 	}
+
+	log.Printf("[%s %d] SetupDstPasteImage and UpdateImage, id=%s", rtkUtils.GetFuncName(), rtkUtils.GetLine(), id)
 	updateImageClipboardData(id, filesize, imgHeader, content)
 	rtkPlatform.GoSetupDstPasteImage(desc, content, imgHeader, dataSize)
 }

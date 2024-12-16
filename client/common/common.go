@@ -23,9 +23,10 @@ type RegMessage struct {
 }
 
 type RegistMdnsMessage struct {
-	Host     string
-	Id       string
-	Platform string
+	Host       string
+	Id         string
+	Platform   string
+	DeviceName string
 }
 
 type RegResponseMessage struct {
@@ -39,4 +40,13 @@ const (
 	P2P_EVENT_SERVER_CONNECT_FAIL = 1
 	P2P_EVENT_CLIENT_CONNEDTED    = 2
 	P2P_EVENT_CLIENT_CONNECT_FAIL = 3
+)
+
+type TransferErr int
+
+const (
+	TRANS_OK TransferErr = iota + 1
+	TRANS_ERR_CREATE_FAILED
+	TRANS_ERR_UNKNOWN_CMD
+	TRANS_ERR_OTHER
 )

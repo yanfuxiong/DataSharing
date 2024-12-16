@@ -12,7 +12,8 @@ var NodeInfo = rtkCommon.NodeInfo{
 		PublicPort: "",
 		PublicIP:   "",
 	},
-	ID: "",
+	ID:         "",
+	DeviceName: "",
 }
 
 var (
@@ -21,7 +22,6 @@ var (
 	GuestList         []string
 	MdnsClientList    []rtkCommon.ClientInfo
 	MdnsListRWMutex   = sync.RWMutex{}
-	WaitConnPeerMap   = make(map[string]rtkCommon.WaitToConnectInfo)
 
 	RTT map[string]time.Duration = make(map[string]time.Duration)
 )

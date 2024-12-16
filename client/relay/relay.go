@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 
 	"github.com/libp2p/go-libp2p/core/host"
@@ -41,7 +40,7 @@ func regiterToServer(ctx context.Context, s network.Stream, node host.Host) {
 		return
 	}
 
-	//fmt.Println(regResonseMsg)
+	//log.Println(regResonseMsg)
 	rtkGlobal.GuestList = rtkUtils.RemoveMySelfID(regResonseMsg.GUEST_LIST, node.ID().String())
 	rtkGlobal.NodeInfo.IPAddr.PublicIP = regResonseMsg.GUEST_PUBLIC_TCP_IP
 	rtkGlobal.NodeInfo.IPAddr.PublicPort = regResonseMsg.GUEST_PUBLIC_TCP_PORT
@@ -86,8 +85,8 @@ func setupRelayServerConnection(ctx context.Context, node host.Host, relayServer
 		}
 		return
 	}
-	fmt.Println("Dump reservation")
-	fmt.Println(reservation)
+	log.Println("Dump reservation")
+	log.Println(reservation)
 
 	if rtkPlatform.CallbackInstance != nil {
 		rtkPlatform.CallbackInstance.EventCallback(rtkCommon.P2P_EVENT_SERVER_CONNEDTED)

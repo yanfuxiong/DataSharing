@@ -14,12 +14,20 @@ import (
 	"golang.design/x/clipboard"
 )
 
+const (
+	logFile = "p2p.log"
+)
+
+func GetLogFilePath() string {
+	return logFile
+}
+
 type Callback interface {
 	CallbackMethod(result string)
 	CallbackMethodImage(content []byte)
 	LogMessageCallback(msg string)
 	EventCallback(event int)
-	CallbackMethodFileConfirm(platform, fileName string, fileSize int64)
+	CallbackMethodFileConfirm(ip, platform, fileName string, fileSize int64)
 }
 
 var CallbackInstance Callback = nil
@@ -59,6 +67,15 @@ var CallbackInstanceFileDropResponseCB CallbackFileDropResponseFunc = nil
 
 func SetGoFileDropResponseCallback(cb CallbackFileDropResponseFunc) {
 	CallbackInstanceFileDropResponseCB = cb
+}
+
+// TODO: replace with GetClientList
+type CallbackPipeConnectedFunc func()
+
+var CallbackPipeConnectedCB CallbackPipeConnectedFunc = nil
+
+func SetGoPipeConnectedCallback(cb CallbackPipeConnectedFunc) {
+	CallbackPipeConnectedCB = cb
 }
 
 /*
@@ -104,7 +121,7 @@ func GoSetupDstPasteFile(desc, fileName, platform string, fileSizeHigh uint32, f
 
 }
 
-func GoSetupFileDrop(desc, fileName, platform string, fileSizeHigh uint32, fileSizeLow uint32) {
+func GoSetupFileDrop(ip, id, fileName, platform string, fileSize uint64, timestamp int64) {
 
 }
 
@@ -116,7 +133,7 @@ func GoDataTransfer(data []byte) {
 
 }
 
-func GoUpdateProgressBar(ipAddr, filename string, size int, recvSize, totalSize int64) {
+func GoUpdateProgressBar(ip, id string, fileSize, sentSize uint64, timestamp uint64, fileName string) {
 
 }
 
@@ -128,7 +145,11 @@ func GoUpdateClientStatus(status uint32, ip string, id string, name string) {
 
 }
 
-func GoEventHandle(eventType rtkCommon.EventType) {
+func GoEventHandle(eventType rtkCommon.EventType, ipAddr, fileName string) {
+
+}
+
+func GoCleanClipboard() {
 
 }
 
@@ -140,8 +161,12 @@ func ReceiveFileConfirm(fileSize int64) {
 
 }
 
-func ReceiveCopyDataDone(fileType rtkCommon.TransFmtType, fileSize int64) {
-	log.Println("ReceiveFileDone FmtType:", fileType, " size: ", fileSize)
+func ReceiveImageCopyDataDone(fileSize int64, imgHeader rtkCommon.ImgHeader) {
+	log.Println("ReceiveImageCopyDataDone size:", fileSize, " imgHeader: ", imgHeader)
+}
+
+func ReceiveFileDropCopyDataDone(fileSize int64, dstFilePath string) {
+	log.Println("ReceiveFileDropCopyDataDone size:", fileSize, " dstFilePath: ", dstFilePath)
 }
 
 func FoundPeer() {
@@ -189,4 +214,16 @@ func GetPlatform() string {
 
 func GetMdnsPortConfigPath() string {
 	return ".MdnsPort"
+}
+
+func GetDeviceTablePath() string {
+	return ".DeviceTable"
+}
+
+func LockFile(file *os.File) error {
+	return nil
+}
+
+func UnlockFile(file *os.File) error {
+	return nil
 }

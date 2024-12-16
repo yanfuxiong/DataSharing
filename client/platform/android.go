@@ -6,6 +6,7 @@ import (
 	"context"
 	"log"
 	"os"
+	"path/filepath"
 	rtkCommon "rtk-cross-share/common"
 	rtkGlobal "rtk-cross-share/global"
 	rtkUtils "rtk-cross-share/utils"
@@ -19,7 +20,14 @@ const (
 	hostID      = "/storage/emulated/0/Android/data/com.rtk.myapplication/files/ID.HostID"
 	nodeID      = "/storage/emulated/0/Android/data/com.rtk.myapplication/files/ID.ID"
 	receiveFile = "/storage/emulated/0/Android/data/com.rtk.myapplication/files/"
+	// deviceTable = "/storage/emulated/0/CrossShare/ID.DeviceTable"
+	deviceTable = "/storage/emulated/0/Android/data/com.rtk.myapplication/files/ID.DeviceTable"
+	logFile     = "/storage/emulated/0/Android/data/com.rtk.myapplication/files/p2p.log"
 )
+
+func GetLogFilePath() string {
+	return logFile
+}
 
 var ImageData []byte
 var curInputText string
@@ -74,6 +82,15 @@ var CallbackInstanceFileDropResponseCB CallbackFileDropResponseFunc = nil
 
 func SetGoFileDropResponseCallback(cb CallbackFileDropResponseFunc) {
 	CallbackInstanceFileDropResponseCB = cb
+}
+
+// TODO: replace with GetClientList
+type CallbackPipeConnectedFunc func()
+
+var CallbackPipeConnectedCB CallbackPipeConnectedFunc = nil
+
+func SetGoPipeConnectedCallback(cb CallbackPipeConnectedFunc) {
+	CallbackPipeConnectedCB = cb
 }
 
 // Android only
@@ -133,14 +150,13 @@ func GoSetupDstPasteFile(desc, fileName, platform string, fileSizeHigh uint32, f
 	CallbackInstance.CallbackMethodFileConfirm("", platform, fileName, fileSize)
 }
 
-func GoSetupFileDrop(ipAddr string, desc, fileName, platform string, fileSizeHigh uint32, fileSizeLow uint32) {
-	fileSize := int64(fileSizeHigh)<<32 | int64(fileSizeLow)
-	log.Printf("(DST) GoSetupFileDrop  source:%s ip:[%s]fileName:%s  fileSize:%d", desc, ipAddr, fileName, fileSize)
-	CallbackInstance.CallbackMethodFileConfirm(ipAddr, platform, fileName, fileSize)
+func GoSetupFileDrop(ip, id, fileName, platform string, fileSize uint64, timestamp int64) {
+	log.Printf("(DST) GoSetupFileDrop  source:%s ip:[%s]fileName:%s  fileSize:%d", id, ip, fileName, fileSize)
+	CallbackInstance.CallbackMethodFileConfirm(ip, platform, fileName, int64(fileSize))
 }
 
-func ReceiveImageCopyDataDone(ImageSize int64, imgHeader rtkCommon.ImgHeader) {
-	log.Printf("[%s %d]: size:%d, (width, height):(%d,%d)", rtkUtils.GetFuncName(), rtkUtils.GetLine(), ImageSize, imgHeader.Width, imgHeader.Height)
+func ReceiveImageCopyDataDone(fileSize int64, imgHeader rtkCommon.ImgHeader) {
+	log.Printf("[%s %d]: size:%d, (width, height):(%d,%d)", rtkUtils.GetFuncName(), rtkUtils.GetLine(), fileSize, imgHeader.Width, imgHeader.Height)
 	if CallbackInstance == nil {
 		log.Println(" CallbackInstance is null !")
 		return
@@ -180,9 +196,10 @@ func GoDataTransfer(data []byte) {
 	ImageData = append(ImageData, data...)
 }
 
-func GoUpdateProgressBar(ipAddr, filename string, size int, recvSize, totalSize int64) {
-	//log.Printf("GoUpdateProgressBar ip:[%s] name:[%s] recvSize:[%d] total:[%d]", ipAddr, filename, recvSize, totalSize)
-	CallbackInstance.CallbackUpdateProgressBar(ipAddr, filename, recvSize, totalSize)
+func GoUpdateProgressBar(ip, id string, fileSize, sentSize uint64, timestamp int64, filePath string) {
+	fileName := filepath.Base(filePath)
+	log.Printf("GoUpdateProgressBar ip:[%s] name:[%s] recvSize:[%d] total:[%d]", ip, fileName, sentSize, fileSize)
+	CallbackInstance.CallbackUpdateProgressBar(ip, fileName, int64(sentSize), int64(fileSize))
 }
 
 func GoDeinitProgressBar() {
@@ -206,6 +223,9 @@ func GoEventHandle(eventType rtkCommon.EventType, ipAddr, fileName string) {
 		CallbackInstance.CallbackFileError(ipAddr, fileName, strErr)
 	}
 	log.Printf("[%s %d]: ipAddr:%s, name:%s, error:%d", rtkUtils.GetFuncName(), rtkUtils.GetLine(), ipAddr, fileName, eventType)
+}
+
+func GoCleanClipboard() {
 }
 
 func GoSetupDstPasteText(content []byte) {
@@ -262,4 +282,16 @@ func GetReceiveFilePath() string {
 
 func GetMdnsPortConfigPath() string {
 	return ""
+}
+
+func GetDeviceTablePath() string {
+	return deviceTable
+}
+
+func LockFile(file *os.File) error {
+	return nil
+}
+
+func UnlockFile(file *os.File) error {
+	return nil
 }

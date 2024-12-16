@@ -2,9 +2,9 @@ package cmd
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"log"
+	"os"
 	rtkBuildConfig "rtk-cross-share/buildConfig"
 	rtkDebug "rtk-cross-share/debug"
 	rtkGlobal "rtk-cross-share/global"
@@ -31,12 +31,12 @@ func SetupSettings() {
 	}
 
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
-	flag.Parse()
+	rtkMdns.MdnsCfg = rtkMdns.ParseFlags()
 }
 
 func SetupLogFileSetting() {
 	log.SetOutput(&lumberjack.Logger{
-		Filename:   "p2p.log",
+		Filename:   rtkPlatform.GetLogFilePath(),
 		MaxSize:    256,
 		MaxBackups: 3,
 		MaxAge:     30,
@@ -63,6 +63,7 @@ func listen_addrs(port int) []string {
 
 func SetupNode() host.Host {
 	priv := rtkPlatform.GenKey()
+	rtkUtils.InitDeviceTable(rtkPlatform.GetDeviceTablePath())
 
 	if rtkMdns.MdnsCfg.ListenPort <= 0 {
 		log.Println("(MDNS) listen port is not set. Use a random port")
@@ -109,12 +110,37 @@ func SetupNode() host.Host {
 
 	rtkGlobal.NodeInfo.IPAddr.LocalPort = rtkUtils.GetLocalPort(node.Addrs())
 	rtkGlobal.NodeInfo.ID = node.ID().String()
+	rtkGlobal.NodeInfo.DeviceName = rtkUtils.ConcatIP(rtkUtils.ExtractTCPIPandPort(node.Addrs()[0]))
 
 	return node
 }
 
 func Run() {
-	rtkMdns.MdnsCfg = rtkMdns.ParseFlags()
+	lockFilePath := "singleton.lock"
+	file, err := os.OpenFile(lockFilePath, os.O_CREATE|os.O_RDWR, 0666)
+	if err != nil {
+		fmt.Println("Failed to open or create lock file:", err)
+		return
+	}
+	defer file.Close()
+
+	err = rtkPlatform.LockFile(file)
+	if err != nil {
+		fmt.Println("Another instance is already running.")
+		return
+	}
+	defer rtkPlatform.UnlockFile(file)
+
+	// TODO: Replace with GetClientList
+	rtkPlatform.SetGoPipeConnectedCallback(func() {
+		for _, info := range rtkGlobal.MdnsClientList {
+			deviceName := rtkUtils.QueryDeviceName(info.ID)
+			if deviceName == "" {
+				deviceName = info.IpAddr
+			}
+			rtkPlatform.GoUpdateClientStatus(1, info.IpAddr, info.ID, deviceName)
+		}
+	})
 	SetupSettings()
 	if rtkMdns.MdnsCfg.LogSwitch == 0 {
 		SetupLogFileSetting()
@@ -154,7 +180,7 @@ func MainInit(cb rtkPlatform.Callback, serverId, serverIpInfo, listenHost string
 
 	rtkPlatform.CallbackInstance = cb
 
-	rtkMdns.MdnsCfg = &rtkMdns.Config{}
+	SetupSettings()
 	if len(serverId) > 0 && len(serverIpInfo) > 0 && listenHost != "" && listentPort > 0 {
 		rtkGlobal.RelayServerID = serverId
 		rtkGlobal.RelayServerIPInfo = serverIpInfo
@@ -166,14 +192,13 @@ func MainInit(cb rtkPlatform.Callback, serverId, serverIpInfo, listenHost string
 		sourceAddrStr = fmt.Sprintf("/ip4/%s/tcp/%d", rtkMdns.MdnsCfg.ListenHost, rtkMdns.MdnsCfg.ListenPort)
 	}
 
-	SetupSettings()
 	//SetupLogFileSetting()
 
 	ctx := context.Background()
 	node := SetupNode()
 
-	fmt.Println("Self ID: ", node.ID())
-	fmt.Printf("========================\n\n")
+	log.Println("Self ID: ", node.ID())
+	log.Printf("========================\n\n")
 
 	rtkRelay.BuildListener(ctx, node)
 

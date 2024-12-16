@@ -4,9 +4,10 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	rtkGlobal "rtk-cross-share/global"
-	rtkUtils "rtk-cross-share/utils"
+	rtkPlatform "rtk-cross-share/platform"
+	"strconv"
 	"strings"
+	"time"
 )
 
 type TestCase struct {
@@ -28,12 +29,47 @@ func DebugCmdLine() {
 	for scanner.Scan() {
 		line := scanner.Text()
 		fmt.Println("You entered:", line)
-		if strings.Contains(line, "GetClientList") {
-			fmt.Println("ClientList:", rtkUtils.GetClientList())
-		} else if strings.Contains(line, "WaitConnPeer") {
-			fmt.Println("WaitConnPeerMap size:", len(rtkGlobal.WaitConnPeerMap))
-			for k, _ := range rtkGlobal.WaitConnPeerMap {
-				fmt.Printf("Id: %s", k)
+		if strings.Contains(line, "PIPE_UPDATE_CLIENT") {
+			var status uint32 = 1
+			ip := "192.168.30.1:12345"
+			id := "QmQ7obXFx1XMFr6hCYXtovn9zREFqSXEtH5hdtpBDLjrAz"
+			name := "jack_huang123"
+			rtkPlatform.GoUpdateClientStatus(status, ip, id, name)
+		} else if strings.Contains(line, "PIPE_SETUP_FILE_DROP") {
+			ip := "192.168.30.1:12345"
+			id := "QmQ7obXFx1XMFr6hCYXtovn9zREFqSXEtH5hdtpBDLjrAz"
+			// fileName := "D:\\jack_huang\\Downloads\\ÐÂÔöÙYÁÏŠA\\œyÔ‡.mp4"
+			fileName := "D:\\jack_huang\\Downloads\\newFolder\\test.mp4"
+			var fileSize uint64 = 60727169
+			var timestamp int64 = 1697049243123
+			rtkPlatform.GoSetupFileDrop(ip, id, fileName, rtkPlatform.GetPlatform(), fileSize, timestamp)
+		} else if strings.Contains(line, "UPDATE_PROGRESS") {
+			ip := "192.168.30.1:12345"
+			id := "QmQ7obXFx1XMFr6hCYXtovn9zREFqSXEtH5hdtpBDLjrAz"
+
+			// fileName := "D:\\jack_huang\\Downloads\\newFolder\\test.mp4test.mp4"
+			fileName := "D:\\jack_huang\\Downloads\\newFolder\\test.mp4"
+			var fileSize uint64 = 60727169
+			var timestamp int64 = int64(time.Now().UnixMilli())
+			var sentSize uint64 = 0
+			for scanner.Scan() {
+				line2 := scanner.Text()
+				fmt.Println("SliceSize:", line2)
+
+				sliceSize, err := strconv.ParseUint(line2, 10, 64)
+				if err == nil {
+					if sliceSize == 0 {
+						break
+					}
+
+					if (sentSize + sliceSize) >= fileSize {
+						sliceSize = fileSize - sentSize
+						sentSize = fileSize
+					} else {
+						sentSize += sliceSize
+					}
+					rtkPlatform.GoUpdateProgressBar(ip, id, fileSize, sentSize, timestamp, fileName)
+				}
 			}
 		}
 	}

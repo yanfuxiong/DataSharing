@@ -19,20 +19,21 @@ func MdnsHandleStream(stream network.Stream) {
 	connP2P := rtkUtils.NewConnFromStream(stream)
 	ipAddr := rtkUtils.GetRemoteAddrFromStream(stream)
 
-	if stream.Conn().RemotePeer().String() > rtkGlobal.NodeInfo.ID {
-		rtkUtils.ClearCachePeerInfo(stream.Conn().RemotePeer().String())
-	}
-
-	handleRegister(stream)
+	var peerDeviceName string
+	handleRegister(stream, &peerDeviceName)
 
 	ip, port := rtkUtils.ExtractTCPIPandPort(stream.Conn().LocalMultiaddr())
 	rtkGlobal.NodeInfo.IPAddr.PublicIP = ip
 	rtkGlobal.NodeInfo.IPAddr.PublicPort = port
-	fmt.Printf("public ip [%s] port[%s]\n", ip, port)
-	fmt.Println("************************************************")
+	log.Printf("public ip [%s] port[%s]\n", ip, port)
+	log.Println("************************************************")
 	log.Println("H Connected to ID:", stream.Conn().RemotePeer().String(), " IP:", ipAddr)
-	fmt.Println("************************************************")
-	rtkPlatform.GoUpdateClientStatus(1, ipAddr, stream.Conn().RemotePeer().String(), ipAddr)
+	log.Println("************************************************")
+	deviceName := rtkUtils.QueryDeviceName(stream.Conn().RemotePeer().String())
+	if deviceName == "" {
+		deviceName = peerDeviceName
+	}
+	rtkPlatform.GoUpdateClientStatus(1, ipAddr, stream.Conn().RemotePeer().String(), deviceName)
 
 	connCtx, cancel := context.WithCancel(context.Background())
 	rtkUtils.GoSafe(func() { rtkPeer2Peer.ProcessEventsForPeer(connP2P, ipAddr, connCtx, cancel) })
@@ -40,11 +41,12 @@ func MdnsHandleStream(stream network.Stream) {
 		<-connCtx.Done()
 		rtkUtils.LostMdnsClientList(stream.Conn().RemotePeer().String())
 		rtkPlatform.FoundPeer()
-		fmt.Println("************************************************")
+		log.Println("************************************************")
 		log.Println("Lost connection with ID:", stream.Conn().RemotePeer().String(), " IP:", ipAddr)
-		fmt.Println("************************************************")
-		rtkPlatform.GoUpdateClientStatus(0, ipAddr, stream.Conn().RemotePeer().String(), ipAddr)
-		stream.Close()
+		log.Println("************************************************")
+
+		rtkPlatform.GoUpdateClientStatus(0, ipAddr, stream.Conn().RemotePeer().String(), deviceName)
+		CloseStream(stream.Conn().RemotePeer().String())
 	})
 
 }
@@ -53,19 +55,21 @@ func ExecuteDirectConnect(ctx context.Context, stream network.Stream) {
 	connP2P := rtkUtils.NewConnFromStream(stream)
 	ipAddr := rtkUtils.GetRemoteAddrFromStream(stream)
 
-	if registerToPeer(stream) != nil {
-		rtkUtils.InsertMdnsClientList(stream.Conn().RemotePeer().String(), ipAddr, "unknownPlatform")
-		rtkPlatform.FoundPeer()
-	}
+	var peerDeviceName string
+	registerToPeer(stream, &peerDeviceName)
 
 	ip, port := rtkUtils.ExtractTCPIPandPort(stream.Conn().LocalMultiaddr())
 	rtkGlobal.NodeInfo.IPAddr.PublicIP = ip
 	rtkGlobal.NodeInfo.IPAddr.PublicPort = port
-	fmt.Printf("public ip [%s] port[%s]\n", ip, port)
-	fmt.Println("************************************************")
+	log.Printf("public ip [%s] port[%s]\n", ip, port)
+	log.Println("************************************************")
 	log.Println("E Connected to ID:", stream.Conn().RemotePeer().String(), " IP:", ipAddr)
-	fmt.Println("************************************************")
-	rtkPlatform.GoUpdateClientStatus(1, ipAddr, stream.Conn().RemotePeer().String(), ipAddr)
+	log.Println("************************************************")
+	deviceName := rtkUtils.QueryDeviceName(stream.Conn().RemotePeer().String())
+	if deviceName == "" {
+		deviceName = peerDeviceName
+	}
+	rtkPlatform.GoUpdateClientStatus(1, ipAddr, stream.Conn().RemotePeer().String(), deviceName)
 
 	connCtx, cancel := context.WithCancel(context.Background())
 	rtkUtils.GoSafe(func() { rtkPeer2Peer.ProcessEventsForPeer(connP2P, ipAddr, connCtx, cancel) })
@@ -73,22 +77,24 @@ func ExecuteDirectConnect(ctx context.Context, stream network.Stream) {
 		<-connCtx.Done()
 		rtkUtils.LostMdnsClientList(stream.Conn().RemotePeer().String())
 		rtkPlatform.FoundPeer()
-		fmt.Println("************************************************")
+		log.Println("************************************************")
 		log.Println("Lost connection with ID:", stream.Conn().RemotePeer().String(), " IP:", ipAddr)
-		fmt.Println("************************************************")
-		rtkPlatform.GoUpdateClientStatus(0, ipAddr, stream.Conn().RemotePeer().String(), ipAddr)
-		stream.Close()
+		log.Println("************************************************")
+
+		rtkPlatform.GoUpdateClientStatus(0, ipAddr, stream.Conn().RemotePeer().String(), deviceName)
+		CloseStream(stream.Conn().RemotePeer().String())
 	})
 }
 
-func registerToPeer(s network.Stream) error {
+func registerToPeer(s network.Stream, name *string) error {
 	rw := bufio.NewReadWriter(bufio.NewReader(s), bufio.NewWriter(s))
 	ipAddr := rtkUtils.GetRemoteAddrFromStream(s)
 
 	registMsg := rtkCommon.RegistMdnsMessage{
-		Host:     rtkPlatform.GetHostID(),
-		Id:       rtkGlobal.NodeInfo.ID,
-		Platform: rtkPlatform.GetPlatform(),
+		Host:       rtkPlatform.GetHostID(),
+		Id:         rtkGlobal.NodeInfo.ID,
+		Platform:   rtkPlatform.GetPlatform(),
+		DeviceName: rtkGlobal.NodeInfo.DeviceName,
 	}
 	if err := json.NewEncoder(rw).Encode(registMsg); err != nil {
 		log.Println("failed to send register message: %w", err)
@@ -104,13 +110,14 @@ func registerToPeer(s network.Stream) error {
 		return err
 	}
 
-	rtkUtils.InsertMdnsClientList(regResonseMsg.Id, ipAddr, regResonseMsg.Platform)
+	*name = regResonseMsg.DeviceName
+	rtkUtils.InsertMdnsClientList(regResonseMsg.Id, ipAddr, regResonseMsg.Platform, regResonseMsg.DeviceName)
 	rtkPlatform.FoundPeer()
 	log.Println("registerToPeer success!")
 	return nil
 }
 
-func handleRegister(s network.Stream) error {
+func handleRegister(s network.Stream, name *string) error {
 	rw := bufio.NewReadWriter(bufio.NewReader(s), bufio.NewWriter(s))
 	ipAddr := rtkUtils.GetRemoteAddrFromStream(s)
 
@@ -125,13 +132,15 @@ func handleRegister(s network.Stream) error {
 		}
 		return err
 	}
-	rtkUtils.InsertMdnsClientList(regMsg.Id, ipAddr, regMsg.Platform)
+	rtkUtils.InsertMdnsClientList(regMsg.Id, ipAddr, regMsg.Platform, regMsg.DeviceName)
 	rtkPlatform.FoundPeer()
+	*name = regMsg.DeviceName
 
 	registMsg := rtkCommon.RegistMdnsMessage{
-		Host:     rtkPlatform.GetHostID(),
-		Id:       rtkGlobal.NodeInfo.ID,
-		Platform: rtkPlatform.GetPlatform(),
+		Host:       rtkPlatform.GetHostID(),
+		Id:         rtkGlobal.NodeInfo.ID,
+		Platform:   rtkPlatform.GetPlatform(),
+		DeviceName: rtkGlobal.NodeInfo.DeviceName,
 	}
 
 	if err := json.NewEncoder(rw).Encode(&registMsg); err != nil {

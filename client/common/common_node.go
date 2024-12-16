@@ -1,9 +1,5 @@
 package common
 
-import (
-	"github.com/libp2p/go-libp2p/core/peer"
-)
-
 type IPAddrInfo struct {
 	LocalPort  string
 	PublicPort string
@@ -11,17 +7,14 @@ type IPAddrInfo struct {
 }
 
 type NodeInfo struct {
-	IPAddr IPAddrInfo
-	ID     string
+	IPAddr     IPAddrInfo
+	ID         string
+	DeviceName string
 }
 
 type ClientInfo struct {
-	ID       string
-	IpAddr   string
-	Platform string
-}
-
-type WaitToConnectInfo struct {
-	PeerInfo    peer.AddrInfo
-	ChExitTimer chan struct{}
+	ID         string
+	IpAddr     string
+	Platform   string
+	DeviceName string
 }

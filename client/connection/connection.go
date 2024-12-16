@@ -45,9 +45,9 @@ func performSimultaneousOpen(conn network.Conn, localPort string, peerAddr strin
 		return nil
 	}
 
-	fmt.Println("************************************************")
+	log.Println("************************************************")
 	log.Println("Connected to ID:", peerID, " IP:", peerAddr)
-	fmt.Println("************************************************")
+	log.Println("************************************************")
 
 	if rtkPlatform.CallbackInstance != nil {
 		rtkPlatform.CallbackInstance.EventCallback(rtkCommon.P2P_EVENT_CLIENT_CONNEDTED)
@@ -58,9 +58,9 @@ func performSimultaneousOpen(conn network.Conn, localPort string, peerAddr strin
 	if ok {
 		tcpConn.SetKeepAlive(true)
 		tcpConn.SetKeepAlivePeriod(30 * time.Second)
-		//fmt.Println("KeepAlive is enabled, period: 30s")
+		//log.Println("KeepAlive is enabled, period: 30s")
 	} else {
-		fmt.Println("not tcp connection, skip setting KeepAlive")
+		log.Println("not tcp connection, skip setting KeepAlive")
 	}
 	return connP2P
 }
@@ -131,12 +131,12 @@ func ExecuteP2PConnect(ctx context.Context, stream network.Stream, node host.Hos
 		ipAddr := connP2P.RemoteAddr().String()
 
 		connCtx, cancel := context.WithCancel(context.Background())
-		rtkUtils.GoSafe(func() { rtkPeer2Peer.ProcessEventsForPeer(connP2P, ipAddr, connCtx, cancel) })
+		rtkUtils.GoSafe(func() {rtkPeer2Peer.ProcessEventsForPeer(connP2P, ipAddr, connCtx, cancel)})
 		rtkUtils.GoSafe(func() {
 			<-connCtx.Done()
-			fmt.Println("************************************************")
+			log.Println("************************************************")
 			log.Println("Lost connection with ID:", stream.Conn().RemotePeer(), " IP:", ipAddr)
-			fmt.Println("************************************************")
+			log.Println("************************************************")
 		})
 	}
 }
@@ -190,12 +190,12 @@ func HandleStream(s network.Stream) {
 		ipAddr := connP2P.RemoteAddr().String()
 
 		connCtx, cancel := context.WithCancel(context.Background())
-		rtkUtils.GoSafe(func() { rtkPeer2Peer.ProcessEventsForPeer(connP2P, ipAddr, connCtx, cancel) })
+		rtkUtils.GoSafe(func() {rtkPeer2Peer.ProcessEventsForPeer(connP2P, ipAddr, connCtx, cancel)})
 		rtkUtils.GoSafe(func() {
 			<-connCtx.Done()
-			fmt.Println("************************************************")
+			log.Println("************************************************")
 			log.Println("Lost connection with ID:", s.Conn().RemotePeer(), " IP:", ipAddr)
-			fmt.Println("************************************************")
+			log.Println("************************************************")
 		})
 	})
 }
