@@ -19,12 +19,13 @@ type Callback interface {
 
 // TODO: consider to replace int with long long type
 func MainInit(cb Callback, serverId, serverIpInfo, listentHost string, listentPort int) {
-	rtkCmd.MainInit(cb, serverId, serverIpInfo, listentHost, listentPort)
+	rtkPlatform.SetCallback(cb)
+	rtkCmd.MainInit(serverId, serverIpInfo, listentHost, listentPort)
 }
 
-func SetMainCallback(cb Callback) {
+/*func SetMainCallback(cb Callback) {
 	rtkPlatform.SetCallback(cb)
-}
+}*/
 
 func SendMessage(s string) {
 	rtkPlatform.SendMessage(s)

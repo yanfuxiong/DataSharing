@@ -26,8 +26,6 @@ func GoSafe(fn func()) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				log.Printf("Recovered from panic: %v\n", r)
-				log.Printf("Stack trace:\n%s", debug.Stack())
 				log.SetOutput(&lumberjack.Logger{
 					Filename:   "crash.log",
 					MaxSize:    256,
@@ -35,6 +33,9 @@ func GoSafe(fn func()) {
 					MaxAge:     30,
 					Compress:   true,
 				})
+
+				log.Printf("Recovered from panic: %v\n", r)
+				log.Printf("Stack trace:\n%s", debug.Stack())
 
 				os.Exit(1)
 			}
@@ -327,7 +328,12 @@ func GetClientList() string {
 	return strings.Trim(clientList, ",")
 }
 
+func GetClientCount() int {
+	rtkGlobal.MdnsListRWMutex.RLock()
+	defer rtkGlobal.MdnsListRWMutex.RUnlock()
 
+	return len(rtkGlobal.MdnsClientList)
+}
 
 func Base64Decode(src string) []byte {
 	bytes, err := base64.StdEncoding.DecodeString(src)

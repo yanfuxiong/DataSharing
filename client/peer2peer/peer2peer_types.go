@@ -40,6 +40,7 @@ type DispatchCmd struct {
 }
 
 type EventResult struct {
-	Cmd  DispatchCmd
-	Data interface{}
+	SourcePlatform string
+	Cmd            DispatchCmd
+	Data           interface{}
 }

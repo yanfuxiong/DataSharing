@@ -21,20 +21,20 @@ type FileDropData struct {
 }
 
 var (
-	fileDropDataMap             = make(map[string]FileDropData) // key: IP
+	fileDropDataMap             = make(map[string]FileDropData) // key: IPAddr
 	fileDropDataMutex           sync.RWMutex
-	isFileDropReqDataFromLocal  = make(map[string]bool) // key: IP
-	isFileDropRespDataFromLocal = make(map[string]bool) // key: IP
+	isFileDropReqDataFromLocal  sync.Map // key: IPAddr
+	isFileDropRespDataFromLocal sync.Map // key: IPAddr
 )
 
 func UpdateFileDropReqDataFromLocal(ip string, fileInfo rtkCommon.FileInfo, timestamp int64) {
 	updateFileDropReqData(ip, fileInfo, timestamp)
-	isFileDropReqDataFromLocal[ip] = true
+	isFileDropReqDataFromLocal.Store(ip, true)
 }
 
 func UpdateFileDropReqDataFromDst(ip string, fileInfo rtkCommon.FileInfo, timestamp int64) {
 	updateFileDropReqData(ip, fileInfo, timestamp)
-	isFileDropReqDataFromLocal[ip] = false
+	isFileDropReqDataFromLocal.Store(ip, false)
 }
 
 func updateFileDropReqData(ip string, fileInfo rtkCommon.FileInfo, timestamp int64) {
@@ -50,12 +50,12 @@ func updateFileDropReqData(ip string, fileInfo rtkCommon.FileInfo, timestamp int
 
 func UpdateFileDropRespDataFromLocal(ip string, cmd rtkCommon.FileDropCmd, filePath string) {
 	updateFileDropRespData(ip, cmd, filePath)
-	isFileDropRespDataFromLocal[ip] = true
+	isFileDropRespDataFromLocal.Store(ip, true)
 }
 
 func UpdateFileDropRespDataFromDst(ip string, cmd rtkCommon.FileDropCmd, filePath string) {
 	updateFileDropRespData(ip, cmd, filePath)
-	isFileDropRespDataFromLocal[ip] = false
+	isFileDropRespDataFromLocal.Store(ip, false)
 }
 
 func updateFileDropRespData(ip string, cmd rtkCommon.FileDropCmd, filePath string) {
@@ -85,17 +85,21 @@ func ResetFileDropData(ip string) {
 	fileDropDataMutex.Unlock()
 }
 
-func WatchFileDropReqEvent(ctx context.Context, ipAddr string, resultChan chan<- string) {
+func InitFileDrop() {
 	rtkPlatform.SetGoFileDropRequestCallback(UpdateFileDropReqDataFromLocal)
+	rtkPlatform.SetGoFileDropResponseCallback(UpdateFileDropRespDataFromLocal)
+}
+
+func WatchFileDropReqEvent(ctx context.Context, ipAddr string, resultChan chan<- string) {
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-time.After(100 * time.Millisecond):
-			if isLocal, ok := isFileDropReqDataFromLocal[ipAddr]; ok {
-				if isLocal {
+			if isLocal, ok := isFileDropReqDataFromLocal.Load(ipAddr); ok {
+				if isLocal.(bool) {
 					resultChan <- ipAddr
-					isFileDropReqDataFromLocal[ipAddr] = false
+					isFileDropReqDataFromLocal.Store(ipAddr, false)
 				}
 			}
 		}
@@ -103,16 +107,15 @@ func WatchFileDropReqEvent(ctx context.Context, ipAddr string, resultChan chan<-
 }
 
 func WatchFileDropRespEvent(ctx context.Context, ipAddr string, resultChan chan<- string) {
-	rtkPlatform.SetGoFileDropResponseCallback(UpdateFileDropRespDataFromLocal)
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-time.After(100 * time.Millisecond):
-			if isLocal, ok := isFileDropRespDataFromLocal[ipAddr]; ok {
-				if isLocal {
+			if isLocal, ok := isFileDropRespDataFromLocal.Load(ipAddr); ok {
+				if isLocal.(bool) {
 					resultChan <- ipAddr
-					isFileDropRespDataFromLocal[ipAddr] = false
+					isFileDropRespDataFromLocal.Store(ipAddr, false)
 				}
 			}
 		}

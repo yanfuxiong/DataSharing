@@ -6,7 +6,9 @@ import (
 	"log"
 	"os"
 	rtkBuildConfig "rtk-cross-share/buildConfig"
+	rtkClipboard "rtk-cross-share/clipboard"
 	rtkDebug "rtk-cross-share/debug"
+	rtkFileDrop "rtk-cross-share/filedrop"
 	rtkGlobal "rtk-cross-share/global"
 	rtkMdns "rtk-cross-share/mdns"
 	rtkPlatform "rtk-cross-share/platform"
@@ -24,6 +26,8 @@ import (
 
 func SetupSettings() {
 	rtkPlatform.SetupCallbackSettings()
+	rtkClipboard.InitClipboard()
+	rtkFileDrop.InitFileDrop()
 
 	err := clipboard.Init()
 	if err != nil {
@@ -96,6 +100,8 @@ func SetupNode() host.Host {
 
 	log.Println("Self ID: ", node.ID().String())
 	log.Println("Self node Addr: ", node.Addrs())
+	log.Println("Self listen Addr: ", node.Network().ListenAddresses())
+	log.Println("Self LocalPort:", rtkUtils.GetLocalPort(node.Addrs()))
 	log.Println("========================\n\n")
 
 	for _, p := range node.Peerstore().Peers() {
@@ -172,13 +178,11 @@ func Run() {
 	select {}
 }
 
-func MainInit(cb rtkPlatform.Callback, serverId, serverIpInfo, listenHost string, listentPort int) {
+func MainInit(serverId, serverIpInfo, listenHost string, listentPort int) {
 	log.Println("========================")
 	log.Println("Version: ", rtkBuildConfig.Version)
 	log.Println("Build Date: ", rtkBuildConfig.BuildDate)
 	log.Printf("========================\n\n")
-
-	rtkPlatform.CallbackInstance = cb
 
 	SetupSettings()
 	if len(serverId) > 0 && len(serverIpInfo) > 0 && listenHost != "" && listentPort > 0 {

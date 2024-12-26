@@ -19,13 +19,13 @@ import (
 	"time"
 )
 
-func HandleClipboardEvent(ctxMain context.Context, readSocketMode *atomic.Value, resultChan chan<- EventResult, s net.Conn, ipAddr string) {
+func HandleClipboardEvent(ctxMain context.Context, readSocketMode *atomic.Value, resultChan chan<- EventResult, Id, ipAddr string) {
 	resultChanText := make(chan rtkCommon.ClipBoardData)
 	resultChanImg := make(chan rtkCommon.ClipBoardData)
 	resultChanPasteImg := make(chan bool)
-	rtkUtils.GoSafe(func() {rtkClipboard.WatchClipboardText(ctxMain, ipAddr, resultChanText)})
-	rtkUtils.GoSafe(func() {rtkClipboard.WatchClipboardImg(ctxMain, ipAddr, resultChanImg)})
-	rtkUtils.GoSafe(func() {rtkClipboard.WatchClipboardPasteImg(ctxMain, ipAddr, s.RemoteAddr().String(), resultChanPasteImg)})
+	rtkUtils.GoSafe(func() { rtkClipboard.WatchClipboardText(ctxMain, ipAddr, resultChanText) })
+	rtkUtils.GoSafe(func() { rtkClipboard.WatchClipboardImg(ctxMain, ipAddr, resultChanImg) })
+	rtkUtils.GoSafe(func() { rtkClipboard.WatchClipboardPasteImg(ctxMain, ipAddr, Id, resultChanPasteImg) })
 	for {
 		select {
 		case <-ctxMain.Done():
@@ -305,7 +305,7 @@ func HandleReadFromSocket(ctxMain context.Context, readSocketMode *atomic.Value,
 	for {
 		select {
 		case <-ctxMain.Done():
-			log.Printf("[Socket][%s] Err: Read operation is done by main context", ipAddr)
+			log.Printf("[Socket][%s] Err: Read operation is done by stream context", ipAddr)
 			return
 		default:
 			buffer := make([]byte, 32*1024) // 32KB
@@ -352,7 +352,8 @@ func HandleReadFromSocket(ctxMain context.Context, readSocketMode *atomic.Value,
 						State:   msg.State,
 						Command: msg.Command,
 					},
-					Data: msg.ExtData,
+					SourcePlatform: msg.SourcePlatform,
+					Data:           msg.ExtData,
 				}
 			} else { // Receive raw data
 				fmtType := getIoSocketFmtType(readSocketMode)
@@ -789,24 +790,16 @@ func processImageCB(s net.Conn, ipAddr string, event EventResult) bool {
 	nextState := event.Cmd.State
 	nextCommand := event.Cmd.Command
 
-	if nextState == STATE_IO {
-		if nextCommand == COMM_SRC {
-			rtkUtils.GoSafe(func() { processIoWrite(s, ipAddr, event.Cmd.FmtType) }) // [Src]: Start to trans file
-		} else if nextCommand == COMM_DST {
-			// TODO: refine this flow: put buildMessage together
-			var msg Peer2PeerMessage
-			if buildMessage(&msg, ipAddr, event) {
-				writeToSocket(msg, s)
-			} else {
-				log.Printf("[%s %d] Build message failed", rtkUtils.GetFuncName(), rtkUtils.GetLine())
-				return false
-			}
-		}
+	if nextState == STATE_IO && nextCommand == COMM_SRC {
+		// [Src]: Start to trans file
+		rtkUtils.GoSafe(func() { processIoWrite(s, ipAddr, event.Cmd.FmtType) })
 	} else if nextState == STATE_TRANS && nextCommand == COMM_DST {
 		if extData, ok := event.Data.(rtkCommon.ExtDataImg); ok {
 			log.Printf("[%s %d] Ready to paste image", rtkUtils.GetFuncName(), rtkUtils.GetLine())
 			// [Dst]: Setup clipboard and DO NOT send msg
-			rtkClipboard.SetupDstPasteImage(s.RemoteAddr().String(), "", extData.Data, extData.Header, extData.Size.SizeLow)
+			rtkUtils.GoSafe(func() {
+				rtkClipboard.SetupDstPasteImage(s.RemoteAddr().String(), ipAddr, extData.Data, extData.Header, extData.Size.SizeLow)
+			})
 		} else {
 			log.Printf("[%s %d] Err: Setup past image failed", rtkUtils.GetFuncName(), rtkUtils.GetLine())
 			return false
@@ -827,36 +820,26 @@ func processFileDrop(s net.Conn, ipAddr string, event EventResult) bool {
 	nextState := event.Cmd.State
 	nextCommand := event.Cmd.Command
 
-	if nextState == STATE_IO {
-		if nextCommand == COMM_SRC {
-			// Receive response from dst
-			if extData, ok := event.Data.(rtkCommon.FileDropCmd); ok {
-				if extData == rtkCommon.FILE_DROP_ACCEPT {
-					rtkUtils.GoSafe(func() {processIoWrite(s, ipAddr, event.Cmd.FmtType)}) // [Src]: Start to trans file
-				} else if extData == rtkCommon.FILE_DROP_REJECT {
-					// TODO: send response to platform (accept or reject)
-					rtkFileDrop.ResetFileDropData(ipAddr)
-				} else {
-					log.Printf("[%s %d] Unknown file drop response type: %s", rtkUtils.GetFuncName(), rtkUtils.GetLine(), extData)
-				}
+	if nextState == STATE_IO && nextCommand == COMM_SRC {
+		// Receive response from dst
+		if extData, ok := event.Data.(rtkCommon.FileDropCmd); ok {
+			if extData == rtkCommon.FILE_DROP_ACCEPT {
+				// [Src]: Start to trans file
+				rtkUtils.GoSafe(func() { processIoWrite(s, ipAddr, event.Cmd.FmtType) })
+			} else if extData == rtkCommon.FILE_DROP_REJECT {
+				// TODO: send response to platform (accept or reject)
+				rtkFileDrop.ResetFileDropData(ipAddr)
 			} else {
-				log.Printf("[%s %d] Invalid file drop response: %s", rtkUtils.GetFuncName(), rtkUtils.GetLine(), extData)
+				log.Printf("[%s %d] Unknown file drop response type: %+v", rtkUtils.GetFuncName(), rtkUtils.GetLine(), extData)
 			}
-		} else if nextCommand == COMM_DST {
-			// TODO: refine this flow: put builderMessage together
-			var msg Peer2PeerMessage
-			if buildMessage(&msg, ipAddr, event) {
-				writeToSocket(msg, s)
-			} else {
-				log.Printf("[%s %d] Build message failed", rtkUtils.GetFuncName(), rtkUtils.GetLine())
-				return false
-			}
+		} else {
+			log.Printf("[%s %d] Invalid file drop response: %s", rtkUtils.GetFuncName(), rtkUtils.GetLine(), extData)
 		}
 	} else if nextState == STATE_TRANS && nextCommand == COMM_DST {
 		if extData, ok := event.Data.(rtkCommon.ExtDataFile); ok {
 			log.Printf("[%s %d] Ready to accept file", rtkUtils.GetFuncName(), rtkUtils.GetLine())
 			// [Dst]: Setup clipboard and DO NOT send msg
-			rtkFileDrop.SetupDstFileDrop(ipAddr, s.RemoteAddr().String(), extData.FilePath, rtkPlatform.GetPlatform(), extData.Size.SizeHigh, extData.Size.SizeLow, time.Now().UnixMilli())
+			rtkFileDrop.SetupDstFileDrop(ipAddr, s.RemoteAddr().String(), extData.FilePath, event.SourcePlatform, extData.Size.SizeHigh, extData.Size.SizeLow, time.Now().UnixMilli())
 		} else {
 			log.Printf("[%s %d] Err: Setup file drop failed", rtkUtils.GetFuncName(), rtkUtils.GetLine())
 			return false
@@ -904,6 +887,12 @@ func isValidState(curState StateType, curCommand CommandType, nextState StateTyp
 	// Maybe we can use this case ignore msg when data transferring
 	enforceRec := ((nextState == STATE_INFO) && (nextCommand == COMM_DST))
 	if enforceRec {
+		return true
+	}
+
+	// Dst: Always allow to Accept file Drop Response, ignore curState
+	enforceAccept := (nextState == STATE_IO) && (nextCommand == COMM_DST)
+	if enforceAccept {
 		return true
 	}
 
@@ -986,7 +975,7 @@ func ProcessEventsForPeer(s net.Conn, ipAddr string, ctx context.Context, cancel
 	for {
 		select {
 		case <-ctx.Done():
-			log.Printf("[%s %d] Err: End of context", rtkUtils.GetFuncName(), rtkUtils.GetLine())
+			log.Printf("[%s %d] ProcessEventsForPeer is done by stream context", rtkUtils.GetFuncName(), rtkUtils.GetLine())
 			if rtkClipboard.GetLastClipboardData().SourceID == s.RemoteAddr().String() {
 				rtkClipboard.ResetLastClipboardData()
 			}

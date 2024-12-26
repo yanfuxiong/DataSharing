@@ -52,12 +52,14 @@ void pipeConnectedCallback(void);
 import "C"
 import (
 	"context"
-	"log"
 	"fmt"
+	"log"
 	"os"
 	rtkCommon "rtk-cross-share/common"
 	rtkGlobal "rtk-cross-share/global"
 	rtkUtils "rtk-cross-share/utils"
+	"strings"
+	"time"
 	"unsafe"
 
 	"github.com/libp2p/go-libp2p/core/crypto"
@@ -68,6 +70,8 @@ import (
 const (
 	logFile = "p2p.log"
 )
+
+var chNotifyPasteText = make(chan string, 100)
 
 func GetLogFilePath() string {
 	return logFile
@@ -133,22 +137,25 @@ func SetGoPipeConnectedCallback(cb CallbackPipeConnectedFunc) {
 // Monitor
 func WatchClipboardText(ctx context.Context, resultChan chan<- string) {
 	changeText := clipboard.Watch(ctx, clipboard.FmtText)
+	var lastClipboardCopyText string
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
+		case pasteText := <-chNotifyPasteText:
+			lastClipboardCopyText = pasteText
 		case contentText := <-changeText:
 			if string(contentText) == "" || len(contentText) == 0 {
 				continue
 			}
-			log.Println("DEBUG: watchClipboardText - got new message: ", string(contentText))
-			/*
-				if CallbackInstanceResetCB != nil {
-					CallbackInstanceResetCB(rtkCommon.CLIPBOARD_RESET_TYPE_TEXT)
-				}
-			*/
-			resultChan <- string(contentText)
+			curClipboardCopyText := string(contentText)
+
+			if !strings.EqualFold(lastClipboardCopyText, curClipboardCopyText) {
+				lastClipboardCopyText = curClipboardCopyText
+				log.Println("DEBUG: watchClipboardText - got new message: ", curClipboardCopyText)
+				resultChan <- curClipboardCopyText
+			}
 		}
 	}
 }
@@ -261,7 +268,7 @@ func clipboardCopyImgCallback(cHeader C.IMAGE_HEADER, cData *C.uchar, cDataSize 
 		SizeLow:  dataSize,
 	}
 	CallbackInstanceCopyImageCB(filesize, imgHeader, data)
-	log.Printf("Clipboard image content, width[%d] height[%d] data size[%d] \n", imgHeader.Width, imgHeader.Height, dataSize)
+	log.Printf("Clipboard image content, width[%d] height[%d] data size[%d] \n", imgHeader.Width, imgHeader.Height, dataSize, len(data))
 }
 
 //export pipeConnectedCallback
@@ -372,6 +379,12 @@ func SetupCallbackSettings() {
 
 func GoSetupDstPasteText(content []byte) {
 	log.Println("GoSetupDstPasteText :", string(content))
+	lastPasteText := string(content)
+
+	for i := 0; i < rtkUtils.GetClientCount(); i++ {
+		chNotifyPasteText <- lastPasteText
+	}
+	time.Sleep(10 * time.Millisecond)
 	clipboard.Write(clipboard.FmtText, content)
 }
 
