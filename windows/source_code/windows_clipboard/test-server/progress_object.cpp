@@ -28,7 +28,7 @@ void ProgressObject::sendProgressData()
         m_timer->deleteLater();
         m_timer = nullptr;
         m_cacheProgressMsgPtr.reset(nullptr);
-        deleteLater(); // 销毁自己
+        deleteLater();
         return;
     }
 

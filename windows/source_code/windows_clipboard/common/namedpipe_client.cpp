@@ -4,7 +4,7 @@ NamedPipeClient::NamedPipeClient(QObject *parent)
     : QObject(parent)
 {
     m_client = new QLocalSocket;
-    m_client->setServerName("CrossSharePipe");
+    m_client->setServerName(g_namedPipeServerName);
 
     connect(m_client, &QLocalSocket::connected, this, &NamedPipeClient::onConnected);
     connect(m_client, &QLocalSocket::disconnected, this, &NamedPipeClient::onDisconnected);
@@ -31,19 +31,19 @@ void NamedPipeClient::onConnected()
 {
     g_getGlobalData()->namedPipeConnected = true;
     //Q_EMIT CommonSignals::getInstance()->showInfoMessageBox("提示", "成功连接服务器......");
-    qInfo() << "--------------------成功连接服务器";
+    qInfo() << "--------------------successfully connected to the server";
     Q_EMIT CommonSignals::getInstance()->logMessage("------------successfully connected to the server");
+    Q_EMIT CommonSignals::getInstance()->pipeConnected();
 }
 
 void NamedPipeClient::onDisconnected()
 {
     g_getGlobalData()->namedPipeConnected = false;
-    //Q_EMIT CommonSignals::getInstance()->showWarningMessageBox("警告", "与服务器断开连接......");
     Q_EMIT CommonSignals::getInstance()->logMessage("------------disconnected from the server");
-    // 清空设备列表信息
     g_getGlobalData()->m_clientVec.clear();
 
     Q_EMIT CommonSignals::getInstance()->pipeDisconnected();
+    Q_EMIT CommonSignals::getInstance()->updateClientList();
 }
 
 void NamedPipeClient::onReadyRead()

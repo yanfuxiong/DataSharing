@@ -44,7 +44,7 @@ void MainWindow::onRecvClientData(const QByteArray &data)
 
     uint8_t typeValue = 0;
     uint8_t code = 0;
-    // 解析消息
+    // parse message
     while (g_getCodeFromByteArray(QByteArray(m_buffer.peek(), m_buffer.readableBytes()), typeValue, code)) {
         switch (code) {
         case 1: {
@@ -94,7 +94,7 @@ void MainWindow::onRecvClientData(const QByteArray &data)
                     }
 
                     if (message.statusCode == 0) {
-                        break; // 拒绝了就不需要处理进度信息了, 直接 break
+                        break; // If you refuse, there is no need to process progress information, just break
                     }
 
                     {
@@ -102,7 +102,7 @@ void MainWindow::onRecvClientData(const QByteArray &data)
                         pProgressMsg->ip = message.ip;
                         pProgressMsg->port = message.port;
                         pProgressMsg->clientID = message.clientID;
-                        pProgressMsg->fileSize = 0; // 先初始化为0
+                        pProgressMsg->fileSize = 0; // Initialize to 0 first
                         pProgressMsg->timeStamp = message.timeStamp;
                         pProgressMsg->fileName = message.fileName;
 
@@ -131,7 +131,7 @@ void MainWindow::onRecvClientData(const QByteArray &data)
                         pProgressMsg->ip = message.ip;
                         pProgressMsg->port = message.port;
                         pProgressMsg->clientID = message.clientID;
-                        pProgressMsg->fileSize = 0; // 先初始化为0
+                        pProgressMsg->fileSize = 0; // Initialize to 0 first
                         pProgressMsg->timeStamp = message.timeStamp;
                         pProgressMsg->fileName = message.fileName;
 
@@ -197,4 +197,82 @@ void MainWindow::on_disconnect_client_clicked()
     }
 
     Q_EMIT CommonSignals::getInstance()->sendDataForTestServer(clientStatusMsgData);
+}
+
+void MainWindow::on_image_paste_progress_clicked()
+{
+    static int64_t s_index = 0;
+    static int64_t max_size = 10000;
+    if (s_index >= max_size) {
+        s_index = 0;
+    }
+
+    QByteArray progressMsg;
+    {
+        UpdateImageProgressMsg msg;
+        msg.ip = "192.168.30.1";
+        msg.port = 12345;
+        msg.clientID = "QmQ7obXFx1XMFr6hCYXtovn9zREFqSXEtH5hdtpBDLjrAz";
+        //msg.fileSize = static_cast<uint64_t>(QFileInfo(__FILE__).size());
+        msg.fileSize = /*60727169;*/max_size;
+        s_index += 500;
+        msg.sentSize = s_index;
+        msg.timeStamp = QDateTime::currentDateTime().toUTC().toMSecsSinceEpoch();
+
+        progressMsg = UpdateImageProgressMsg::toByteArray(msg);
+    }
+
+    Q_EMIT CommonSignals::getInstance()->sendDataForTestServer(progressMsg);
+}
+
+void MainWindow::on_image_paste_progress_2_clicked()
+{
+    static int64_t s_index = 0;
+    static int64_t max_size = 10000;
+    if (s_index >= max_size) {
+        s_index = 0;
+    }
+
+    QByteArray progressMsg;
+    {
+        UpdateImageProgressMsg msg;
+        msg.ip = "192.168.30.1";
+        msg.port = 12345;
+        msg.clientID = "QmQ7obXFx1XMFr6hCYXtovn9zREFqSXEtH5hdtpBDLjrAX";
+        //msg.fileSize = static_cast<uint64_t>(QFileInfo(__FILE__).size());
+        msg.fileSize = /*60727169;*/max_size;
+        s_index += 500;
+        msg.sentSize = s_index;
+        msg.timeStamp = QDateTime::currentDateTime().toUTC().toMSecsSinceEpoch();
+
+        progressMsg = UpdateImageProgressMsg::toByteArray(msg);
+    }
+
+    Q_EMIT CommonSignals::getInstance()->sendDataForTestServer(progressMsg);
+}
+
+void MainWindow::on_notify_message_clicked()
+{
+    QByteArray notifyMessage;
+    {
+        NotifyMessage msg;
+        msg.timeStamp = QDateTime::currentDateTime().toUTC().toMSecsSinceEpoch();
+        msg.notiCode = 2;
+
+        {
+            NotifyMessage::ParamInfo paramInfo;
+            paramInfo.info = "测试设备_1";
+            msg.paramInfoVec.push_back(paramInfo);
+        }
+
+        {
+            NotifyMessage::ParamInfo paramInfo;
+            paramInfo.info = "10";
+            msg.paramInfoVec.push_back(paramInfo);
+        }
+
+        notifyMessage = NotifyMessage::toByteArray(msg);
+    }
+
+    Q_EMIT CommonSignals::getInstance()->sendDataForTestServer(notifyMessage);
 }

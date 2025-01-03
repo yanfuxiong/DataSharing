@@ -19,7 +19,7 @@ void CustomProxyStyle::polish(QWidget *widget)
         }
 
         if (auto comboBox = qobject_cast<QComboBox*>(widget)) {
-            comboBox->setView(createListView()); // 配合下拉框的界面美化
+            comboBox->setView(createListView());
             break;
         }
 

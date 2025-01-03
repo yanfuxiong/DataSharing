@@ -20,5 +20,15 @@
         <file>resource/icon/Group_3.svg</file>
         <file>resource/icon/garbage.svg</file>
         <file>resource/icon/check_big.svg</file>
+        <file>resource/device_icon/Device_HDMI1.png</file>
+        <file>resource/device_icon/Device_HDMI1.svg</file>
+        <file>resource/device_icon/Device_HDMI2.png</file>
+        <file>resource/device_icon/Device_HDMI2.svg</file>
+        <file>resource/device_icon/Device_Miracast.png</file>
+        <file>resource/device_icon/Device_Miracast.svg</file>
+        <file>resource/device_icon/Device_USBC1.png</file>
+        <file>resource/device_icon/Device_USBC1.svg</file>
+        <file>resource/cross_share_client.sql.txt</file>
+        <file>resource/application.ico</file>
     </qresource>
 </RCC>

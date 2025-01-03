@@ -1,8 +1,7 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
 
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:background="#007AFF"
+    android:layout_height="match_parent"
     android:orientation="vertical">
 
     <include layout="@layout/title_file" />
@@ -10,20 +9,17 @@
     <LinearLayout
         android:id="@+id/linearLayout"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="match_parent"
         android:layout_gravity="bottom"
         android:background="@android:color/white"
-        android:orientation="vertical"> <!-- 确保内容背景不透明 -->
+        android:orientation="vertical">
 
 
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/recycler_view"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
-
-        <!-- 在这里添加你的UI元素 -->
-
+            android:layout_height="match_parent" />
 
     </LinearLayout>
 

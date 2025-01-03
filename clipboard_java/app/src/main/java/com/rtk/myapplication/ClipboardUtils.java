@@ -44,7 +44,7 @@ public class ClipboardUtils {
     }
 
     /**
-     * 获取 ClipboardUtils 单例
+     * Get ClipboardUtils singleton instance
      */
     public static ClipboardUtils getInstance() {
         return Holder.sInstance;
@@ -59,7 +59,7 @@ public class ClipboardUtils {
     }
 
     /**
-     * 剪切板是否有数据
+     * is clipboard has clip data
      */
     public boolean hasClip() {
         Log.d(TAG, "java call:hasclip");
@@ -67,7 +67,7 @@ public class ClipboardUtils {
     }
 
     /**
-     * 清除剪切板数据
+     * clear clip data
      */
     public void clearClip() {
         Log.d(TAG, "java call:clearClip");
@@ -75,7 +75,7 @@ public class ClipboardUtils {
     }
 
     /**
-     * 添加文本类型Item数据
+     * add text item
      */
     public void addTextItem(AtomicReference<ClipData> clipDataRef, String text) {
         try {
@@ -95,7 +95,7 @@ public class ClipboardUtils {
     }
 
     /**
-     * 添加图片类型Item数据
+     * add image item
      */
     public void addImageItem(AtomicReference<ClipData> clipDataRef, Bitmap image) {
         try {
@@ -118,7 +118,7 @@ public class ClipboardUtils {
     }
 
     /**
-     * 根据索引获取剪贴板中的文本项
+     * get text item based on index from clipboard
      */
     public String getTextItem(AtomicReference<ClipData> clipDataRef, int index) {
         try {
@@ -128,7 +128,6 @@ public class ClipboardUtils {
                 if (type != CLIPBOARD_DATA_TYPE_TEXT) {
                     return null;
                 }
-                // 直接返回文本内容，如果获取成功
                 return item.getText().toString();
             } else {
                 Log.d(TAG, "index override");
@@ -136,12 +135,11 @@ public class ClipboardUtils {
         } catch (Exception e) {
             Log.e(TAG, "Error getting text item from ClipData");
         }
-        // 如果索引无效或出现异常，返回null表示获取失败
         return null;
     }
 
     /**
-     * 根据索引获取剪贴板中的图片项
+     * get image item based on index from clipboard
      */
     public Bitmap getImageItem(AtomicReference<ClipData> clipDataRef, int index) {
         try {
@@ -164,11 +162,11 @@ public class ClipboardUtils {
         } catch (Exception e) {
             Log.e(TAG, "Error getting image item from ClipData");
         }
-        return null; // 索引无效或数据类型不匹配
+        return null;
     }
 
     /**
-     * 获取剪切板中Item的数量
+     * get item count if clipboard
      */
     public int getItemCount(AtomicReference<ClipData> clipDataRef) {
 
@@ -176,7 +174,7 @@ public class ClipboardUtils {
     }
 
     /**
-     * 将当前的mGetClipData设置为剪贴板的主内容
+     * put clip data to PrimaryClip of clipboard
      */
     public void setPrimaryClip(AtomicReference<ClipData> clipDataRef) {
         if (mClipboardManager != null && clipDataRef.get() != null) {
@@ -185,7 +183,7 @@ public class ClipboardUtils {
     }
 
     /**
-     * 获取剪贴板中主剪贴板的内容
+     * get PrimaryClip of clipboard
      */
     public void getPrimaryClip(AtomicReference<ClipData> clipDataRef) {
         if (mClipboardManager != null && mClipboardManager.hasPrimaryClip()) {
@@ -195,7 +193,7 @@ public class ClipboardUtils {
     }
 
     /**
-     * 获取Item类型
+     * get type of item
      */
     public int getItemType(AtomicReference<ClipData> clipDataRef, int index) {
         if (clipDataRef.get() != null && index >= 0 && index < clipDataRef.get().getItemCount()) {

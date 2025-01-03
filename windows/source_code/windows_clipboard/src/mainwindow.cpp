@@ -2,6 +2,8 @@
 #include "ui_mainwindow.h"
 #include "drag_drop_widget.h"
 #include "event_filter_process.h"
+#include "tips_list_area.h"
+#include <QWindowStateChangeEvent>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -10,6 +12,15 @@ MainWindow::MainWindow(QWidget *parent)
     , m_currentProgressVal(0)
 {
     ui->setupUi(this);
+    if (0)
+    {
+        m_systemTrayIcon = new QSystemTrayIcon(this);
+        m_systemTrayIcon->setIcon(QIcon(":/resource/application.ico"));
+        m_systemTrayIcon->setVisible(true);
+        connect(m_systemTrayIcon, &QSystemTrayIcon::activated, this, &MainWindow::onSystemTrayIconActivated);
+        //setWindowFlag(Qt::WindowStaysOnTopHint, true);
+    }
+
     {
         ui->title_icon_1->clear();
         ui->title_icon_2->clear();
@@ -27,11 +38,20 @@ MainWindow::MainWindow(QWidget *parent)
     }
 
     {
+        while (ui->tips_stacked_widget->count()) {
+            ui->tips_stacked_widget->removeWidget(ui->tips_stacked_widget->widget(0));
+        }
+
+        ui->tips_stacked_widget->addWidget(new TipsListArea);
+        ui->tips_stacked_widget->setCurrentIndex(0);
+    }
+
+    {
         connect(CommonSignals::getInstance(), &CommonSignals::dispatchMessage, this, &MainWindow::onDispatchMessage);
         connect(CommonSignals::getInstance(), &CommonSignals::logMessage, this, &MainWindow::onLogMessage);
         connect(CommonSignals::getInstance(), &CommonSignals::systemConfigChanged, this, &MainWindow::onSystemConfigChanged);
+        connect(CommonSignals::getInstance(), &CommonSignals::updateClientList, this, &MainWindow::onSystemConfigChanged);
 
-        connect(CommonSignals::getInstance(), &CommonSignals::pipeDisconnected, this, &MainWindow::onUpdateClientList);
         connect(CommonSignals::getInstance(), &CommonSignals::updateClientList, this, &MainWindow::onUpdateClientList);
         //connect(CommonSignals::getInstance(), &CommonSignals::userAcceptFile, this, &MainWindow::onUserAcceptFile);
     }
@@ -44,9 +64,11 @@ MainWindow::MainWindow(QWidget *parent)
 
     QTimer::singleShot(0, this, [] {
         Q_EMIT CommonSignals::getInstance()->systemConfigChanged();
+
+        g_loadDataFromSqliteDB();
+        Q_EMIT CommonSignals::getInstance()->updateFileOptInfoList();
     });
 
-    // 处理部分事件过滤
     {
         EventFilterProcess::getInstance()->registerFilterEvent({ ui->title_icon_1, std::bind(&MainWindow::processTopTitleLeftClicked, this) });
     }
@@ -63,7 +85,7 @@ void MainWindow::onLogMessage(const QString &message)
     //ui->log_browser->append(QString("[%1]: %2").arg(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.zzz")).arg(message));
 }
 
-// 只用测试
+// Only for testing purposes
 void MainWindow::startTestTimer()
 {
     if (m_testTimer) {
@@ -124,6 +146,17 @@ void MainWindow::onDispatchMessage(const QVariant &data)
         return;
     }
 
+    if (data.canConvert<UpdateSystemInfoMsgPtr>() == true) {
+        UpdateSystemInfoMsgPtr ptr_msg = data.value<UpdateSystemInfoMsgPtr>();
+
+        g_getGlobalData()->systemConfig.localIpAddress = ptr_msg->ip;
+        g_getGlobalData()->systemConfig.port = ptr_msg->port;
+        g_getGlobalData()->systemConfig.serverVersionStr = ptr_msg->serverVersion;
+
+        Q_EMIT CommonSignals::getInstance()->systemConfigChanged();
+        return;
+    }
+
     if (data.canConvert<SendFileRequestMsgPtr>() == true) {
         SendFileRequestMsgPtr ptr_msg = data.value<SendFileRequestMsgPtr>();
         AcceptFileDialog dialog;
@@ -141,7 +174,6 @@ void MainWindow::onDispatchMessage(const QVariant &data)
         if (dialog.exec() == QDialog::Accepted) {
             QString newFileName = dialog.filePath();
 
-            // 用户操作记录相关
             {
                 UpdateClientStatusMsgPtr ptr_client;
                 for (const auto &data : g_getGlobalData()->m_clientVec) {
@@ -164,12 +196,14 @@ void MainWindow::onDispatchMessage(const QVariant &data)
                 record.ip = ptr_client->ip;
                 record.direction = 1;
 
+                record.uuid = CommonUtils::createUuid();
+
                 g_getGlobalData()->cacheFileOptRecord.push_back(record);
                 Q_EMIT CommonSignals::getInstance()->updateFileOptInfoList();
             }
 
             SendFileResponseMsg responseMessage;
-            responseMessage.statusCode = 1; // 接受
+            responseMessage.statusCode = 1; // accept
             responseMessage.ip = ptr_msg->ip;
             responseMessage.port = ptr_msg->port;
             responseMessage.clientID = ptr_msg->clientID;
@@ -180,11 +214,11 @@ void MainWindow::onDispatchMessage(const QVariant &data)
             QByteArray data = SendFileResponseMsg::toByteArray(responseMessage);
             Q_EMIT CommonSignals::getInstance()->sendDataToServer(data);
 
-            // 屏蔽用户的点击操作
+            // Block user clicks
             Q_EMIT CommonSignals::getInstance()->updateControlStatus(false);
         } else {
             SendFileResponseMsg responseMessage;
-            responseMessage.statusCode = 0; // 拒绝
+            responseMessage.statusCode = 0; // reject
             responseMessage.ip = ptr_msg->ip;
             responseMessage.port = ptr_msg->port;
             responseMessage.clientID = ptr_msg->clientID;
@@ -250,12 +284,17 @@ void MainWindow::onDispatchMessage(const QVariant &data)
 
 void MainWindow::onSystemConfigChanged()
 {
-    //const auto &config = g_getGlobalData()->systemConfig;
-//    if (config.displayLogSwitch) {
-//        ui->bottom_box->show();
-//    } else {
-//        ui->bottom_box->hide();
-//    }
+    QString info;
+    if (g_getGlobalData()->namedPipeConnected) {
+        info += g_getGlobalData()->systemConfig.localIpAddress;
+        info += "\n";
+        info += g_getGlobalData()->systemConfig.serverVersionStr;
+        info += "\n";
+        info += g_getGlobalData()->systemConfig.clientVersionStr;
+    } else {
+        info += g_getGlobalData()->systemConfig.clientVersionStr;
+    }
+    ui->system_info_label->setText(info);
 }
 
 void MainWindow::on_settings_btn_clicked()
@@ -267,11 +306,26 @@ void MainWindow::on_settings_btn_clicked()
 
 void MainWindow::closeEvent(QCloseEvent *event)
 {
-    // FIXME: 暂时屏蔽
+    // FIXME:
 #if STABLE_VERSION_CONTROL > 0
     CommonUtils::killServer();
 #endif
+    g_saveDataToSqliteDB();
     QMainWindow::closeEvent(event);
+}
+
+void MainWindow::changeEvent(QEvent *event)
+{
+    if (event->type() == QEvent::WindowStateChange) {
+        //QWindowStateChangeEvent *stateEvent = static_cast<QWindowStateChangeEvent*>(event);
+        if (windowState().testFlag(Qt::WindowState::WindowMinimized)) {
+            if (m_systemTrayIcon) {
+                hide();
+                return;
+            }
+        }
+    }
+    return QMainWindow::changeEvent(event);
 }
 
 //void MainWindow::on_conn_status_clicked()
@@ -300,7 +354,7 @@ void MainWindow::on_select_file_clicked()
 //    }
 
     {
-        g_getGlobalData()->selectedFileName.clear(); // 先清空
+        g_getGlobalData()->selectedFileName.clear();
 
         QString fileName = QFileDialog::getOpenFileName(this, tr("Select File"),
                                                         CommonUtils::desktopDirectoryPath(),
@@ -310,7 +364,7 @@ void MainWindow::on_select_file_clicked()
         }
         qInfo() << "[FILE]:" << fileName;
         Q_EMIT CommonSignals::getInstance()->logMessage(QString("[SELECT]: %1").arg(fileName));
-        g_getGlobalData()->selectedFileName = fileName; // 保存选中的文件名
+        g_getGlobalData()->selectedFileName = fileName; // Save the selected file name
     }
 
     {
@@ -337,7 +391,7 @@ void MainWindow::on_select_file_clicked()
 
 void MainWindow::processTopTitleLeftClicked()
 {
-    qInfo() << "----------------------标题栏icon点击......";
+    qInfo() << "----------------------clicked title icon......";
     //CommonUtils::setAutoRun(false);
 }
 
@@ -345,4 +399,14 @@ void MainWindow::onUpdateClientList()
 {
     QString infoText = QString("Online devices: %1").arg(g_getGlobalData()->m_clientVec.size());
     ui->online_devices_label->setText(infoText);
+}
+
+void MainWindow::onSystemTrayIconActivated(QSystemTrayIcon::ActivationReason reason)
+{
+    if (reason == QSystemTrayIcon::ActivationReason::Trigger) {
+        QTimer::singleShot(0, this, [this] {
+            showNormal();
+            activateWindow();
+        });
+    }
 }

@@ -25,23 +25,32 @@ void NamedPipeServer::onNewConnection()
         connect(CommonSignals::getInstance(), &CommonSignals::sendDataForTestServer, this, &NamedPipeServer::onSendDataForTestServer);
 
         m_clientList.append(socket);
-        // 这里只用于测试, 不携带参数
+        // This is only for testing purposes and does not carry any parameters
         Q_EMIT CommonSignals::getInstance()->connectdForTestServer();
 
         QTimer::singleShot(50, this, [] {
-            QByteArray clientStatusMsgData;
             {
+                UpdateSystemInfoMsg msg;
+                msg.ip = "192.168.0.123";
+                msg.port = 12345;
+                msg.serverVersion = R"(server_v1.0.1)";
+
+                QByteArray data = UpdateSystemInfoMsg::toByteArray(msg);
+                Q_EMIT CommonSignals::getInstance()->sendDataForTestServer(data);
+            }
+
+            {
+                QByteArray clientStatusMsgData;
                 UpdateClientStatusMsg msg;
                 msg.status = 1;
                 msg.ip = "192.168.30.1";
                 msg.port = 12345;
                 msg.clientID = "QmQ7obXFx1XMFr6hCYXtovn9zREFqSXEtH5hdtpBDLjrAz";
-                msg.clientName = QString("测试电脑_%1").arg(1);
+                msg.clientName = QString("HDMI1_%1").arg(1);
 
                 clientStatusMsgData = UpdateClientStatusMsg::toByteArray(msg);
+                Q_EMIT CommonSignals::getInstance()->sendDataForTestServer(clientStatusMsgData);
             }
-
-            Q_EMIT CommonSignals::getInstance()->sendDataForTestServer(clientStatusMsgData);
         });
     }
 }
@@ -60,11 +69,15 @@ void NamedPipeServer::onDisconnected()
 {
     QPointer<QLocalSocket> socket = qobject_cast<QLocalSocket*>(sender());
     Q_ASSERT(socket != nullptr);
-    if (m_clientList.removeOne(socket)) {
-        qInfo() << "remove socket: " << socket->fullServerName().toUtf8().constData();
-        socket->deleteLater();
 
-        Q_EMIT CommonSignals::getInstance()->pipeDisconnected();
+    for (auto itr = m_clientList.begin(); itr != m_clientList.end(); ++itr) {
+        if (*itr == socket) {
+            qInfo() << "remove socket: " << socket->fullServerName().toUtf8().constData();
+            m_clientList.erase(itr);
+            socket->deleteLater();
+            Q_EMIT CommonSignals::getInstance()->pipeDisconnected();
+            break;
+        }
     }
 }
 
@@ -87,6 +100,8 @@ void NamedPipeServer::onSendDataForTestServer(const QByteArray &data)
 void NamedPipeServer::onAddTestClient()
 {
     static int s_index = 2;
+    static const char *s_nameArry[] = {"HDMI1-\nTEST", "HDMI2", "Miracast", "USBC"};
+    Q_ASSERT(sizeof(s_nameArry) / sizeof (s_nameArry[0]) == 4);
     for (auto client : m_clientList) {
         QByteArray clientStatusMsgData;
         {
@@ -96,7 +111,7 @@ void NamedPipeServer::onAddTestClient()
             msg.port = 12345;
             //msg.clientID = "QmQ7obXFx1XMFr6hCYXtovn9zREFqSXEtH5hdtpBDLjrAz";
             msg.clientID = QByteArray(46, char(s_index));
-            msg.clientName = QString("测试电脑_%1").arg(s_index);
+            msg.clientName = QString("%1_%2").arg(s_nameArry[qrand() % 4]).arg(s_index);
 
             clientStatusMsgData = UpdateClientStatusMsg::toByteArray(msg);
         }

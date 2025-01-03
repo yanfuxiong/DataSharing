@@ -16,5 +16,5 @@ private Q_SLOTS:
 private:
     std::unique_ptr<UpdateProgressMsg> m_cacheProgressMsgPtr;
     QPointer<QTimer> m_timer;
-    int m_cacheProgressVal; // 进度值, 只用于模拟
+    int m_cacheProgressVal; // Progress value, only used for simulation
 };

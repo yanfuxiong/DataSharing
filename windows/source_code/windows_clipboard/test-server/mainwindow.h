@@ -18,7 +18,6 @@ public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
-    // 这里只是模拟
     void sendProgressData();
 
 private slots:
@@ -29,6 +28,12 @@ private slots:
     void on_send_file_clicked();
 
     void on_disconnect_client_clicked();
+
+    void on_image_paste_progress_clicked();
+
+    void on_image_paste_progress_2_clicked();
+
+    void on_notify_message_clicked();
 
 private:
     Ui::MainWindow *ui;

@@ -37,6 +37,7 @@ protected:
     void leaveEvent(QEvent *event) override;
 
     UpdateClientStatusMsgPtr getClientStatusPtr() const;
+    QString getIconPath() const;
 
 private:
     Ui::DeviceInfo *ui;
@@ -44,6 +45,7 @@ private:
     bool m_selectedStatus { false };
     bool m_hoverStatus { false };
     QString m_clientName;
+    std::map<QByteArray, QByteArray> m_deviceIconMap;
 };
 
 #endif // DEVICE_INFO_H

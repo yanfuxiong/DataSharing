@@ -4,6 +4,7 @@
 #include "event_filter_process.h"
 #include <QTimer>
 #include <QVBoxLayout>
+#include <QEventLoop>
 
 DeviceListDialog::DeviceListDialog(QWidget *parent) :
     QDialog(parent),
@@ -25,11 +26,6 @@ DeviceListDialog::DeviceListDialog(QWidget *parent) :
         //connect(CommonSignals::getInstance(), &CommonSignals::sendDataToServer, this, &DeviceListDialog::onSendDataToServer);
         connect(CommonSignals::getInstance(), &CommonSignals::updateClientList, this, &DeviceListDialog::onUpdateClientList);
         connect(CommonSignals::getInstance(), &CommonSignals::updateUserSelectedInfo, this, &DeviceListDialog::onUpdateUserSelectedInfo);
-        connect(CommonSignals::getInstance(), &CommonSignals::pipeDisconnected, this, [this] {
-            QTimer::singleShot(50, this, [this] {
-               onUpdateClientList();
-            });
-        });
 
         EventFilterProcess::getInstance()->registerFilterEvent({ ui->clear_selected_label, std::bind(&DeviceListDialog::onCliked_clear_selected_label, this) });
     }
@@ -38,7 +34,7 @@ DeviceListDialog::DeviceListDialog(QWidget *parent) :
         onUpdateClientList();
     });
 
-    g_getGlobalData()->m_selectedClientVec.clear(); // 这里的处理是必要的
+    g_getGlobalData()->m_selectedClientVec.clear(); // The handling here is necessary
 }
 
 DeviceListDialog::~DeviceListDialog()
@@ -49,13 +45,10 @@ DeviceListDialog::~DeviceListDialog()
 void DeviceListDialog::onSendDataToServer(const QByteArray &data)
 {
     Q_UNUSED(data)
-    // 此时用户已经点击了发送, dialog可以关闭了
-    //accept();
 }
 
 void DeviceListDialog::onUpdateClientList()
 {
-    // 清空已选中数据
     {
         g_getGlobalData()->m_selectedClientVec.clear();
         ui->display_selection->clear();
@@ -112,8 +105,16 @@ void DeviceListDialog::on_confirm_btn_clicked()
     bool exists = false;
     for (const auto &device : m_deviceList) {
         if (device->isSelected()) {
-            device->sendData(); // 这里操作数据发送以及相关操作记录
+            device->sendData(); // Here, data transmission and related operation records are processed
             exists = true;
+
+            {
+                QEventLoop eventLoop;
+                QTimer::singleShot(10, Qt::TimerType::PreciseTimer, &eventLoop, [&eventLoop] {
+                    eventLoop.quit();
+                });
+                eventLoop.exec();
+            }
         }
     }
 
@@ -122,4 +123,7 @@ void DeviceListDialog::on_confirm_btn_clicked()
         return;
     }
     accept();
+    QTimer::singleShot(0, qApp, [] {
+        Q_EMIT CommonSignals::getInstance()->updateFileOptInfoList();
+    });
 }

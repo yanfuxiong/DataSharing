@@ -31,7 +31,7 @@ void EventFilterProcess::registerFilterEvent(const EventFilterData &filterData)
     m_filterDataList.push_back(filterData);
     filterData.monitoredObject->installEventFilter(this);
 
-    // 对象销毁的时候移除数据
+    // Remove data when destroying objects
     connect(filterData.monitoredObject, &QObject::destroyed, this, [this] (QObject *object) {
         for (auto itr = m_filterDataList.begin(); itr != m_filterDataList.end(); ++itr) {
             if (itr->monitoredObject == object) {
@@ -46,7 +46,7 @@ void EventFilterProcess::registerFilterEvent(const EventFilterData &filterData)
 
 bool EventFilterProcess::eventFilter(QObject *obj, QEvent *event)
 {
-    // FIXME: 目前简化处理
+    // FIXME: Simplify code processing
     if (event->type() == QEvent::MouseButtonPress) {
         QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
         if (mouseEvent->button() == Qt::MouseButton::LeftButton) {

@@ -5,7 +5,7 @@ public class Device {
 
 
     private String name;
-    private int iconResId; // 假设图标资源ID是整数
+    private int iconResId; // assume image resid is integer
 
     public Device(String name, int iconResId) {
         this.name = name;

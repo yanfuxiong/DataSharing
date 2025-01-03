@@ -5,7 +5,7 @@ $clipboardLib = "libclipboard.a"
 $clientGo = "main\client_main.go"
 
 # go build param
-$version = "2.0.4"
+$version = "2.0.8"
 $buildDate = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ss")
 $platform = "windows"
 $isHiddenWin = $true

@@ -18,13 +18,25 @@ int main(int argc, char *argv[])
 
     {
         g_globalRegister();
+        // init DB
+        {
+            g_getGlobalData()->sqlite_db = QSqlDatabase::addDatabase("QSQLITE", SQLITE_CONN_NAME);
+            g_getGlobalData()->sqlite_db.setDatabaseName(g_sqliteDbPath());
+            g_getGlobalData()->sqlite_db.open();
+            Q_ASSERT(g_getGlobalData()->sqlite_db.isOpen() == true);
+        }
         CommonUiProcess::getInstance();
         ProcessMessage::getInstance();
+
+        {
+            //g_getGlobalData()->systemConfig.localIpAddress = CommonUtils::localIpAddress();
+            g_getGlobalData()->systemConfig.clientVersionStr = VERSION_STR;
+        }
     }
 
     MainWindow w;
     w.setWindowTitle("CrossShare Client");
-    // FIXME: 特殊处理一下:
+    // FIXME:
     //w.resize(1185, 517);
     w.show();
     qInfo() << qApp->applicationFilePath().toUtf8().constData();
@@ -33,10 +45,10 @@ int main(int argc, char *argv[])
         qInfo() << path;
     }
 
-    // FIXME: 开机自启动设置, 目前屏蔽
+    // FIXME:
     CommonUtils::setAutoRun(false);
 
-// FIXME: 暂时屏蔽
+// FIXME:
 #if STABLE_VERSION_CONTROL > 0
     QPointer<WorkerThread> thread(new WorkerThread);
     thread->runInThread([] {

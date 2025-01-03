@@ -30,7 +30,7 @@ void FileRecordWidget::setFileOptInfo(const FileOperationRecord &record)
 {
     m_fileOptRecord = record;
 
-    // 同步刷新UI
+    // Synchronize refreshing UI
     {
         QString descInfo;
         descInfo += QString("%1 (%2)").arg(CommonUtils::getFileNameByPath(record.fileName.c_str())).arg(CommonUtils::byteCountDisplay(record.fileSize));
@@ -49,8 +49,8 @@ void FileRecordWidget::setFileOptInfo(const FileOperationRecord &record)
 
 void FileRecordWidget::updateStatusInfo()
 {
-    const auto &cacheFileOptRecord = g_getGlobalData()->cacheFileOptRecord;
-    for (auto itr = cacheFileOptRecord.rbegin(); itr != cacheFileOptRecord.rend(); ++itr) {
+    const auto &cacheFileOptRecord = g_getGlobalData()->cacheFileOptRecord.get<tag_db_timestamp>();
+    for (auto itr = cacheFileOptRecord.begin(); itr != cacheFileOptRecord.end(); ++itr) {
         const auto &fileOptRecord = *itr;
         if (fileOptRecord.clientID == getClientID()) {
             ui->progressBar->setValue(fileOptRecord.progressValue);

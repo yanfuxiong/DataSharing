@@ -1,0 +1,35 @@
+<RCC>
+    <qresource prefix="/">
+        <file>resource/my.qss</file>
+        <file>resource/file.svg</file>
+        <file>resource/image.svg</file>
+        <file>resource/background.jpg</file>
+        <file>resource/icon/bk_1.png</file>
+        <file>resource/icon/bk_2.svg</file>
+        <file>resource/icon/check_small.png</file>
+        <file>resource/icon/check_small.svg</file>
+        <file>resource/icon/Device.svg</file>
+        <file>resource/icon/Device@2x.png</file>
+        <file>resource/icon/DeviceComputer.png</file>
+        <file>resource/icon/DeviceComputer.svg</file>
+        <file>resource/icon/Icons.png</file>
+        <file>resource/icon/Icons.svg</file>
+        <file>resource/icon/Cross_Share.png</file>
+        <file>resource/icon/Cross_Share.svg</file>
+        <file>resource/icon/Group_3.png</file>
+        <file>resource/icon/Group_3.svg</file>
+        <file>resource/icon/garbage.svg</file>
+        <file>resource/icon/check_big.svg</file>
+        <file>resource/device_icon/Device_HDMI1.png</file>
+        <file>resource/device_icon/Device_HDMI1.svg</file>
+        <file>resource/device_icon/Device_HDMI2.png</file>
+        <file>resource/device_icon/Device_HDMI2.svg</file>
+        <file>resource/device_icon/Device_Miracast.png</file>
+        <file>resource/device_icon/Device_Miracast.svg</file>
+        <file>resource/device_icon/Device_USBC1.png</file>
+        <file>resource/device_icon/Device_USBC1.svg</file>
+        <file>resource/cross_share_client.sql.txt</file>
+        <file>resource/application.ico</file>
+        <file>resource/exit.svg</file>
+    </qresource>
+</RCC>

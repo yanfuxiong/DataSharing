@@ -42,7 +42,6 @@ public class MyAdapter extends RecyclerView.Adapter<MyAdapter.MyViewHolder> {
         holder.textView.setText(mData[position]);
 
         if(mOnItemClickListener != null){
-            //为ItemView设置监听器
             holder.textView.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
