@@ -27,7 +27,7 @@ type Callback interface {
 	CallbackMethodImage(content []byte)
 	LogMessageCallback(msg string)
 	EventCallback(event int)
-	CallbackMethodFileConfirm(ip, platform, fileName string, fileSize int64)
+	CallbackMethodFileConfirm(id, platform, fileName string, fileSize int64)
 }
 
 var CallbackInstance Callback = nil
@@ -141,11 +141,15 @@ func GoDeinitProgressBar() {
 
 }
 
+func GoUpdateSystemInfo(ip, serviceVer string) {
+
+}
+
 func GoUpdateClientStatus(status uint32, ip string, id string, name string) {
 
 }
 
-func GoEventHandle(eventType rtkCommon.EventType, ipAddr, fileName string) {
+func GoEventHandle(eventType rtkCommon.EventType, id, fileName string) {
 
 }
 
@@ -216,8 +220,13 @@ func GetMdnsPortConfigPath() string {
 	return ".MdnsPort"
 }
 
+// Deprecated: replace with GetDeviceInfoPath
 func GetDeviceTablePath() string {
 	return ".DeviceTable"
+}
+
+func GetDeviceInfoPath() string {
+	return ".DeviceInfo"
 }
 
 func LockFile(file *os.File) error {

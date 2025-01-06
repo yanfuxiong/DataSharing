@@ -13,6 +13,22 @@ var (
 	streamPoolMutex	sync.RWMutex
 )
 
+func UpdateStream(id string, stream network.Stream) {
+	streamPoolMutex.Lock()
+	defer streamPoolMutex.Unlock()
+
+	streamPoolMap[id] = stream
+	log.Println("UpdateStream id:", id)
+}
+
+func GetStream(id string) (network.Stream, bool) {
+	streamPoolMutex.RLock()
+	defer streamPoolMutex.RUnlock()
+
+	stream, ok := streamPoolMap[id]
+	return stream, ok
+}
+
 func AddStream(id string, pStream network.Stream) {
 	streamPoolMutex.Lock()
 	defer streamPoolMutex.Unlock()
@@ -31,6 +47,7 @@ func CloseStream(id string) {
 	if stream, ok := streamPoolMap[id]; ok {
 		stream.Close()
 		delete(streamPoolMap, id)
+		log.Println("ClsoeStream id:", id)
 	} else {
 		log.Printf("[%s %d] Err: Unknown stream of id:%s", rtkUtils.GetFuncName(), rtkUtils.GetLine(), id)
 	}

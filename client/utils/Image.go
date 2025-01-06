@@ -2,7 +2,9 @@ package utils
 
 import (
 	"bytes"
+	"errors"
 	"image"
+	"image/color"
 	"image/jpeg"
 	"image/png"
 	"log"
@@ -119,4 +121,74 @@ func ImageToBitmap(imgData []byte) []byte {
 		}
 	}
 	return bitmapData
+}
+
+func BmpToJpg(data []byte, width, height, bitCount int) ([]byte, error) {
+	expectedSize := width * height * 4
+	if len(data) != expectedSize {
+		log.Printf("invalid data size: expected %d, got %d", expectedSize, len(data))
+		return data, errors.New("invalid data size")
+	}
+
+	if bitCount != 32 {
+		return data, errors.New("invalid bit count")
+	}
+
+	img := image.NewRGBA(image.Rect(0, 0, width, height))
+
+	bytesPerPixel := 4
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			offset := (y*width + x) * bytesPerPixel
+			if offset+3 >= len(data) {
+				log.Printf("unexpected end of data at offset %d", offset)
+				return data, errors.New("unexpected end of data offset")
+			}
+			b := data[offset]
+			g := data[offset+1]
+			r := data[offset+2]
+			a := data[offset+3]
+			img.Set(x, height-y-1, color.RGBA{R: r, G: g, B: b, A: a})
+		}
+	}
+
+	var buffer bytes.Buffer
+	options := &jpeg.Options{Quality: 90}
+	err := jpeg.Encode(&buffer, img, options)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Printf("[BmpToJpg] successfully. Width:%d, Height:%d, BitCount:%d", width, height, bitCount)
+	return buffer.Bytes(), nil
+}
+
+func JpgToBmp(jpegData []byte) ([]byte, error) {
+	img, err := jpeg.Decode(bytes.NewReader(jpegData))
+	if err != nil {
+		return nil, err
+	}
+
+	bounds := img.Bounds()
+	width := bounds.Dx()
+	height := bounds.Dy()
+
+	bitCount := 32
+	bmpData := make([]byte, width*height*(bitCount/8)) // for 32bits
+	rowStride := width * (bitCount/8) // for 32bits
+
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			r, g, b, a := img.At(x, y).RGBA()
+			offset := (height-y-1)*rowStride + x*(bitCount/8)
+
+			bmpData[offset] = byte(b >> 8)
+			bmpData[offset+1] = byte(g >> 8)
+			bmpData[offset+2] = byte(r >> 8)
+			bmpData[offset+3] = byte(a >> 8)
+		}
+	}
+
+	log.Printf("[JpgToBmp] successfully. Width:%d, Height:%d, BitCount:%d", width, height, bitCount)
+	return bmpData, nil
 }

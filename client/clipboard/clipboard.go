@@ -12,9 +12,11 @@ import (
 )
 
 var kDefClipboardData = rtkCommon.ClipBoardData{
-	SourceID: "",
-	Hash:     "",
-	FmtType:  "",
+	SourceID:	"",
+	Hash:		"",
+	TimeStamp:	0,
+	FmtType:	"",
+	ExtData:	nil,
 }
 
 var lastClipboardData atomic.Value
@@ -23,6 +25,7 @@ var dstPasteIpAddr string
 var pasteEventIp = make(chan string, 10)
 
 func updateLastClipboardData(cbData rtkCommon.ClipBoardData) {
+	lastClipboardData.Store(kDefClipboardData)
 	log.Println("updateLastClipboardData fmt = ", cbData.FmtType)
 	lastClipboardData.Store(cbData)
 }
@@ -38,7 +41,7 @@ func GetLastClipboardData() rtkCommon.ClipBoardData {
 
 func ResetLastClipboardData() {
 	log.Println("ResetLastClipboardData")
-	updateLastClipboardData(kDefClipboardData)
+	lastClipboardData.Store(kDefClipboardData)
 	rtkPlatform.GoCleanClipboard()
 }
 
@@ -58,7 +61,7 @@ func updateTextClipboardData(id string, text string) {
 }
 
 func updateImageClipboardData(id string, filesize rtkCommon.FileSize, imageHeader rtkCommon.ImgHeader, data []byte) {
-	log.Println("UpdateImageClipboardData size = ", filesize)
+	log.Printf("UpdateImageClipboardData size=%d, id=%s", filesize, id)
 	hash, _ := rtkUtils.CreateMD5Hash([]byte(data))
 	clipboardData := rtkCommon.ClipBoardData{
 		SourceID:  id,

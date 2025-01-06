@@ -66,7 +66,7 @@ func DebugCmdLine() {
 			var fileSize uint64 = 60727169
 			var timestamp int64 = 1697049243123
 			rtkPlatform.GoSetupFileDrop(ip, id, fileName, rtkPlatform.GetPlatform(), fileSize, timestamp)
-		} else if strings.Contains(line, "UPDATE_PROGRESS") {
+		} else if strings.Contains(line, "PIPE_UPDATE_PROGRESS") {
 			ip := "192.168.30.1:12345"
 			id := "QmQ7obXFx1XMFr6hCYXtovn9zREFqSXEtH5hdtpBDLjrAz"
 
@@ -92,6 +92,17 @@ func DebugCmdLine() {
 						sentSize += sliceSize
 					}
 					rtkPlatform.GoUpdateProgressBar(ip, id, fileSize, sentSize, timestamp, fileName)
+				}
+			}
+		} else if strings.Contains(line, "PIPE_UPDATE_SYSTEM_INFO") {
+			for scanner.Scan() {
+				fmt.Println("IP & port:")
+				ip := scanner.Text()
+
+				for scanner.Scan() {
+					fmt.Println("Ver:")
+					serviceVer := scanner.Text()
+					rtkPlatform.GoUpdateSystemInfo(ip, serviceVer)
 				}
 			}
 		}

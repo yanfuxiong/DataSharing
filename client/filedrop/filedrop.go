@@ -21,50 +21,50 @@ type FileDropData struct {
 }
 
 var (
-	fileDropDataMap             = make(map[string]FileDropData) // key: IPAddr
-	fileDropDataMutex           sync.RWMutex
-	isFileDropReqDataFromLocal  sync.Map // key: IPAddr
-	isFileDropRespDataFromLocal sync.Map // key: IPAddr
+	fileDropDataMap		= make(map[string]FileDropData) // key: ID
+	fileDropDataMutex	sync.RWMutex
+	isFileDropReqDataFromLocal = make(map[string]bool) // key: ID
+	isFileDropRespDataFromLocal = make(map[string]bool) // key: ID
 )
 
-func UpdateFileDropReqDataFromLocal(ip string, fileInfo rtkCommon.FileInfo, timestamp int64) {
-	updateFileDropReqData(ip, fileInfo, timestamp)
-	isFileDropReqDataFromLocal.Store(ip, true)
+func UpdateFileDropReqDataFromLocal(id string, fileInfo rtkCommon.FileInfo, timestamp int64) {
+	updateFileDropReqData(id, fileInfo, timestamp)
+	isFileDropReqDataFromLocal[id] = true
 }
 
-func UpdateFileDropReqDataFromDst(ip string, fileInfo rtkCommon.FileInfo, timestamp int64) {
-	updateFileDropReqData(ip, fileInfo, timestamp)
-	isFileDropReqDataFromLocal.Store(ip, false)
+func UpdateFileDropReqDataFromDst(id string, fileInfo rtkCommon.FileInfo, timestamp int64) {
+	updateFileDropReqData(id, fileInfo, timestamp)
+	isFileDropReqDataFromLocal[id] = false
 }
 
-func updateFileDropReqData(ip string, fileInfo rtkCommon.FileInfo, timestamp int64) {
+func updateFileDropReqData(id string, fileInfo rtkCommon.FileInfo, timestamp int64) {
 	fileDropDataMutex.Lock()
-	fileDropDataMap[ip] = FileDropData{
-		SrcFileInfo: fileInfo,
-		TimeStamp:   uint64(timestamp),
-		DstFilePath: "",
-		Cmd:         rtkCommon.FILE_DROP_REQUEST,
+	fileDropDataMap[id] = FileDropData{
+		SrcFileInfo:	fileInfo,
+		TimeStamp:		uint64(timestamp),
+		DstFilePath:	"",
+		Cmd:			rtkCommon.FILE_DROP_REQUEST,
 	}
 	fileDropDataMutex.Unlock()
 }
 
-func UpdateFileDropRespDataFromLocal(ip string, cmd rtkCommon.FileDropCmd, filePath string) {
-	updateFileDropRespData(ip, cmd, filePath)
-	isFileDropRespDataFromLocal.Store(ip, true)
+func UpdateFileDropRespDataFromLocal(id string, cmd rtkCommon.FileDropCmd, filePath string) {
+	updateFileDropRespData(id, cmd, filePath)
+	isFileDropRespDataFromLocal[id] = true
 }
 
-func UpdateFileDropRespDataFromDst(ip string, cmd rtkCommon.FileDropCmd, filePath string) {
-	updateFileDropRespData(ip, cmd, filePath)
-	isFileDropRespDataFromLocal.Store(ip, false)
+func UpdateFileDropRespDataFromDst(id string, cmd rtkCommon.FileDropCmd, filePath string) {
+	updateFileDropRespData(id, cmd, filePath)
+	isFileDropRespDataFromLocal[id] = false
 }
 
-func updateFileDropRespData(ip string, cmd rtkCommon.FileDropCmd, filePath string) {
+func updateFileDropRespData(id string, cmd rtkCommon.FileDropCmd, filePath string) {
 	fileDropDataMutex.Lock()
-	if fileDropData, ok := fileDropDataMap[ip]; ok {
+	if fileDropData, ok := fileDropDataMap[id]; ok {
 		if fileDropData.Cmd == rtkCommon.FILE_DROP_REQUEST {
 			fileDropData.DstFilePath = filePath
 			fileDropData.Cmd = cmd
-			fileDropDataMap[ip] = fileDropData
+			fileDropDataMap[id] = fileDropData
 		} else {
 			log.Printf("[%s %d] Err: Update file drop failed. Invalid state", rtkUtils.GetFuncName(), rtkUtils.GetLine())
 		}
@@ -72,16 +72,16 @@ func updateFileDropRespData(ip string, cmd rtkCommon.FileDropCmd, filePath strin
 	fileDropDataMutex.Unlock()
 }
 
-func GetFileDropData(ip string) (FileDropData, bool) {
+func GetFileDropData(id string) (FileDropData, bool) {
 	fileDropDataMutex.RLock()
-	fileDropData, ok := fileDropDataMap[ip]
+	fileDropData, ok := fileDropDataMap[id]
 	fileDropDataMutex.RUnlock()
 	return fileDropData, ok
 }
 
-func ResetFileDropData(ip string) {
+func ResetFileDropData(id string) {
 	fileDropDataMutex.Lock()
-	delete(fileDropDataMap, ip)
+	delete(fileDropDataMap, id)
 	fileDropDataMutex.Unlock()
 }
 
@@ -90,39 +90,45 @@ func InitFileDrop() {
 	rtkPlatform.SetGoFileDropResponseCallback(UpdateFileDropRespDataFromLocal)
 }
 
-func WatchFileDropReqEvent(ctx context.Context, ipAddr string, resultChan chan<- string) {
+func WatchFileDropReqEvent(ctx context.Context, id string, resultChan chan<- string) {
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-time.After(100 * time.Millisecond):
-			if isLocal, ok := isFileDropReqDataFromLocal.Load(ipAddr); ok {
-				if isLocal.(bool) {
-					resultChan <- ipAddr
-					isFileDropReqDataFromLocal.Store(ipAddr, false)
+			if isLocal, ok := isFileDropReqDataFromLocal[id]; ok {
+				if isLocal {
+					resultChan <- id
+					isFileDropReqDataFromLocal[id] = false
 				}
 			}
 		}
 	}
 }
 
-func WatchFileDropRespEvent(ctx context.Context, ipAddr string, resultChan chan<- string) {
+func WatchFileDropRespEvent(ctx context.Context, id string, resultChan chan<- string) {
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-time.After(100 * time.Millisecond):
-			if isLocal, ok := isFileDropRespDataFromLocal.Load(ipAddr); ok {
-				if isLocal.(bool) {
-					resultChan <- ipAddr
-					isFileDropRespDataFromLocal.Store(ipAddr, false)
+			if isLocal, ok := isFileDropRespDataFromLocal[id]; ok {
+				if isLocal {
+					resultChan <- id
+					isFileDropRespDataFromLocal[id] = false
 				}
 			}
 		}
 	}
 }
 
-func SetupDstFileDrop(ip, id, filePath, platform string, fileSizeHigh uint32, fileSizeLow uint32, timestamp int64) {
+func SetupDstFileDrop(id, filePath, platform string, fileSizeHigh uint32, fileSizeLow uint32, timestamp int64) {
+	ipAddr, err := rtkUtils.GetDeviceIp(id)
+	if err != nil {
+		log.Printf("[%s %d] Err: Unknown ID: %s. Please check .DeviceInfo", rtkUtils.GetFuncName(), rtkUtils.GetLine(), id)
+		return
+	}
+
 	fileInfo := rtkCommon.FileInfo{
 		FileSize_: rtkCommon.FileSize{
 			SizeHigh: fileSizeHigh,
@@ -130,7 +136,7 @@ func SetupDstFileDrop(ip, id, filePath, platform string, fileSizeHigh uint32, fi
 		},
 		FilePath: filePath,
 	}
-	UpdateFileDropReqDataFromDst(ip, fileInfo, timestamp)
+	UpdateFileDropReqDataFromDst(id, fileInfo, timestamp)
 	fileSize := uint64(fileSizeHigh)<<32 | uint64(fileSizeLow)
-	rtkPlatform.GoSetupFileDrop(ip, id, filepath.Base(filePath), platform, fileSize, timestamp)
+	rtkPlatform.GoSetupFileDrop(ipAddr, id, filepath.Base(filePath), platform, fileSize, timestamp)
 }

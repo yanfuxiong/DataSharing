@@ -5,6 +5,7 @@ import (
 	"crypto/md5"
 	"encoding/base64"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -350,10 +351,87 @@ func Base64Encode(src []byte) string {
 }
 
 // FIXME: hack code
+type DeviceInfo struct {
+	IP string
+	Name string
+}
+
 var (
 	HackDeviceNameMap map[string]string = make(map[string]string)
+	deviceInfoMap map[string]DeviceInfo = make(map[string]DeviceInfo)
+	DeviceStaticPort string = ""
 )
 
+func InitDeviceInfo(filename string) {
+	file, err := os.Open(filename)
+	if err != nil {
+		log.Printf("[%s %d] Err: Not found device table: %s", GetFuncName(), GetLine(), filename)
+		return
+	}
+
+	scanner := bufio.NewScanner(file)
+	idx := 0
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		// Get static port
+		if idx == 0 {
+			port := strings.SplitN(line, ":", 2)
+			if len(port) < 2 {
+				log.Printf("[%s %d] Err: Invalid param count(port), please check .DeviceInfo file", GetFuncName(), GetLine())
+				return
+			}
+
+			DeviceStaticPort = string(port[1])
+
+			if DeviceStaticPort == "" {
+				log.Printf("[%s %d] Err: Empty staticPort, please check .DeviceInfo file", GetFuncName(), GetLine())
+				return
+			}
+		} else { // Get device info
+			parts := strings.SplitN(line, ":", 3)
+			if len(parts) < 3 {
+				log.Printf("[%s %d] Err: Invalid param count, please check .DeviceInfo file", GetFuncName(), GetLine())
+				return
+			}
+
+			ip := string(parts[0])
+			id := string(parts[1])
+			name := string(parts[2])
+
+			deviceInfoMap[id] = DeviceInfo{
+				IP: ip,
+				Name: name,
+			}
+		}
+
+		idx++
+	}
+}
+
+func GetDeviceInfoMap() map[string]DeviceInfo {
+	return deviceInfoMap;
+}
+
+func GetDeviceInfo(id string) (DeviceInfo, error) {
+	if deviceInfo, ok := deviceInfoMap[id]; ok {
+		return deviceInfo, nil
+	} else {
+		return DeviceInfo{}, errors.New("not found deviceInfo")
+	}
+}
+
+func GetDeviceIp(id string) (string, error) {
+	deviceInfo, err := GetDeviceInfo(id)
+	if err != nil {
+		return "", err
+	} else {
+		ipAddr := deviceInfo.IP
+		ipAddr += (":"+DeviceStaticPort)
+		return ipAddr, nil
+	}
+}
+
+// Deprecated with InitDeviceInfo
 func InitDeviceTable(filename string) {
 	file, err := os.Open(filename)
 	if err != nil {
@@ -382,6 +460,7 @@ func InitDeviceTable(filename string) {
 	}
 }
 
+// Deprecated: replace with GetDeviceInfo
 func QueryDeviceName(id string) string {
 	if name, ok := HackDeviceNameMap[id]; ok {
 		return name

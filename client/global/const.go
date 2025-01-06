@@ -6,4 +6,5 @@ const (
 	// This HOST ID is pseudo to test
 	HOST_ID          = "12345"
 	ProtocolDirectID = "/direct_connect"
+	DefaultIp        = "0.0.0.0"
 )

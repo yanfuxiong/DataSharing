@@ -5,6 +5,7 @@ package libp2p_clipboard
 import (
 	"fmt"
 	"log"
+	rtkBuildConfig "rtk-cross-share/buildConfig"
 	rtkCmd "rtk-cross-share/cmd"
 	rtkCommon "rtk-cross-share/common"
 	rtkPlatform "rtk-cross-share/platform"
@@ -19,13 +20,12 @@ type Callback interface {
 
 // TODO: consider to replace int with long long type
 func MainInit(cb Callback, serverId, serverIpInfo, listentHost string, listentPort int) {
-	rtkPlatform.SetCallback(cb)
-	rtkCmd.MainInit(serverId, serverIpInfo, listentHost, listentPort)
+	rtkCmd.MainInit(cb, serverId, serverIpInfo, listentHost, listentPort)
 }
 
-/*func SetMainCallback(cb Callback) {
+func SetMainCallback(cb Callback) {
 	rtkPlatform.SetCallback(cb)
-}*/
+}
 
 func SendMessage(s string) {
 	rtkPlatform.SendMessage(s)
@@ -78,7 +78,7 @@ func SendNetInterfaces(name string, index int) {
 	rtkUtils.SetNetInterfaces(name, index)
 }
 
-func SendCopyFile(filePath, ipAddr string, fileSize int64) {
+func SendCopyFile(filePath, id string, fileSize int64) {
 	if filePath == "" || len(filePath) == 0 || fileSize == 0 {
 		log.Printf("filePath:[%s] or fileSizeLow:[%d] is null", filePath, fileSize)
 		return
@@ -94,23 +94,31 @@ func SendCopyFile(filePath, ipAddr string, fileSize int64) {
 		FilePath: filePath,
 	}
 
-	rtkPlatform.GoFileDropRequest(ipAddr, fileInfo, int64(time.Now().Unix()))
-	log.Printf("(SRC)Send file:[%s][%s], fileSize:%d", filePath, ipAddr, fileSize)
+	rtkPlatform.GoFileDropRequest(id, fileInfo, int64(time.Now().Unix()))
+	log.Printf("(SRC)Send file:[%s][%s], fileSize:%d", filePath, id, fileSize)
 }
 
-func IfClipboardPasteFile(fileName, ipAddr string, isReceive bool) {
+func IfClipboardPasteFile(fileName, id string, isReceive bool) {
 	FilePath := rtkPlatform.GetReceiveFilePath()
 	if fileName != "" {
 		FilePath += fileName
 	} else {
-		FilePath += fmt.Sprintf("recevieFrom-%s.file", ipAddr)
+		FilePath += fmt.Sprintf("recevieFrom-%s.file", id)
 	}
 
 	if isReceive {
-		rtkPlatform.GoFileDropResponse(ipAddr, rtkCommon.FILE_DROP_ACCEPT, FilePath)
-		log.Printf("(DST) FilePath:[%s] from ipAddr:[%s], confirm receipt", FilePath, ipAddr)
+		rtkPlatform.GoFileDropResponse(id, rtkCommon.FILE_DROP_ACCEPT, FilePath)
+		log.Printf("(DST) FilePath:[%s] from id:[%s], confirm receipt", FilePath, id)
 	} else {
-		rtkPlatform.GoFileDropResponse(ipAddr, rtkCommon.FILE_DROP_REJECT, "")
-		log.Printf("(DST) FilePath:[%s] from ipAddr:[%s] reject", FilePath, ipAddr)
+		rtkPlatform.GoFileDropResponse(id, rtkCommon.FILE_DROP_REJECT, "")
+		log.Printf("(DST) FilePath:[%s] from id:[%s] reject", FilePath, id)
 	}
+}
+
+func GetVersion() string {
+	return rtkBuildConfig.Version
+}
+
+func GetBuildDate() string {
+	return rtkBuildConfig.BuildDate
 }

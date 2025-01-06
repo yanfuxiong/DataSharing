@@ -27,6 +27,7 @@ extern void SetupDstPasteImage(wchar_t* desc, IMAGE_HEADER imgHeader, unsigned l
 extern void DataTransfer(unsigned char* data, unsigned int size);
 extern void UpdateProgressBar(char* ip, char* id, unsigned long long fileSize, unsigned long long sentSize, unsigned long long timestamp, wchar_t* fileName);
 extern void DeinitProgressBar();
+extern void UpdateSystemInfo(char* ip, wchar_t* serviceVer);
 extern void UpdateClientStatus(unsigned int status, char* ip, char* id, wchar_t* name);
 extern void EventHandle(EVENT_TYPE event);
 extern void CleanClipboard();
@@ -215,6 +216,7 @@ func fileDropRequestCallback(cIp *C.char, cId *C.char, cFileSize C.ulonglong, cT
 	if CallbackInstanceFileDropRequestCB == nil {
 		return
 	}
+	id := C.GoString(cId)
 	ip := C.GoString(cIp)
 	fileSize := uint64(cFileSize)
 	fileSizeHigh := uint32(fileSize >> 32)
@@ -227,8 +229,8 @@ func fileDropRequestCallback(cIp *C.char, cId *C.char, cFileSize C.ulonglong, cT
 		FilePath: wcharToString(cFilePath),
 	}
 	timestamp := int64(cTimestamp)
-	log.Printf("[%s %d] ip[%s] path:[%s]", rtkUtils.GetFuncName(), rtkUtils.GetLine(), ip, fileInfo.FilePath)
-	CallbackInstanceFileDropRequestCB(ip, fileInfo, timestamp)
+	log.Printf("[%s %d] id[%s] ip[%s] path:[%s]", rtkUtils.GetFuncName(), rtkUtils.GetLine(), id, ip, fileInfo.FilePath)
+	CallbackInstanceFileDropRequestCB(id, fileInfo, timestamp)
 }
 
 //export fileDropResponseCallback
@@ -237,20 +239,22 @@ func fileDropResponseCallback(cStatus int32, cIp *C.char, cId *C.char, cFileSize
 		return
 	}
 
+	id := C.GoString(cId)
 	ip := C.GoString(cIp)
 	if cStatus == 0 { // FILE_DROP_REJECT
 		log.Println("FILE_DROP_REJECT")
-		CallbackInstanceFileDropResponseCB(ip, rtkCommon.FILE_DROP_REJECT, "")
+		CallbackInstanceFileDropResponseCB(id, rtkCommon.FILE_DROP_REJECT, "")
 	} else if cStatus == 1 { // FILE_DROP_ACCEPT
 		path := wcharToString(cFilePath)
 		log.Printf("FILE_DROP_ACCEPT, ip:[%s] path:[%s]", ip, path)
-		CallbackInstanceFileDropResponseCB(ip, rtkCommon.FILE_DROP_ACCEPT, path)
+		CallbackInstanceFileDropResponseCB(id, rtkCommon.FILE_DROP_ACCEPT, path)
 	}
 }
 
 //export clipboardCopyImgCallback
 func clipboardCopyImgCallback(cHeader C.IMAGE_HEADER, cData *C.uchar, cDataSize C.ulong) {
 	if CallbackInstanceCopyImageCB == nil {
+		log.Println("[clipboardCopyImgCallback] Err: null callback instance")
 		return
 	}
 	imgHeader := rtkCommon.ImgHeader{
@@ -267,8 +271,9 @@ func clipboardCopyImgCallback(cHeader C.IMAGE_HEADER, cData *C.uchar, cDataSize 
 		SizeHigh: 0,
 		SizeLow:  dataSize,
 	}
+
 	CallbackInstanceCopyImageCB(filesize, imgHeader, data)
-	log.Printf("Clipboard image content, width[%d] height[%d] data size[%d] \n", imgHeader.Width, imgHeader.Height, dataSize, len(data))
+	log.Printf("Clipboard image content, width[%d] height[%d] data size[%d] \n", imgHeader.Width, imgHeader.Height, dataSize)
 }
 
 //export pipeConnectedCallback
@@ -305,6 +310,12 @@ func GoSetupFileDrop(ip, id, fileName, platform string, fileSize uint64, timesta
 
 // export SetupDstPasteImage
 func GoSetupDstPasteImage(desc string, content []byte, imgHeader rtkCommon.ImgHeader, dataSize uint32) {
+	// TODO: consider setup JPG image to windows clipboard
+	// calculate Bitmap size with JPG image
+	bmpSize := uint32(imgHeader.Height) * uint32(imgHeader.Width) * uint32(imgHeader.BitCount) / 8
+	log.Printf("[Windows] SetupDstPasteImage with compression, height=%d, width=%d, bitCount=%d, size=%d",
+		imgHeader.Height, imgHeader.Width, imgHeader.BitCount, bmpSize)
+
 	cDesc := stringToWChar(desc)
 	defer C.free(unsafe.Pointer(cDesc))
 	cImgHeader := C.IMAGE_HEADER{
@@ -314,14 +325,22 @@ func GoSetupDstPasteImage(desc string, content []byte, imgHeader rtkCommon.ImgHe
 		bitCount:    C.ushort(imgHeader.BitCount),
 		compression: C.ulong(imgHeader.Compression),
 	}
-	cDataSize := C.ulong(dataSize)
+	cDataSize := C.ulong(bmpSize)
 	C.SetupDstPasteImage(cDesc, cImgHeader, cDataSize)
 }
 
 // export DataTransfer
 func GoDataTransfer(data []byte) {
-	cData := (*C.uchar)(unsafe.Pointer(&data[0]))
-	cSize := C.uint(len(data))
+	// TODO: avoid to convert to BMP here, move to C++ partition
+	startConvertTime := time.Now().UnixNano()
+	bmpData, err := rtkUtils.JpgToBmp(data)
+	log.Printf("(DST) Convert jpg to bmp, size:[%d] use [%d] ms...", len(bmpData), (time.Now().UnixNano()-startConvertTime)/1e6)
+	if err != nil {
+		log.Printf("(DST) Err: Convert JPG to BMP failed")
+	}
+
+	cData := (*C.uchar)(unsafe.Pointer(&bmpData[0]))
+	cSize := C.uint(len(bmpData))
 	C.DataTransfer(cData, cSize)
 }
 
@@ -344,6 +363,15 @@ func GoDeinitProgressBar() {
 	C.DeinitProgressBar()
 }
 
+// export UpdateSystemInfo
+func GoUpdateSystemInfo(ip, serviceVer string) {
+	cIp := C.CString(ip)
+	defer C.free(unsafe.Pointer(cIp))
+	cServiceVer := stringToWChar(serviceVer)
+	defer C.free(unsafe.Pointer(cServiceVer))
+	C.UpdateSystemInfo(cIp, cServiceVer)
+}
+
 // export UpdateClientStatus
 func GoUpdateClientStatus(status uint32, ip string, id string, name string) {
 	cStatus := C.uint(status)
@@ -363,7 +391,8 @@ func GoEventHandle(eventType rtkCommon.EventType, ipAddr, fileName string) {
 
 // export CleanClipboard
 func GoCleanClipboard() {
-	C.CleanClipboard()
+	// TODO: it cause crash after disconnection. Related issue: TSTAS-44
+	// C.CleanClipboard()
 }
 
 func SetupCallbackSettings() {
@@ -453,8 +482,13 @@ func GetMdnsPortConfigPath() string {
 	return ".MdnsPort"
 }
 
+// Deprecated: replace with GetDeviceInfoPath
 func GetDeviceTablePath() string {
 	return ".DeviceTable"
+}
+
+func GetDeviceInfoPath() string {
+	return ".DeviceInfo"
 }
 
 func LockFile(file *os.File) error {

@@ -3,6 +3,7 @@
 package platform
 
 import (
+	"bytes"
 	"context"
 	"log"
 	"os"
@@ -20,8 +21,9 @@ const (
 	hostID      = "/storage/emulated/0/Android/data/com.rtk.myapplication/files/ID.HostID"
 	nodeID      = "/storage/emulated/0/Android/data/com.rtk.myapplication/files/ID.ID"
 	receiveFile = "/storage/emulated/0/Android/data/com.rtk.myapplication/files/"
-	// deviceTable = "/storage/emulated/0/CrossShare/ID.DeviceTable"
+	// Deprecated: replace with deviceInfo
 	deviceTable = "/storage/emulated/0/Android/data/com.rtk.myapplication/files/ID.DeviceTable"
+	deviceInfo  = "/storage/emulated/0/Android/data/com.rtk.myapplication/files/ID.DeviceInfo"
 	logFile     = "/storage/emulated/0/Android/data/com.rtk.myapplication/files/p2p.log"
 )
 
@@ -38,11 +40,11 @@ type Callback interface {
 	CallbackMethodImage(content string)
 	LogMessageCallback(msg string)
 	EventCallback(event int)
-	CallbackMethodFileConfirm(ipAddr, platform, filename string, fileSize int64)
+	CallbackMethodFileConfirm(id, platform, filename string, fileSize int64)
 	CallbackMethodFileDone(name string, fileSize int64)
 	CallbackMethodFoundPeer()
-	CallbackUpdateProgressBar(ipAddr, filename string, recvSize, total int64)
-	CallbackFileError(ipAddr, filename, err string)
+	CallbackUpdateProgressBar(id, filename string, recvSize, total int64)
+	CallbackFileError(id, filename, err string)
 }
 
 var CallbackInstance Callback = nil
@@ -98,16 +100,16 @@ func GoCopyImage(fileSize rtkCommon.FileSize, imgHeader rtkCommon.ImgHeader, dat
 	CallbackInstanceCopyImageCB(fileSize, imgHeader, data)
 }
 
-func GoPasteImage() { //Android  have no Paste
+func GoPasteImage() {
 	CallbackInstancePasteImageCB()
 }
 
-func GoFileDropRequest(ip string, fileInfo rtkCommon.FileInfo, timestamp int64) {
-	CallbackInstanceFileDropRequestCB(ip, fileInfo, timestamp)
+func GoFileDropRequest(id string, fileInfo rtkCommon.FileInfo, timestamp int64) {
+	CallbackInstanceFileDropRequestCB(id, fileInfo, timestamp)
 }
 
-func GoFileDropResponse(ip string, fileCmd rtkCommon.FileDropCmd, fileName string) {
-	CallbackInstanceFileDropResponseCB(ip, fileCmd, fileName)
+func GoFileDropResponse(id string, fileCmd rtkCommon.FileDropCmd, fileName string) {
+	CallbackInstanceFileDropResponseCB(id, fileCmd, fileName)
 }
 
 func WatchClipboardText(ctx context.Context, resultChan chan<- string) {
@@ -152,7 +154,7 @@ func GoSetupDstPasteFile(desc, fileName, platform string, fileSizeHigh uint32, f
 
 func GoSetupFileDrop(ip, id, fileName, platform string, fileSize uint64, timestamp int64) {
 	log.Printf("(DST) GoSetupFileDrop  source:%s ip:[%s]fileName:%s  fileSize:%d", id, ip, fileName, fileSize)
-	CallbackInstance.CallbackMethodFileConfirm(ip, platform, fileName, int64(fileSize))
+	CallbackInstance.CallbackMethodFileConfirm(id, platform, fileName, int64(fileSize))
 }
 
 func ReceiveImageCopyDataDone(fileSize int64, imgHeader rtkCommon.ImgHeader) {
@@ -162,7 +164,7 @@ func ReceiveImageCopyDataDone(fileSize int64, imgHeader rtkCommon.ImgHeader) {
 		return
 	}
 	rtkUtils.GoSafe(func() {
-		imageBase64 := rtkUtils.Base64Encode(rtkUtils.BitmapToImage(ImageData, int(imgHeader.Width), int(imgHeader.Height)))
+		imageBase64 := rtkUtils.Base64Encode(ImageData)
 		// log.Printf("len[%d][%d][%d][%+v]", len(ImageData), len(imageBase64), rtkGlobal.Handler.CopyImgHeader.Width, imageBase64)
 		CallbackInstance.CallbackMethodImage(imageBase64)
 	})
@@ -193,16 +195,23 @@ func GoSetupDstPasteImage(desc string, content []byte, imgHeader rtkCommon.ImgHe
 }
 
 func GoDataTransfer(data []byte) {
-	ImageData = append(ImageData, data...)
+	var buffer bytes.Buffer
+	buffer.Write(ImageData)
+	buffer.Write(data)
+	ImageData = buffer.Bytes()
 }
 
 func GoUpdateProgressBar(ip, id string, fileSize, sentSize uint64, timestamp int64, filePath string) {
 	fileName := filepath.Base(filePath)
 	log.Printf("GoUpdateProgressBar ip:[%s] name:[%s] recvSize:[%d] total:[%d]", ip, fileName, sentSize, fileSize)
-	CallbackInstance.CallbackUpdateProgressBar(ip, fileName, int64(sentSize), int64(fileSize))
+	CallbackInstance.CallbackUpdateProgressBar(id, fileName, int64(sentSize), int64(fileSize))
 }
 
 func GoDeinitProgressBar() {
+
+}
+
+func GoUpdateSystemInfo(ip, serviceVer string) {
 
 }
 
@@ -210,19 +219,19 @@ func GoUpdateClientStatus(status uint32, ip string, id string, name string) {
 
 }
 
-func GoEventHandle(eventType rtkCommon.EventType, ipAddr, fileName string) {
+func GoEventHandle(eventType rtkCommon.EventType, id, fileName string) {
 	if CallbackInstance == nil {
 		log.Println("GoEventHandle CallbackInstance is null !")
 		return
 	}
 	if eventType == rtkCommon.EVENT_TYPE_OPEN_FILE_ERR {
 		strErr := "file datatransfer sender error"
-		CallbackInstance.CallbackFileError(ipAddr, fileName, strErr)
+		CallbackInstance.CallbackFileError(id, fileName, strErr)
 	} else if eventType == rtkCommon.EVENT_TYPE_RECV_TIMEOUT {
 		strErr := "file datatransfer receiving end error"
-		CallbackInstance.CallbackFileError(ipAddr, fileName, strErr)
+		CallbackInstance.CallbackFileError(id, fileName, strErr)
 	}
-	log.Printf("[%s %d]: ipAddr:%s, name:%s, error:%d", rtkUtils.GetFuncName(), rtkUtils.GetLine(), ipAddr, fileName, eventType)
+	log.Printf("[%s %d]: id:%s, name:%s, error:%d", rtkUtils.GetFuncName(), rtkUtils.GetLine(), id, fileName, eventType)
 }
 
 func GoCleanClipboard() {
@@ -284,8 +293,13 @@ func GetMdnsPortConfigPath() string {
 	return ""
 }
 
+// Deprecated: replace with GetDeviceInfoPath
 func GetDeviceTablePath() string {
 	return deviceTable
+}
+
+func GetDeviceInfoPath() string {
+	return deviceInfo
 }
 
 func LockFile(file *os.File) error {
