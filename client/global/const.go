@@ -7,4 +7,7 @@ const (
 	HOST_ID          = "12345"
 	ProtocolDirectID = "/direct_connect"
 	DefaultIp        = "0.0.0.0"
+	PlatformAndroid  = "android"
+	PlatformWindows  = "windows"
+	PlatformMac      = "macOs"
 )

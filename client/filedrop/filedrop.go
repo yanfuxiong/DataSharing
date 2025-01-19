@@ -8,7 +8,6 @@ import (
 	rtkPlatform "rtk-cross-share/platform"
 	rtkUtils "rtk-cross-share/utils"
 	"sync"
-	"time"
 )
 
 type FileDropData struct {
@@ -21,41 +20,45 @@ type FileDropData struct {
 }
 
 var (
-	fileDropDataMap		= make(map[string]FileDropData) // key: ID
-	fileDropDataMutex	sync.RWMutex
-	isFileDropReqDataFromLocal = make(map[string]bool) // key: ID
-	isFileDropRespDataFromLocal = make(map[string]bool) // key: ID
+	fileDropDataMap    = make(map[string]FileDropData) // key: ID
+	fileDropDataMutex  sync.RWMutex
+	fileDropReqIdChan  = make(chan string, 10)
+	fileDropRespIdChan = make(chan string, 10)
 )
 
 func UpdateFileDropReqDataFromLocal(id string, fileInfo rtkCommon.FileInfo, timestamp int64) {
 	updateFileDropReqData(id, fileInfo, timestamp)
-	isFileDropReqDataFromLocal[id] = true
+
+	for i := 0; i < rtkUtils.GetClientCount(); i++ {
+		fileDropReqIdChan <- id
+	}
 }
 
 func UpdateFileDropReqDataFromDst(id string, fileInfo rtkCommon.FileInfo, timestamp int64) {
 	updateFileDropReqData(id, fileInfo, timestamp)
-	isFileDropReqDataFromLocal[id] = false
 }
 
 func updateFileDropReqData(id string, fileInfo rtkCommon.FileInfo, timestamp int64) {
 	fileDropDataMutex.Lock()
 	fileDropDataMap[id] = FileDropData{
-		SrcFileInfo:	fileInfo,
-		TimeStamp:		uint64(timestamp),
-		DstFilePath:	"",
-		Cmd:			rtkCommon.FILE_DROP_REQUEST,
+		SrcFileInfo: fileInfo,
+		TimeStamp:   uint64(timestamp),
+		DstFilePath: "",
+		Cmd:         rtkCommon.FILE_DROP_REQUEST,
 	}
 	fileDropDataMutex.Unlock()
 }
 
 func UpdateFileDropRespDataFromLocal(id string, cmd rtkCommon.FileDropCmd, filePath string) {
 	updateFileDropRespData(id, cmd, filePath)
-	isFileDropRespDataFromLocal[id] = true
+
+	for i := 0; i < rtkUtils.GetClientCount(); i++ {
+		fileDropRespIdChan <- id
+	}
 }
 
 func UpdateFileDropRespDataFromDst(id string, cmd rtkCommon.FileDropCmd, filePath string) {
 	updateFileDropRespData(id, cmd, filePath)
-	isFileDropRespDataFromLocal[id] = false
 }
 
 func updateFileDropRespData(id string, cmd rtkCommon.FileDropCmd, filePath string) {
@@ -95,12 +98,9 @@ func WatchFileDropReqEvent(ctx context.Context, id string, resultChan chan<- str
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(100 * time.Millisecond):
-			if isLocal, ok := isFileDropReqDataFromLocal[id]; ok {
-				if isLocal {
-					resultChan <- id
-					isFileDropReqDataFromLocal[id] = false
-				}
+		case triggerId := <-fileDropReqIdChan:
+			if triggerId == id {
+				resultChan <- id
 			}
 		}
 	}
@@ -111,23 +111,16 @@ func WatchFileDropRespEvent(ctx context.Context, id string, resultChan chan<- st
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(100 * time.Millisecond):
-			if isLocal, ok := isFileDropRespDataFromLocal[id]; ok {
-				if isLocal {
-					resultChan <- id
-					isFileDropRespDataFromLocal[id] = false
-				}
+		case triggerId := <-fileDropRespIdChan:
+			if triggerId == id {
+				resultChan <- id
 			}
 		}
 	}
 }
 
 func SetupDstFileDrop(id, filePath, platform string, fileSizeHigh uint32, fileSizeLow uint32, timestamp int64) {
-	ipAddr, err := rtkUtils.GetDeviceIp(id)
-	if err != nil {
-		log.Printf("[%s %d] Err: Unknown ID: %s. Please check .DeviceInfo", rtkUtils.GetFuncName(), rtkUtils.GetLine(), id)
-		return
-	}
+	ipAddr, _ := rtkUtils.GetClientIp(id)
 
 	fileInfo := rtkCommon.FileInfo{
 		FileSize_: rtkCommon.FileSize{

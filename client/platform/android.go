@@ -5,6 +5,7 @@ package platform
 import (
 	"bytes"
 	"context"
+	"github.com/libp2p/go-libp2p/core/crypto"
 	"log"
 	"os"
 	"path/filepath"
@@ -12,9 +13,6 @@ import (
 	rtkGlobal "rtk-cross-share/global"
 	rtkUtils "rtk-cross-share/utils"
 	"strings"
-	"time"
-
-	"github.com/libp2p/go-libp2p/core/crypto"
 )
 
 const (
@@ -27,12 +25,15 @@ const (
 	logFile     = "/storage/emulated/0/Android/data/com.rtk.myapplication/files/p2p.log"
 )
 
+var (
+	imageData          bytes.Buffer
+	copyTextChan       = make(chan string, 100)
+	isNetWorkConnected bool
+)
+
 func GetLogFilePath() string {
 	return logFile
 }
-
-var ImageData []byte
-var curInputText string
 
 // Notify to Android APK
 type Callback interface {
@@ -113,29 +114,31 @@ func GoFileDropResponse(id string, fileCmd rtkCommon.FileDropCmd, fileName strin
 }
 
 func WatchClipboardText(ctx context.Context, resultChan chan<- string) {
-	var lastInputText string // this must be local variable
-
+	var lastCopyText string
 	for {
 		select {
 		case <-ctx.Done():
 			return
 
-		case <-time.After(100 * time.Millisecond):
-			if len(curInputText) > 0 && !strings.EqualFold(curInputText, lastInputText) {
-				log.Println("watchClipboardText - got new message: ", curInputText)
-				lastInputText = curInputText
-				resultChan <- curInputText
+		case curCopyText := <-copyTextChan:
+			if len(curCopyText) > 0 && !strings.EqualFold(curCopyText, lastCopyText) {
+				log.Println("DEBUG: watchClipboardText - got new message: ", curCopyText)
+				lastCopyText = curCopyText
+				resultChan <- curCopyText
 			}
 		}
 	}
 }
 
-func SendMessage(s string) {
-	log.Printf("SendMessage:[%s] ", s)
-	if s == "" || len(s) == 0 {
+func SendMessage(strText string) {
+	log.Printf("SendMessage:[%s] ", strText)
+	if strText == "" || len(strText) == 0 {
 		return
 	}
-	curInputText = s
+
+	for i := 0; i < rtkUtils.GetClientCount(); i++ {
+		copyTextChan <- strText
+	}
 }
 
 func SetupCallbackSettings() {
@@ -164,9 +167,10 @@ func ReceiveImageCopyDataDone(fileSize int64, imgHeader rtkCommon.ImgHeader) {
 		return
 	}
 	rtkUtils.GoSafe(func() {
-		imageBase64 := rtkUtils.Base64Encode(ImageData)
+		imageBase64 := rtkUtils.Base64Encode(imageData.Bytes())
 		// log.Printf("len[%d][%d][%d][%+v]", len(ImageData), len(imageBase64), rtkGlobal.Handler.CopyImgHeader.Width, imageBase64)
 		CallbackInstance.CallbackMethodImage(imageBase64)
+		imageData.Reset()
 	})
 }
 
@@ -190,15 +194,13 @@ func FoundPeer() {
 
 func GoSetupDstPasteImage(desc string, content []byte, imgHeader rtkCommon.ImgHeader, dataSize uint32) {
 	log.Printf("GoSetupDstPasteImage from ID %s, len:[%d] dataSize:[%d]\n\n", desc, len(content), dataSize)
-	ImageData = []byte{}
+	imageData.Reset()
+	imageData.Grow(int(dataSize))
 	CallbackInstancePasteImageCB()
 }
 
 func GoDataTransfer(data []byte) {
-	var buffer bytes.Buffer
-	buffer.Write(ImageData)
-	buffer.Write(data)
-	ImageData = buffer.Bytes()
+	imageData.Write(data)
 }
 
 func GoUpdateProgressBar(ip, id string, fileSize, sentSize uint64, timestamp int64, filePath string) {
@@ -282,7 +284,7 @@ func GetHostIDPath() string {
 }
 
 func GetPlatform() string {
-	return "android"
+	return rtkGlobal.PlatformAndroid
 }
 
 func GetReceiveFilePath() string {
@@ -308,4 +310,12 @@ func LockFile(file *os.File) error {
 
 func UnlockFile(file *os.File) error {
 	return nil
+}
+
+func SetNetWorkConnected(bConnected bool) {
+	isNetWorkConnected = bConnected
+}
+
+func GetNetWorkConnected() bool {
+	return isNetWorkConnected
 }

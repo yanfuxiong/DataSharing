@@ -4,7 +4,9 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	rtkConnection "rtk-cross-share/connection"
 	rtkPlatform "rtk-cross-share/platform"
+	rtkUtils "rtk-cross-share/utils"
 	"strconv"
 	"strings"
 	"time"
@@ -94,7 +96,7 @@ func DebugCmdLine() {
 					rtkPlatform.GoUpdateProgressBar(ip, id, fileSize, sentSize, timestamp, fileName)
 				}
 			}
-		} else if strings.Contains(line, "PIPE_UPDATE_SYSTEM_INFO") {
+		}else if strings.Contains(line, "PIPE_UPDATE_SYSTEM_INFO") {
 			for scanner.Scan() {
 				fmt.Println("IP & port:")
 				ip := scanner.Text()
@@ -105,6 +107,14 @@ func DebugCmdLine() {
 					rtkPlatform.GoUpdateSystemInfo(ip, serviceVer)
 				}
 			}
+		} else if strings.Contains(line, "GetClientList") {
+			fmt.Println("ClientList:", rtkUtils.GetClientList())
+		} else if strings.Contains(line, "streamPool") {
+			rtkConnection.PrintfStreamPool()
+		} else if strings.Contains(line, "CloseStream") {
+			rtkConnection.CloseStream("QmatLKJ3uE7tc9gX4Kx6jhgyu7QzB5fYSQuU81js4jSSMD")
+		} else if strings.Contains(line, "ClosePeer") {
+			rtkConnection.ClosePeer("QmatLKJ3uE7tc9gX4Kx6jhgyu7QzB5fYSQuU81js4jSSMD")
 		}
 		// } else if strings.Contains(line, "PASTE_FILE") {
 		// 	rtkPlatform.GoClipboardPasteFileCallback("123")

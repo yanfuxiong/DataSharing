@@ -13,6 +13,7 @@ import (
 	rtkGlobal "rtk-cross-share/global"
 	"runtime"
 	"runtime/debug"
+	"strconv"
 	"strings"
 
 	"github.com/libp2p/go-libp2p/core/network"
@@ -24,8 +25,8 @@ import (
 )
 
 func GoSafe(fn func()) {
-	go func() {
-		defer func() {
+    go func() {
+        defer func() {
 			if r := recover(); r != nil {
 				log.SetOutput(&lumberjack.Logger{
 					Filename:   "crash.log",
@@ -41,8 +42,8 @@ func GoSafe(fn func()) {
 				os.Exit(1)
 			}
 		}()
-		fn()
-	}()
+        fn()
+    }()
 }
 
 func GetFuncName() string {
@@ -71,6 +72,28 @@ func GetLine() int {
 		return -1
 	}
 	return line
+}
+
+func GetFuncInfo() string {
+	funcName := "UnknownFunc:"
+	pc, _, line, ok := runtime.Caller(1)
+	if !ok {
+		return funcName + strconv.Itoa(line)
+	}
+	fn := runtime.FuncForPC(pc)
+	if fn == nil {
+		return funcName + strconv.Itoa(line)
+	}
+	fullName := fn.Name()
+	if fullName == "" {
+		return funcName + strconv.Itoa(line)
+	}
+	parts := strings.Split(fullName, ".")
+	if len(parts) == 0 {
+		return funcName + strconv.Itoa(line)
+	}
+	funcName = parts[len(parts)-1] + ":"
+	return funcName + strconv.Itoa(line)
 }
 
 func ContentEqual(a, b []byte) bool {
@@ -265,75 +288,78 @@ func RemoveMySelfID(slice []string, s string) []string {
 	return slice[:i]
 }
 
-func IsInMdnsClientList(peerID string) bool {
-	rtkGlobal.MdnsListRWMutex.RLock()
-	defer rtkGlobal.MdnsListRWMutex.RUnlock()
-	for _, val := range rtkGlobal.MdnsClientList {
-		if strings.EqualFold(peerID, val.ID) {
-			return true
-		}
+func GetClientInfo(id string) (rtkCommon.ClientInfo, error) {
+	rtkGlobal.ClientListRWMutex.RLock()
+	defer rtkGlobal.ClientListRWMutex.RUnlock()
+
+	if val, ok := rtkGlobal.ClientInfoMap[id]; ok {
+		return val, nil
 	}
-	return false
+	return rtkCommon.ClientInfo{}, errors.New(fmt.Sprintf("not found ClientInfo by id:%s", id))
 }
 
-func InsertMdnsClientList(Id, IpAddr, platform, name string) {
-	rtkGlobal.MdnsListRWMutex.Lock()
-	defer rtkGlobal.MdnsListRWMutex.Unlock()
-	isExist := false
-	for _, val := range rtkGlobal.MdnsClientList {
-		if strings.EqualFold(Id, val.ID) && strings.EqualFold(IpAddr, val.IpAddr) {
-			isExist = true
-		}
+func GetClientIp(id string) (string, bool) {
+	rtkGlobal.ClientListRWMutex.RLock()
+	defer rtkGlobal.ClientListRWMutex.RUnlock()
+
+	if val, ok := rtkGlobal.ClientInfoMap[id]; ok {
+		return val.IpAddr, ok
 	}
-	if !isExist {
-		rtkGlobal.MdnsClientList = append(rtkGlobal.MdnsClientList, rtkCommon.ClientInfo{ID: Id, IpAddr: IpAddr, Platform: platform, DeviceName: name})
-	}
+	log.Printf("not found ClientInfo by id:%s", id)
+	return "", false
 }
 
-func LostMdnsClientList(peerID string) {
-	rtkGlobal.MdnsListRWMutex.Lock()
-	defer rtkGlobal.MdnsListRWMutex.Unlock()
-	var temList []rtkCommon.ClientInfo
-	for _, item := range rtkGlobal.MdnsClientList {
-		if !strings.EqualFold(item.ID, peerID) {
-			temList = append(temList, item)
-		}
+func InsertClientInfoMap(id, ipAddr, platform, name string) {
+	rtkGlobal.ClientListRWMutex.Lock()
+	defer rtkGlobal.ClientListRWMutex.Unlock()
+
+	if _, ok := rtkGlobal.ClientInfoMap[id]; !ok {
+		rtkGlobal.ClientInfoMap[id] = rtkCommon.ClientInfo{ID: id, IpAddr: ipAddr, Platform: platform, DeviceName: name}
 	}
-	rtkGlobal.MdnsClientList = temList
+
+}
+
+func LostClientInfoMap(id string) {
+	rtkGlobal.ClientListRWMutex.Lock()
+	defer rtkGlobal.ClientListRWMutex.Unlock()
+
+	delete(rtkGlobal.ClientInfoMap, id)
 }
 
 func RemoveMdnsClientFromGuest() {
-	rtkGlobal.MdnsListRWMutex.RLock()
-	defer rtkGlobal.MdnsListRWMutex.RUnlock()
+	rtkGlobal.ClientListRWMutex.RLock()
+	defer rtkGlobal.ClientListRWMutex.RUnlock()
 
-	for _, val := range rtkGlobal.MdnsClientList {
+	for _, val := range rtkGlobal.ClientInfoMap {
 		rtkGlobal.GuestList = RemoveMySelfID(rtkGlobal.GuestList, val.ID)
 	}
 }
 
 func GetClientList() string {
-	rtkGlobal.MdnsListRWMutex.RLock()
-	defer rtkGlobal.MdnsListRWMutex.RUnlock()
+	rtkGlobal.ClientListRWMutex.RLock()
+	defer rtkGlobal.ClientListRWMutex.RUnlock()
 
 	var clientList string
-	for _, val := range rtkGlobal.MdnsClientList {
+	for _, val := range rtkGlobal.ClientInfoMap {
 		clientList += val.IpAddr + "#"
 		clientList += val.ID + "#"
-		deviceName := QueryDeviceName(val.ID)
-		if deviceName == "" {
-			clientList += val.DeviceName + ","
-		} else {
-			clientList += deviceName + ","
-		}
+		clientList += val.DeviceName + ","
 	}
 	return strings.Trim(clientList, ",")
 }
 
 func GetClientCount() int {
-	rtkGlobal.MdnsListRWMutex.RLock()
-	defer rtkGlobal.MdnsListRWMutex.RUnlock()
+	rtkGlobal.ClientListRWMutex.RLock()
+	defer rtkGlobal.ClientListRWMutex.RUnlock()
 
-	return len(rtkGlobal.MdnsClientList)
+	return len(rtkGlobal.ClientInfoMap)
+}
+
+func GetClientMap() map[string]rtkCommon.ClientInfo {
+	rtkGlobal.ClientListRWMutex.RLock()
+	defer rtkGlobal.ClientListRWMutex.RUnlock()
+
+	return rtkGlobal.ClientInfoMap
 }
 
 func Base64Decode(src string) []byte {
@@ -352,14 +378,14 @@ func Base64Encode(src []byte) string {
 
 // FIXME: hack code
 type DeviceInfo struct {
-	IP string
+	IP   string
 	Name string
 }
 
 var (
-	HackDeviceNameMap map[string]string = make(map[string]string)
-	deviceInfoMap map[string]DeviceInfo = make(map[string]DeviceInfo)
-	DeviceStaticPort string = ""
+	HackDeviceNameMap map[string]string     = make(map[string]string)
+	deviceInfoMap     map[string]DeviceInfo = make(map[string]DeviceInfo)
+	DeviceStaticPort  string                = ""
 )
 
 func InitDeviceInfo(filename string) {
@@ -373,6 +399,9 @@ func InitDeviceInfo(filename string) {
 	idx := 0
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
 		// Get static port
 		if idx == 0 {
 			port := strings.SplitN(line, ":", 2)
@@ -399,7 +428,7 @@ func InitDeviceInfo(filename string) {
 			name := string(parts[2])
 
 			deviceInfoMap[id] = DeviceInfo{
-				IP: ip,
+				IP:   ip,
 				Name: name,
 			}
 		}
@@ -409,7 +438,7 @@ func InitDeviceInfo(filename string) {
 }
 
 func GetDeviceInfoMap() map[string]DeviceInfo {
-	return deviceInfoMap;
+	return deviceInfoMap
 }
 
 func GetDeviceInfo(id string) (DeviceInfo, error) {
@@ -426,7 +455,7 @@ func GetDeviceIp(id string) (string, error) {
 		return "", err
 	} else {
 		ipAddr := deviceInfo.IP
-		ipAddr += (":"+DeviceStaticPort)
+		ipAddr += (":" + DeviceStaticPort)
 		return ipAddr, nil
 	}
 }

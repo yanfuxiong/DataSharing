@@ -8,6 +8,8 @@ import (
 	rtkBuildConfig "rtk-cross-share/buildConfig"
 	rtkCmd "rtk-cross-share/cmd"
 	rtkCommon "rtk-cross-share/common"
+	rtkConnection "rtk-cross-share/connection"
+	rtkGlobal "rtk-cross-share/global"
 	rtkPlatform "rtk-cross-share/platform"
 	rtkUtils "rtk-cross-share/utils"
 	"strings"
@@ -20,11 +22,8 @@ type Callback interface {
 
 // TODO: consider to replace int with long long type
 func MainInit(cb Callback, serverId, serverIpInfo, listentHost string, listentPort int) {
-	rtkCmd.MainInit(cb, serverId, serverIpInfo, listentHost, listentPort)
-}
-
-func SetMainCallback(cb Callback) {
 	rtkPlatform.SetCallback(cb)
+	rtkCmd.MainInit(serverId, serverIpInfo, listentHost, listentPort)
 }
 
 func SendMessage(s string) {
@@ -112,6 +111,21 @@ func IfClipboardPasteFile(fileName, id string, isReceive bool) {
 	} else {
 		rtkPlatform.GoFileDropResponse(id, rtkCommon.FILE_DROP_REJECT, "")
 		log.Printf("(DST) FilePath:[%s] from id:[%s] reject", FilePath, id)
+	}
+}
+
+func SetNetWorkConnected(isConnect bool) {
+	log.Printf("[%s] SetNetWorkConnected:[%v]", rtkUtils.GetFuncInfo(), isConnect)
+	rtkPlatform.SetNetWorkConnected(isConnect)
+}
+
+func SetHostListenAddr(listenHost string, listentPort int) {
+	log.Printf("[%s] SetHostListAddr:[%s][%d]", rtkUtils.GetFuncInfo(), listenHost, listentPort)
+	if listenHost != rtkGlobal.ListenHost || listentPort != rtkGlobal.ListenPort {
+		log.Println("**************** attention please, the host listen addr is switch! ********************")
+		rtkGlobal.ListenHost = listenHost
+		rtkGlobal.ListenPort = listentPort
+		rtkConnection.SetNetworkSwitchFlag()
 	}
 }
 

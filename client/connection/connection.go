@@ -9,7 +9,6 @@ import (
 	"net"
 	rtkCommon "rtk-cross-share/common"
 	rtkGlobal "rtk-cross-share/global"
-	rtkPeer2Peer "rtk-cross-share/peer2peer"
 	rtkPlatform "rtk-cross-share/platform"
 	rtkUtils "rtk-cross-share/utils"
 	"time"
@@ -125,77 +124,79 @@ func performDCUtRHandshake(s network.Stream) net.Conn {
 	return connP2P
 }
 
+// FIXME: fix this
 func ExecuteP2PConnect(ctx context.Context, stream network.Stream, node host.Host) {
-	connP2P := performDCUtRHandshake(stream)
-	if connP2P != nil {
-		ipAddr := connP2P.RemoteAddr().String()
+	// connP2P := performDCUtRHandshake(stream)
+	// if connP2P != nil {
+	// 	ipAddr := connP2P.RemoteAddr().String()
 
-		connCtx, cancel := context.WithCancel(context.Background())
-		rtkUtils.GoSafe(func() {rtkPeer2Peer.ProcessEventsForPeer(connP2P, ipAddr, connCtx, cancel)})
-		rtkUtils.GoSafe(func() {
-			<-connCtx.Done()
-			log.Println("************************************************")
-			log.Println("Lost connection with ID:", stream.Conn().RemotePeer(), " IP:", ipAddr)
-			log.Println("************************************************")
-		})
-	}
+	// 	connCtx, cancel := context.WithCancel(context.Background())
+	// 	rtkUtils.GoSafe(func() {rtkPeer2Peer.ProcessEventsForPeer(connP2P, ipAddr, connCtx, cancel)})
+	// 	rtkUtils.GoSafe(func() {
+	// 		<-connCtx.Done()
+	// 		log.Println("************************************************")
+	// 		log.Println("Lost connection with ID:", stream.Conn().RemotePeer(), " IP:", ipAddr)
+	// 		log.Println("************************************************")
+	// 	})
+	// }
 }
 
+// FIXME: fix this
 func HandleStream(s network.Stream) {
-	rw := bufio.NewReadWriter(bufio.NewReader(s), bufio.NewWriter(s))
-	myAddr := rtkUtils.ConcatIP(rtkGlobal.NodeInfo.IPAddr.PublicIP, rtkGlobal.NodeInfo.IPAddr.PublicPort)
-	var connP2P net.Conn
+	// rw := bufio.NewReadWriter(bufio.NewReader(s), bufio.NewWriter(s))
+	// myAddr := rtkUtils.ConcatIP(rtkGlobal.NodeInfo.IPAddr.PublicIP, rtkGlobal.NodeInfo.IPAddr.PublicPort)
+	// var connP2P net.Conn
 
-	rtkUtils.GoSafe(func() {
-		defer s.Close()
-		for {
-			log.Println("Wait for CONNECT ...")
-			var connectMsg rtkCommon.ConnectMessage
-			err := json.NewDecoder(rw).Decode(&connectMsg)
-			if err != nil {
-				log.Println("Error decoding connect message: %w", err)
-				return
-			}
+	// rtkUtils.GoSafe(func() {
+	// 	defer s.Close()
+	// 	for {
+	// 		log.Println("Wait for CONNECT ...")
+	// 		var connectMsg rtkCommon.ConnectMessage
+	// 		err := json.NewDecoder(rw).Decode(&connectMsg)
+	// 		if err != nil {
+	// 			log.Println("Error decoding connect message: %w", err)
+	// 			return
+	// 		}
 
-			log.Println("Received Connect message with observed addresses: ", connectMsg.ObservedAddrs)
+	// 		log.Println("Received Connect message with observed addresses: ", connectMsg.ObservedAddrs)
 
-			// Respond with a Connect message
-			responseMsg := rtkCommon.ConnectMessage{Tag: "CONNECT", ObservedAddrs: myAddr}
-			if err := json.NewEncoder(rw).Encode(responseMsg); err != nil {
-				log.Println("Error encoding connect message: %w", err)
-				return
-			}
-			if err := rw.Flush(); err != nil {
-				log.Println("Error flushing write buffer: %w", err)
-				return
-			}
+	// 		// Respond with a Connect message
+	// 		responseMsg := rtkCommon.ConnectMessage{Tag: "CONNECT", ObservedAddrs: myAddr}
+	// 		if err := json.NewEncoder(rw).Encode(responseMsg); err != nil {
+	// 			log.Println("Error encoding connect message: %w", err)
+	// 			return
+	// 		}
+	// 		if err := rw.Flush(); err != nil {
+	// 			log.Println("Error flushing write buffer: %w", err)
+	// 			return
+	// 		}
 
-			// Read Sync message
-			var syncMsg rtkCommon.SyncMessage
-			err = json.NewDecoder(rw).Decode(&syncMsg)
-			if err != nil {
-				log.Println("Error decoding sync message: %w", err)
-				return
-			}
+	// 		// Read Sync message
+	// 		var syncMsg rtkCommon.SyncMessage
+	// 		err = json.NewDecoder(rw).Decode(&syncMsg)
+	// 		if err != nil {
+	// 			log.Println("Error decoding sync message: %w", err)
+	// 			return
+	// 		}
 
-			log.Println("Received Sync message:", syncMsg)
+	// 		log.Println("Received Sync message:", syncMsg)
 
-			// Perform simultaneous open for hole punching
-			connP2P = performSimultaneousOpen(s.Conn(), rtkGlobal.NodeInfo.IPAddr.LocalPort, connectMsg.ObservedAddrs)
-			if connP2P != nil {
-				break
-			}
-		}
+	// 		// Perform simultaneous open for hole punching
+	// 		connP2P = performSimultaneousOpen(s.Conn(), rtkGlobal.NodeInfo.IPAddr.LocalPort, connectMsg.ObservedAddrs)
+	// 		if connP2P != nil {
+	// 			break
+	// 		}
+	// 	}
 
-		ipAddr := connP2P.RemoteAddr().String()
+	// 	ipAddr := connP2P.RemoteAddr().String()
 
-		connCtx, cancel := context.WithCancel(context.Background())
-		rtkUtils.GoSafe(func() {rtkPeer2Peer.ProcessEventsForPeer(connP2P, ipAddr, connCtx, cancel)})
-		rtkUtils.GoSafe(func() {
-			<-connCtx.Done()
-			log.Println("************************************************")
-			log.Println("Lost connection with ID:", s.Conn().RemotePeer(), " IP:", ipAddr)
-			log.Println("************************************************")
-		})
-	})
+	// 	connCtx, cancel := context.WithCancel(context.Background())
+	// 	rtkUtils.GoSafe(func() {rtkPeer2Peer.ProcessEventsForPeer(connP2P, ipAddr, connCtx, cancel)})
+	// 	rtkUtils.GoSafe(func() {
+	// 		<-connCtx.Done()
+	// 		log.Println("************************************************")
+	// 		log.Println("Lost connection with ID:", s.Conn().RemotePeer(), " IP:", ipAddr)
+	// 		log.Println("************************************************")
+	// 	})
+	// })
 }

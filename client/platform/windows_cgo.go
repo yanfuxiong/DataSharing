@@ -422,15 +422,12 @@ func ReceiveFileConfirm(fileSize int64) {
 }
 
 func ReceiveImageCopyDataDone(fileSize int64, imgHeader rtkCommon.ImgHeader) {
-	log.Println("ReceiveImageCopyDataDone size:", fileSize, " imgHeader: ", imgHeader)
 }
 
 func ReceiveFileDropCopyDataDone(fileSize int64, dstFilePath string) {
-	log.Println("ReceiveFileDropCopyDataDone size:", fileSize, " dstFilePath: ", dstFilePath)
 }
 
 func FoundPeer() {
-	log.Println("CallbackMethodFoundPeer")
 }
 
 func GetClientList() string {
@@ -475,11 +472,18 @@ func GetHostIDPath() string {
 }
 
 func GetPlatform() string {
-	return "windows"
+	return rtkGlobal.PlatformWindows
 }
 
 func GetMdnsPortConfigPath() string {
 	return ".MdnsPort"
+}
+
+func SetNetWorkConnected(bConnected bool) {
+}
+
+func GetNetWorkConnected() bool {
+	return false
 }
 
 // Deprecated: replace with GetDeviceInfoPath

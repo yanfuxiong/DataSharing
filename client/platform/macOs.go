@@ -213,11 +213,18 @@ func GetHostID() string {
 }
 
 func GetPlatform() string {
-	return "macOs"
+	return rtkGlobal.PlatformMac
 }
 
 func GetMdnsPortConfigPath() string {
 	return ".MdnsPort"
+}
+
+func SetNetWorkConnected(bConnected bool) {
+}
+
+func GetNetWorkConnected() bool {
+	return false
 }
 
 // Deprecated: replace with GetDeviceInfoPath
