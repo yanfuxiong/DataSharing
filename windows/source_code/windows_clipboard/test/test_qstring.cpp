@@ -14,7 +14,7 @@ private Q_SLOTS:
     void test_utf16()
     {
         {
-            QString str(R"(D:\jack_huang\Downloads\新增資料夾\測試.mp4)"); // UTF8
+            QString str(R"(D:\jack_huang\Downloads\新增資料夾\測試.mp4)"); // 这里的形式是UTF8
             qInfo() << CommonUtils::toUtf16LE(str).toHex().toUpper().constData();
         }
 
@@ -22,7 +22,7 @@ private Q_SLOTS:
         {
             QByteArray data;
             {
-                QString str(R"(D:\jack_huang\Downloads\新增資料夾\測試.mp4)"); // UTF8
+                QString str(R"(D:\jack_huang\Downloads\新增資料夾\測試.mp4)"); // 这里的形式是UTF8
                 data = CommonUtils::toUtf16LE(str).toHex().toUpper();
             }
 

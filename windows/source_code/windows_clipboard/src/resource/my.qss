@@ -21,7 +21,7 @@ QGroupBox#middle_box {
     border-radius:4px;
 }
 
-QGroupBox#bottom_box, QGroupBox#tag_box_1, QGroupBox#tag_box_2, QGroupBox#tag_box_3,QGroupBox#tag_box_4 {
+QGroupBox#bottom_box {
     border:none;
 }
 

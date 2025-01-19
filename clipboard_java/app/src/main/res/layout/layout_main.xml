@@ -47,7 +47,7 @@
             android:layout_height="150dp"
             android:orientation="vertical">
 
-            <RelativeLayout
+            <LinearLayout
                 android:id="@+id/frame_8"
                 android:layout_width="match_parent"
                 android:layout_height="24dp"
@@ -56,12 +56,9 @@
 
                 <ImageView
                     android:id="@+id/back_icon"
-                    android:layout_width="wrap_content"
-                    android:layout_height="16dp"
-                    android:layout_centerVertical="true"
-                    android:paddingLeft="10dp"
-                    android:paddingRight="10dp"
-                    android:layout_marginLeft="5dp"
+                    android:layout_width="7.4dp"
+                    android:layout_height="12dp"
+                    android:layout_marginLeft="15dp"
                     android:src="@drawable/back">
 
                 </ImageView>
@@ -71,16 +68,16 @@
                     android:id="@+id/frame_9"
                     android:layout_width="match_parent"
                     android:layout_height="24dp"
+                    android:layout_marginLeft="-10dp"
                     android:gravity="center"
                     android:orientation="horizontal">
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:textSize="20sp"
                         android:text="Cross Share"></TextView>
                 </LinearLayout>
-            </RelativeLayout>
+            </LinearLayout>
 
 
             <LinearLayout

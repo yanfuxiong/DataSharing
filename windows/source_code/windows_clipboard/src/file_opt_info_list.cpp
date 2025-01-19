@@ -10,7 +10,7 @@ FileOptInfoList::FileOptInfoList(QWidget *parent) :
     {
         connect(CommonSignals::getInstance(), &CommonSignals::updateFileOptInfoList, this, &FileOptInfoList::onUpdateFileOptInfoList);
         connect(CommonSignals::getInstance(), &CommonSignals::updateProgressInfoWithID, this, &FileOptInfoList::onUpdateProgressInfoWithID);
-        // FIXME:
+        // FIXME: 仅用于测试
         //connect(CommonSignals::getInstance(), &CommonSignals::updateClientList, this, &FileOptInfoList::onUpdateFileOptInfoList);
     }
 
@@ -33,7 +33,7 @@ void FileOptInfoList::onUpdateFileOptInfoList()
 
     m_recordWidgetList.clear();
 
-    const auto &fileOptRecordVec = g_getGlobalData()->cacheFileOptRecord.get<tag_db_timestamp>();
+    const auto &fileOptRecordVec = g_getGlobalData()->cacheFileOptRecord;
 //    if (fileOptRecordVec.empty()) {
 //        auto imageWidget = new QLabel(this);
 //        imageWidget->setStyleSheet("border-image:url(:/resource/background.jpg);");
@@ -60,17 +60,10 @@ void FileOptInfoList::onUpdateFileOptInfoList()
     Q_ASSERT(area->parent() != nullptr);
     Q_ASSERT(backgoundWidget->parent() != nullptr);
 
-    for (auto itr = fileOptRecordVec.begin(); itr != fileOptRecordVec.end(); ++itr) {
+    for (auto itr = fileOptRecordVec.rbegin(); itr != fileOptRecordVec.rend(); ++itr) {
         const auto &data = *itr;
-        if (data.direction == 0) {
-            // FIXME: According to the latest requirements,
-            // the operation of actively sending files will not be recorded, so it will be skipped here and not displayed
-#ifdef NDEBUG
-            continue; // release 模式下执行
-#endif
-        }
-        QGroupBox *box = new QGroupBox;
-        box->setObjectName("FileRecordWidgetBox");
+        QGroupBox *box = new QGroupBox; // 作为 FileRecordWidget 外层的父窗口
+        box->setObjectName("FileRecordWidgetBox"); // 名字与css文件对应
         {
             QHBoxLayout *pLayout = new QHBoxLayout;
             pLayout->setSpacing(0);
@@ -90,18 +83,16 @@ void FileOptInfoList::onUpdateFileOptInfoList()
 
 void FileOptInfoList::onUpdateProgressInfoWithID(int currentVal, const QByteArray &hashID)
 {
-    auto &cacheFileOptRecord = g_getGlobalData()->cacheFileOptRecord.get<tag_db_timestamp>();
+    auto &cacheFileOptRecord = g_getGlobalData()->cacheFileOptRecord;
 
-    for (auto itr = cacheFileOptRecord.begin(); itr != cacheFileOptRecord.end(); ++itr) {
-        const auto &recordData = *itr;
+    // 倒序查找, 以最新的为准
+    for (auto itr = cacheFileOptRecord.rbegin(); itr != cacheFileOptRecord.rend(); ++itr) {
+        auto &recordData = *itr;
         if (recordData.progressValue == -1 || recordData.progressValue > currentVal) {
             continue;
         }
         if (recordData.toRecordData().getHashID() == hashID) {
-            //recordData.progressValue = currentVal;
-            cacheFileOptRecord.modify(itr, [currentVal] (FileOperationRecord &data) {
-                data.progressValue = currentVal;
-            });
+            recordData.progressValue = currentVal;
             break;
         }
     }

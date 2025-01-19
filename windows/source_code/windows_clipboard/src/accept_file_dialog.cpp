@@ -12,10 +12,6 @@ AcceptFileDialog::AcceptFileDialog(QWidget *parent) :
     ui->file_info_label->clear();
     ui->path_label->clear();
     ui->device_icon_label->clear();
-
-    {
-        setWindowFlag(Qt::WindowStaysOnTopHint, true);
-    }
 }
 
 AcceptFileDialog::~AcceptFileDialog()

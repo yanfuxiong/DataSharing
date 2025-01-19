@@ -3,8 +3,6 @@
 #include <QDir>
 #include <QProcess>
 #include <QSettings>
-#include <QUuid>
-#include <QHostInfo>
 #ifdef Q_OS_WINDOWS
 #include <windows.h>
 #include <psapi.h>
@@ -85,16 +83,6 @@ QString CommonUtils::homeDirectoryPath()
     return QStandardPaths::writableLocation(QStandardPaths::StandardLocation::HomeLocation);
 }
 
-QString CommonUtils::localDataDirectory()
-{
-    auto path = QStandardPaths::writableLocation(QStandardPaths::StandardLocation::AppLocalDataLocation);
-    if (QFile::exists(path) == false) {
-        QDir().mkpath(path);
-    }
-    Q_ASSERT(QFile::exists(path));
-    return path;
-}
-
 void CommonUtils::runInThreadPool(const std::function<void()> &callback)
 {
     class RunnableEx : public QRunnable
@@ -112,22 +100,6 @@ void CommonUtils::runInThreadPool(const std::function<void()> &callback)
     };
 
     QThreadPool::globalInstance()->start(new RunnableEx(callback));
-}
-
-QString CommonUtils::createUuid()
-{
-    return QUuid::createUuid().toString();
-}
-
-QString CommonUtils::localIpAddress()
-{
-    QHostInfo info = QHostInfo::fromName(QHostInfo::localHostName());
-    for (const auto &address : info.addresses()) {
-        if (address.protocol() == QAbstractSocket::IPv4Protocol) {
-            return address.toString();
-        }
-    }
-    return "127.0.0.1";
 }
 
 void CommonUtils::findAllFiles(const QString &directoryPath, std::vector<QString> &filesVec, const std::function<bool(const QFileInfo&)> &filterFunc)
@@ -216,39 +188,6 @@ bool CommonUtils::processIsRunning(const QString &exePath)
         }
     }
     return false;
-}
-
-int CommonUtils::processRunningCount(const QString &exePath)
-{
-    int runningCount = 0;
-    DWORD aProcesses[1024];
-    DWORD cbNeeded;
-    DWORD cProcesses;
-    if (!::EnumProcesses(aProcesses, sizeof(aProcesses), &cbNeeded)) {
-        return runningCount;
-    }
-    cProcesses = cbNeeded / sizeof(DWORD);
-    for (unsigned int index = 0; index < cProcesses; ++index) {
-        if (aProcesses[index] != 0) {
-            auto processID = aProcesses[index];
-            TCHAR szProcessName[MAX_PATH] { 0 };
-            HANDLE hProcess = ::OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, processID);
-            if (NULL != hProcess) {
-                HMODULE hMod;
-                DWORD cbNeeded;
-                if (::EnumProcessModules(hProcess, &hMod, sizeof(hMod), &cbNeeded)) {
-                    ::GetModuleBaseName(hProcess, hMod, szProcessName, sizeof(szProcessName)/sizeof(TCHAR));
-                    QString tmpName = QString::fromStdString(reinterpret_cast<const char*>(szProcessName));
-                    //qInfo() << tmpName.toUtf8().constData();
-                    if (exePath.endsWith(tmpName)) {
-                        ++runningCount;
-                    }
-                }
-            }
-            CloseHandle(hProcess);
-        }
-    }
-    return runningCount;
 }
 
 void CommonUtils::killServer()

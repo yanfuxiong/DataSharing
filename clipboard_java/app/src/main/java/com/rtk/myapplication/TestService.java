@@ -43,9 +43,9 @@ public class TestService extends AccessibilityService  implements View.OnKeyList
 
         if (accessibilityEvent.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             // 检查是否是我们关心的窗口
-            // check whether it is our concern window
             Log.d(TAG,"START");
             if (accessibilityEvent.getClassName().equals("com.example.MyActivity")) {
+                // 执行操作
             }
 
         }
@@ -82,6 +82,8 @@ public class TestService extends AccessibilityService  implements View.OnKeyList
                 ClipData clipData = clipboardManager.getPrimaryClip();
                 ClipData.Item item = clipData.getItemAt(0);
                 String clipContent = item.getText().toString();
+                // 处理剪切板内容
+                // ...
                 Log.d(TAG,"AAAAAb+====get"+clipContent);
             }
         };
@@ -105,7 +107,7 @@ public class TestService extends AccessibilityService  implements View.OnKeyList
     }
 
     private void setClibMessage() {
-        ClipData clipData = ClipData.newPlainText(null, "edited text" + testCount);
+        ClipData clipData = ClipData.newPlainText(null, "编辑后的文本数据+" + testCount);
         clipboardManager.setPrimaryClip(clipData);
         Log.d(TAG,"set AAAAAb+"+testCount);
         testCount++;
@@ -114,6 +116,10 @@ public class TestService extends AccessibilityService  implements View.OnKeyList
     }
 
     private void createNotification() {
+        // 创建通知渠道（API 26+）
+
+
+        // 启动前台服务
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
         }else{
@@ -134,6 +140,29 @@ public class TestService extends AccessibilityService  implements View.OnKeyList
         }
         return super.onKeyEvent(event);
     }
+
+
+/*
+    @Override
+    public void onActivityStarted(@NonNull Activity activity) {
+        Log.i(TAG, " lsz listenClipboard:  onActivityStarted ");
+        if(mclipData == null) {
+            isNullData = true;
+            // 这里获取剪贴板数据
+            if (mclipData != null && mclipData.getItemCount() > 0) {
+                ClipData.Item item = mclipData.getItemAt(0);
+                String text = item.getText().toString();
+                Log.i(TAG, " lsz listenClipboard: " + text);
+//                updateTextView(text);
+            }
+
+        } else {
+            isNullData = false;
+        }
+    }
+*/
+
+
 
     @Override
     public boolean onKey(View view, int i, KeyEvent keyEvent) {

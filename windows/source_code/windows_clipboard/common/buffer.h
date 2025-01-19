@@ -194,6 +194,8 @@ public:
 
     void appendUInt64(uint64_t x)
     {
+        // Linux 64位环境下：uint64_t 为 unsigned long int, quint64 为unsigned long long,
+        // 使用qToBigEndian时如果使用uint64_t 会报错
         uint64_t be64 = qToBigEndian<quint64>(static_cast<quint64>(x));
         append(&be64, sizeof(be64));
     }

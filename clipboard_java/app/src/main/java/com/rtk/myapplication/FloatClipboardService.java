@@ -6,11 +6,9 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
-import android.content.BroadcastReceiver;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
 import android.content.res.Configuration;
@@ -21,7 +19,6 @@ import android.graphics.PixelFormat;
 import android.net.ConnectivityManager;
 import android.net.LinkAddress;
 import android.net.LinkProperties;
-import android.net.NetworkInfo;
 import android.net.Uri;
 import android.net.wifi.WifiManager;
 import android.os.Binder;
@@ -80,8 +77,6 @@ import java.util.regex.Pattern;
 import libp2p_clipboard.Callback;
 import libp2p_clipboard.Libp2p_clipboard;
 
-import android.content.IntentFilter;
-
 public class FloatClipboardService extends Service {
 
     private static final String TAG = FloatClipboardService.class.getSimpleName();
@@ -132,9 +127,7 @@ public class FloatClipboardService extends Service {
     }
 
     public interface DataCallback {
-        void onDataReceived(String name, double data);
-
-        void onMsgReceived(String name, String msg);
+        void onDataReceived(double data);
 
         void onBitmapReceived(Bitmap bitmap, String path);
         void onCallbackMethodFileDone(String path);
@@ -146,15 +139,9 @@ public class FloatClipboardService extends Service {
         this.callback = callback;
     }
 
-    public void sendData(String name, double data) {
+    public void sendData(double data) {
         if (callback != null) {
-            callback.onDataReceived(name, data);
-        }
-    }
-
-    public void sendErrMsg(String name, String msg) {
-        if (callback != null) {
-            callback.onMsgReceived(name, msg);
+            callback.onDataReceived(data);
         }
     }
 
@@ -170,22 +157,6 @@ public class FloatClipboardService extends Service {
         }
     }
 
-
-    private BroadcastReceiver networkStateReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            ConnectivityManager connectivityManager = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
-            NetworkInfo networkInfo = connectivityManager.getActiveNetworkInfo();
-
-            if (networkInfo != null && networkInfo.isConnected()) {
-                Log.d(TAG, "GoLog networkInfo isConnected=" + networkInfo.getState());
-                //Libp2p_clipboard.setNetWorkConnected(true);
-            } else {
-                Log.d(TAG, "GoLog networkInfo disConnected");
-                //Libp2p_clipboard.setNetWorkConnected(false);
-            }
-        }
-    };
 
     @Override
     public void onCreate() {
@@ -203,10 +174,6 @@ public class FloatClipboardService extends Service {
         long port = findFreePort();
         Log.d(TAG, "get wifiip==" + getWifiIpAddress(MyApplication.getContext()));
         Log.d(TAG, "get GoLog findFreePort===" + port);
-
-        IntentFilter filter = new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION);
-        registerReceiver(networkStateReceiver, filter);
-
         new Thread(new Runnable() {
             @Override
             public void run() {
@@ -222,6 +189,8 @@ public class FloatClipboardService extends Service {
                 Libp2p_clipboard.mainInit(getGolangCallBack(), getWifiIpAddress(MyApplication.getContext()), "aaa", getWifiIpAddress(MyApplication.getContext()), port);
             }
         }).start();
+
+
     }
 
 
@@ -341,21 +310,24 @@ public class FloatClipboardService extends Service {
         windowManager.addView(floatViewTypec, paramsForFloatviewTypec);
 
         if (mIsDebugfloatWindow) {
+            // 设置触摸事件监听
             floatView.setOnTouchListener(new View.OnTouchListener() {
                 @Override
                 public boolean onTouch(View v, MotionEvent event) {
                     switch (event.getAction()) {
                         case MotionEvent.ACTION_DOWN:
+                            // 记录初始坐标
                             initialX = event.getRawX() - params.x;
                             initialY = event.getRawY() - params.y;
                             break;
                         case MotionEvent.ACTION_MOVE:
-                            // Update position of float window
+                            // 更新悬浮窗位置
                             params.x = (int) (event.getRawX() - initialX);
                             params.y = (int) (event.getRawY() - initialY);
                             windowManager.updateViewLayout(v, params);
                             break;
                         case MotionEvent.ACTION_UP:
+                            // 可以考虑在这里处理抬起手指后的操作，例如隐藏悬浮窗
                             break;
                     }
                     return false;
@@ -376,7 +348,6 @@ public class FloatClipboardService extends Service {
         //floatView.setFocusable(true);
         updateFocus(true);
         //点击悬浮窗之后，先设置交点获取剪切版内容，之后失去焦点
-        // After clicking float window, set focus to get clipboard data and then lost focus
         new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
             @Override
             public void run() {
@@ -395,17 +366,13 @@ public class FloatClipboardService extends Service {
     private String getIpAddres() {
         ConnectivityManager connectivityManager = (ConnectivityManager) getApplicationContext().getSystemService(Service.CONNECTIVITY_SERVICE);
         LinkProperties linkProperties = connectivityManager.getLinkProperties(connectivityManager.getActiveNetwork());
-        if(linkProperties != null) {
-            List<LinkAddress> addressList = linkProperties.getLinkAddresses();
-            StringBuffer sbf = new StringBuffer();
-            for (LinkAddress linkAddress : addressList) {
-                sbf.append(linkAddress.toString()).append("#");
-            }
-            Log.d(TAG, "getIpAddres: " + sbf.toString());
-            return sbf.toString();
-        }else{
-            return null;
+        List<LinkAddress> addressList = linkProperties.getLinkAddresses();
+        StringBuffer sbf = new StringBuffer();
+        for (LinkAddress linkAddress : addressList) {
+            sbf.append(linkAddress.toString()).append("#");
         }
+        Log.d(TAG, "getIpAddres: " + sbf.toString());
+        return sbf.toString();
     }
 
     private void updateFocus(boolean focusable) {
@@ -422,6 +389,7 @@ public class FloatClipboardService extends Service {
     }
 
     private void createNotification() {
+        // 创建通知渠道（API 26+）
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             CharSequence name = "Float Clipboard Service";
             String channelId = "float_clipboard_channel_id";
@@ -430,6 +398,7 @@ public class FloatClipboardService extends Service {
             notificationManager.createNotificationChannel(channel);
         }
 
+        // 创建通知
         Intent intent = new Intent(this, FloatClipboardService.class);
         PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_MUTABLE);
         notification = new Notification.Builder(this, "float_clipboard_channel_id")
@@ -439,6 +408,7 @@ public class FloatClipboardService extends Service {
                 .setContentIntent(pendingIntent)
                 .build();
 
+        // 启动前台服务
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
         } else {
@@ -541,7 +511,7 @@ public class FloatClipboardService extends Service {
     }
 
     private void setClibMessage() {
-        ClipData clipData = ClipData.newPlainText(null, "text after editings" + testCount);
+        ClipData clipData = ClipData.newPlainText(null, "编辑后的文本数据+" + testCount);
         clipboardManager.setPrimaryClip(clipData);
         testCount++;
     }
@@ -569,18 +539,6 @@ public class FloatClipboardService extends Service {
     private Callback getGolangCallBack() {
         return new Callback() {
             @Override
-            public void callbackFileError(String ipAddr, String filename, String errmsg) {
-                Log.i(TAG, "lsz callbackFileError");
-                new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
-                    @Override
-                    public void run() {
-                        sendErrMsg(filename, errmsg);
-                    }
-                }, 100);
-
-            }
-
-            @Override
             public void callbackMethod(String s) {
                 Log.i(TAG, "lsz GoLog callmsg callbackMethod: callback调用 ==" + s);
                 ClipData clipData = ClipData.newPlainText(null, s);
@@ -594,16 +552,20 @@ public class FloatClipboardService extends Service {
             public void callbackMethodFileConfirm(String ipAddr ,String s, String name, long l) {
                 Log.i(TAG, "lszz GoLog callbackMethodFileConfirm: amsg:String= " + s);
                 Log.i(TAG, "lszz GoLog callbackMethodFileConfirm: amsg:long= " + l);
-                Log.i(TAG, "lszz MyApplication.isDialogShown()=" + MyApplication.isDialogShown());
                 boxischeck = kv.decodeBool("ischeck", false);
 
                 countSize = l;
                 new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
                     @Override
                     public void run() {
-                        if (!MyApplication.isDialogShown()) {
-                            define_cancel_service(MyApplication.getContext(), ipAddr, s, name, l);
-                        }
+                        define_cancel_service(MyApplication.getContext(),ipAddr, s, name, l);
+                        /*if (!boxischeck) {
+                            Log.i(TAG, "CheckBox boxischeck======false");
+                            define_cancel_service(MyApplication.getContext(), s, name, l);
+                        } else {
+                            Log.i(TAG, "CheckBox boxischeck======true");
+                            Libp2p_clipboard.ifClipboardPasteFile(true);
+                        }*/
                     }
                 }, 100);
 
@@ -612,18 +574,20 @@ public class FloatClipboardService extends Service {
 
             @Override
             public void callbackMethodFileDone(String s, long l) {
-                Log.i(TAG, "lsz callbackMethodFileDone: msg: " + s);
+                Log.i(TAG, "callbackMethodFileDone: msg: " + s);
                 new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
                     @Override
                     public void run() {
-
-                        Bitmap mbitmap = getBitmap(s);
                         copyFileToPublicDir(s);
-                        onBitmapReceived(mbitmap, s);
+                        Bitmap mbitmap = getBitmap(s);
+                        if (mbitmap != null) {
+                            BitmapHolder.setBitmap(mbitmap);
+                            onBitmapReceived(mbitmap, s);
+                        }
+                        countbuf = 0;
+                        countSizebuf = 0;
 
                         onCallbackMethodFileDone(s);
-
-
                     }
                 }, 100);
 
@@ -654,8 +618,11 @@ public class FloatClipboardService extends Service {
                     @Override
                     public void run() {
                         if (!msg.isEmpty()) {
-                            byte[] jpgBa = Base64.decode(msg, Base64.DEFAULT);
-                            setJpgToClipboard(MyApplication.getContext(), jpgBa);
+                            Bitmap ba = base64ToBitmapa(msg);
+                            //Log.i(TAG, "lszz GoLog ba.getHeight()" + ba.getHeight());
+                            //Log.i(TAG, "lszz GoLog ba.getWidth()" + ba.getWidth());
+                            //Log.i(TAG, "lszz GoLog ba.getByteCount()" + ba.getByteCount());
+                            setBitmapToClipboard(MyApplication.getContext(), ba);
                             Toast.makeText(MyApplication.getContext(), "Image is saved to clipboard", Toast.LENGTH_SHORT).show();
                         }
                     }
@@ -665,21 +632,15 @@ public class FloatClipboardService extends Service {
             }
 
             @Override
-            public void callbackUpdateProgressBar(String ipAddr, String filename, long bufcount, long fielsiez) {
-                double percentage = ((double) bufcount / (double) fielsiez) * 100;
+            public void callbackUpdateProgressBar(long l) {
 
-                new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            //Thread.sleep(4);
-                            //Log.i(TAG, "lsz callbackUpdateProgressBar GoLog percentage: " + percentage);
-                            sendData(filename, percentage);
-                        } catch (Exception e) {
-                            // Handle exception
-                        }
-                    }
-                }, 1);
+
+                countSizebuf = l + countSizebuf;
+
+                countbuf = (countSizebuf / (double) countSize) * 100;
+
+                sendData(countbuf);
+
 
             }
 
@@ -700,13 +661,36 @@ public class FloatClipboardService extends Service {
 
 
     public static String removeInvalidCharacters(String base64String) {
+        // 正则表达式，匹配Base64的有效字符
         String regex = "[^A-Za-z0-9+/=]";
+        // 使用正则表达式替换掉非法字符
         String cleanString = base64String.replaceAll(regex, "");
         return cleanString;
     }
 
 
     private void getClipFromClipboard() {
+//本地图片 取到剪切版
+       /* ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        Log.d("lsz","clipa"+clipboard.hasPrimaryClip());
+        // 檢查剪貼簿是否有內容
+        if (clipboard.hasPrimaryClip()) {
+            ClipData clip = clipboard.getPrimaryClip();
+            Log.d("lsz","clip"+clip);
+            // 檢查是否包含 URI 類型的資料
+            if (clip != null && clip.getItemCount() > 0) {
+                ClipData.Item item = clip.getItemAt(0);
+                Uri imageUri = item.getUri();
+                Log.d("lsz","clip imageUri"+imageUri);
+                if (imageUri != null) {
+                    // 將圖片 URI 設置到 ImageView 顯示圖片
+                    imageView2.setImageURI(imageUri);
+                    //imageView2.setImageBitmap(bitmap1);
+                }
+            }
+        } else {        Toast.makeText(this, "Clipboard is empty", Toast.LENGTH_SHORT).show();    } */
+//本地图片 取到剪切版end
+
         AtomicReference<ClipData> clipDataRef = new AtomicReference<>(null);
         ClipboardUtils clipboardUtils = ClipboardUtils.getInstance();
         clipboardUtils.getPrimaryClip(clipDataRef);
@@ -725,6 +709,20 @@ public class FloatClipboardService extends Service {
                 Bitmap bitmap1 = clipboardUtils.getImageItem(clipDataRef, i);
                 //Log.e("clip", "lsz GoLog len===hasClip bitmap1==" + bitmap1);
                 if (bitmap1 != null) {
+                /*
+                数组转bitmap
+                */
+                    //Bitmap drawableicon = BitmapFactory.decodeResource(getResources(), R.drawable.liu2);
+                    //byte[] imageData = bitmapToByteArray(drawableicon); // 要转换的字节数组
+                    //Bitmap bitmap3 = BitmapFactory.decodeByteArray(imageData, 0, imageData.length);
+                    //imageView2.setImageBitmap(bitmap1);
+
+                    //bitmap转byteArray
+                    //int bytes = bitmap1.getByteCount();
+                    //ByteBuffer buf = ByteBuffer.allocate(bytes);
+                    //bitmap1.copyPixelsToBuffer(buf);
+                    //byte[] byteArray = buf.array();
+
                     if (mIsDebugfloatWindow) {
                         imageView = floatView.findViewById(R.id.imageView);
                         imageView.setImageBitmap(bitmap1);
@@ -807,6 +805,7 @@ public class FloatClipboardService extends Service {
                     // 现在你可以使用bitmap了
                 } catch (Exception e) {
                     e.printStackTrace();
+                    // 处理找不到文件的情况
                 }
             } else if (isText) {
                 ClipData.Item item2 = clip.getItemAt(0);
@@ -825,56 +824,33 @@ public class FloatClipboardService extends Service {
             }
         } else {
             Log.i("lsz", "no data");
+            // 剪贴板中没有可用的图片数据
         }
 
     }
 
     public static Bitmap base64ToBitmapa(String base64String) {
+        // 移除Base64编码的前缀（如果有的话）
         if (base64String.contains(",")) {
             base64String = base64String.split(",")[1];
         }
 
+        // 对Base64字符串进行解码
         byte[] decodedBytes = Base64.decode(base64String, Base64.DEFAULT);
 
         Log.i(TAG, "lszz bitmap decodedBytes[] length" + decodedBytes.length);
+        // 将字节数组转换为Bitmap
         return BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.length);
     }
 
-    public void setJpgToClipboard(Context context, byte[] ba) {
-        // make sure external storage is avikeave
-        Log.i(TAG, "lsz setJpgToClipboard init");
-
-        File file = new File(context.getExternalFilesDir(null), "shared_image.jpg");
-        Log.i(TAG, "lsz getExternalStorageState imageFile getPath=" + file.getPath());
-        //Uri imageUri = FileProvider.getUriForFile(context, "com.rtk.myapplication", file);
-
-        Log.d(TAG, "setJpgToClipboard compress jpg start");
-        try (FileOutputStream out = new FileOutputStream(file)) {
-            out.write(ba);
-            Log.i(TAG, "Byte array written to file successfully.");
-        } catch (IOException e) {
-            e.printStackTrace();
-            return;
-        }
-        Log.d(TAG, "setJpgToClipboard compress jpg end");
-
-        Uri imageUri = FileProvider.getUriForFile(context, "com.rtk.myapplication", file);
-        Log.i(TAG, "lsz getExternaClipData.newUrilStorageState imageFile imageUri=" + imageUri);
-        ClipData clip = ClipData.newUri(context.getContentResolver(), "image/jpg", imageUri);
-
-        ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
-
-        Log.i(TAG, "lsz setimg to clipboard ");
-        clipboard.setPrimaryClip(clip);
-    }
-
     public void setBitmapToClipboard(Context context, Bitmap bitmap) {
-        // make sure external storage is avikeave
+        // 确保外部存储可用
         Log.i(TAG, "lsz setBitmapToClipboard init");
         if (!Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED)) {
             return;
         }
 
+        // 创建一个文件来保存Bitmap
         File file = new File(context.getExternalFilesDir(null), "shared_image.png");
         Log.i(TAG, "lsz getExternalStorageState imageFile getPath=" + file.getPath());
         //Uri imageUri = FileProvider.getUriForFile(context, "com.rtk.myapplication", file);
@@ -886,12 +862,16 @@ public class FloatClipboardService extends Service {
             return;
         }
 
+        // 获取文件的Uri
         Uri imageUri = FileProvider.getUriForFile(context, "com.rtk.myapplication", file);
         Log.i(TAG, "lsz getExternalStorageState imageFile imageUri=" + imageUri);
+        // 创建ClipData
         ClipData clip = ClipData.newUri(context.getContentResolver(), "image/png", imageUri);
 
+        // 获取ClipboardManager实例
         ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
 
+        // 将ClipData放入剪贴板
         Log.i(TAG, "lsz setimg to clipboard ");
         clipboard.setPrimaryClip(clip);
     }
@@ -966,15 +946,16 @@ public class FloatClipboardService extends Service {
 
             byte[] buffer = new byte[1024];
             int bytesRead;
-            long fileSize = srcFile.length();
-            long totalBytesRead = 0;
+            long fileSize = srcFile.length(); // 获取源文件大小
+            long totalBytesRead = 0; // 已读取字节数
 
             while ((bytesRead = fis.read(buffer)) != -1) {
                 fos.write(buffer, 0, bytesRead);
-                totalBytesRead += bytesRead;
+                totalBytesRead += bytesRead; // 累加已读取字节数
 
                 //Log.i("lszz", "get totalBytesRead =" + totalBytesRead);
                 if (totalBytesRead >= fileSize) {
+                    // 已读取字节数大于等于文件大小，认为文件已经拷贝完毕
                     Toast.makeText(this, "file has been save to Download of internal storage", Toast.LENGTH_SHORT).show();
                     Log.d("lszz", "storage private app file is exists,now remove");
                     srcFile.delete();
@@ -1050,8 +1031,9 @@ public class FloatClipboardService extends Service {
         }
     }
 
-    //global dialog for service
+    //全局对话框  为service打造
     public void define_cancel_service(final Context context, String ipAddr,String s, String name, long l) {
+        // 加载布局文件
         View view = View.inflate(context, R.layout.dialog_deivce, null);
 
         TextView subtitleView = (TextView) view.findViewById(R.id.subtitle);
@@ -1079,18 +1061,10 @@ public class FloatClipboardService extends Service {
         }
 
         dialog.show();
-        MyApplication.setDialogShown(true);
         dialog.setContentView(view);
+        //todo 设置上下位置
         dialog.getWindow().setGravity(Gravity.CENTER);
         WindowManager.LayoutParams params = dialog.getWindow().getAttributes();
-
-
-        dialog.setOnDismissListener(new DialogInterface.OnDismissListener() {
-            @Override
-            public void onDismiss(DialogInterface dialog) {
-                MyApplication.setDialogShown(false);
-            }
-        });
 
         conf.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -1144,12 +1118,19 @@ public class FloatClipboardService extends Service {
     }
 
     public void getClientList() {
+        //从libp2p获取列表数据
         String getlist = Libp2p_clipboard.getClientList();
+        if (!getlist.isEmpty()) {
             Log.d("lszz", "getlist=======+++=" + getlist);
             //String[] strArray = getlist.split("#");
 
             Intent intent = new Intent("com.example.MY_CUSTOM_EVENT");
+            // 可以添加额外的数据到intent
+            //intent.putExtra("data_key", getlist);
             LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
+
+
+        }
     }
 
     private Point getDefaultDisplay() {
@@ -1233,10 +1214,10 @@ public class FloatClipboardService extends Service {
         Enumeration<NetworkInterface> networkInterfaces = NetworkInterface.getNetworkInterfaces();
         while (networkInterfaces.hasMoreElements()) {
             NetworkInterface networkInterface = networkInterfaces.nextElement();
-            // process each network interface
+            // 在这里处理每个网络接口
             String netname = networkInterface.getName();
-            if (netname.startsWith("wlan")) {
-                getnetname = netname;
+            if (netname.equals("wlan0")) {
+                getnetname = "wlan0";
                 getindex = networkInterface.getIndex();
             }
 

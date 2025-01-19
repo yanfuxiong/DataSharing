@@ -16,7 +16,7 @@ private Q_SLOTS:
         {
             QHostAddress address("192.168.30.1");
             uint32_t ip_value = address.toIPv4Address();
-            ip_value = qToBigEndian<uint32_t>(ip_value);
+            ip_value = qToBigEndian<uint32_t>(ip_value); // 转为网络字节序
             QByteArray data;
             data.append(reinterpret_cast<const char*>(&ip_value), sizeof (ip_value));
             QVERIFY(data.toHex().toUpper() == "C0A81E01");
@@ -36,7 +36,7 @@ private Q_SLOTS:
                 Buffer buffer;
                 QByteArray data = QByteArray::fromHex("C0A81E01");
                 buffer.append(data);
-                ip_value = buffer.peekUInt32();
+                ip_value = buffer.peekUInt32(); // 这里自动转换成了本机字节序
             }
             QVERIFY(QHostAddress(ip_value).toString() == "192.168.30.1");
         }
@@ -183,39 +183,6 @@ private Q_SLOTS:
         }
     }
 
-    void test_update_image_progress_msg()
-    {
-        {
-            UpdateImageProgressMsg msg;
-            msg.ip = "192.168.30.1";
-            msg.port = 12345;
-            msg.clientID = "QmQ7obXFx1XMFr6hCYXtovn9zREFqSXEtH5hdtpBDLjrAz";
-            //msg.fileSize = static_cast<uint64_t>(QFileInfo(__FILE__).size());
-            msg.fileSize = 60727169;
-            msg.sentSize = 100;
-            msg.timeStamp = QDateTime::currentDateTime().toUTC().toMSecsSinceEpoch();
-
-            QByteArray send_data = UpdateImageProgressMsg::toByteArray(msg);
-            qInfo() << send_data.toHex().toUpper().constData();
-
-            UpdateImageProgressMsg newMsg;
-            UpdateImageProgressMsg::fromByteArray(send_data, newMsg);
-            QVERIFY(msg.clientID == newMsg.clientID);
-            QVERIFY(msg.sentSize == newMsg.sentSize);
-            QVERIFY(newMsg.headerInfo.type == PipeMessageType::Notify);
-            QVERIFY(static_cast<uint32_t>(send_data.length()) == newMsg.getMessageLength());
-
-            qInfo() << QDateTime::fromMSecsSinceEpoch(newMsg.timeStamp, Qt::TimeSpec::UTC).toString("yyyy-MM-dd hh:mm:ss.zzz");
-
-
-            {
-                uint8_t typeValue = 99;
-                uint8_t codeValue = 66;
-                QVERIFY(g_getCodeFromByteArray(send_data, typeValue, codeValue) && typeValue == PipeMessageType::Notify);
-            }
-        }
-    }
-
     void test_get_conn_status()
     {
         {
@@ -226,7 +193,7 @@ private Q_SLOTS:
 
             GetConnStatusRequestMsg newMsg;
             {
-                //Data with assignment confusion is used for testing
+                //赋值混淆的数据用于测试
                 newMsg.headerInfo.header = "hello world";
                 newMsg.headerInfo.code = 7;
                 newMsg.headerInfo.type = 6;
@@ -248,7 +215,7 @@ private Q_SLOTS:
 
             GetConnStatusResponseMsg newMsg;
             {
-                //Data with assignment confusion is used for testing
+                //赋值混淆的数据用于测试
                 newMsg.headerInfo.header = "hello world";
                 newMsg.headerInfo.code = 7;
                 newMsg.headerInfo.type = 6;
@@ -262,64 +229,6 @@ private Q_SLOTS:
             QVERIFY(newMsg.headerInfo.contentLength == 1);
             QVERIFY(newMsg.statusCode == msg.statusCode && newMsg.statusCode == 1);
             QVERIFY(newMsg.headerInfo.type == PipeMessageType::Response);
-        }
-    }
-
-    void test_notify_message()
-    {
-        {
-            NotifyMessage msg;
-            msg.timeStamp = QDateTime::currentDateTime().toUTC().toMSecsSinceEpoch();
-            msg.notiCode = 2;
-
-            {
-                NotifyMessage::ParamInfo paramInfo;
-                paramInfo.info = "测试设备_1";
-                msg.paramInfoVec.push_back(paramInfo);
-            }
-
-            {
-                NotifyMessage::ParamInfo paramInfo;
-                paramInfo.info = "10";
-                msg.paramInfoVec.push_back(paramInfo);
-            }
-
-            QByteArray send_data = NotifyMessage::toByteArray(msg);
-            qInfo() << send_data.toHex().toUpper().constData();
-
-            NotifyMessage newMsg;
-            NotifyMessage::fromByteArray(send_data, newMsg);
-            QVERIFY(newMsg.headerInfo.type == PipeMessageType::Notify);
-            QVERIFY(static_cast<uint32_t>(send_data.length()) == newMsg.getMessageLength());
-
-
-            QVERIFY(newMsg.paramInfoVec.size() == 2);
-            QVERIFY(newMsg.paramInfoVec.front().info == "测试设备_1");
-            QVERIFY(newMsg.paramInfoVec.back().info == "10");
-
-            qInfo()<< newMsg.toString().dump(4).c_str();
-        }
-    }
-
-    void test_update_system_info()
-    {
-        {
-            UpdateSystemInfoMsg msg;
-            msg.ip = "192.168.30.1";
-            msg.port = 12345;
-            msg.serverVersion = R"(v1.0.1)";
-
-            QByteArray send_data = UpdateSystemInfoMsg::toByteArray(msg);
-            qInfo() << send_data.toHex().toUpper().constData();
-
-            UpdateSystemInfoMsg newMsg;
-            UpdateSystemInfoMsg::fromByteArray(send_data, newMsg);
-            QVERIFY(newMsg.headerInfo.type == PipeMessageType::Notify);
-            QVERIFY(newMsg.ip == "192.168.30.1");
-            QVERIFY(newMsg.port == 12345);
-            QVERIFY(newMsg.serverVersion == "v1.0.1");
-            QVERIFY(static_cast<uint32_t>(send_data.length()) == newMsg.getMessageLength());
-            qInfo() << newMsg.serverVersion.toUtf8().constData();
         }
     }
 
@@ -358,6 +267,13 @@ private Q_SLOTS:
         QVERIFY(test_record.size() == 2 && test_record.empty() == false);
 
         QVERIFY(test_record.front().fileSize == QFileInfo(test_record.front().fileName.c_str()).size());
+
+        // 倒序打印, 最新的数据最先打印
+        for (auto itr = test_record.rbegin(); itr != test_record.rend(); ++itr) {
+            std::cerr << *itr << std::endl;
+            //std::cerr << itr->toString() << std::endl;
+        }
+
         qInfo() << QUuid::createUuid().toString();
     }
 };

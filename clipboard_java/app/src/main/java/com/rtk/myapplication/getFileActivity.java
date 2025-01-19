@@ -24,7 +24,7 @@ public class getFileActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.layout_getfileactivity);
 
-        boolean booleanValue = getIntent().getBooleanExtra("booleanKey", false);
+        boolean booleanValue = getIntent().getBooleanExtra("booleanKey", false); // 第二个参数是默认值，如果没找到键则使用默认值
         String filename = getIntent().getStringExtra("filename");
         long filesize = getIntent().getLongExtra("filesize",-1L);
         String bitmappath = getIntent().getStringExtra("bitmappath");

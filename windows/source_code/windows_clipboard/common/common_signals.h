@@ -18,7 +18,7 @@ Q_SIGNALS:
     void showStatusMessage(const QString &message);
     void logMessage(const QString &message);
 
-    // --------------------- server
+    // --------------------- server部分的消息, 用于测试
     void connectdForTestServer();
     void sendDataForTestServer(const QByteArray &data);
     void addTestClient();
@@ -28,15 +28,14 @@ Q_SIGNALS:
     void sendDataToServer(const QByteArray &data);
     void updateProgressInfo(int currentVal);
     void updateProgressInfoWithID(int currentVal, const QByteArray &hashID);
-    void updateProgressInfoWithMsg(const QVariant &msgData);
 
     void recvServerData(const QByteArray &data);
-    void pipeConnected();
     void pipeDisconnected();
 
     void dispatchMessage(const QVariant &data);
+    // 刷新客户端列表展示
     void updateClientList();
-    // true: accept, false: reject
+    // true: 接受, false: 拒绝
     void userAcceptFile(bool status);
 
     void systemConfigChanged();

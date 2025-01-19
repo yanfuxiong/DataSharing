@@ -148,8 +148,7 @@ public class TestActivity extends Activity {
     boolean check = false;
     MMKV kv;
     boolean boxischeck;
-    TextView textView_name, textView_size, mConnCountView, mFileConnCountView, mConnectionsView,
-            mMyConnectionView, mSwVersionView;
+    TextView textView_name, textView_size, mConnCountView, mFileConnCountView;
     String fileRealpath, saveFilePath,share_file_name;
     RecyclerView recyclerView, recyclerView2;
     long countSize;
@@ -170,7 +169,7 @@ public class TestActivity extends Activity {
     RecyclerView recyclerViewdevice;
     private DeviceAdapter deviceAdapter;
     private List<Device> deviceList;
-    private Map<String, String> deviceNameIdMap;
+    private Map<String, String> deviceNameIpMap;
     LinearLayout linearLayout;
     ImageView share_image, back_icon;
     Button img_button;
@@ -181,8 +180,6 @@ public class TestActivity extends Activity {
     private static final String SOURCE_HDMI2 = "HDMI2";
     private static final String SOURCE_USBC = "USBC";
     private static final String SOURCE_MIRACAST = "Miracast";
-    private boolean mIsAndroidShareFile = false;
-    TextView file_page_back_icon;
 
     private ServiceConnection connection = new ServiceConnection() {
 
@@ -191,31 +188,27 @@ public class TestActivity extends Activity {
             FloatClipboardService.LocalBinder binder = (FloatClipboardService.LocalBinder) service;
             myService = binder.getService();
             isBound = true;
+            // 设置回调
             myService.setCallback(new FloatClipboardService.DataCallback() {
                 @Override
-                public void onDataReceived(String name, double data) {
+                public void onDataReceived(double data) {
+                    // 在UI线程更新UI
                     runOnUiThread(() -> {
+                        // 更新UI操作
                         Log.i("lsz", "ServiceConnection get datadatadata==" + data);
                         progress = (int) data;
-                        MyApplication.getMyAdapter().updateProgress(name, progress);
+                        //for(int i =0;i<=(int)data; i++){
+                        //    getFileList(filename, filesize, null,(int)data);
+                        //}
+                        adapter.updateProgress(filename, progress);
                     });
-                }
-
-                @Override
-                public void onMsgReceived(String name, String msg) {
-                    Log.i("lsz", "onMsgReceived msg==" + msg);
-                    //updateFileListWithError(name, 2);
-                    MyApplication.getMyAdapter().updateFileListWithError(name, 2);
                 }
 
                 @Override
                 public void onBitmapReceived(Bitmap bitmap, String path) {
 
                     //getFileList(filename, filesize, bitmap,progress);
-                    if (path != null && !path.isEmpty()) {
-                        filename = path.substring(path.lastIndexOf("/") + 1);
-                    }
-                    MyApplication.getMyAdapter().setBitmap(filename, bitmap);
+                    adapter.setBitmap(filename, bitmap);
                 }
 
                 @Override
@@ -224,7 +217,20 @@ public class TestActivity extends Activity {
                     if (path != null && !path.isEmpty()) {
                         filename = path.substring(path.lastIndexOf("/") + 1);
                     }
-                    MyApplication.getMyAdapter().getFileTime(filename);
+                    //find corresponding item in list
+                    for (int i=0;i<fileTransferList.size();i++) {
+                        if (fileTransferList.get(i).getFileName().equals(filename)) {
+                            // Get the current date and time
+                            LocalDateTime now = LocalDateTime.now();
+                            // Define the desired date format
+                            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy.MM.dd HH:mm:ss");
+                            // Format the current date and time
+                            String formattedDateTime = now.format(formatter);
+                            Log.d(TAG, formattedDateTime +" receive done, current time: "+formattedDateTime);
+                            fileTransferList.get(i).setDateInfo(formattedDateTime);
+                            adapter.notifyItemChanged(i);
+                        }
+                    }
                 }
             });
         }
@@ -239,6 +245,7 @@ public class TestActivity extends Activity {
     private BroadcastReceiver broadcastReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
+            // 接收到广播后的处理逻辑
             long data = intent.getLongExtra("data", -1L);
             Log.i(TAG, "init broadcastReceiver" + data);
             getClientList();
@@ -249,6 +256,7 @@ public class TestActivity extends Activity {
     private BroadcastReceiver broadcastReceivera = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
+            // 接收到广播后的处理逻辑
             //long data = intent.getLongExtra("data", -1L);
             progress = intent.getIntExtra("countbuf", 0);
             filename = intent.getStringExtra("filename");
@@ -262,6 +270,18 @@ public class TestActivity extends Activity {
         }
     };
 
+    private BroadcastReceiver broadcastReceiveraa = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            // 接收到广播后的处理逻辑
+
+
+        }
+
+    };
+
+
+
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -274,7 +294,8 @@ public class TestActivity extends Activity {
 
         boolean booleanValue = getIntent().getBooleanExtra("booleanKey", false);
         Log.i(TAG, "booleanValue: booleanValue====" + booleanValue);
-        //adapter = new FileTransferAdapter(fileTransferList);
+        adapter = new FileTransferAdapter(fileTransferList);
+
 
         Log.i(TAG, "onCreate: intent====" + intent);
         Log.i(TAG, "onCreate: action====" + action);
@@ -283,7 +304,6 @@ public class TestActivity extends Activity {
         if (Intent.ACTION_SEND.equals(action) || booleanValue) {
             setTheme(R.style.TransparentTheme);
             setContentView(R.layout.layout_main);
-            mIsAndroidShareFile = true;
 
             getWindow().setBackgroundDrawableResource(android.R.color.transparent);
             findViewByIdDevice();
@@ -307,17 +327,7 @@ public class TestActivity extends Activity {
             Log.i(TAG, "onCreate: checkPermission");
             checkPermission(mContext);
             setContentView(R.layout.layout_testactivity_title);
-            mMyConnectionView = findViewById(R.id.my_connections_view);
-            if (mMyConnectionView != null) {
-                mMyConnectionView.setText(getMyIpDeviceName());
-            }
-            mSwVersionView = findViewById(R.id.sw_version_view);
-            if (mSwVersionView != null) {
-                mSwVersionView.setText(getSoftwareInfo());
-            }
         }
-        Log.d(TAG, "mIsAndroidShareFile: "+ mIsAndroidShareFile);
-
 
         if(action == null && mimetype == null){
             Log.i("lszz", "onCreate: CheckBox boxischeck=== is null");
@@ -325,7 +335,7 @@ public class TestActivity extends Activity {
             setContentView(R.layout.myactivity);
             RecyclerView recyclerView2 = findViewById(R.id.recycler_view);
             recyclerView2.setLayoutManager(new LinearLayoutManager(this));
-            //adapter = new FileTransferAdapter(fileTransferList);
+            adapter = new FileTransferAdapter(fileTransferList);
             recyclerView2.setAdapter(adapter);
             mConnCountView = findViewById(R.id.connection_count);
 
@@ -351,26 +361,6 @@ public class TestActivity extends Activity {
                     adapter.notifyItemInserted(fileTransferList.size() - 1);
                 }
             }
-
-            file_page_back_icon = findViewById(R.id.file_page_back_icon);
-            if (file_page_back_icon != null) {
-                file_page_back_icon.setOnClickListener(new View.OnClickListener() {
-                    @Override
-                    public void onClick(View view) {
-                        Log.d(TAG, "from file page to main page");
-                        setContentView(R.layout.layout_testactivity_title);
-                        getClientList();
-                        mMyConnectionView = findViewById(R.id.my_connections_view);
-                        if (mMyConnectionView != null) {
-                            mMyConnectionView.setText(getMyIpDeviceName());
-                        }
-                        mSwVersionView = findViewById(R.id.sw_version_view);
-                        if (mSwVersionView != null) {
-                            mSwVersionView.setText(getSoftwareInfo());
-                        }
-                    }
-                });
-            }
         }
 
         //alertDialog("aa",1918522);
@@ -389,15 +379,6 @@ public class TestActivity extends Activity {
         //requestPermission();
         //   getIpAddres();
 
-    }
-
-    private String getMyIpDeviceName() {
-        return getWifiIpAddress(MyApplication.getContext()) + " " +
-                Settings.Global.getString(MyApplication.getContext().getContentResolver(), "device_name");
-    }
-
-    private String getSoftwareInfo() {
-        return Libp2p_clipboard.getVersion()+" ("+ Libp2p_clipboard.getBuildDate()+")";
     }
 
     private void getClibMessageLoop() {
@@ -422,10 +403,11 @@ public class TestActivity extends Activity {
 
     private void getClibMessage() {
         if (clipboardManager.hasPrimaryClip()) {
-            // clipboard has data
+            // 剪贴板有数据
             ClipData clipData = clipboardManager.getPrimaryClip();
             if (clipData != null && clipData.getItemCount() > 0) {
                 CharSequence itemText = clipData.getItemAt(0).getText();
+                // 使用 itemText 中的数据
                 Log.i(TAG, "getClibMessage: itemText==" + itemText.toString());
             }
         }
@@ -458,7 +440,7 @@ public class TestActivity extends Activity {
     private void requestPermission() {
         if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED &&
                 ContextCompat.checkSelfPermission(this, android.Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
-            Toast.makeText(this, "Get read external storage permission successfully", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "存储权限获取成功", Toast.LENGTH_SHORT).show();
         } else {
             ActivityCompat.requestPermissions(this, new String[]{android.Manifest.permission.READ_EXTERNAL_STORAGE, android.Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQUEST_CODE);
         }
@@ -471,9 +453,9 @@ public class TestActivity extends Activity {
         if (requestCode == REQUEST_CODE) {
             if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED &&
                     ContextCompat.checkSelfPermission(this, android.Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
-                Toast.makeText(this, "Get read external storage permission successfully", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "存储权限获取成功", Toast.LENGTH_SHORT).show();
             } else {
-                Toast.makeText(this, "Get read external storage permission successfully", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "存储权限获取失败", Toast.LENGTH_SHORT).show();
             }
         }
     }
@@ -501,6 +483,195 @@ public class TestActivity extends Activity {
         return null;
     }
 
+    public static int findFreePort() {
+        int port = 0;
+        try (ServerSocket serverSocket = new ServerSocket(0)) {
+            port = serverSocket.getLocalPort();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return port;
+    }
+
+    private final static int P2P_EVENT_SERVER_CONNEDTED = 0;
+    private final static int P2P_EVENT_SERVER_CONNECT_FAIL = 1;
+    private final static int P2P_EVENT_CLIENT_CONNEDTED = 2;
+    private final static int P2P_EVENT_CLIENT_CONNECT_FAIL = 3;
+
+    private Callback getGolangCallBack() {
+        return new Callback() {
+            @Override
+            public void callbackMethod(String s) {
+                /*Log.i(TAG, "lsz GoLog callbackMethod: callbacl调用 string= string=string=" + s);
+
+                ClipData clipData = ClipData.newPlainText(null, s);
+                clipboardManager.setPrimaryClip(clipData);
+                new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        //do something takes long time in the work-thread
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                mPeerMessage.setText(s);
+                            }
+                        });
+                    }
+                }).start();*/
+
+
+            }
+
+            @Override
+            public void callbackMethodFileConfirm(String ip,String s, String name, long l) {
+                /*Log.i(TAG, "lszz GoLog callbackMethodFileConfirm: amsg:String= " + s);
+                Log.i(TAG, "lszz GoLog callbackMethodFileConfirm: amsg:long= " + l);
+                boxischeck = kv.decodeBool("ischeck", false);
+                Log.i(TAG, "lszz GoLog callbackMethodFileConfirm: amsg:boxischeck===" + boxischeck);
+                runOnUiThread(new Runnable() {
+                                  @Override
+                                  public void run() {
+                                      if (!boxischeck) {
+                                          Log.i("lszz", "CheckBox boxischeck======false");
+                                          alertDialog(s, l);
+                                      } else {
+                                          Log.i("lszz", "CheckBox boxischeck======true");
+                                          Libp2p_clipboard.ifClipboardPasteFile(true);
+                                      }
+                                      //alertDialog(s, l);
+                                  }
+                              }
+                );*/
+
+
+            }
+
+            @Override
+            public void callbackMethodFileDone(String s, long l) {
+                Log.i(TAG, "lszz GoLog activity callbackMethodFileDone: :s=" + s + "----l=" + l);
+                /*runOnUiThread(new Runnable() {
+                                  @Override
+                                  public void run() {
+                                      textView_name.setText(s);
+                                      textView_size.setText(String.valueOf(l));
+                                  }
+                              }
+                );*/
+            }
+
+            @Override
+            public void callbackMethodFoundPeer() {
+//                Log.i(TAG, "lszz GoLog callbackMethodFoundPeer");
+//                runOnUiThread(new Runnable() {
+//                                  @Override
+//                                  public void run() {
+//                                      getClientList();
+//                                  }
+//                              }
+//                );
+            }
+
+            @Override
+            public void callbackMethodImage(String msg) {
+                /*Log.i(TAG, "lszz GoLog callbackMethodImage: msg: " + msg);
+                Log.i(TAG, "lszz GoLog callbackMethodImage: msg.length=: " + msg.length());
+                runOnUiThread(new Runnable() {
+                                  @Override
+                                  public void run() {
+                                      //Log.i(TAG, "lszz GoLog callbackMethodImage: removeInvalidCharacters(msg): " + removeInvalidCharacters(msg));
+                                      //Log.i(TAG, "lszz GoLog callbackMethodImage: removeInvalidCharacters(msg): " + removeInvalidCharacters(msg).length());
+                                      //removeInvalidCharacters(msg);
+                                      if(!msg.isEmpty()) {
+                                          Bitmap ba = base64ToBitmapa(msg);
+                                          Log.i(TAG, "lszz GoLog ba.getHeight()" + ba.getHeight());
+                                          Log.i(TAG, "lszz GoLog ba.getWidth()" + ba.getWidth());
+                                          Log.i(TAG, "lszz GoLog ba.getByteCount()" +ba.getByteCount());
+                                          imageView3.setImageBitmap(base64ToBitmapa(msg));
+                                          imageView3.setVisibility(View.VISIBLE);
+                                          setBitmapToClipboard(mContext,ba);
+                                          Toast.makeText(mContext, "图片已经存到剪切版", Toast.LENGTH_SHORT).show();
+                                      }
+
+                                  }
+                              }
+                );*/
+
+            }
+
+            @Override
+            public void callbackUpdateProgressBar(long l) {
+                //Log.i(TAG, "lsz  callbackUpdateProgressBar: " + l);
+                //Log.i(TAG, "lsz  callbackUpdateProgressBar countSize: " + countSize);
+
+                countSizebuf = l + countSizebuf;
+                //Log.i(TAG, "lsz  callbackUpdateProgressBar:countSizebuf " + countSizebuf);
+
+                countbuf = (countSizebuf / (double) countSize) * 100;
+                //Log.i(TAG, "lsz  callbackUpdateProgressBar:countbuf percentage " +  countbuf);
+
+                //Log.i(TAG, "lsz  activity callbackUpdateProgressBar: " + l);
+
+
+                runOnUiThread(new Runnable() {
+                                  @Override
+                                  public void run() {
+                                      progress_bar.setVisibility(TextView.VISIBLE);
+                                      progress_bar.setMax(100);
+                                      progress_bar.setProgress((int) countbuf);
+                                  }
+                              }
+                );
+
+//                progress_bar.setVisibility(TextView.VISIBLE);
+//                progress_bar.setMax(100);
+//                progress_bar.setProgress((int) countbuf);
+            }
+
+            @Override
+            public void logMessageCallback(String msg) {
+                Log.i(TAG, "lsz GoLog logMessageCallback: msg: " + msg);
+            }
+
+            @Override
+            public void eventCallback(long event) {
+                Log.i(TAG, "lsz get GoLog eventCallBack: event: " + event);
+                new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        //do something takes long time in the work-thread
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                switch ((int) event) {
+                                    case P2P_EVENT_SERVER_CONNEDTED:
+                                        Log.i(TAG, "eventCallBack: P2P_EVENT_SERVER_CONNEDTED");
+                                        mServerStatus.setText("connected");
+                                        mIsConnected = true;
+                                        break;
+                                    case P2P_EVENT_SERVER_CONNECT_FAIL:
+                                        mServerStatus.setText("failed to connected");
+                                        Log.i(TAG, "eventCallBack: P2P_EVENT_SERVER_CONNECT_FAIL");
+                                        break;
+                                    case P2P_EVENT_CLIENT_CONNEDTED:
+                                        Log.i(TAG, "eventCallBack: P2P_EVENT_CLIENT_CONNEDTED");
+                                        mClientStatus.setText("connected");
+                                        mPeerMessage.setText("");
+                                        break;
+                                    case P2P_EVENT_CLIENT_CONNECT_FAIL:
+                                        Log.i(TAG, "eventCallBack: P2P_EVENT_CLIENT_CONNECT_FAIL");
+                                        mClientStatus.setText("failed to connected");
+                                        break;
+                                    default:
+                                        break;
+                                }
+                            }
+                        });
+                    }
+                }).start();
+            }
+        };
+    }
+
 
     public String getTextFromClipboard(Context context) {
         ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
@@ -523,17 +694,43 @@ public class TestActivity extends Activity {
             try (InputStream inputStream = getContentResolver().openInputStream(uri)) {
                 Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
                 imageView2.setImageBitmap(bitmap);
+                // 现在你可以使用bitmap了
             } catch (IOException e) {
                 e.printStackTrace();
+                // 处理找不到文件的情况
             }
         } else {
             Log.i("lsz", "no data");
+            // 剪贴板中没有可用的图片数据
         }
 
 
     }
 
     private void getClipFromClipboard() throws IOException {
+/*//本地图片 取到剪切版
+        ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        Log.d("lsz","clipa"+clipboard.hasPrimaryClip());
+        // 檢查剪貼簿是否有內容
+        if (clipboard.hasPrimaryClip()) {
+            ClipData clip = clipboard.getPrimaryClip();
+            Log.d("lsz","clip"+clip);
+            // 檢查是否包含 URI 類型的資料
+            if (clip != null && clip.getItemCount() > 0) {
+                ClipData.Item item = clip.getItemAt(0);
+                Uri imageUri = item.getUri();
+                Log.d("lsz","clip imageUri"+imageUri);
+                if (imageUri != null) {
+                    // 將圖片 URI 設置到 ImageView 顯示圖片
+                    Log.d("lsz","clip imageUriaaaaaaaaaa");
+                    imageView2.setImageURI(imageUri);
+                    imageView2.setImageBitmap(bitmap);
+                }
+            }
+        } else {        Toast.makeText(this, "Clipboard is empty", Toast.LENGTH_SHORT).show();    }
+//本地图片 取到剪切版end*/
+
+
         AtomicReference<ClipData> clipDataRef = new AtomicReference<>(null);
         ClipboardUtils clipboardUtils = ClipboardUtils.getInstance();
         clipboardUtils.getPrimaryClip(clipDataRef);
@@ -550,17 +747,17 @@ public class TestActivity extends Activity {
 
                 if (bitmap1 != null) {
                 /*
-                convert byte array to bitmap
+                数组转bitmap
                 */
                     //Bitmap drawableicon = BitmapFactory.decodeResource(getResources(), R.drawable.liu2);
-                    //byte[] imageData = bitmapToByteArray(drawableicon);
+                    //byte[] imageData = bitmapToByteArray(drawableicon); // 要转换的字节数组
                     //Bitmap bitmap3 = BitmapFactory.decodeByteArray(imageData, 0, imageData.length);
                     imageView2.setImageBitmap(bitmap1);
 
                     //byte[] imageData = bitmapToByteArray(bitmap1);
                     imageData = bitmapToByteArray(bitmap1);
 
-                    /*//bitmap to byteArray
+                    /*//bitmap转byteArray
                     int bytes = bitmap1.getByteCount();
                     ByteBuffer buf = ByteBuffer.allocate(bytes);
                     bitmap1.copyPixelsToBuffer(buf);
@@ -604,6 +801,15 @@ public class TestActivity extends Activity {
         // bitmapToByteArray(bitmap);
         clipboardUtils.setPrimaryClip(clipDataRef);*/
 
+
+//本地图片 测试存到剪切版
+        /*ClipboardManager clipboard = (ClipboardManager)getSystemService(Context.CLIPBOARD_SERVICE);
+        ClipData clip;
+        Uri uri = Uri.parse("android.resource://com.rtk.myapplication/" + R.drawable.liu2);
+        clip = ClipData.newUri(getContentResolver(), "Image", uri);
+        // 將 ClipData 放入剪貼簿
+        clipboard.setPrimaryClip(clip);*/
+//本地图片 测试存到剪切版 end
 
         Bitmap drawableicon = bitmap;//BitmapFactory.decodeResource(getResources(), R.drawable.liu2);
         ClipboardManager mClipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
@@ -663,6 +869,85 @@ public class TestActivity extends Activity {
                 sizeInMB = bytekb(sizeInBytes);
             }
         }
+
+        //if (Intent.ACTION_SEND.equals(action) && mimetype != null) {
+        //    alertDialog(intent,action,mimetype);
+        //}
+
+        //Log.d("lszz","action="+action + "/type="+mimetype);
+        /*if (Intent.ACTION_SEND.equals(action) && mimetype != null) {
+            if ("text/plain".equals(mimetype)) {
+                sharedText = intent.getStringExtra(Intent.EXTRA_TEXT);
+                //Uri ur = (Uri) intent.getParcelableExtra(Intent.EXTRA_STREAM);
+                Log.d("lszz","sharedText="+sharedText);
+                assert sharedText != null;
+                textView.setText(sharedText.replace("\"", ""));
+                //downLoad(ur);
+            } else if (mimetype.startsWith("image/")) {
+                Uri imageUri = (Uri) intent.getParcelableExtra(Intent.EXTRA_STREAM);
+                Log.d("lszz","imageUri="+imageUri);
+                InputStream inputStream = this.getContentResolver().openInputStream(imageUri);
+                Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
+                //bitmap转byteArray
+                int bytes = bitmap.getByteCount();
+                ByteBuffer buf = ByteBuffer.allocate(bytes);
+                bitmap.copyPixelsToBuffer(buf);
+                //byte[] byteArray = buf.array();
+
+                getbyteArray=buf.array();
+
+                getbyteArray(bitmap);
+                Log.d("lszz","bitmap byteArray="+getbyteArray);
+                Log.d("lszz","bitmap="+bitmap);
+                imageView2.setImageURI(imageUri);
+
+                //测试获取的uri 转换成bitmap显示
+                byte[] imageData = bitmapToByteArray(bitmap); // 要转换的字节数组
+                Bitmap bitmap3 = BitmapFactory.decodeByteArray(imageData, 0, imageData.length);
+                imageView3.setImageBitmap(bitmap3);
+
+            }else if (mimetype.startsWith("video/mp4")) {
+                Uri uri = (Uri) intent.getParcelableExtra(Intent.EXTRA_STREAM);
+                //如果是媒体类型需要从数据库获取路径
+                videview.setVideoURI(uri);
+                videview.start();
+                videview.setVisibility(View.VISIBLE);
+            }else if (mimetype.startsWith("audio/mpeg")) {
+                Uri uri = (Uri) intent.getParcelableExtra(Intent.EXTRA_STREAM);
+                Log.i("lszz", "uri.getPath();:= " + uri.getPath());
+                playAudio(uri);
+            }else if (mimetype.startsWith("application/")) {
+                Uri uri = (Uri) intent.getParcelableExtra(Intent.EXTRA_STREAM);
+                /*verifyStoragePermissions();
+                File internalDirectory = getExternalFilesDir("MyFolder");
+                Log.i("lszz", "uri.getPath();:=internalDirectory " + internalDirectory.getPath());
+                Log.i("lszz", "uri.getPath();:=internalDirectory " + internalDirectory.exists());
+                */
+                /*try {
+                    InputStream inputStream = this.getContentResolver().openInputStream(uri);
+                    File saveDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);//保存在内部存储的Download下
+                    File saveFile = new File(saveDir, getFileNameFromUri(uri));
+                    OutputStream outputStream = new FileOutputStream(saveFile);
+                    byte[] buffer = new byte[1024];
+                    int length = inputStream.read(buffer);
+                    while (length > 0) {
+                        outputStream.write(buffer, 0, length);
+                        length = inputStream.read(buffer);
+                    }
+                    inputStream.close();
+                    outputStream.close();
+                    Toast.makeText(TestActivity.this, "file has been save to Download of internal storage", Toast.LENGTH_SHORT).show();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    // 处理异常
+                }
+            }
+
+
+
+        }*/
+
+
     }
 
     private static final int REQUEST_EXTERNAL_STORAGE = 1;
@@ -770,12 +1055,13 @@ public class TestActivity extends Activity {
             Toast.makeText(TestActivity.this, "file has been save to Download of internal storage", Toast.LENGTH_SHORT).show();
         } catch (IOException e) {
             e.printStackTrace();
+            // 处理异常
         }
     }
 
-    //If a Log over 4000 string, AS can't print all of it
+    //超过4000字节AS打印不全
     public void printLongString(String longString) {
-        int maxLength = 4000; // set max length of each substring
+        int maxLength = 4000; // 设置每个子字符串的最大长度
         int index = 0;
         int count = 0;
 
@@ -895,13 +1181,14 @@ public class TestActivity extends Activity {
                 // getRealPathFromURI(mContext, uri);
 
                 try {
-                    //put share file to private directory of app, so libp2p can read it
+                    //把分享过来的文件保存到app私有目录,libp2p才有权限
                     InputStream inputStream = this.getContentResolver().openInputStream(uri);
                     File saveDir = getExternalFilesDir(null);//Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);//保存在内部存储的Download下
                     File saveFile = new File(saveDir, getFileNameFromUri(uri));
                     Log.i("lszz", "uri.getPath();:=saveDir " + saveDir.getPath());
                     Log.i("lszz", "uri.getPath();:=saveFile = " + saveFile.getPath());
                     saveFilePath = saveFile.getPath();
+                    //Toast.makeText(TestActivity.this, "文件已經保存在內部儲存空間的Download下", Toast.LENGTH_SHORT).show();
                     OutputStream outputStream = new FileOutputStream(saveFile);
                     byte[] buffer = new byte[1024];
                     int length = inputStream.read(buffer);
@@ -913,6 +1200,7 @@ public class TestActivity extends Activity {
                     outputStream.close();
                 } catch (IOException e) {
                     e.printStackTrace();
+                    // 处理异常
                 }
             } else if (mimetype.startsWith("image/") || mimetype.startsWith("video/")) {
                 Uri imageUri = (Uri) intent.getParcelableExtra(Intent.EXTRA_STREAM);
@@ -923,6 +1211,7 @@ public class TestActivity extends Activity {
                 share_image.setImageURI(imageUri);
 
                 try {
+                    //把分享过来的文件保存到app私有目录,libp2p才有权限
                     InputStream inputStream2 = this.getContentResolver().openInputStream(imageUri);
                     File saveDir = getExternalFilesDir(null);//Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);//保存在内部存储的Download下
                     File saveFile = new File(saveDir, getFileNameFromUri(imageUri));
@@ -949,6 +1238,7 @@ public class TestActivity extends Activity {
                     outputStream.close();
                 } catch (IOException e) {
                     e.printStackTrace();
+                    // 处理异常
                 }
 
             } else if (mimetype.startsWith("application/")) {
@@ -969,6 +1259,7 @@ public class TestActivity extends Activity {
                     }
                     share_file_name= saveFile.getName();
                     saveFilePath = saveFile.getPath();
+                    //Toast.makeText(TestActivity.this, "文件已經保存在內部儲存空間的Download下", Toast.LENGTH_SHORT).show();
                     OutputStream outputStream = new FileOutputStream(saveFile);
                     byte[] buffer = new byte[1024];
                     int length = inputStream.read(buffer);
@@ -980,6 +1271,7 @@ public class TestActivity extends Activity {
                     outputStream.close();
                 } catch (IOException e) {
                     e.printStackTrace();
+                    // 处理异常
                 }
             }
 
@@ -989,7 +1281,9 @@ public class TestActivity extends Activity {
     }
 
     public static String removeInvalidCharacters(String base64String) {
+        // 正则表达式，匹配Base64的有效字符
         String regex = "[^A-Za-z0-9+/=]";
+        // 使用正则表达式替换掉非法字符
         String cleanString = base64String.replaceAll(regex, "");
         return cleanString;
     }
@@ -1025,53 +1319,51 @@ public class TestActivity extends Activity {
         Log.d(TAG, "lsz onNewIntent");
         super.onNewIntent(intent);
 
+        setContentView(R.layout.myactivity);
+        RecyclerView recyclerView2 = findViewById(R.id.recycler_view);
+        recyclerView2.setLayoutManager(new LinearLayoutManager(this));
+        adapter = new FileTransferAdapter(fileTransferList);
+        recyclerView2.setAdapter(adapter);
+
         setIntent(intent);
 
 
-        boolean booleanValue = getIntent().getBooleanExtra("booleanKey", false);
+        boolean booleanValue = getIntent().getBooleanExtra("booleanKey", false); // 第二个参数是默认值，如果没找到键则使用默认值
+        filename = getIntent().getStringExtra("filename");
+        filesize = getIntent().getLongExtra("filesize", -1L);
+        //bitmappath = getIntent().getStringExtra("bitmappath");
+        countSize = filesize;
         Log.d(TAG, "booleanValue booleanValue=" + booleanValue);
-        if(booleanValue) {
-            setContentView(R.layout.myactivity);
-            RecyclerView recyclerView2 = findViewById(R.id.recycler_view);
-            recyclerView2.setLayoutManager(new LinearLayoutManager(this));
-            adapter = new FileTransferAdapter(fileTransferList);
+        Log.d(TAG, "filename filenamea=" + filenamea);
+        Log.d(TAG, "filename filename=" + filename);
+        Log.d(TAG, "filesize=" + filesize);
+        //Log.d(TAG, "String bitmappath=" + bitmappath);
 
-            MyApplication.setMyAdapter(adapter);
+         if (booleanValue) {
+             boolean isSameFile = false;
+             int sameItemIndex = -1;
+             for (int i=0;i<fileTransferList.size();i++) {
+                 if (fileTransferList.get(i).getFileName().equals(filename)) {
+                     isSameFile = true;
+                     sameItemIndex = i;
+                 }
+             }
+             Log.d(TAG, "is same file:"+ isSameFile);
+             filenamea = filename;
+             if (!isSameFile) {
+                 FileTransferItem item = new FileTransferItem(filename, filesize, BitmapHolder.getBitmap());
+                 fileTransferList.add(0, item);
+                 adapter.notifyItemInserted(0);
+             } else {
+                 //already added item should move to first one
+                 FileTransferItem item = fileTransferList.get(sameItemIndex);
+                 fileTransferList.remove(sameItemIndex);
+                 fileTransferList.add(0, item);
+                 adapter.notifyItemInserted(0);
+             }
+         }
 
-            filename = getIntent().getStringExtra("filename");
-            filesize = getIntent().getLongExtra("filesize", -1L);
-            countSize = filesize;
-            Log.d(TAG, "filename=" + filename);
-            Log.d(TAG, "filesize=" + filesize);
-
-            adapter.removeSameFile(filename, filesize);
-
-            FileTransferItem item = new FileTransferItem(filename, filesize, null);
-            fileTransferList.add(0, item);
-            recyclerView2.setAdapter(adapter);
-
-            file_page_back_icon = findViewById(R.id.file_page_back_icon);
-            if (file_page_back_icon != null) {
-                file_page_back_icon.setOnClickListener(new View.OnClickListener() {
-                    @Override
-                    public void onClick(View view) {
-                        Log.d(TAG, "from file page to main page");
-                        setContentView(R.layout.layout_testactivity_title);
-                        getClientList();
-                        mMyConnectionView = findViewById(R.id.my_connections_view);
-                        if (mMyConnectionView != null) {
-                            mMyConnectionView.setText(getMyIpDeviceName());
-                        }
-                        mSwVersionView = findViewById(R.id.sw_version_view);
-                        if (mSwVersionView != null) {
-                            mSwVersionView.setText(getSoftwareInfo());
-                        }
-                    }
-                });
-            }
-        }
-        Log.d(TAG, "mIsAndroidShareFile: "+ mIsAndroidShareFile);
-        //update connection info on right-upper corner
+         //update connection info on right-upper corner
         getClientList();
     }
 
@@ -1082,12 +1374,12 @@ public class TestActivity extends Activity {
         LocalBroadcastManager.getInstance(this).unregisterReceiver(broadcastReceiver);
         LocalBroadcastManager.getInstance(this).unregisterReceiver(broadcastReceivera);
 
-//        if (isBound) {
-//            // rempve callback
-//            myService.setCallback(null);
-//            unbindService(connection);
-//            isBound = false;
-//        }
+        if (isBound) {
+            // 移除回调
+            myService.setCallback(null);
+            unbindService(connection);
+            isBound = false;
+        }
         /*android.os.Process.killProcess(android.os.Process.myPid());*/
     }
 
@@ -1178,10 +1470,42 @@ public class TestActivity extends Activity {
     }
 
     public void getClientList() {
+//        recyclerView = findViewById(R.id.my_recycler_view);
+//        recyclerView.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.VERTICAL, false));
+//        //从libp2p获取列表数据
+//        String getlist = Libp2p_clipboard.getClientList();
+//        if (!getlist.isEmpty()) {
+//            Log.d("lszz", "recyclerView getlist==" + getlist);
+//            String[] strArray = getlist.split("#");
+//            //for (String getlistvalue : strArray) {
+//            //    Log.d("lszz","getlistvalue="+getlistvalue);
+//            //}
+//
+//            /*for (int i = 0; i < strArray.length; i++) {
+//                if (!strArray[i].isEmpty()) {
+//                    Log.d("lszz","subString=aaaa"+strArray[i].substring(0, 10));
+//                    strArray[i] = strArray[i].substring(0, 10);
+//                }
+//            }*/
+//
+//            //取到的数据放入myadapter
+//            MyAdapter myadapter = new MyAdapter(strArray);
+//            myadapter.setOnItemClickListener(new MyAdapter.OnItemClickListener() {
+//                @Override
+//                public void onItemClick(View view, int position) {
+//                    value = ((TextView) view).getText().toString();
+//                    Toast.makeText(TestActivity.this, "你选择了：" + value, Toast.LENGTH_SHORT).show();
+//
+//                }
+//            });
+//
+//            recyclerView.setAdapter(myadapter);
+//        }
+
+
         recyclerViewdevice = findViewById(R.id.recycler_devicelist);
         deviceList = new ArrayList<>();
-        deviceNameIdMap = new HashMap<String, String>();
-        String connectionsViewText = "";
+        deviceNameIpMap = new HashMap<String, String>();
 
         // IP1#ID1#Name1,IP2#ID2#Name2,IP3#ID3#Name3
         String getlist = Libp2p_clipboard.getClientList();
@@ -1191,8 +1515,8 @@ public class TestActivity extends Activity {
                 Log.d("lszz","getlistvalue=hhh"+getlistvalue);
                 String[] info = getlistvalue.split("#");
                 String ip = info[0];
-                String id = info.length >1?info[1]:info[0];
-                String name = info.length >2?info[2]:info[0];
+                String id = info[1];
+                String name = info[2];
                 Log.d("lszz","name: "+name);
                 if (name.contains(SOURCE_HDMI1)) {
                     deviceList.add(new Device(name, R.drawable.hdmi));
@@ -1205,58 +1529,29 @@ public class TestActivity extends Activity {
                 } else {
                     deviceList.add(new Device(name, R.drawable.src_default));
                 }
-                deviceNameIdMap.put(name, id);
-                connectionsViewText = connectionsViewText + ip + " " + name + "\n";
-            }
-            mConnectionsView = findViewById(R.id.connections_view);
-            if (mConnectionsView != null) {
-                mConnectionsView.setText(connectionsViewText);
+                deviceNameIpMap.put(name, ip);
             }
             //update connection text
             mFileConnCountView = findViewById(R.id.file_connection_count);
             if (deviceList != null) {
-                Log.d(TAG, "getClientList: " + deviceList.size());
+                Log.d(TAG, "yiwen: getClientList: " + deviceList.size());
                 if (mFileConnCountView != null) {
                     mFileConnCountView.setText(String.valueOf(deviceList.size()));
-                } else {
-                    Log.d(TAG, "getClientList, mFileConnCountView is null");
-                }
-            }
-            mConnCountView = findViewById(R.id.connection_count);
-            if (deviceList != null) {
-                Log.d(TAG, "getClientList: " + deviceList.size());
-                if (mConnCountView != null) {
-                    mConnCountView.setText(String.valueOf(deviceList.size()));
-                } else {
-                    Log.d(TAG, "getClientList, mConnCountView is null");
-                }
-            }
-
-
-        } else {
-            //update connection text
-            mFileConnCountView = findViewById(R.id.file_connection_count);
-            if (deviceList != null) {
-                Log.d(TAG, "getClientList: 0");
-                if (mFileConnCountView != null) {
-                    mFileConnCountView.setText("0");
                 } else {
                     Log.d(TAG, "yiwen: getClientList, mFileConnCountView is null");
                 }
             }
             mConnCountView = findViewById(R.id.connection_count);
             if (deviceList != null) {
-                Log.d(TAG, "getClientList: 0");
+                Log.d(TAG, "yiwen: getClientList: " + deviceList.size());
                 if (mConnCountView != null) {
-                    mConnCountView.setText("0");
+                    mConnCountView.setText(String.valueOf(deviceList.size()));
                 } else {
-                    Log.d(TAG, "getClientList, mConnCountView is null");
+                    Log.d(TAG, "yiwen: getClientList, mConnCountView is null");
                 }
             }
-            mConnectionsView = findViewById(R.id.connections_view);
-            if (mConnectionsView != null) {
-                mConnectionsView.setText("NA");
-            }
+
+
         }
 
         deviceAdapter = new DeviceAdapter(this, deviceList);
@@ -1273,8 +1568,9 @@ public class TestActivity extends Activity {
                 @Override
                 public void onItemClick(View view, int position) {
                     String name = ((TextView) view).getText().toString();
-                    value = deviceNameIdMap.get(name);
-                    Log.d(TAG, "select device name:"+name+", id:"+value);
+                    //get ip from name
+                    value = deviceNameIpMap.get(name);
+                    Log.d(TAG, "select device name:"+name+", ip:"+value);
                     Toast.makeText(TestActivity.this, "You select：" + name, Toast.LENGTH_SHORT).show();
                 }
             });
@@ -1283,27 +1579,31 @@ public class TestActivity extends Activity {
 
 
     public static Bitmap base64ToBitmapa(String base64String) {
-        // remove prefix of base64 encoding string if exists
+        // 移除Base64编码的前缀（如果有的话）
         if (base64String.contains(",")) {
             base64String = base64String.split(",")[1];
         }
 
+        // 对Base64字符串进行解码
         byte[] decodedBytes = Base64.decode(base64String, Base64.DEFAULT);
 
         //for (byte aa : decodedBytes) {
         //    Log.d(TAG, "lsz byte[].toString(): " + aa);
         //}
         Log.i(TAG, "lszz bitmap decodedBytes[] length" + decodedBytes.length);
+        // 将字节数组转换为Bitmap
         return BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.length);
     }
 
 
     public void setBitmapToClipboard(Context context, Bitmap bitmap) {
+        // 确保外部存储可用
         Log.i(TAG, "lsz setBitmapToClipboard init");
         if (!Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED)) {
             return;
         }
 
+        // 创建一个文件来保存Bitmap
         File file = new File(context.getExternalFilesDir(null), "shared_image.png");
         Log.i(TAG, "lsz getExternalStorageState imageFile getPath=" + file.getPath());
         //Uri imageUri = FileProvider.getUriForFile(context, "com.rtk.myapplication", file);
@@ -1315,15 +1615,16 @@ public class TestActivity extends Activity {
             return;
         }
 
-        // get file's Uri
+        // 获取文件的Uri
         Uri imageUri = FileProvider.getUriForFile(context, "com.rtk.myapplication", file);
         Log.i(TAG, "lsz getExternalStorageState imageFile imageUri=" + imageUri);
+        // 创建ClipData
         ClipData clip = ClipData.newUri(context.getContentResolver(), "image/png", imageUri);
 
-        // get ClipboardManager
+        // 获取ClipboardManager实例
         ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
 
-        // put ClipData into clipboard
+        // 将ClipData放入剪贴板
         Log.i(TAG, "lsz setimg to clipboard ");
         clipboard.setPrimaryClip(clip);
     }
@@ -1486,13 +1787,4 @@ public class TestActivity extends Activity {
         });
     }
 
-    @Override
-    protected void onUserLeaveHint() {
-        super.onUserLeaveHint();
-        Log.d(TAG, "onUserLeaveHint: User press home to leave app");
-        if (mIsAndroidShareFile) {
-            Log.d(TAG, "leave app and this is android file share window, finish()");
-            finish();
-        }
-    }
 }

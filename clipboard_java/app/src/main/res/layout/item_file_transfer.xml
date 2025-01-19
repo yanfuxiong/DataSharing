@@ -30,14 +30,12 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="File Name"
-                android:textColor="@color/black"
                 android:textSize="18sp" />
 
             <TextView
                 android:id="@+id/file_size"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textColor="@color/black"
                 android:text="0 B"
                 android:textSize="14sp"
                 android:layout_marginTop="8dp"/>
@@ -50,47 +48,15 @@
     <ProgressBar
         android:id="@+id/progress_bar"
         android:layout_width="match_parent"
-        android:layout_height="2dp"
+        android:layout_height="wrap_content"
         style="?android:attr/progressBarStyleHorizontal"/>
 
-    <RelativeLayout
-        android:layout_width="match_parent"
+    <TextView
+        android:id="@+id/file_time"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:orientation="horizontal">
-
-        <TextView
-            android:id="@+id/file_time"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_alignParentLeft="true"
-            android:layout_alignParentStart="true"
-            android:textColor="@color/black"
-            android:textSize="10sp"
-            android:text="First text" />
-        <TextView
-            android:id="@+id/percentage"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_alignParentRight="true"
-            android:layout_alignParentEnd="true"
-            android:textColor="@color/black"
-            android:textSize="10sp"
-            android:text="Second text" />
-
-        <TextView
-            android:id="@+id/result"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_toLeftOf="@id/percentage"
-            android:layout_toStartOf="@id/percentage"
-            android:textColor="@color/black"
-            android:layout_marginRight="3dp"
-            android:visibility="invisible"
-            android:textSize="10sp"
-            android:text="Third text" />
-
-
-
-    </RelativeLayout>
+        android:text=" "
+        android:textSize="14sp"
+        android:layout_marginTop="2dp"/>
 
 </LinearLayout>

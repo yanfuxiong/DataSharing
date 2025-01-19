@@ -9,22 +9,12 @@ public class FileTransferItem {
     private long currentProgress;
     private Bitmap bitmap;
     private String dateInfo;
-    private Status status;
 
     public FileTransferItem(String fileName, long fileSize, Bitmap bitmap) {
         this.fileName = fileName;
         this.fileSize = fileSize;
         this.bitmap = bitmap;
         this.currentProgress = 0;
-        this.status=Status.PENDING;
-    }
-
-    public Status getStatus() {
-        return status;
-    }
-
-    public void setStatus(Status status) {
-        this.status = status;
     }
 
     public String getFileName() {
@@ -53,11 +43,4 @@ public class FileTransferItem {
 
     public void setDateInfo(String dateInfo) { this.dateInfo = dateInfo;}
     public String getDateInfo() {return dateInfo; }
-
-    public enum Status {
-        PENDING,
-        IN_PROGRESS,
-        COMPLETED,
-        ERROR
-    }
 }

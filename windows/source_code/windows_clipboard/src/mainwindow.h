@@ -6,7 +6,6 @@
 #include <QFileDialog>
 #include <QTimer>
 #include <QCloseEvent>
-#include <QSystemTrayIcon>
 #include "common_utils.h"
 #include "device_list_dialog.h"
 #include "common_signals.h"
@@ -36,11 +35,9 @@ private slots:
     void on_settings_btn_clicked();
     void on_select_file_clicked();
     void onUpdateClientList();
-    void onSystemTrayIconActivated(QSystemTrayIcon::ActivationReason reason);
 
 private:
     void closeEvent(QCloseEvent *event) override;
-    void changeEvent(QEvent *event) override;
     void processTopTitleLeftClicked();
 
 private:
@@ -49,6 +46,5 @@ private:
     int m_currentProgressVal;
     //QPointer<ProgressBarDialog> m_progressDialog;
     //QPointer<AcceptFileDialog> m_acceptFileDialog;
-    QPointer<QSystemTrayIcon> m_systemTrayIcon;
 };
 #endif // MAINWINDOW_H
