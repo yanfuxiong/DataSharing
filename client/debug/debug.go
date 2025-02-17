@@ -115,6 +115,14 @@ func DebugCmdLine() {
 			rtkConnection.CloseStream("QmatLKJ3uE7tc9gX4Kx6jhgyu7QzB5fYSQuU81js4jSSMD")
 		} else if strings.Contains(line, "ClosePeer") {
 			rtkConnection.ClosePeer("QmatLKJ3uE7tc9gX4Kx6jhgyu7QzB5fYSQuU81js4jSSMD")
+		} else if strings.Contains(line, "SetupLogShut") {
+			rtkUtils.SetupLogShut()
+		} else if strings.Contains(line, "SetupLogFile") {
+			rtkUtils.SetupLogFile()
+		} else if strings.Contains(line, "SetupLogConsole") {
+			rtkUtils.SetupLogConsole()
+		} else if strings.Contains(line, "SetupLogAll") {
+			rtkUtils.SetupLogConsoleFile()
 		}
 		// } else if strings.Contains(line, "PASTE_FILE") {
 		// 	rtkPlatform.GoClipboardPasteFileCallback("123")

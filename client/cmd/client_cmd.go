@@ -16,9 +16,6 @@ import (
 	rtkPlatform "rtk-cross-share/platform"
 	rtkUtils "rtk-cross-share/utils"
 	"time"
-
-	"golang.design/x/clipboard"
-	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 func setupSettings() {
@@ -26,22 +23,14 @@ func setupSettings() {
 	rtkClipboard.InitClipboard()
 	rtkFileDrop.InitFileDrop()
 
-	err := clipboard.Init()
-	if err != nil {
-		panic(err)
-	}
+	rtkGlobal.ListenHost = rtkGlobal.DefaultIp
+	rtkGlobal.ListenPort = 0
+	rtkGlobal.LogPath = rtkPlatform.GetLogFilePath()
+	rtkGlobal.CrashLogPath = rtkPlatform.GetCrashLogFilePath()
 
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
-}
 
-func setupLogFileSetting() {
-	log.SetOutput(&lumberjack.Logger{
-		Filename:   rtkPlatform.GetLogFilePath(),
-		MaxSize:    256,
-		MaxBackups: 3,
-		MaxAge:     30,
-		Compress:   true,
-	})
+	rtkUtils.SetupLogFile()
 }
 
 func listen_addrs(port int) []string {
@@ -76,14 +65,10 @@ func Run() {
 	defer rtkPlatform.UnlockFile(file)
 
 	setupSettings()
-	// setupLogFileSetting()
-
-	rtkGlobal.ListenHost = rtkGlobal.DefaultIp
-	rtkGlobal.ListenPort = 0
 
 	rtkUtils.GoSafe(func() { rtkDebug.DebugCmdLine() })
 
-	rtkUtils.GoSafe(func() { BusinessProcess() })
+	rtkUtils.GoSafe(func() { businessProcess() })
 
 	select {}
 }
@@ -108,30 +93,24 @@ func MainInit(serverId, serverIpInfo, listenHost string, listentPort int) {
 		return
 	}
 
-	//setupLogFileSetting()
 	rtkUtils.GoSafe(func() { rtkDebug.DebugCmdLine() })
 
-	rtkUtils.GoSafe(func() { BusinessProcess() })
+	rtkUtils.GoSafe(func() { businessProcess() })
 
-	// TODO:  check below code if necessary  by TSTAS-40
-	/*sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGTERM, syscall.SIGINT, os.Interrupt)
-	<-sigs
-	cancel()
-	log.Println("Termination signal received, performing cleanup...")
-	time.Sleep(10 * time.Millisecond)*/
 	select {}
 }
 
-func BusinessProcess() {
+func businessProcess() {
 	for {
 		ctx, cancel := context.WithCancel(context.Background())
 		businessStart(ctx)
 
 		<-rtkConnection.GetNetworkSwitchFlag()
-		log.Printf("[%s] Network is Switch, so cancel all business! *****************\n\n\n", rtkUtils.GetFuncInfo())
+
+		log.Printf("[%s] Network is Switch, so cancel all business! *****************\n\n", rtkUtils.GetFuncInfo())
 		cancel()
 		time.Sleep(5 * time.Second)
+		log.Printf("\n\n")
 		log.Printf("[%s] business is restart!", rtkUtils.GetFuncInfo())
 	}
 }
@@ -147,9 +126,11 @@ func businessStart(ctx context.Context) {
 				rtkPeer2Peer.StartProcessForPeer(id)
 			case id := <-rtkConnection.EndProcessChan:
 				rtkPeer2Peer.EndProcessForPeer(id)
+			case <-rtkConnection.CancelAllProcess:
+				rtkPeer2Peer.CaneclProcessForPeerMap()
 			case <-time.After(5 * time.Second):
 				if rtkPeer2Peer.GetProcessForPeerCount() != rtkUtils.GetClientCount() {
-					log.Printf("[%s] Attention please, get ClientCount:[%d] is not match ProcessCount:[%d] ", rtkUtils.GetFuncInfo(), rtkUtils.GetClientCount(), rtkPeer2Peer.GetProcessForPeerCount())
+					log.Printf("[%s] Attention please, get ClientCount:[%d] is not match ProcessCount:[%d] \n\n", rtkUtils.GetFuncInfo(), rtkUtils.GetClientCount(), rtkPeer2Peer.GetProcessForPeerCount())
 				}
 			}
 		}

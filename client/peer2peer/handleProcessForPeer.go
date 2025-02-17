@@ -31,9 +31,13 @@ func StartProcessForPeer(id string) {
 func EndProcessForPeer(id string) {
 	processMutex.Lock()
 	defer processMutex.Unlock()
-	processForPeerMap[id]()
-	delete(processForPeerMap, id)
-	log.Printf("[%s][%s][%s] ProcessEventsForPeer is Cancel !", rtkUtils.GetFuncInfo(), id, rtkConnection.GetStreamIpAddr(id))
+	if _, ok := processForPeerMap[id]; ok {
+		processForPeerMap[id]()
+		delete(processForPeerMap, id)
+		log.Printf("[%s][%s][%s] ProcessEventsForPeer is Cancel !", rtkUtils.GetFuncInfo(), id, rtkConnection.GetStreamIpAddr(id))
+	} else {
+		log.Printf("[%s][%s][%s] ProcessEventsForPeer is already Cancel, not need cancel again !", rtkUtils.GetFuncInfo(), id, rtkConnection.GetStreamIpAddr(id))
+	}
 }
 
 func CaneclProcessForPeerMap() {

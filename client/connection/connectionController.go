@@ -40,34 +40,8 @@ func GetConnectNode() host.Host {
 	return node
 }
 
-func getNetworkInfo() (string, bool) {
-	interfaces, err := net.Interfaces()
-	if err != nil {
-		log.Printf("Failed to get network interfaces: %v", err)
-		return rtkGlobal.DefaultIp, false
-	}
-	for _, iface := range interfaces {
-		if (iface.Flags&net.FlagUp) == 0 || (iface.Flags&net.FlagLoopback) != 0 {
-			continue
-		}
-		addrs, err := iface.Addrs()
-		if err != nil {
-			log.Printf("Err: Failed to get addresses for interface %s: %v", iface.Name, err)
-			continue
-		}
-		for _, addr := range addrs {
-			if ipNet, ok := addr.(*net.IPNet); ok && !ipNet.IP.IsLoopback() {
-				if ipNet.IP.To4() != nil {
-					return ipNet.IP.String(), true
-				}
-			}
-		}
-	}
-	return rtkGlobal.DefaultIp, false
-}
-
 func ConnectionInit() {
-	log.Printf("[%s] listen host[%s] port[%d] connection init", rtkUtils.GetFuncInfo(), rtkGlobal.ListenHost, rtkGlobal.ListenPort)
+	log.Printf("[%s] listen host[%s] port[%d] connection start init", rtkUtils.GetFuncInfo(), rtkGlobal.ListenHost, rtkGlobal.ListenPort)
 	node = setupNode(rtkGlobal.ListenHost, rtkGlobal.ListenPort)
 	pingServer = ping.NewPingService(node)
 }
@@ -76,21 +50,8 @@ func updateSystemInfo() {
 	// Update system info
 	ipAddr := rtkUtils.ConcatIP(rtkGlobal.NodeInfo.IPAddr.PublicIP, rtkGlobal.NodeInfo.IPAddr.PublicPort)
 	serviceVer := "v" + rtkBuildConfig.Version + " (" + rtkBuildConfig.BuildDate + ")"
-	//lastIp := rtkGlobal.DefaultIp
-	rtkPlatform.GoUpdateSystemInfo(ipAddr, serviceVer)
-	// TODO:  fix this by TSTAS-40
-	/*rtkUtils.GoSafe(func() {
-		for {
-			ip, _ := getNetworkInfo()
-			isChanged := ip != lastIp
-			if isChanged {
-				lastIp = ip
-				rtkPlatform.GoUpdateSystemInfo(getLocalIpPort(lastIp), serviceVer)
-			}
 
-			time.Sleep(5 * time.Second)
-		}
-	})*/
+	rtkPlatform.GoUpdateSystemInfo(ipAddr, serviceVer)
 }
 
 func cancelHostNode() {
@@ -118,6 +79,12 @@ func Run(ctx context.Context) {
 		}
 	})
 
+	if rtkPlatform.GetPlatform() == rtkGlobal.PlatformWindows { // only windows need watch network info
+		rtkUtils.GoSafe(func() { WatchNetworkInfo(ctx) })
+	}
+
+	rtkUtils.GoSafe(func() { WatchNetworkConnected(ctx) })
+
 	buildListener()
 
 	rtkUtils.GoSafe(func() { BuildMDNSTalker(ctx) })
@@ -125,46 +92,56 @@ func Run(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Println("connectionController run is end by main context")
+			log.Println("connectionController run is end by main context, cancel node!")
 			return
 		case <-time.After(30 * time.Second):
 			CheckAllStreamAlive(ctx)
 		case peerInfo := <-reConnectPeerChan:
-			peerInfo.RetryCount++
-			if peerInfo.RetryCount > peerInfo.MaxCount {
-				if !IsStreamExisted(peerInfo.Peer.ID.String()) {
-					OfflineStream(peerInfo.Peer.ID.String())
+			select {
+			case <-ctx.Done():
+				log.Println("connectionController reConnected delay is end by main context, cancel node!")
+				return
+			case <-time.After(peerInfo.DelayTime):
+				if !IsNetworkConnected() {
+					log.Printf("[%s] the Network is unavailable! ID:[%s] is skip reconnect!", rtkUtils.GetFuncInfo(), peerInfo.Peer.ID.String())
+					continue
 				}
-				continue
-			}
 
-			if node.Network().Connectedness(peerInfo.Peer.ID) != network.Connected {
-				log.Printf("Start connect to %+v,  %d times to retry, close peer first ", peerInfo.Peer.Addrs, peerInfo.RetryCount)
-				ClosePeer(peerInfo.Peer.ID.String())
-				if err := node.Connect(ctx, peerInfo.Peer); err != nil {
-					log.Printf("Connect to peer %+v failed:%+v", peerInfo.Peer.Addrs, err)
-					time.Sleep(peerInfo.DelayTime)
+				peerInfo.RetryCount++
+				if peerInfo.RetryCount > peerInfo.MaxCount {
+					if !IsStreamExisted(peerInfo.Peer.ID.String()) {
+						OfflineStream(peerInfo.Peer.ID.String())
+					}
+					continue
+				}
+
+				if node.Network().Connectedness(peerInfo.Peer.ID) != network.Connected {
+					log.Printf("Start connect to %+v,  %d times to retry, close peer first ", peerInfo.Peer.Addrs, peerInfo.RetryCount)
+					ClosePeer(peerInfo.Peer.ID.String())
+					if err := node.Connect(ctx, peerInfo.Peer); err != nil {
+						log.Printf("Connect to peer %+v failed:%+v", peerInfo.Peer.Addrs, err)
+						reConnectPeerChan <- peerInfo
+						continue
+					}
+				} else {
+					log.Printf("Start open a new stream to %+v,  %d times to retry ...", peerInfo.Peer.Addrs, peerInfo.RetryCount)
+				}
+
+				if IsStreamExisted(peerInfo.Peer.ID.String()) {
+					log.Printf("[%s] %+v a new stream is Opened , so skip it", rtkUtils.GetFuncInfo(), peerInfo.Peer.Addrs)
+					continue
+				}
+
+				stream, err := node.NewStream(ctx, peerInfo.Peer.ID, protocol.ID(rtkGlobal.ProtocolDirectID))
+				if err != nil {
+					log.Printf("[%s] Stream open failed: %+v", rtkUtils.GetFuncInfo(), err)
 					reConnectPeerChan <- peerInfo
 					continue
 				}
-			} else {
-				log.Printf("Start open a new stream to %+v,  %d times to retry ...", peerInfo.Peer.Addrs, peerInfo.RetryCount)
+
+				onlineEvent(stream, false)
 			}
 
-			if IsStreamExisted(peerInfo.Peer.ID.String()) {
-				log.Printf("[%s] %+v a new stream is Opened , so skip it", rtkUtils.GetFuncInfo(), peerInfo.Peer.Addrs)
-				continue
-			}
-
-			stream, err := node.NewStream(ctx, peerInfo.Peer.ID, protocol.ID(rtkGlobal.ProtocolDirectID))
-			if err != nil {
-				log.Println("Stream open failed: ", err)
-				time.Sleep(peerInfo.DelayTime)
-				reConnectPeerChan <- peerInfo
-				continue
-			}
-
-			onlineEvent(stream, false)
 		}
 	}
 }
@@ -178,7 +155,7 @@ func setupNode(ip string, port int) host.Host {
 		log.Printf("NewMultiaddr error:%+v, with addr:%s", err, sourceAddrStr)
 		panic(err)
 	}
-	
+
 	if port <= 0 {
 		log.Println("(MDNS) listen port is not set. Use a random port")
 	}
@@ -199,14 +176,18 @@ func setupNode(ip string, port int) host.Host {
 		panic(err)
 	}
 
-	node.Network().Listen(node.Addrs()...)
-
 	log.Println("=======================================================")
 	log.Println("Self ID: ", node.ID().String())
 	log.Println("Self node Addr: ", node.Addrs())
 	log.Println("Self listen Addr: ", node.Network().ListenAddresses())
 	log.Println("=======================================================\n\n")
 
+	if len(node.Addrs()) == 0 {
+		log.Printf("Failed to create node, Addrs is null!")
+		panic(fmt.Sprintf("addr is null!"))
+	}
+
+	node.Network().Listen(node.Addrs()...)
 	for _, p := range node.Peerstore().Peers() {
 		node.Peerstore().ClearAddrs(p)
 	}
@@ -223,10 +204,11 @@ func setupNode(ip string, port int) host.Host {
 	rtkGlobal.NodeInfo.IPAddr.PublicIP, rtkGlobal.NodeInfo.IPAddr.PublicPort = rtkUtils.ExtractTCPIPandPort(node.Addrs()[0])
 
 	log.Printf("Public IP[%s], Public port[%s], LocalPort[%s]", rtkGlobal.NodeInfo.IPAddr.PublicIP, rtkGlobal.NodeInfo.IPAddr.PublicPort, rtkGlobal.NodeInfo.IPAddr.LocalPort)
+
 	return node
 }
 
-// TODO : refine this flow: by TSTAS-61
+// TODO : refine this flow later
 func getDelayTime(id peer.ID) time.Duration {
 	if node.ID() > id {
 		return retryDelay
@@ -235,7 +217,6 @@ func getDelayTime(id peer.ID) time.Duration {
 }
 
 func buildListener() {
-	log.Println("BuildListener")
 	node.SetStreamHandler(rtkGlobal.ProtocolDirectID, func(stream network.Stream) {
 		onlineEvent(stream, true)
 	})
@@ -281,16 +262,20 @@ func WriteSocket(id string, data []byte) rtkCommon.SocketErr {
 	}
 
 	ipAddr := GetStreamIpAddr(id)
-	stream, ok := GetStream(id)
+	sInfo, ok := GetStreamInfo(id)
 	if !ok {
 		log.Printf("[%s][%s] WriteSocket err, get no stream or stream is closed", rtkUtils.GetFuncInfo(), ipAddr)
 		return rtkCommon.ERR_OTHER
 	}
 
-	s := rtkUtils.NewConnFromStream(stream)
+	s := rtkUtils.NewConnFromStream(sInfo.s)
 	if _, err := s.Write(data); err != nil {
-		log.Printf("[%s][%s] Write fail and execute offlineEvent ", rtkUtils.GetFuncInfo(), ipAddr)
-		offlineEvent(stream)
+		if CheckStreamReset(id, sInfo.timeStamp) {
+			return rtkCommon.ERR_RESET
+		}
+
+		log.Printf("[%s][%s] Write faild:[%+v] , and execute offlineEvent ", rtkUtils.GetFuncInfo(), ipAddr, err)
+		offlineEvent(sInfo.s)
 
 		// TODO: check if necessary
 		if errors.Is(err, io.EOF) {
@@ -310,15 +295,20 @@ func WriteSocket(id string, data []byte) rtkCommon.SocketErr {
 
 func ReadSocket(id string, buffer []byte) (int, rtkCommon.SocketErr) {
 	ipAddr := GetStreamIpAddr(id)
-	stream, ok := GetStream(id)
+	sInfo, ok := GetStreamInfo(id)
 	if !ok {
 		return 0, rtkCommon.ERR_CONNECTION
 	}
-	s := rtkUtils.NewConnFromStream(stream)
+
+	s := rtkUtils.NewConnFromStream(sInfo.s)
 	n, err := s.Read(buffer)
 	if err != nil {
-		log.Printf("[%s][%s] read failed and execute offlineEvent ", rtkUtils.GetFuncInfo(), ipAddr)
-		offlineEvent(stream)
+		if CheckStreamReset(id, sInfo.timeStamp) {
+			return 0, rtkCommon.ERR_RESET
+		}
+
+		log.Printf("[%s][%s] Read failed [%+v],  execute offlineEvent ", rtkUtils.GetFuncInfo(), ipAddr, err)
+		offlineEvent(sInfo.s)
 
 		// TODO: check if necessary
 		if errors.Is(err, io.EOF) {
@@ -341,13 +331,14 @@ func ReadSocket(id string, buffer []byte) (int, rtkCommon.SocketErr) {
 
 func onlineEvent(stream network.Stream, isFromListener bool) {
 	id := stream.Conn().RemotePeer().String()
-	UpdateStream(id, stream)
-
 	mutex := getMutex(id)
-	mutex.Lock() // TODO: refine this flow: cause dead lock both ends   or cause two connect
+	mutex.Lock()
+	defer mutex.Unlock()
+	UpdateStream(id, stream)
 
 	ipAddr := rtkUtils.GetRemoteAddrFromStream(stream)
 	var peerDeviceName, peerPlatForm string
+	// TODO: this maybe cause dead lock, refine  it later
 	if isFromListener {
 		handleRegister(stream, &peerPlatForm, &peerDeviceName)
 	} else {
@@ -368,7 +359,8 @@ func onlineEvent(stream network.Stream, isFromListener bool) {
 
 	updateUIOnlineStatus(true, id, ipAddr, peerPlatForm, peerDeviceName)
 	StartProcessChan <- id
-	mutex.Unlock()
+
+	log.Printf("Found and Connect peer total use [%d] ms", time.Now().UnixMilli()-MdnsStartTime)
 }
 
 func offlineEvent(stream network.Stream) {
@@ -378,15 +370,15 @@ func offlineEvent(stream network.Stream) {
 	mutex.Lock()
 	defer mutex.Unlock()
 
-	log.Println("************************************************")
-	log.Println("Lost connection with ID:", id, " IP:", ipAddr)
-	log.Println("************************************************")
-
 	clientInfo, _ := rtkUtils.GetClientInfo(id)
 	updateUIOnlineStatus(false, id, ipAddr, "", clientInfo.DeviceName)
 	// Disconnect and update stream map
-	CloseStream(id)
 	EndProcessChan <- id
+	CloseStream(id)
+
+	log.Println("************************************************")
+	log.Println("Lost connection with ID:", id, " IP:", ipAddr)
+	log.Println("************************************************")
 }
 
 func updateUIOnlineStatus(isOnline bool, id, ipAddr, platfrom, deviceName string) {
@@ -482,6 +474,14 @@ func BuildMDNSTalker(ctx context.Context) {
 			log.Println("BuildMDNSTalker is end by main context")
 			return
 		case mdnsPeer := <-mdnsPeerChan:
+			if node.ID() < mdnsPeer.ID {
+				time.Sleep(2 * time.Second)
+				if node.Network().Connectedness(mdnsPeer.ID) == network.Connected {
+					continue
+				} else {
+					log.Printf("[MDNS] Wait for node %s timeout, execute direct connect...", mdnsPeer.ID.String())
+				}
+			}
 			if IsStreamExisted(mdnsPeer.ID.String()) {
 				log.Printf("[MDNS] [%s]  Stream already existed, skip connect. ", mdnsPeer.ID.String())
 				continue

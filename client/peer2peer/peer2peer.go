@@ -30,6 +30,7 @@ func HandleClipboardEvent(ctxMain context.Context, readSocketMode *atomic.Value,
 	for {
 		select {
 		case <-ctxMain.Done():
+			close(resultChan)
 			return
 		case isPasted := <-resultChanPasteImg:
 			if isPasted {
@@ -76,6 +77,7 @@ func HandleFileDropEvent(ctxMain context.Context, readSocketMode *atomic.Value, 
 	for {
 		select {
 		case <-ctxMain.Done():
+			close(resultChan)
 			return
 		case fileDropId := <-resultReqId:
 			if fileDropId == id {
@@ -205,9 +207,9 @@ func initFileDropDataTransfer(id string, name *string, dstFile **os.File, receiv
 	}
 
 	*name = filepath.Base(fileDropData.DstFilePath)
-	*startTime = time.Now().UnixNano()
+	*startTime = time.Now().UnixMilli()
 	*fileSize = uint64(fileDropData.SrcFileInfo.FileSize_.SizeHigh)<<32 | uint64(fileDropData.SrcFileInfo.FileSize_.SizeLow)
-	log.Printf("(DST) Start to Copy size:[%d]...", *fileSize)
+	log.Printf("(DST) Start to Copy file size:[%d]...", *fileSize)
 	*receivedBytes = uint64(0)
 	return rtkCommon.TRANS_OK
 }
@@ -220,12 +222,12 @@ func initImageDataTransfer(imgBuffer *bytes.Buffer, receivedSize *uint64, fileSi
 		return rtkCommon.TRANS_ERR_OTHER
 	}
 
-	*startTime = time.Now().UnixNano()
+	*startTime = time.Now().UnixMilli()
 	*fileSize = uint64(extData.Size.SizeHigh)<<32 | uint64(extData.Size.SizeLow)
 	// clean image data
 	imgBuffer.Reset()
 	imgBuffer.Grow(int(*fileSize))
-	log.Printf("(DST) Start to Copy size:[%d]...", *fileSize)
+	log.Printf("(DST) Start to Copy image size:[%d]...", *fileSize)
 	*receivedSize = uint64(0)
 	return rtkCommon.TRANS_OK
 }
@@ -233,13 +235,11 @@ func initImageDataTransfer(imgBuffer *bytes.Buffer, receivedSize *uint64, fileSi
 func handleReadFromSocketFileRaw(id, fileName string, file **os.File, buffer []byte, len int, receivedSize *uint64, fileSize uint64, startTime int64) bool {
 	log.Println("Receive data size:", len)
 	if len == 0 {
-		CloseDstFile(file)
 		return true
 	}
 
 	if IsTransferError((buffer[:len])) {
 		HandleDataTransferError(COMM_CANCEL_SRC, id, fileName)
-		CloseDstFile(file)
 		return true
 	}
 	*receivedSize += uint64(len)
@@ -247,15 +247,14 @@ func handleReadFromSocketFileRaw(id, fileName string, file **os.File, buffer []b
 
 	ipAddr, _ := rtkUtils.GetClientIp(id)
 	if *receivedSize >= fileSize {
-		log.Printf("(DST) End to Copy file, total:[%d] use [%d] ms...", fileSize, (time.Now().UnixNano()-startTime)/1e6)
 		if fileDropData, ok := rtkFileDrop.GetFileDropData(id); ok {
-			// For Windows file
 			rtkPlatform.GoUpdateProgressBar(ipAddr, id, fileSize, fileSize, int64(fileDropData.TimeStamp), fileDropData.DstFilePath)
+
 			//  For Android file
 			rtkPlatform.ReceiveFileDropCopyDataDone(int64(fileSize), fileDropData.DstFilePath)
 			rtkFileDrop.ResetFileDropData(id)
 		}
-		CloseDstFile(file)
+		log.Printf("(DST) End to Copy file, total:[%d] use [%d] ms...", fileSize, time.Now().UnixMilli()-startTime)
 		return true
 	} else {
 		if fileDropData, ok := rtkFileDrop.GetFileDropData(id); ok {
@@ -282,7 +281,7 @@ func handleReadFromSocketImageRaw(buffer []byte, length int, imgBuffer *bytes.Bu
 	imgBuffer.Write(buffer[:length])
 	*receivedSize += uint64(length)
 	if *receivedSize >= fileSize {
-		log.Printf("(DST) End to Copy img, total:[%d] use [%d] ms...", fileSize, (time.Now().UnixNano()-startTime)/1e6)
+		log.Printf("(DST) End to Copy img, total:[%d] use [%d] ms...", fileSize, time.Now().UnixMilli()-startTime)
 
 		if extData, ok := rtkClipboard.GetLastClipboardData().ExtData.(rtkCommon.ExtDataImg); ok {
 			rtkPlatform.GoDataTransfer(imgBuffer.Bytes())
@@ -296,6 +295,35 @@ func handleReadFromSocketImageRaw(buffer []byte, length int, imgBuffer *bytes.Bu
 }
 
 func HandleReadFromSocket(ctxMain context.Context, readSocketMode *atomic.Value, resultChan chan<- EventResult, id string) {
+	readResult := make(chan struct {
+		buffer []byte
+		len    int
+		err    rtkCommon.SocketErr
+	}, 5000)
+
+	rtkUtils.GoSafe(func() {
+		for {
+			select {
+			case <-ctxMain.Done():
+				close(readResult)
+				log.Printf("[Socket][%s] Err: Read operation is done by context", id)
+				return
+			default:
+				buffer := make([]byte, 32*1024) // 32KB
+				n, err := rtkConnection.ReadSocket(id, buffer)
+				readResult <- struct {
+					buffer []byte
+					len    int
+					err    rtkCommon.SocketErr
+				}{buffer: buffer, len: n, err: err}
+
+				if err != rtkCommon.OK {
+					time.Sleep(100 * time.Millisecond)
+				}
+			}
+		}
+	})
+
 	var dstFileName string
 	defer func() {
 		if !isMsgSocketMode(readSocketMode) {
@@ -314,94 +342,88 @@ func HandleReadFromSocket(ctxMain context.Context, readSocketMode *atomic.Value,
 	var imgBuffer bytes.Buffer
 	var dstFile *os.File
 
-	for {
-		select {
-		case <-ctxMain.Done():
-			log.Printf("[Socket][%s] Err: Read operation is done by stream context", id)
-			return
-		default:
-			buffer := make([]byte, 32*1024) // 32KB
-			n, err := rtkConnection.ReadSocket(id, buffer)
-			if err != rtkCommon.OK {
-				log.Printf("[%s %d] Read failed", rtkUtils.GetFuncName(), rtkUtils.GetLine())
-				time.Sleep(100 * time.Millisecond)
-				continue
+	for readMsg := range readResult {
+		if readMsg.err != rtkCommon.OK {
+			log.Printf("[%s] ID:[%s] ReadSocket failed  err:[%d]", rtkUtils.GetFuncInfo(), id, readMsg.err)
+			continue
+		}
+
+		// Reveice msg data
+		if isMsgSocketMode(readSocketMode) {
+			isLastMsgSocketMode = true
+
+			var msg Peer2PeerMessage
+			errSocket := handleReadFromSocketMsg(readMsg.buffer, readMsg.len, &msg, id)
+			if errSocket != rtkCommon.OK {
+				if errSocket == rtkCommon.ERR_CANCEL { // how it happened??
+					if ctxMain.Err() == context.Canceled {
+						log.Printf("[%s %d] Err: Read canceled, retrying...", rtkUtils.GetFuncName(), rtkUtils.GetLine())
+					}
+					continue
+				} else if errSocket == rtkCommon.ERR_JSON {
+					log.Printf("[%s %d] Err: Read invalid JSON msg, retrying...", rtkUtils.GetFuncName(), rtkUtils.GetLine())
+					continue
+				}
+			}
+			log.Printf("[%s %d] EventResult fmt=%s, state=%s, cmd=%s", rtkUtils.GetFuncName(), rtkUtils.GetLine(), msg.FmtType, msg.State, msg.Command)
+
+			resultChan <- EventResult{
+				Cmd: DispatchCmd{
+					FmtType: msg.FmtType,
+					State:   msg.State,
+					Command: msg.Command,
+				},
+				Data: msg.ExtData,
+			}
+		} else { // Receive raw data
+			fmtType := getIoSocketFmtType(readSocketMode)
+			// TODO: refine this flow: how to check if first time downloading
+			if isLastMsgSocketMode {
+				// Init data transfer params
+				switch fmtType {
+				case rtkCommon.FILE_DROP:
+					isLastMsgSocketMode = false
+					ret := initFileDropDataTransfer(id, &dstFileName, &dstFile, &receivedRawBytes, &fileSize, &startTime)
+					if ret != rtkCommon.TRANS_OK {
+						log.Printf("[%s %d] Err: FileDrop tranfer initialized failed. Code:%d", rtkUtils.GetFuncName(), rtkUtils.GetLine(), ret)
+						setMsgSocketMode(readSocketMode)
+						isLastMsgSocketMode = true
+						// TODO: display error dialog
+						// TODO: send msg to SRC for cancel
+						continue
+					}
+				case rtkCommon.IMAGE_CB:
+					isLastMsgSocketMode = false
+					ret := initImageDataTransfer(&imgBuffer, &receivedRawBytes, &fileSize, &startTime)
+					if ret != rtkCommon.TRANS_OK {
+						log.Printf("[%s %d] Err: Image tranfer initialized failed. Code:%d", rtkUtils.GetFuncName(), rtkUtils.GetLine(), ret)
+						setMsgSocketMode(readSocketMode)
+						isLastMsgSocketMode = true
+						// TODO: display error dialog
+						// TODO: send msg to SRC for cancel
+						continue
+					}
+				default:
+					log.Printf("[%s %d] Unknown data transfer type:%s", rtkUtils.GetFuncName(), rtkUtils.GetLine(), fmtType)
+				}
 			}
 
-			// Reveice msg data
-			if isMsgSocketMode(readSocketMode) {
-				isLastMsgSocketMode = true
-
-				var msg Peer2PeerMessage
-				errSocket := handleReadFromSocketMsg(buffer, n, &msg, id)
-				if errSocket != rtkCommon.OK {
-					if errSocket == rtkCommon.ERR_CANCEL { // how it happened??
-						if ctxMain.Err() == context.Canceled {
-							log.Printf("[%s %d] Err: Read canceled, retrying...", rtkUtils.GetFuncName(), rtkUtils.GetLine())
-						}
-						continue
-					} else if errSocket == rtkCommon.ERR_JSON {
-						log.Printf("[%s %d] Err: Read invalid JSON msg, retrying...", rtkUtils.GetFuncName(), rtkUtils.GetLine())
-						continue
-					}
+			if fmtType == rtkCommon.FILE_DROP {
+				if handleReadFromSocketFileRaw(id, dstFileName, &dstFile, readMsg.buffer, readMsg.len, &receivedRawBytes, fileSize, startTime) {
+					CloseDstFile(&dstFile)
+					setMsgSocketMode(readSocketMode)
+					isLastMsgSocketMode = true
 				}
-				log.Printf("[%s %d] EventResult fmt=%s, state=%s, cmd=%s", rtkUtils.GetFuncName(), rtkUtils.GetLine(), msg.FmtType, msg.State, msg.Command)
-
-				resultChan <- EventResult{
-					Cmd: DispatchCmd{
-						FmtType: msg.FmtType,
-						State:   msg.State,
-						Command: msg.Command,
-					},
-					Data: msg.ExtData,
-				}
-			} else { // Receive raw data
-				fmtType := getIoSocketFmtType(readSocketMode)
-				// TODO: refine this flow: how to check if first time downloading
-				if isLastMsgSocketMode {
-					// Init data transfer params
-					switch fmtType {
-					case rtkCommon.FILE_DROP:
-						isLastMsgSocketMode = false
-						ret := initFileDropDataTransfer(id, &dstFileName, &dstFile, &receivedRawBytes, &fileSize, &startTime)
-						if ret != rtkCommon.TRANS_OK {
-							log.Printf("[%s %d] Err: FileDrop tranfer initialized failed. Code:%d", rtkUtils.GetFuncName(), rtkUtils.GetLine(), ret)
-							setMsgSocketMode(readSocketMode)
-							isLastMsgSocketMode = true
-							// TODO: display error dialog
-							// TODO: send msg to SRC for cancel
-							continue
-						}
-					case rtkCommon.IMAGE_CB:
-						isLastMsgSocketMode = false
-						ret := initImageDataTransfer(&imgBuffer, &receivedRawBytes, &fileSize, &startTime)
-						if ret != rtkCommon.TRANS_OK {
-							log.Printf("[%s %d] Err: Image tranfer initialized failed. Code:%d", rtkUtils.GetFuncName(), rtkUtils.GetLine(), ret)
-							setMsgSocketMode(readSocketMode)
-							isLastMsgSocketMode = true
-							// TODO: display error dialog
-							// TODO: send msg to SRC for cancel
-							continue
-						}
-					default:
-						log.Printf("[%s %d] Unknown data transfer type:%s", rtkUtils.GetFuncName(), rtkUtils.GetLine(), fmtType)
-					}
-				}
-
-				if fmtType == rtkCommon.FILE_DROP {
-					if handleReadFromSocketFileRaw(id, dstFileName, &dstFile, buffer, n, &receivedRawBytes, fileSize, startTime) {
-						setMsgSocketMode(readSocketMode)
-						isLastMsgSocketMode = true
-					}
-				} else if fmtType == rtkCommon.IMAGE_CB {
-					if handleReadFromSocketImageRaw(buffer, n, &imgBuffer, &receivedRawBytes, fileSize, startTime) {
-						setMsgSocketMode(readSocketMode)
-						isLastMsgSocketMode = true
-					}
+			} else if fmtType == rtkCommon.IMAGE_CB {
+				if handleReadFromSocketImageRaw(readMsg.buffer, readMsg.len, &imgBuffer, &receivedRawBytes, fileSize, startTime) {
+					setMsgSocketMode(readSocketMode)
+					isLastMsgSocketMode = true
 				}
 			}
 		}
 	}
+	close(resultChan)
+	log.Printf("[%s] ID:[%s] HandleReadFromSocket end by context !", rtkUtils.GetFuncInfo(), id)
 }
 
 func buildCmd(curState *StateType, curCommand *CommandType, event EventResult, buildState *StateType, buildCommand *CommandType) bool {
@@ -572,7 +594,12 @@ func writeToSocket(msg Peer2PeerMessage, id string) rtkCommon.SocketErr {
 	encodedData = bytes.Trim(encodedData, "\x00")
 	encodedData = bytes.Trim(encodedData, "\x13")
 
-	return rtkConnection.WriteSocket(id, encodedData)
+	sockErr := rtkConnection.WriteSocket(id, encodedData)
+	if sockErr == rtkCommon.ERR_RESET {
+		return rtkConnection.WriteSocket(id, encodedData)
+	}
+
+	return sockErr
 }
 
 func OpenSrcFile(file **os.File, filePath string) error {
@@ -683,7 +710,7 @@ func processIoWrite(id string, fmtType rtkCommon.TransFmtType) {
 		log.Printf("[%s %d] Err: Not found stream by ID: %s", rtkUtils.GetFuncName(), rtkUtils.GetLine(), id)
 		return
 	}
-
+	startTime := time.Now().UnixMilli()
 	if fmtType == rtkCommon.FILE_DROP {
 		fileDropReqData, ok := rtkFileDrop.GetFileDropData(id)
 		if !ok {
@@ -704,7 +731,6 @@ func processIoWrite(id string, fmtType rtkCommon.TransFmtType) {
 		defer CloseSrcFile(&srcFile)
 		defer rtkFileDrop.ResetFileDropData(id)
 		log.Println("(SRC) Start to copy file ...")
-		startTime := time.Now().UnixNano()
 		// TODO: write data timeout
 		// s.SetWriteDeadline(time.Now().Add(10 * time.Second))
 		// TODO: Update progress bar
@@ -718,17 +744,16 @@ func processIoWrite(id string, fmtType rtkCommon.TransFmtType) {
 			}
 			return
 		}
-		log.Printf("(SRC) End to copy file, size:[%d] use [%d] ms ...", n, (time.Now().UnixNano()-startTime)/1e6)
+		log.Printf("(SRC) End to copy file, size:[%d] use [%d] ms ...", n, time.Now().UnixMilli()-startTime)
 	} else if fmtType == rtkCommon.IMAGE_CB {
 		if extData, ok := rtkClipboard.GetLastClipboardData().ExtData.(rtkCommon.ExtDataImg); ok {
 			log.Printf("(SRC) Start to copy img, len[%d]...", len(extData.Data))
-			startTime := time.Now().UnixNano()
 			_, err := io.Copy(stream, bytes.NewReader(extData.Data))
 			if err != nil {
 				log.Println("Error sending img:", err)
 				return
 			}
-			log.Printf("(SRC) End to copy img, use [%d] ms ...", (time.Now().UnixNano()-startTime)/1e6)
+			log.Printf("(SRC) End to copy img, use [%d] ms ...", time.Now().UnixMilli()-startTime)
 		} else {
 			log.Printf("[%s %d] Unknown ext data type", rtkUtils.GetFuncName(), rtkUtils.GetLine())
 			goto ErrFlag
@@ -971,23 +996,20 @@ func ProcessEventsForPeer(id string, ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Printf("[%s %d] Err: End of context", rtkUtils.GetFuncName(), rtkUtils.GetLine())
+			log.Printf("[%s] ID:[%s] ProcessEventsForPeer is End by context", rtkUtils.GetFuncInfo(), id)
 			if rtkClipboard.GetLastClipboardData().SourceID == id {
 				rtkClipboard.ResetLastClipboardData()
 			}
 			return
-		default:
-			select {
-			case event := <-eventResultClipboard:
-				log.Printf("[ProcessEvent Clipboard][%s] EventResult fmt=%s, state=%s, cmd=%s", ipAddr, event.Cmd.FmtType, event.Cmd.State, event.Cmd.Command)
-				handleEvent(event)
-			case event := <-eventResultFileDrop:
-				log.Printf("[ProcessEvent FileDrop][%s] EventResult fmt=%s, state=%s, cmd=%s", ipAddr, event.Cmd.FmtType, event.Cmd.State, event.Cmd.Command)
-				handleEvent(event)
-			case event := <-eventResultSocket:
-				log.Printf("[ProcessEvent Socket][%s] EventResult fmt=%s, state=%s, cmd=%s", ipAddr, event.Cmd.FmtType, event.Cmd.State, event.Cmd.Command)
-				handleEvent(event)
-			}
+		case event := <-eventResultClipboard:
+			log.Printf("[ProcessEvent Clipboard][%s] EventResult fmt=%s, state=%s, cmd=%s", ipAddr, event.Cmd.FmtType, event.Cmd.State, event.Cmd.Command)
+			handleEvent(event)
+		case event := <-eventResultFileDrop:
+			log.Printf("[ProcessEvent FileDrop][%s] EventResult fmt=%s, state=%s, cmd=%s", ipAddr, event.Cmd.FmtType, event.Cmd.State, event.Cmd.Command)
+			handleEvent(event)
+		case event := <-eventResultSocket:
+			log.Printf("[ProcessEvent Socket][%s] EventResult fmt=%s, state=%s, cmd=%s", ipAddr, event.Cmd.FmtType, event.Cmd.State, event.Cmd.Command)
+			handleEvent(event)
 		}
 	}
 }

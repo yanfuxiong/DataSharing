@@ -42,6 +42,7 @@ func rotateImage(img image.Image) *image.RGBA {
 }
 
 // PC>android
+// Deprecated: Transfer JPEG image directly
 func BitmapToImage(bitmapData []byte, w, h int) []byte {
 	//w, h, _ := GetByteImageInfo(bitmapData)
 
@@ -57,7 +58,9 @@ func BitmapToImage(bitmapData []byte, w, h int) []byte {
 				img.Pix[4*(x+y*w)+3] = 255             //A
 			*/
 
-			offset := 4 * ((w - 1 - x) + y*w)
+			nx := x
+			ny := h - 1 - y
+			offset := 4 * (nx + ny*w)
 			img.Pix[offset] = bitmapData[i+2]
 			img.Pix[offset+1] = bitmapData[i+1]
 			img.Pix[offset+2] = bitmapData[i]
@@ -65,10 +68,11 @@ func BitmapToImage(bitmapData []byte, w, h int) []byte {
 		}
 	}
 
-	newImage := rotateImage(img)
-
 	var buffer bytes.Buffer
-	err := png.Encode(&buffer, newImage)
+	encoder := png.Encoder{
+		CompressionLevel: png.BestSpeed,
+	}
+	err := encoder.Encode(&buffer, img)
 	if err != nil {
 		log.Println(err)
 		return nil

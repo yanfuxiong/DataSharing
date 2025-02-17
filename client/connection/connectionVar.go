@@ -24,10 +24,13 @@ var (
 
 	StartProcessChan = make(chan string)
 	EndProcessChan   = make(chan string)
+	CancelAllProcess = make(chan struct{})
+	MdnsStartTime    = int64(0) // mdns services start time stamp
 
 	reConnectPeerChan = make(chan ReConnectPeerInfo, 5)
 
-	mdnsPeerChan = make(chan peer.AddrInfo)
+	mdnsPeerChan            = make(chan peer.AddrInfo)
+	mdnsNoticeNetworkStatus = make(chan bool)
 )
 
 type ReConnectPeerInfo struct {

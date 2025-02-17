@@ -1,6 +1,6 @@
 module rtk-cross-share
 
-go 1.22.4
+go 1.22.6
 
 require (
 	github.com/libp2p/go-libp2p v0.37.0

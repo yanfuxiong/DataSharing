@@ -15,11 +15,16 @@ import (
 )
 
 const (
-	logFile = "p2p.log"
+	logFile      = "p2p.log"
+	crashLogFile = "crash.log"
 )
 
 func GetLogFilePath() string {
 	return logFile
+}
+
+func GetCrashLogFilePath() string {
+	return crashLogFile
 }
 
 type Callback interface {

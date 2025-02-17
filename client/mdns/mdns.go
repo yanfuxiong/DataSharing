@@ -7,7 +7,6 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/discovery/mdns"
 	"log"
 	rtkConnection "rtk-cross-share/connection"
-	rtkPeer2Peer "rtk-cross-share/peer2peer"
 	rtkPlatform "rtk-cross-share/platform"
 	rtkUtils "rtk-cross-share/utils"
 	"time"
@@ -52,12 +51,8 @@ func MdnsServiceRun(ctx context.Context) {
 		panic(err)
 	}
 	peerChan := Notifee.PeerChan
-
+	rtkConnection.MdnsStartTime = time.Now().UnixMilli()
 	rtkUtils.GoSafe(func() {
-		checkNetWorkConnectCount := 0
-		bNetWorkFlag := true
-		reStartServer := false
-		reTryServerTimes := 0
 		for {
 			select {
 			case <-ctx.Done():
@@ -69,66 +64,50 @@ func MdnsServiceRun(ctx context.Context) {
 					time.Sleep(1 * time.Second)
 					continue
 				}
-				log.Printf("[MDNS]Found peer:%+v", peer)
+				log.Printf("[MDNS]Found peer:%+v use[%d]ms", peer, time.Now().UnixMilli()-rtkConnection.MdnsStartTime)
 				rtkConnection.SetMDNSPeer(peer)
-			case <-time.After(1 * time.Second): // Auto reconnection
-				if !rtkConnection.IsNetworkConnected() {
-					if bNetWorkFlag {
-						bNetWorkFlag = false
-						log.Println("[MDNS] Network disconnected . Stop MDNS services")
-						//close(peerChan)
-						mdnsSer.Close()
-						rtkPeer2Peer.CaneclProcessForPeerMap()
-						rtkConnection.CancelStreamPool()
-					}
-					checkNetWorkConnectCount++
-					if checkNetWorkConnectCount > 5 {
-						checkNetWorkConnectCount = 0
-						log.Println("[MDNS] Network is unavailable!")
-					}
+			case networkStatus := <-rtkConnection.GetNetworkStatus(): // Auto reconnection
+				if !networkStatus {
+					log.Println("[MDNS] Network disconnected . Stop MDNS services")
+					mdnsSer.Close()
 					continue
 				} else {
-					if !bNetWorkFlag || reStartServer {
-						if !bNetWorkFlag {
-							log.Println("[MDNS] Network reconnected. Restarting MDNS Services")
-						}
-						bNetWorkFlag = true
+					log.Println("[MDNS] Network reconnected. Restarting MDNS Services")
+					reStartServer := false
+					reTryServerTimes := 0
+					for !reStartServer {
+						select {
+						case <-ctx.Done():
+							log.Printf("MdnsServiceRun is end by main context")
+							return
+						case <-time.After(5 * time.Second):
+							for _, p := range node.Peerstore().Peers() {
+								node.Peerstore().ClearAddrs(p)
+							}
 
-						if reStartServer {
-							log.Printf("[MDNS] is %d times to retry restart MDNS services", reTryServerTimes)
-						}
+							if len(node.Addrs()) == 0 || len(node.Network().ListenAddresses()) == 0 {
+								log.Printf("Addr is null, retry local keep addr. node Addr:[%+v] listsen:[%+v] local:[%+v]", node.Addrs(), node.Network().ListenAddresses(), rtkConnection.ListenMultAddr())
+								node.Network().Listen(rtkConnection.ListenMultAddr()...)
+							} else {
+								node.Network().Listen(node.Addrs()...)
+							}
 
-						for _, p := range node.Peerstore().Peers() {
-							node.Peerstore().ClearAddrs(p)
-						}
+							newSer := mdns.NewMdnsService(node, rtkPlatform.GetHostID(), Notifee)
+							if err := newSer.Start(rtkUtils.GetNetInterfaces()); err != nil {
+								newSer.Close()
+								reTryServerTimes++
+								log.Printf("[MDNS] MDNS services restart err:[%+v], %d times retry after 5s...", err, reTryServerTimes)
+							} else {
+								reStartServer = true
+								rtkConnection.MdnsStartTime = time.Now().UnixMilli()
+								log.Printf("[MDNS] MDNS services restart successed!")
+								mdnsSer = newSer
+								peerChan = Notifee.PeerChan
+							}
 
-						if len(node.Addrs()) == 0 || len(node.Network().ListenAddresses()) == 0 {
-							log.Printf("Addr is null, retry local keep addr. node Addr:[%+v] listsen:[%+v] local:[%+v]", node.Addrs(), node.Network().ListenAddresses(), rtkConnection.ListenMultAddr())
-							node.Network().Listen(rtkConnection.ListenMultAddr()...)
-						} else {
-							node.Network().Listen(node.Addrs()...)
 						}
-
-						/*n := &discoveryNotifee{}
-						n.PeerChan = make(chan peer.AddrInfo, 5)*/
-
-						// An hour might be a long long period in practical applications. But this is fine for us
-						newSer := mdns.NewMdnsService(node, rtkPlatform.GetHostID(), Notifee)
-						if err := newSer.Start(rtkUtils.GetNetInterfaces()); err != nil {
-							newSer.Close()
-							//panic(err)
-							log.Printf("[MDNS] MDNS services restart err:[%+v], retry after 3s...", err)
-							time.Sleep(3 * time.Second)
-							reTryServerTimes++
-							reStartServer = true
-						} else {
-							reTryServerTimes = 0
-							reStartServer = false
-							log.Printf("[MDNS] MDNS services restart successed!")
-						}
-						mdnsSer = newSer
-						peerChan = Notifee.PeerChan
 					}
+
 				}
 
 			}

@@ -8,11 +8,13 @@ import (
 	"log"
 	rtkUtils "rtk-cross-share/utils"
 	"sync"
+	"time"
 )
 
 type streamInfo struct {
-	s       network.Stream
-	isAlive bool
+	s         network.Stream
+	isAlive   bool
+	timeStamp int64
 }
 
 var (
@@ -25,7 +27,7 @@ func CheckAllStreamAlive(ctx context.Context) {
 	defer streamPoolMutex.RUnlock()
 
 	if !IsNetworkConnected() {
-		log.Printf("[%s] the Network is unavailable!", rtkUtils.GetFuncInfo())
+		log.Printf("[%s] the Network is unavailable!  CheckAllStreamAlive skip !", rtkUtils.GetFuncInfo())
 		return
 	}
 
@@ -34,9 +36,9 @@ func CheckAllStreamAlive(ctx context.Context) {
 		ipAddr := rtkUtils.GetRemoteAddrFromStream(sInfo.s)
 		if pingResult.Error != nil || !sInfo.isAlive {
 			if pingResult.Error != nil {
-				log.Printf("[%s] Ip[%s] Ping err:%+v, Retry connect", rtkUtils.GetFuncInfo(), ipAddr, pingResult.Error)
+				log.Printf("[%s] IP[%s] Ping err:%+v, Retry connect", rtkUtils.GetFuncInfo(), ipAddr, pingResult.Error)
 			} else {
-				log.Printf("[%s] Ip[%s] stream is close , Retry open a new stream", rtkUtils.GetFuncInfo(), ipAddr)
+				log.Printf("[%s] IP[%s] stream is close , Retry open a new stream", rtkUtils.GetFuncInfo(), ipAddr)
 			}
 
 			reConnectInfo := ReConnectPeerInfo{
@@ -50,7 +52,7 @@ func CheckAllStreamAlive(ctx context.Context) {
 			}
 			reConnectPeerChan <- reConnectInfo
 		} else {
-			log.Printf("[%s] id[%s] Ip[%s]  RTT [%d]ms", rtkUtils.GetFuncInfo(), sInfo.s.Conn().RemotePeer().String(), ipAddr, pingResult.RTT.Milliseconds())
+			log.Printf("[%s] ID:[%s] IP:[%s]  RTT [%d]ms", rtkUtils.GetFuncInfo(), sInfo.s.Conn().RemotePeer().String(), ipAddr, pingResult.RTT.Milliseconds())
 		}
 	}
 }
@@ -61,18 +63,32 @@ func UpdateStream(id string, stream network.Stream) {
 
 	ipAddr := rtkUtils.GetRemoteAddrFromStream(stream)
 	if oldSinfo, ok := streamPoolMap[id]; ok {
-		if rtkUtils.GetRemoteAddrFromStream(oldSinfo.s) != ipAddr {
-			oldSinfo.s.Reset()
-		}
+		/*if rtkUtils.GetRemoteAddrFromStream(oldSinfo.s) != ipAddr {
+			oldSinfo.s.Reset() //  it will cause other end new stream Reset
+		}*/
 		log.Printf("[%s] UpdateStream id:%s Stream existed, ip[%s] alive:[%+v]", rtkUtils.GetFuncInfo(), id, ipAddr, oldSinfo.isAlive)
 	}
 
 	streamPoolMap[id] = streamInfo{
-		s:       stream,
-		isAlive: true,
+		s:         stream,
+		isAlive:   true,
+		timeStamp: time.Now().UnixMilli(),
 	}
 
 	log.Printf("UpdateStream id:[%s]  ip:[%s]", id, ipAddr)
+}
+
+func GetStreamInfo(id string) (streamInfo, bool) {
+	streamPoolMutex.RLock()
+	defer streamPoolMutex.RUnlock()
+
+	if sInfo, ok := streamPoolMap[id]; ok {
+		if sInfo.isAlive { // only return a live stream
+			return sInfo, ok
+		}
+	}
+
+	return streamInfo{}, false
 }
 
 func GetStream(id string) (network.Stream, bool) {
@@ -86,6 +102,19 @@ func GetStream(id string) (network.Stream, bool) {
 	}
 
 	return nil, false
+}
+
+func CheckStreamReset(id string, oldStamp int64) bool {
+	streamPoolMutex.RLock()
+	defer streamPoolMutex.RUnlock()
+	if vInfo, ok := streamPoolMap[id]; ok {
+		if vInfo.isAlive {
+			if oldStamp != vInfo.timeStamp {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func GetStreamIpAddr(id string) string {
@@ -116,7 +145,7 @@ func CloseStream(id string) {
 	defer streamPoolMutex.Unlock()
 
 	if sInfo, ok := streamPoolMap[id]; ok {
-		sInfo.s.Reset() //Need to immediately notify the remote side to close
+		sInfo.s.Reset() //Need to immediately notify the remote side
 		//sInfo.s.Close()
 		sInfo.isAlive = false
 		streamPoolMap[id] = sInfo

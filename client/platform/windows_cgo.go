@@ -69,13 +69,18 @@ import (
 )
 
 const (
-	logFile = "p2p.log"
+	logFile      = "p2p.log"
+	crashLogFile = "crash.log"
 )
 
 var chNotifyPasteText = make(chan string, 100)
 
 func GetLogFilePath() string {
 	return logFile
+}
+
+func GetCrashLogFilePath() string {
+	return crashLogFile
 }
 
 type Callback interface {
@@ -143,6 +148,7 @@ func WatchClipboardText(ctx context.Context, resultChan chan<- string) {
 	for {
 		select {
 		case <-ctx.Done():
+			close(resultChan)
 			return
 		case pasteText := <-chNotifyPasteText:
 			lastClipboardCopyText = pasteText

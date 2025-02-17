@@ -16,13 +16,15 @@ import (
 )
 
 const (
-	hostID      = "/storage/emulated/0/Android/data/com.rtk.myapplication/files/ID.HostID"
-	nodeID      = "/storage/emulated/0/Android/data/com.rtk.myapplication/files/ID.ID"
-	receiveFile = "/storage/emulated/0/Android/data/com.rtk.myapplication/files/"
+	hostID       = "/storage/emulated/0/Android/data/com.rtk.myapplication/files/ID.HostID"
+	nodeID       = "/storage/emulated/0/Android/data/com.rtk.myapplication/files/ID.ID"
+	receiveFile  = "/storage/emulated/0/Android/data/com.rtk.myapplication/files/"
+	logFile      = "/storage/emulated/0/Android/data/com.rtk.myapplication/files/p2p.log"
+	crashLogFile = "/storage/emulated/0/Android/data/com.rtk.myapplication/files/crash.log"
+
 	// Deprecated: replace with deviceInfo
 	deviceTable = "/storage/emulated/0/Android/data/com.rtk.myapplication/files/ID.DeviceTable"
 	deviceInfo  = "/storage/emulated/0/Android/data/com.rtk.myapplication/files/ID.DeviceInfo"
-	logFile     = "/storage/emulated/0/Android/data/com.rtk.myapplication/files/p2p.log"
 )
 
 var (
@@ -33,6 +35,10 @@ var (
 
 func GetLogFilePath() string {
 	return logFile
+}
+
+func GetCrashLogFilePath() string {
+	return crashLogFile
 }
 
 // Notify to Android APK
@@ -118,6 +124,7 @@ func WatchClipboardText(ctx context.Context, resultChan chan<- string) {
 	for {
 		select {
 		case <-ctx.Done():
+			close(resultChan)
 			return
 
 		case curCopyText := <-copyTextChan:

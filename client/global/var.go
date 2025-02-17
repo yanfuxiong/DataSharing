@@ -1,6 +1,7 @@
 package global
 
 import (
+	"gopkg.in/natefinch/lumberjack.v2"
 	rtkCommon "rtk-cross-share/common"
 	"sync"
 	"time"
@@ -24,6 +25,8 @@ var (
 	GuestList         []string
 	ClientInfoMap     = make(map[string]rtkCommon.ClientInfo)
 	ClientListRWMutex = sync.RWMutex{}
-
-	RTT map[string]time.Duration = make(map[string]time.Duration)
+	LogPath           string
+	CrashLogPath      string
+	LoggerWriteFile   lumberjack.Logger
+	RTT               map[string]time.Duration = make(map[string]time.Duration)
 )

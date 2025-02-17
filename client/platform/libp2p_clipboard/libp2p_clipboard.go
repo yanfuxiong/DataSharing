@@ -122,7 +122,7 @@ func SetNetWorkConnected(isConnect bool) {
 func SetHostListenAddr(listenHost string, listentPort int) {
 	log.Printf("[%s] SetHostListAddr:[%s][%d]", rtkUtils.GetFuncInfo(), listenHost, listentPort)
 	if listenHost != rtkGlobal.ListenHost || listentPort != rtkGlobal.ListenPort {
-		log.Println("**************** attention please, the host listen addr is switch! ********************")
+		log.Println("**************** Attention please, the host listen addr is switch! ********************\n\n")
 		rtkGlobal.ListenHost = listenHost
 		rtkGlobal.ListenPort = listentPort
 		rtkConnection.SetNetworkSwitchFlag()

@@ -2,6 +2,7 @@ package clipboard
 
 import (
 	"context"
+	"golang.design/x/clipboard"
 	"log"
 	rtkCommon "rtk-cross-share/common"
 	rtkGlobal "rtk-cross-share/global"
@@ -79,6 +80,11 @@ func updateImageClipboardData(id string, filesize rtkCommon.FileSize, imageHeade
 }
 
 func InitClipboard() {
+	err := clipboard.Init()
+	if err != nil {
+		panic(err)
+	}
+
 	dstPasteImgFromId = ""
 
 	rtkPlatform.SetCopyImageCallback(func(filesize rtkCommon.FileSize, imageHeader rtkCommon.ImgHeader, data []byte) {

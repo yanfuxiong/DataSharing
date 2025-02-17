@@ -25,25 +25,29 @@ import (
 )
 
 func GoSafe(fn func()) {
-    go func() {
-        defer func() {
+	go func() {
+		defer func() {
 			if r := recover(); r != nil {
-				log.SetOutput(&lumberjack.Logger{
-					Filename:   "crash.log",
+				rtkGlobal.LoggerWriteFile.Close()
+
+				LoggerCrashWriteFile := lumberjack.Logger{
+					Filename:   rtkGlobal.CrashLogPath,
 					MaxSize:    256,
 					MaxBackups: 3,
 					MaxAge:     30,
 					Compress:   true,
-				})
+				}
+				log.SetOutput(&LoggerCrashWriteFile)
 
 				log.Printf("Recovered from panic: %v\n", r)
 				log.Printf("Stack trace:\n%s", debug.Stack())
 
+				LoggerCrashWriteFile.Close()
 				os.Exit(1)
 			}
 		}()
-        fn()
-    }()
+		fn()
+	}()
 }
 
 func GetFuncName() string {
@@ -116,6 +120,15 @@ func ConcatIP(ip string, port string) string {
 func SplitIP(ip string) (string, string) {
 	parts := strings.Split(ip, ":")
 	return parts[0], parts[1]
+}
+
+func IsInTheList(target string, list []string) bool {
+	for _, item := range list {
+		if strings.EqualFold(item, target) {
+			return true
+		}
+	}
+	return false
 }
 
 func FileExists(filename string) bool {
