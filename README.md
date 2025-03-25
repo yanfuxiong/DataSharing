@@ -12,5 +12,10 @@
 #Step1: ./build_windows.ps1
 #Step2: ./client_windows
 
-PowerShell   &".\build_windows.ps1"
-GitBash     ./build_android.sh
+
+
+windows PowerShell  build:  &".\build_windows.ps1"                run on windows
+windows GitBash     build:  ./build_android.sh                    run on android
+windows GitBash     build:  ./build_lanServer_windows.sh          run on windows
+windows GitBash     build:  ./build_lanServer_android.sh          run on android
+
