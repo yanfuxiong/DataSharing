@@ -14,7 +14,7 @@
 
 
 
-windows PowerShell  build:  &".\build_windows.ps1"                run on windows
+windows PowerShell  build:  .\build_windows.ps1                   run on windows
 windows GitBash     build:  ./build_android.sh                    run on android
 windows GitBash     build:  ./build_lanServer_windows.sh          run on windows
 windows GitBash     build:  ./build_lanServer_android.sh          run on android
