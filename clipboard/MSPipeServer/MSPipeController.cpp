@@ -271,6 +271,42 @@ void MSPipeController::UpdateProgress(char* ip, char* id, uint64_t fileSize, uin
     SendData(updateProgress.rawdata, updateProgress.offset);
 }
 
+void MSPipeController::UpdateSystemInfo(char* ip, wchar_t* serviceVer)
+{
+    if (!ip || !serviceVer) {
+        DEBUG_LOG("[%s] Err: NULL IP or serviceVer", __func__);
+        return;
+    }
+
+    UPDATE_SYSTEM_INFO updateSysInfo;
+    uint32_t length = LEN_IP;
+    uint32_t lengthServiceVer = (wcslen(serviceVer) * sizeof(wchar_t));
+    length += lengthServiceVer;
+    updateSysInfo.header.length = length;
+
+    if (updateSysInfo.content.ip) {
+        delete[] updateSysInfo.content.ip;
+    }
+    updateSysInfo.content.ip = new char[strlen(ip)+1];
+    memcpy(updateSysInfo.content.ip, ip, strlen(ip));
+    updateSysInfo.content.ip[strlen(ip)] = '\0';
+
+    if (updateSysInfo.content.serviceVer) {
+        delete[] updateSysInfo.content.serviceVer;
+    }
+    updateSysInfo.content.serviceVer = new wchar_t[wcslen(serviceVer)+1];
+    memcpy(updateSysInfo.content.serviceVer, serviceVer, wcslen(serviceVer) * sizeof(wchar_t));
+    updateSysInfo.content.serviceVer[wcslen(serviceVer)] = L'\0';
+
+    updateSysInfo.toByte();
+    if (!updateSysInfo.rawdata) {
+        DEBUG_LOG("[%s %d] Err: Rawdata is null", __func__, __LINE__);
+        return;
+    }
+    updateSysInfo.dump();
+    SendData(updateSysInfo.rawdata, updateSysInfo.offset);
+}
+
 void MSPipeController::SendFileReq(char* ip, char* id, uint64_t fileSize, uint64_t timestamp, wchar_t* fileName)
 {
     if (!ip || !id || !fileName) {

@@ -1,6 +1,5 @@
 #include "MSUtils.h"
 #include "MSCommon.h"
-#include "MSProgressBar.h"
 #include <chrono>
 
 namespace MSUtils
@@ -31,7 +30,6 @@ namespace MSUtils
         if (level >= curProgressLevel) {
             curProgressLevel++;
             DEBUG_LOG("[%s] Download progress: %.1f%% (%lu/%ld)", __func__, (float)ret, progress, size);
-            MSProgressBar::SetProgress(ret);
         }
     }
 };

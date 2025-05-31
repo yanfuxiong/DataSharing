@@ -5,7 +5,8 @@
 using namespace std;
 
 IMSPipeConnection::IMSPipeConnection(const std::atomic<bool>& running_pipe
-                                        ) : g_running_pipe(running_pipe),
+                                        ) : mIsConnected(false),
+                                            g_running_pipe(running_pipe),
                                             m_event_pipe(NULL),
                                             m_thread_pipe(NULL),
                                             m_hPipe(NULL)
@@ -66,14 +67,14 @@ DWORD WINAPI IMSPipeConnection::CreatePipeServerThread(LPVOID lpParam)
         lock.unlock();
 
         if (ConnectNamedPipe(m_hPipe, NULL) != FALSE) {
-            onConnected();
+            SetConnectionStatus(true);
             std::thread reader(&IMSPipeConnection::ReadDataThread, this);
             reader.join();
         } else {
             DWORD error = GetLastError();
             if (error == ERROR_PIPE_CONNECTED) {
                 DEBUG_LOG("[%s %d] Client already connected pipe", __func__, __LINE__);
-                onConnected();
+                SetConnectionStatus(true);
                 std::thread reader(&IMSPipeConnection::ReadDataThread, this);
                 reader.join();
             } else {
@@ -82,7 +83,7 @@ DWORD WINAPI IMSPipeConnection::CreatePipeServerThread(LPVOID lpParam)
         }
 
         lock.lock();
-        onDisconnected();
+        SetConnectionStatus(false);
         DisconnectNamedPipe(m_hPipe);
         CloseHandle(m_hPipe);
         m_hPipe = NULL;
@@ -168,6 +169,11 @@ void IMSPipeConnection::ReadDataThread()
 
 void IMSPipeConnection::SendData(unsigned char* data, unsigned int length)
 {
+    if (!mIsConnected) {
+        DEBUG_LOG("[%s %d] Not connected. Skip send data", __func__, __LINE__);
+        return;
+    }
+
     std::thread writer([&]() {
         std::unique_lock<std::mutex> lock(m_pipeMutex);
         if (m_hPipe == NULL) {
@@ -227,4 +233,14 @@ void IMSPipeConnection::SendData(unsigned char* data, unsigned int length)
     });
 
     writer.join();
+}
+
+void IMSPipeConnection::SetConnectionStatus(bool isConnected)
+{
+    mIsConnected = isConnected;
+    if (isConnected) {
+        onConnected();
+    } else {
+        onDisconnected();
+    }
 }

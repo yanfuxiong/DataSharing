@@ -107,6 +107,26 @@ namespace MSPipeObj
         void dump();
         ~UPDATE_PROGRESS();
     };
+
+    struct UPDATE_SYSTEM_INFO
+    {
+        HEADER header = {
+            .type = RTK_PIPE_TYPE_NOTI,
+            .code = RTK_PIPE_CODE_UPDATE_SYSTEM_INFO,
+        };
+
+        struct CONTENT {
+            char *ip            = nullptr;
+            wchar_t* serviceVer = nullptr;
+        } content;
+
+        uint8_t* rawdata        = nullptr;
+        uint32_t offset         = 0;
+
+        void toByte();
+        void dump();
+        ~UPDATE_SYSTEM_INFO();
+    };
 };
 
 #endif //__INCLUDED_MS_PIPE_OBJECT__

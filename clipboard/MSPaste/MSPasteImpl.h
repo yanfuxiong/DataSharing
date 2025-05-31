@@ -20,7 +20,7 @@ public:
     void CleanClipboard();
 
 private:
-    bool SetOleClipboard();
+    bool SetOleClipboard(std::mutex& clipboardMutex, bool& isOleClipboardOperation);
     bool InitOle(std::mutex& clipboardMutex, bool& isOleClipboardOperation);
     void ReleaseOle();
     void ReleaseObj();

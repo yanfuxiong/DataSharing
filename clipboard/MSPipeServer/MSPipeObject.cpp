@@ -291,4 +291,60 @@ namespace MSPipeObj {
             delete[] content.filePath;
         }
     }
+
+    // Update System Info
+    void UPDATE_SYSTEM_INFO::toByte()
+    {
+        if (!content.ip || !content.serviceVer) {
+            DEBUG_LOG("[%s %d] Err: Null IP or serviceVer", __func__, __LINE__);
+            return;
+        }
+        rawdata = new uint8_t[header.length + LEN_HEADER + LEN_TYPE + LEN_CODE + LEN_LENGTH];
+
+        offset = 0;
+        memcpy(rawdata+offset, RTK_PIPE_HEADER, LEN_HEADER);
+        offset += LEN_HEADER;
+
+        rawdata[offset] = header.type;
+        offset += LEN_TYPE;
+
+        rawdata[offset] = header.code;
+        offset += LEN_CODE;
+
+        uint32_t lenContent = LEN_IP;
+        lenContent += (wcslen(content.serviceVer) * sizeof(wchar_t));
+        MSUtils::intToBigEndianBytes(lenContent, rawdata+offset);
+        offset += LEN_LENGTH;
+
+        unsigned char ipBytes[LEN_IP] = {0};
+        MSUtils::ConvertIp2Bytes(content.ip, ipBytes);
+        memcpy(rawdata+offset, ipBytes, LEN_IP);
+        offset += LEN_IP;
+
+        int serviceVerLen = wcslen(content.serviceVer) * sizeof(wchar_t);
+        memcpy(rawdata+offset, content.serviceVer, serviceVerLen);
+        offset += serviceVerLen;
+    }
+
+    void UPDATE_SYSTEM_INFO::dump()
+    {
+        DEBUG_LOG("[UPDATE_SYSTEM_INFO] type    = %d", header.type);
+        DEBUG_LOG("[UPDATE_SYSTEM_INFO] code    = %d", header.code);
+        DEBUG_LOG("[UPDATE_SYSTEM_INFO] content length = %d", header.length);
+        DEBUG_LOG("[UPDATE_SYSTEM_INFO] ip      = %s", content.ip);
+        DEBUG_LOG("[UPDATE_SYSTEM_INFO] serviceVer = %ls", content.serviceVer);
+    }
+
+    UPDATE_SYSTEM_INFO::~UPDATE_SYSTEM_INFO()
+    {
+        if (rawdata) {
+            delete[] rawdata;
+        }
+        if (content.ip) {
+            delete[] content.ip;
+        }
+        if (content.serviceVer) {
+            delete[] content.serviceVer;
+        }
+    }
 }; // MSPipeObj

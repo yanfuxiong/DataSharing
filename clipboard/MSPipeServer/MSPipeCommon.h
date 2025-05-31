@@ -10,23 +10,24 @@
 #ifdef DEBUG_LOG
 #undef DEBUG_LOG
 #endif
-#define DEBUG_LOG(format, ...) do { \
-    const char *file = "cpp.log"; \
-    FILE *logFile = fopen(file, "a"); /* Open file in append mode */ \
-    if (logFile != NULL) { \
-        time_t now = time(NULL); /* Get current time */ \
-        struct tm *t = localtime(&now); /* Convert to local time */ \
-        char timeStr[64]; \
-        strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", t); /* Format time */ \
-        fprintf(logFile, "[%s] ", timeStr); /* Write timestamp */ \
-        fprintf(logFile, format, ##__VA_ARGS__); /* Write formatted log */ \
-        fprintf(logFile, "\n"); \
-        fflush(logFile); \
-        fclose(logFile); /* Close the file */ \
-    } else { \
-        perror("Error opening log file"); /* Print error if file can't be opened */ \
-    } \
-} while (0)
+#define DEBUG_LOG(format, ...) printf(format "\n", ##__VA_ARGS__);
+// #define DEBUG_LOG(format, ...) do { \
+//     const char *file = "cpp.log"; \
+//     FILE *logFile = fopen(file, "a"); /* Open file in append mode */ \
+//     if (logFile != NULL) { \
+//         time_t now = time(NULL); /* Get current time */ \
+//         struct tm *t = localtime(&now); /* Convert to local time */ \
+//         char timeStr[64]; \
+//         strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", t); /* Format time */ \
+//         fprintf(logFile, "[%s] ", timeStr); /* Write timestamp */ \
+//         fprintf(logFile, format, ##__VA_ARGS__); /* Write formatted log */ \
+//         fprintf(logFile, "\n"); \
+//         fflush(logFile); \
+//         fclose(logFile); /* Close the file */ \
+//     } else { \
+//         perror("Error opening log file"); /* Print error if file can't be opened */ \
+//     } \
+// } while (0)
 #else
 #define DEBUG_LOG(format, ...) printf("[Pipe] not debug\n")
 #endif
@@ -50,6 +51,8 @@ enum RTK_PIPE_LENGTH {
     LEN_SENTSIZE    = 8,
     LEN_TIMESTAMP   = 8,
     LEN_STATUS      = 1,
+    LEN_NOTI_CODE   = 1,
+    LEN_NOTI_LENGTH = 4,
 };
 
 enum RTK_PIPE_TYPE {
@@ -66,6 +69,9 @@ enum RTK_PIPE_CODE {
     RTK_PIPE_CODE_UPDATE_CLIENT_STATUS  = 3,
     RTK_PIPE_CODE_SEND_FILE             = 4,
     RTK_PIPE_CODE_UPDATE_PROGRESS       = 5,
+    RTK_PIPE_CODE_UPDATE_IMAGE_PROGRESS = 6,
+    RTK_PIPE_CODE_NOTIFY_MESSAGE        = 7,
+    RTK_PIPE_CODE_UPDATE_SYSTEM_INFO    = 8,
     RTK_PIPE_CODE_UNKNOWN,
 };
 

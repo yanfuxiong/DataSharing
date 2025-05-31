@@ -6,7 +6,6 @@
 #include <vector>
 #include <mutex>
 
-class MSProgressBar;
 class MSFileDrop
 {
 public:
@@ -22,7 +21,6 @@ private:
 
     std::vector<FILE_INFO> mFileList;
     FileDropCmdCallback& mCmdCb;
-    MSProgressBar* mCurProgressBar;
     unsigned int mCurProgress;
 };
 

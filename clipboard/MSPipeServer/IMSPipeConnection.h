@@ -21,9 +21,11 @@ protected:
     void SendData(unsigned char* data, unsigned int length);
 
 private:
+    void SetConnectionStatus(bool isOnline);
     static DWORD WINAPI CreatePipeServerThreadStatic(LPVOID lpParam);
     DWORD WINAPI CreatePipeServerThread(LPVOID lpParam);
 
+    bool mIsConnected;
     const std::atomic<bool>& g_running_pipe;
     HANDLE m_event_pipe;
     HANDLE m_thread_pipe;

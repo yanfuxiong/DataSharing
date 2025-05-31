@@ -1,32 +1,34 @@
 #include "MSDataObject.h"
 #include "MSStream.h"
 #include "MSImgHandler.h"
-#include "MSProgressBar.h"
 #include <windows.h>
 #include <shlobj.h>
 #include <iostream>
 #include <initguid.h>
 #include <objidl.h>
 #include <strsafe.h>
+#include <thread>
 
-MSDataObject::MSDataObject(ClipboardPasteFileCallback& pasteCb, std::vector<FILE_INFO>& fileList)
+// MSDataObject::MSDataObject(ClipboardPasteFileCallback& pasteCb, std::vector<FILE_INFO>& fileList)
+// : mPasteCb(pasteCb),
+//   mFileList(fileList)
+// {
+//     Init();
+//     FORMATETC format;
+//     SetFORMATETC(&format, RegisterClipboardFormat(CFSTR_FILEDESCRIPTOR));
+//     mFormats.push_back(format);
+
+//     for (int i = 0; i < fileList.size(); i++) {
+//         SetFORMATETC(&format, RegisterClipboardFormat(CFSTR_FILECONTENTS), TYMED_ISTREAM, i);
+//         mFormats.push_back(format);
+//     }
+// }
+
+MSDataObject::MSDataObject(ClipboardPasteFileCallback& pasteCb, IMAGE_INFO& picInfo, std::mutex& clipboardMutex, bool& isOleClipboardOperation)
 : mPasteCb(pasteCb),
-  mFileList(fileList)
-{
-    Init();
-    FORMATETC format;
-    SetFORMATETC(&format, RegisterClipboardFormat(CFSTR_FILEDESCRIPTOR));
-    mFormats.push_back(format);
-
-    for (int i = 0; i < fileList.size(); i++) {
-        SetFORMATETC(&format, RegisterClipboardFormat(CFSTR_FILECONTENTS), TYMED_ISTREAM, i);
-        mFormats.push_back(format);
-    }
-}
-
-MSDataObject::MSDataObject(ClipboardPasteFileCallback& pasteCb, IMAGE_INFO& picInfo)
-: mPasteCb(pasteCb),
-  mPicInfo(picInfo)
+  mPicInfo(picInfo),
+  mClipboardMutex(clipboardMutex),
+  mIsOleClipboardOperation(isOleClipboardOperation)
 {
     Init();
     FORMATETC format;
@@ -39,7 +41,6 @@ void MSDataObject::Init()
     m_cRef = 1;
     mCurStream = NULL;
     mImgHandler = NULL;
-    mCurProgressBar = NULL;
 }
 
 MSDataObject::~MSDataObject()
@@ -58,10 +59,6 @@ void MSDataObject::ReleaseObj()
     if (mImgHandler) {
         delete mImgHandler;
         mImgHandler = NULL;
-    }
-    if (mCurProgressBar) {
-        delete mCurProgressBar;
-        mCurProgressBar = NULL;
     }
 }
 
@@ -127,7 +124,25 @@ STDMETHODIMP MSDataObject::GetData(FORMATETC *pfe, STGMEDIUM *pmed)
     }
     else if (type == PASTE_TYPE_DIB)
     {
-        return GetDibData(pfe, pmed);
+        {
+            std::lock_guard<std::mutex> lock(mClipboardMutex);
+            mIsOleClipboardOperation = true;
+            DEBUG_LOG("[Paste] Get data: Lock ON");
+        }
+        HRESULT r = GetDibData(pfe, pmed);
+        std::thread worker([&]() {
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            {
+                std::lock_guard<std::mutex> lock(mClipboardMutex);
+                mIsOleClipboardOperation = false;
+                DEBUG_LOG("[Paste] Get data: Lock OFF");
+            }
+        });
+
+        if (worker.joinable()) {
+            worker.detach();
+        }
+        return r;
     }
 
     return DV_E_FORMATETC;
@@ -165,11 +180,9 @@ HRESULT MSDataObject::GetFileData(FORMATETC *pfe, STGMEDIUM *pmed, int idx)
         pmed->tymed = TYMED_ISTREAM;
 
         ReleaseObj();
-        mCurProgressBar = new MSProgressBar(mFileList[pfe->lindex].fileSizeHigh, mFileList[pfe->lindex].fileSizeLow);
         mFileList[pfe->lindex].pStream = new MSStream(mPasteCb, mFileList[pfe->lindex].fileSizeHigh, mFileList[pfe->lindex].fileSizeLow, this);
         mCurStream = (MSStream*)mFileList[pfe->lindex].pStream;
 
-        MSProgressBar::WaitSetupReady();
         mCurStream->StartDownload();
 
         pmed->pstm = mFileList[pfe->lindex].pStream;
@@ -186,22 +199,14 @@ HRESULT MSDataObject::GetDibData(FORMATETC *pfe, STGMEDIUM *pmed)
     ReleaseObj();
     pmed->tymed = TYMED_HGLOBAL;
 
-    // Note: picture copy should not be allowed over 3.9GB
-    if (!mCurProgressBar) {
-        mCurProgressBar = new MSProgressBar(0, mPicInfo.dataSize);
-    }
-
     if (!mImgHandler) {
         mImgHandler = new MSImgHandler(mPasteCb, mPicInfo.dataSize, mPicInfo.picHeader, this);
     }
 
-    MSProgressBar::WaitSetupReady();
     if (!mImgHandler->GetImg(&pmed->hGlobal)) {
-        DeinitProgressBar();
         return DV_E_FORMATETC;
     }
 
-    DeinitProgressBar();
     return S_OK;
 }
 
@@ -310,8 +315,6 @@ void MSDataObject::EventOpenFileErr()
         return;
 
     pInterface->Cancel();
-
-    MSProgressBar::SetErrorMsg();
 }
 
 void MSDataObject::EventRecvTimeout()
@@ -322,19 +325,9 @@ void MSDataObject::EventRecvTimeout()
         return;
 
     pInterface->Cancel();
-
-    MSProgressBar::SetTransTerm();
 }
 
 void MSDataObject::OnStreamEOF()
 {
     ReleaseObj();
-}
-
-void MSDataObject::DeinitProgressBar()
-{
-    if (mCurProgressBar) {
-        delete mCurProgressBar;
-        mCurProgressBar = NULL;
-    }
 }

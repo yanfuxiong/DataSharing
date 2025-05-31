@@ -1,5 +1,4 @@
 #include "MSFileDrop.h"
-#include "MSProgressBar.h"
 #include "MSUtils.h"
 #include <iostream>
 #include <shobjidl.h>
@@ -8,7 +7,6 @@
 MSFileDrop::MSFileDrop(FileDropCmdCallback& cmdCb):
     mFileList({}),
     mCmdCb(cmdCb),
-    mCurProgressBar(NULL),
     mCurProgress(0)
 {
 
@@ -35,16 +33,11 @@ bool MSFileDrop::UpdateProgressBar(unsigned long progress)
     }
     int64_t fileSize = (int64_t)mFileList[0].fileSizeHigh << 32 | (int64_t)mFileList[0].fileSizeLow;
     mCurProgress += progress;
-    MSUtils::PrintProgress(mCurProgress, (uint32_t)fileSize);
     return true;
 }
 
 void MSFileDrop::DeinitProgressBar()
 {
-    if (mCurProgressBar) {
-        delete mCurProgressBar;
-        mCurProgressBar = NULL;
-    }
     mCurProgress = 0;
 }
 
@@ -88,12 +81,6 @@ void MSFileDrop::SetupDialog(char* ip)
         std::wcscat(wideCPath, back_slash);
         std::wcscat(wideCPath, mFileList[0].fileName.c_str());
         mCmdCb(ip, (unsigned long)FILE_DROP_ACCEPT, wideCPath);
-        // FIXME
-        if (mCurProgressBar) {
-            delete mCurProgressBar;
-            mCurProgressBar = NULL;
-        }
-        mCurProgressBar = new MSProgressBar(mFileList[0].fileSizeHigh, mFileList[0].fileSizeLow);
         delete[] wideCPath;
     } else if (response == IDCANCEL) {
         mCmdCb(ip, (unsigned long)FILE_DROP_REJECT, NULL);

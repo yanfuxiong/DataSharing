@@ -5,17 +5,17 @@
 #include <vector>
 #include <string>
 #include "MSCommon.h"
+#include <mutex>
 
 class MSStream;
 class MSImgHandler;
-class MSProgressBar;
 class MSITransData;
 
 class MSDataObject : public IDataObject, public IStreamObserver
 {
 public:
-    explicit MSDataObject(ClipboardPasteFileCallback& pasteCb, std::vector<FILE_INFO>& fileList);
-    explicit MSDataObject(ClipboardPasteFileCallback& pasteCb, IMAGE_INFO& picInfo);
+    // explicit MSDataObject(ClipboardPasteFileCallback& pasteCb, std::vector<FILE_INFO>& fileList);
+    explicit MSDataObject(ClipboardPasteFileCallback& pasteCb, IMAGE_INFO& picInfo, std::mutex& clipboardMutex, bool& isOleClipboardOperation);
     ~MSDataObject();
     // IUnknown
     STDMETHODIMP QueryInterface(REFIID riid, void **ppv) override;
@@ -57,8 +57,9 @@ private:
     std::vector<FORMATETC> mFormats;
     MSStream* mCurStream;
     MSImgHandler* mImgHandler;
-    MSProgressBar* mCurProgressBar;
     ClipboardPasteFileCallback& mPasteCb;
+    std::mutex& mClipboardMutex;
+    bool& mIsOleClipboardOperation;
 };
 
 #endif //__INCLUDED_MS_DATAOBJECT__

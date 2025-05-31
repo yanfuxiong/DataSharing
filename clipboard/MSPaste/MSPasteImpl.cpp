@@ -1,5 +1,6 @@
 #include "MSPasteImpl.h"
 #include "MSDataObject.h"
+#include <thread>
 
 MSPasteImpl::MSPasteImpl(ClipboardPasteFileCallback& pasteCb)
  : mPasteType(PASTE_TYPE_UNKNOWN),
@@ -52,11 +53,20 @@ bool MSPasteImpl::InitOle(std::mutex& clipboardMutex, bool& isOleClipboardOperat
         {
             std::lock_guard<std::mutex> lock(clipboardMutex);
             isOleClipboardOperation = true;
+            DEBUG_LOG("[Paste] Lock ON");
         }
-        SetOleClipboard();
-        {
-            std::lock_guard<std::mutex> lock(clipboardMutex);
-            isOleClipboardOperation = false;
+        SetOleClipboard(clipboardMutex, isOleClipboardOperation);
+        std::thread worker([&]() {
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            {
+                std::lock_guard<std::mutex> lock(clipboardMutex);
+                isOleClipboardOperation = false;
+                DEBUG_LOG("[Paste] Lock OFF");
+            }
+        });
+
+        if (worker.joinable()) {
+            worker.detach();
         }
 
         MSG msg;
@@ -83,6 +93,7 @@ bool MSPasteImpl::InitOle(std::mutex& clipboardMutex, bool& isOleClipboardOperat
 void MSPasteImpl::ReleaseOle()
 {
     if (mIsInited) {
+        DEBUG_LOG("[%s %d]", __func__, __LINE__);
         OleSetClipboard(NULL);
         OleUninitialize();
         mIsInited = false;
@@ -98,19 +109,19 @@ void MSPasteImpl::ReleaseObj()
     }
 }
 
-bool MSPasteImpl::SetOleClipboard()
+bool MSPasteImpl::SetOleClipboard(std::mutex& clipboardMutex, bool& isOleClipboardOperation)
 {
     ReleaseObj();
     switch (mPasteType)
     {
         case PASTE_TYPE_FILE:
         {
-            if (mFileList.size() <= 0) {
-                DEBUG_LOG("[%s %d] Invalid file list", __func__, __LINE__);
-                return false;
-            }
+            // if (mFileList.size() <= 0) {
+            //     DEBUG_LOG("[%s %d] Invalid file list", __func__, __LINE__);
+            //     return false;
+            // }
 
-            mCurDataObject = new MSDataObject(mPasteCb, mFileList);
+            // mCurDataObject = new MSDataObject(mPasteCb, mFileList);
         }
             break;
         case PASTE_TYPE_DIB:
@@ -120,7 +131,7 @@ bool MSPasteImpl::SetOleClipboard()
                 return false;
             }
 
-            mCurDataObject = new MSDataObject(mPasteCb, mPicInfo);
+            mCurDataObject = new MSDataObject(mPasteCb, mPicInfo, clipboardMutex, isOleClipboardOperation);
         }
             break;
         default:
@@ -134,7 +145,7 @@ bool MSPasteImpl::SetOleClipboard()
             return false;
         }
 
-        DEBUG_LOG("[%s %d] Set paste object successfully", __func__, __LINE__);
+        DEBUG_LOG("[%s %d] Set paste DataObject successfully", __func__, __LINE__);
     }
 
     return true;

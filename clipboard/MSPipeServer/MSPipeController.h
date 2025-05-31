@@ -18,6 +18,7 @@ public:
     // Sender
     void UpdateClientStatus(unsigned int status, char* ip, char* id, wchar_t* name);
     void UpdateProgress(char* ip, char* id, uint64_t fileSize, uint64_t sentSize, uint64_t timestamp, wchar_t* fileName);
+    void UpdateSystemInfo(char* ip, wchar_t* serviceVer);
     void SendFileReq(char* ip, char* id, uint64_t fileSize, uint64_t timestamp, wchar_t* fileName);
 
 private:
