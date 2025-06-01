@@ -58,7 +58,10 @@ const (
 	ERR_NETWORK_C2S_DIAL_TIMEOUT
 	ERR_NETWORK_C2S_WRITE
 	ERR_NETWORK_C2S_FLUSH
+	ERR_NETWORK_C2S_WRITE_EOF
 	ERR_NETWORK_C2S_READ
+	ERR_NETWORK_C2S_READ_TIME_OUT
+	ERR_NETWORK_C2S_READ_EOF
 )
 
 // lanserver to client connect error
@@ -108,6 +111,8 @@ const (
 	ERR_BIZ_S2C_GET_EMPTY_CONNECT
 	ERR_BIZ_S2C_READ_EMPTY_DATA
 	ERR_BIZ_S2C_INVALID_INDEX
+	ERR_BIZ_S2C_UNAUTH
+	ERR_BIZ_S2C_CALLBACK_INVALID
 )
 
 // peer to peer business error code
@@ -115,6 +120,8 @@ const (
 	ERR_BIZ_P2P_OTHER CrossShareErr = iota + 5300
 	ERR_BIZ_P2P_WRITE_EMPTY_DATA
 	ERR_BIZ_P2P_GET_EMPTY_STREAM
+	ERR_BIZ_P2P_PEER_DECODE
+	ERR_BIZ_P2P_NODE_NULL
 )
 
 // clipboard business error code
@@ -153,10 +160,12 @@ const (
 	ERR_BIZ_FD_DST_COPY_FILE
 	ERR_BIZ_FD_DST_COPY_FILE_LOSS
 	ERR_BIZ_FD_DST_COPY_FILE_TIMEOUT
+	ERR_BIZ_FD_DST_COPY_FILE_CANCEL
 
 	ERR_BIZ_DF_DATA_EMPTY
 	ERR_BIZ_DF_INVALID_TIMESTAMP
 	ERR_BIZ_DF_FILE_NOT_EXISTS
+	ERR_BIZ_DF_FOLDER_NOT_EXISTS
 )
 
 var errInfoMap = map[CrossShareErr]string{
@@ -172,4 +181,5 @@ var errInfoMap = map[CrossShareErr]string{
 	ERR_BIZ_JSON_UNMARSHAL:         "json unmarshal failed!",
 	ERR_BIZ_JSON_EXTDATA_UNMARSHAL: "json ext data unmarshal failed!",
 	ERR_BIZ_S2C_INVALID_INDEX:      "client index is invalid",
+	ERR_BIZ_S2C_UNAUTH:             "unauthorized device",
 }

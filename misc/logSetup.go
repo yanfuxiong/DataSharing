@@ -11,14 +11,29 @@ var (
 	LogPath         string
 	CrashLogPath    string
 	LoggerWriteFile lumberjack.Logger
+
+	maxSize    int
+	maxBackups int
+	maxAge     int
 )
 
-func InitLog(logPath, crashLogPath string) {
+func init() {
+	maxSize = 256
+	maxBackups = 3
+	maxAge = 30
+}
+
+func InitLog(logPath, crashLogPath string, maxsize int) {
 	LogPath = logPath
 	CrashLogPath = crashLogPath
 
+	if maxsize > 0 {
+		maxSize = maxsize
+	}
+
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
-	log.Printf("InitLog logPath:[%s] crashLogPath:[%s] !", LogPath, CrashLogPath)
+	log.Printf("InitLog logPath:[%s] maxSize:[%d] maxBackups:[%d] maxAge:[%d]!", LogPath, maxSize, maxBackups, maxAge)
+	log.Printf("InitLog crashLogPath:[%s]", CrashLogPath)
 }
 
 func SetupLogFile() {
@@ -27,9 +42,9 @@ func SetupLogFile() {
 	LoggerWriteFile.Close()
 	LoggerWriteFile = lumberjack.Logger{
 		Filename:   LogPath,
-		MaxSize:    256,
-		MaxBackups: 3,
-		MaxAge:     30,
+		MaxSize:    maxSize,
+		MaxBackups: maxBackups,
+		MaxAge:     maxAge,
 		Compress:   true,
 	}
 	log.SetOutput(&LoggerWriteFile)
@@ -52,11 +67,16 @@ func SetupLogConsoleFile() {
 	LoggerWriteFile.Close()
 	LoggerWriteFile = lumberjack.Logger{
 		Filename:   LogPath,
-		MaxSize:    256,
-		MaxBackups: 3,
-		MaxAge:     30,
+		MaxSize:    maxSize,
+		MaxBackups: maxBackups,
+		MaxAge:     maxAge,
 		Compress:   true,
 	}
 
 	log.SetOutput(io.MultiWriter(os.Stdout, &LoggerWriteFile))
+}
+
+func SetLogRotate() {
+	log.Printf("Set log file Rotate!\n")
+	LoggerWriteFile.Rotate()
 }

@@ -3,16 +3,18 @@ package misc
 import (
 	"errors"
 	"fmt"
-	"gopkg.in/natefinch/lumberjack.v2"
 	"log"
 	"os"
+	"path/filepath"
 	"runtime"
 	"runtime/debug"
 	"strconv"
 	"strings"
+
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-func GoSafe(fn func()) {
+func GoSafeWithParam(fn func(args ...any), args ...any) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -34,8 +36,14 @@ func GoSafe(fn func()) {
 				os.Exit(1)
 			}
 		}()
-		fn()
+		fn(args...)
 	}()
+}
+
+func GoSafe(fn func()) {
+	GoSafeWithParam(func(args ...any) {
+		fn()
+	})
 }
 
 func GetFuncName() string {
@@ -146,6 +154,42 @@ func FileSizeDesc(size uint64) string {
 	}
 }
 
+func AdaptationPath(srcPath string) string {
+	currentOsSeparator := string(filepath.Separator)
+	replacements := make(map[string]string, 0)
+
+	// TODO: Do different platforms need to handle it separately
+	//if runtime.GOOS == "windows" {
+	replacements[`"`] = ""
+	replacements[`*`] = "_"
+	replacements[`?`] = "_"
+	replacements[`<`] = "_"
+	replacements[`>`] = "_"
+	replacements[`|`] = "_"
+	replacements[`:`] = "_"
+	replacements["/"] = currentOsSeparator
+	replacements["\\"] = currentOsSeparator
+	/*} else if runtime.GOOS == "android" {
+	} else if runtime.GOOS == "darwin" {
+		cleanedPath = strings.ReplaceAll(srcPath, ":", "_")
+	} else if runtime.GOOS == "ios" {
+	}*/
+
+	for k, v := range replacements {
+		srcPath = strings.ReplaceAll(srcPath, k, v)
+	}
+
+	return collapseSeparators(srcPath, currentOsSeparator)
+}
+
+func collapseSeparators(path, separator string) string {
+	doubleSeparator := separator + separator
+	for strings.Contains(path, doubleSeparator) {
+		path = strings.ReplaceAll(path, doubleSeparator, separator)
+	}
+	return path
+}
+
 func ConcatIP(ip string, port string) string {
 	publicIP := fmt.Sprintf("%s:%s", ip, port)
 	return publicIP
@@ -171,7 +215,12 @@ func RemoveStringFromSlice(slice []string, s string) []string {
 	return slice[:i]
 }
 
-func CreateDir(dir string, dirMode os.FileMode) error {
+func CreateDir(dir string, dirModeOpt ...os.FileMode) error {
+	dirMode := os.ModePerm
+	if len(dirModeOpt) > 0 {
+		dirMode = dirModeOpt[0]
+	}
+
 	_, err := os.Stat(dir)
 
 	if os.IsNotExist(err) {
