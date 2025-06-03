@@ -6,9 +6,10 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/p2p/discovery/mdns"
 	"log"
-	rtkConnection "rtk-cross-share/connection"
-	rtkPlatform "rtk-cross-share/platform"
-	rtkUtils "rtk-cross-share/utils"
+	rtkConnection "rtk-cross-share/client/connection"
+	rtkPlatform "rtk-cross-share/client/platform"
+	rtkUtils "rtk-cross-share/client/utils"
+	rtkMisc "rtk-cross-share/misc"
 	"time"
 )
 
@@ -52,7 +53,7 @@ func MdnsServiceRun(ctx context.Context) {
 	}
 	peerChan := Notifee.PeerChan
 	rtkConnection.MdnsStartTime = time.Now().UnixMilli()
-	rtkUtils.GoSafe(func() {
+	rtkMisc.GoSafe(func() {
 		for {
 			select {
 			case <-ctx.Done():

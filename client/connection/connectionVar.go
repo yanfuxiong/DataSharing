@@ -1,22 +1,28 @@
 package connection
 
 import (
+	"sync"
+	"time"
+
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
-	"sync"
-	"time"
 )
 
 const (
 	retryConnection = 3
 
 	// libp2p default backoff time is 5 seccond
-	retryDelay = 5 * time.Second
+	retryDelay    = 5 * time.Second
+	pingInternal  = 3 * time.Second
+	pingTimeout   = 2 * time.Second
+	pingErrMaxCnt = 3
 )
 
 var (
-	node       host.Host
+	node      host.Host
+	nodeMutex sync.RWMutex
+
 	pingServer *ping.PingService
 
 	// mutexMap by ID
@@ -27,15 +33,8 @@ var (
 	CancelAllProcess = make(chan struct{})
 	MdnsStartTime    = int64(0) // mdns services start time stamp
 
-	reConnectPeerChan = make(chan ReConnectPeerInfo, 5)
-
 	mdnsPeerChan            = make(chan peer.AddrInfo)
 	mdnsNoticeNetworkStatus = make(chan bool)
-)
 
-type ReConnectPeerInfo struct {
-	Peer       peer.AddrInfo
-	RetryCount uint8
-	MaxCount   uint8
-	DelayTime  time.Duration
-}
+	noticeFmtTypeSteamReadyChanMap sync.Map
+)

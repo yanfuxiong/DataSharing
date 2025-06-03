@@ -7,14 +7,10 @@ type IPAddrInfo struct {
 }
 
 type NodeInfo struct {
-	IPAddr     IPAddrInfo
-	ID         string
-	DeviceName string
-}
-
-type ClientInfo struct {
-	ID         string
-	IpAddr     string
-	Platform   string
-	DeviceName string
+	IPAddr         IPAddrInfo
+	ClientIndex    uint32
+	ID             string
+	DeviceName     string
+	Platform       string
+	SourcePortType string
 }

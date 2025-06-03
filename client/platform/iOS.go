@@ -1,4 +1,4 @@
-//go:build darwin && !ios
+//go:build ios
 
 package platform
 
@@ -606,7 +606,7 @@ func GetHostIDPath() string {
 }
 
 func GetPlatform() string {
-	return rtkGlobal.PlatformMac
+	return rtkGlobal.PlatformiOS
 }
 
 func GetMdnsPortConfigPath() string {

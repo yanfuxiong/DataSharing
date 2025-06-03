@@ -1,3 +1,5 @@
+//go:build ignore
+
 package connection
 
 import (
@@ -5,17 +7,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/libp2p/go-reuseport"
 	"log"
 	"net"
-	rtkCommon "rtk-cross-share/common"
-	rtkGlobal "rtk-cross-share/global"
-	rtkPlatform "rtk-cross-share/platform"
-	rtkUtils "rtk-cross-share/utils"
+	rtkCommon "rtk-cross-share/client/common"
+	rtkGlobal "rtk-cross-share/client/global"
+	rtkPlatform "rtk-cross-share/client/platform"
+	rtkMisc "rtk-cross-share/misc"
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
-	"github.com/libp2p/go-reuseport"
 )
 
 func performSimultaneousOpen(conn network.Conn, localPort string, peerAddr string) net.Conn {
@@ -66,7 +68,7 @@ func performSimultaneousOpen(conn network.Conn, localPort string, peerAddr strin
 
 func performDCUtRHandshake(s network.Stream) net.Conn {
 	rw := bufio.NewReadWriter(bufio.NewReader(s), bufio.NewWriter(s))
-	myAddr := rtkUtils.ConcatIP(rtkGlobal.NodeInfo.IPAddr.PublicIP, rtkGlobal.NodeInfo.IPAddr.PublicPort)
+	myAddr := rtkMisc.ConcatIP(rtkGlobal.NodeInfo.IPAddr.PublicIP, rtkGlobal.NodeInfo.IPAddr.PublicPort)
 	var connP2P net.Conn = nil
 
 	for {

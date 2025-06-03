@@ -2,14 +2,16 @@ package clipboard
 
 import (
 	"context"
-	"golang.design/x/clipboard"
 	"log"
-	rtkCommon "rtk-cross-share/common"
-	rtkGlobal "rtk-cross-share/global"
-	rtkPlatform "rtk-cross-share/platform"
-	rtkUtils "rtk-cross-share/utils"
+	rtkCommon "rtk-cross-share/client/common"
+	rtkGlobal "rtk-cross-share/client/global"
+	rtkPlatform "rtk-cross-share/client/platform"
+	rtkUtils "rtk-cross-share/client/utils"
+	rtkMisc "rtk-cross-share/misc"
 	"sync/atomic"
 	"time"
+
+	"golang.design/x/clipboard"
 )
 
 var kDefClipboardData = rtkCommon.ClipBoardData{
@@ -79,16 +81,16 @@ func updateImageClipboardData(id string, filesize rtkCommon.FileSize, imageHeade
 	updateLastClipboardData(clipboardData)
 }
 
-func InitClipboard() {
+func init() {
 	err := clipboard.Init()
 	if err != nil {
-		panic(err)
+		log.Fatal("clipboard init error:%+v", err)
 	}
 
 	dstPasteImgFromId = ""
 
 	rtkPlatform.SetCopyImageCallback(func(filesize rtkCommon.FileSize, imageHeader rtkCommon.ImgHeader, data []byte) {
-		log.Printf("[%s %d] WatchClipboardImg and UpdateImage", rtkUtils.GetFuncName(), rtkUtils.GetLine())
+		log.Printf("[%s %d] WatchClipboardImg and UpdateImage", rtkMisc.GetFuncName(), rtkMisc.GetLine())
 
 		// TODO: It should only receive JPG. Remove image decode flow
 		log.Printf("(SRC) Start to convert bmp to jpg")
@@ -104,7 +106,8 @@ func InitClipboard() {
 		filesize.SizeLow = uint32(len(jpgData))
 		updateImageClipboardData(rtkGlobal.NodeInfo.ID, filesize, imageHeader, jpgData)
 
-		for i := 0; i < rtkUtils.GetClientCount(); i++ {
+		nCount := rtkUtils.GetClientCount()
+		for i := 0; i < nCount; i++ {
 			copyImgEventChan <- struct{}{}
 		}
 
@@ -117,7 +120,9 @@ func InitClipboard() {
 			log.Printf("[Paste] H=%d,W=%d,Planes=%d,BitCnt=%d,Compress=%d",
 				imgData.Header.Height, imgData.Header.Width, imgData.Header.Planes, imgData.Header.BitCount, imgData.Header.Compression)
 			log.Println("[Paste] Current clipboard data src:", lastData.SourceID)
-			for i := 0; i < rtkUtils.GetClientCount(); i++ {
+
+			nCount := rtkUtils.GetClientCount()
+			for i := 0; i < nCount; i++ {
 				pasteImgEventId <- dstPasteImgFromId
 			}
 		}
@@ -126,13 +131,14 @@ func InitClipboard() {
 }
 func WatchClipboardText(ctx context.Context, id string, resultChan chan<- rtkCommon.ClipBoardData) {
 	contentText := make(chan string)
-	rtkUtils.GoSafe(func() { rtkPlatform.WatchClipboardText(ctx, contentText) })
+	rtkMisc.GoSafe(func() { rtkPlatform.WatchClipboardText(ctx, contentText) })
 	var lastHash string
 	var lastTimeStamp uint64
 
 	for {
 		select {
 		case <-ctx.Done():
+			close(resultChan)
 			return
 		case text := <-contentText:
 			updateTextClipboardData(rtkGlobal.NodeInfo.ID, text)
@@ -141,7 +147,7 @@ func WatchClipboardText(ctx context.Context, id string, resultChan chan<- rtkCom
 				currentHash := lastData.Hash
 				currentTimeStamp := lastData.TimeStamp
 
-				if !rtkUtils.ContentEqual([]byte(lastHash), []byte(currentHash)) && lastTimeStamp != currentTimeStamp {
+				if !rtkUtils.ContentEqual([]byte(lastHash), []byte(currentHash)) || lastTimeStamp != currentTimeStamp {
 					if extData, ok := lastData.ExtData.(rtkCommon.ExtDataText); ok {
 						if extData.Text == "" {
 							continue
@@ -153,7 +159,7 @@ func WatchClipboardText(ctx context.Context, id string, resultChan chan<- rtkCom
 						lastTimeStamp = currentTimeStamp
 						resultChan <- lastData
 					} else {
-						log.Printf("[%s %d] Err: Invalid text extData", rtkUtils.GetFuncName(), rtkUtils.GetLine())
+						log.Printf("[%s %d] Err: Invalid text extData", rtkMisc.GetFuncName(), rtkMisc.GetLine())
 					}
 				}
 
@@ -169,13 +175,14 @@ func WatchClipboardImg(ctx context.Context, id string, resultChan chan<- rtkComm
 	for {
 		select {
 		case <-ctx.Done():
+			close(resultChan)
 			return
 		case <-copyImgEventChan:
 			lastData := GetLastClipboardData()
 			if lastData.SourceID == rtkGlobal.NodeInfo.ID && lastData.FmtType == rtkCommon.IMAGE_CB {
 				currentHash := lastData.Hash
 				currentTimeStamp := lastData.TimeStamp
-				if !rtkUtils.ContentEqual([]byte(lastHash), []byte(currentHash)) && lastTimeStamp != currentTimeStamp {
+				if !rtkUtils.ContentEqual([]byte(lastHash), []byte(currentHash)) || lastTimeStamp != currentTimeStamp {
 					if extData, ok := lastData.ExtData.(rtkCommon.ExtDataImg); ok {
 						ipAddr, _ := rtkUtils.GetClientIp(id)
 						log.Printf("[WatchClipboardImg][%s] - got new Image  Wight:%d Height:%d, content len:[%d] \n\n",
@@ -187,7 +194,7 @@ func WatchClipboardImg(ctx context.Context, id string, resultChan chan<- rtkComm
 						lastTimeStamp = currentTimeStamp
 						resultChan <- lastData
 					} else {
-						log.Printf("[%s %d] Err: Invalid text extData", rtkUtils.GetFuncName(), rtkUtils.GetLine())
+						log.Printf("[%s %d] Err: Invalid text extData", rtkMisc.GetFuncName(), rtkMisc.GetLine())
 					}
 				}
 
@@ -196,10 +203,11 @@ func WatchClipboardImg(ctx context.Context, id string, resultChan chan<- rtkComm
 	}
 }
 
-func WatchClipboardPasteImg(ctx context.Context, id string, resultChan chan<- bool) {
+func WatchClipboardPasteImg(ctx context.Context, id string, resultChan chan<- struct{}) {
 	for {
 		select {
 		case <-ctx.Done():
+			close(resultChan)
 			return
 		case pasteFromId := <-pasteImgEventId:
 			if pasteFromId == id {
@@ -208,9 +216,9 @@ func WatchClipboardPasteImg(ctx context.Context, id string, resultChan chan<- bo
 					if _, ok := lastData.ExtData.(rtkCommon.ExtDataImg); ok {
 						ipAddr, _ := rtkUtils.GetClientIp(id)
 						log.Printf("[WatchClipboardImgPaste] get paste event from [%s]", ipAddr)
-						resultChan <- true
+						resultChan <- struct{}{}
 					} else {
-						log.Printf("[%s %d] Err: Invalid img extData", rtkUtils.GetFuncName(), rtkUtils.GetLine())
+						log.Printf("[%s %d] Err: Invalid img extData", rtkMisc.GetFuncName(), rtkMisc.GetLine())
 					}
 				}
 			}
@@ -230,7 +238,7 @@ func SetupDstPasteImage(id string, desc string, content []byte, imgHeader rtkCom
 	}
 
 	dstPasteImgFromId = id
-	log.Printf("[%s %d] SetupDstPasteImage and UpdateImage, id=%s", rtkUtils.GetFuncName(), rtkUtils.GetLine(), id)
+	log.Printf("[%s %d] SetupDstPasteImage and UpdateImage, id=%s", rtkMisc.GetFuncName(), rtkMisc.GetLine(), id)
 	log.Println("[Paste] Setup paste image and wait for requirement")
 	log.Printf("[Paste] H=%d,W=%d,Planes=%d,BitCnt=%d,Compress=%d, src=%s",
 		imgHeader.Height, imgHeader.Width, imgHeader.Planes, imgHeader.BitCount, imgHeader.Compression, id)

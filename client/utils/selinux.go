@@ -2,22 +2,23 @@ package utils
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"net"
 )
 
 var g_addrs []string
 
-func GetAddrsFromJava(addrsList []string) {
+func GetAddrsFromPlatform(addrsList []string) {
 	g_addrs = make([]string, 0)
 	for _, addr := range addrsList {
 		if addr == "" {
 			continue
 		}
 		g_addrs = append(g_addrs, addr)
-		log.Printf("GetAddrsFromJava get addr: %+v", addr)
+		fmt.Printf("GetAddrsFromPlatform get addr: %+v", addr)
 	}
-	log.Printf("xyfGetAddrsFromJava get size: %+v\n", len(g_addrs))
+	log.Printf("xyfGetAddrsFromPlatform get size: %+v\n", len(g_addrs))
 }
 
 func InterfaceFromJavaAddrs() ([]net.Addr, error) {
@@ -47,9 +48,9 @@ func InterfaceFromJavaAddrs() ([]net.Addr, error) {
 			addrs[i] = ipNet
 		}
 	}
-	/*for i, addr := range addrs {
+	for i, addr := range addrs {
 		log.Printf("InterfaceFromJavaAddrs %+v - %v : %v", i, addr.Network(), addr.String())
-	}*/
+	}
 	return addrs, nil
 }
 
@@ -69,7 +70,8 @@ func SetNetInterfaces(name string, index int) {
 	/*hw, err := net.ParseMAC(mac)
 	if err != nil {
 		log.Printf("ParseMAC [%s] error:%+v", err)
-	}*/
+	}
+	log.Printf("mac data[%+v]", hw)*/
 	//hwMac, _ := net.ParseMAC("9a:84:2b:39:4c:f2")
 	iFaces = append(iFaces, net.Interface{
 		Index:        index,
@@ -78,7 +80,6 @@ func SetNetInterfaces(name string, index int) {
 		HardwareAddr: nil,
 		Flags:        51,
 	})
-
 }
 
 func GetNetInterfaces() []net.Interface {

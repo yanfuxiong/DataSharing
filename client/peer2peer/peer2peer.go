@@ -4,18 +4,17 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"io"
 	"log"
 	"net"
 	"os"
-	"path/filepath"
-	rtkClipboard "rtk-cross-share/clipboard"
-	rtkCommon "rtk-cross-share/common"
-	rtkConnection "rtk-cross-share/connection"
-	rtkFileDrop "rtk-cross-share/filedrop"
-	rtkGlobal "rtk-cross-share/global"
-	rtkPlatform "rtk-cross-share/platform"
-	rtkUtils "rtk-cross-share/utils"
+	rtkClipboard "rtk-cross-share/client/clipboard"
+	rtkCommon "rtk-cross-share/client/common"
+	rtkConnection "rtk-cross-share/client/connection"
+	rtkFileDrop "rtk-cross-share/client/filedrop"
+	rtkGlobal "rtk-cross-share/client/global"
+	rtkPlatform "rtk-cross-share/client/platform"
+	rtkUtils "rtk-cross-share/client/utils"
+	rtkMisc "rtk-cross-share/misc"
 	"sync/atomic"
 	"time"
 )
@@ -23,29 +22,27 @@ import (
 func HandleClipboardEvent(ctxMain context.Context, readSocketMode *atomic.Value, resultChan chan<- EventResult, id string) {
 	resultChanText := make(chan rtkCommon.ClipBoardData)
 	resultChanImg := make(chan rtkCommon.ClipBoardData)
-	resultChanPasteImg := make(chan bool)
-	rtkUtils.GoSafe(func() {rtkClipboard.WatchClipboardText(ctxMain, id, resultChanText)})
-	rtkUtils.GoSafe(func() {rtkClipboard.WatchClipboardImg(ctxMain, id, resultChanImg)})
-	rtkUtils.GoSafe(func() {rtkClipboard.WatchClipboardPasteImg(ctxMain, id, resultChanPasteImg)})
+	resultChanPasteImg := make(chan struct{})
+	rtkMisc.GoSafe(func() { rtkClipboard.WatchClipboardText(ctxMain, id, resultChanText) })
+	rtkMisc.GoSafe(func() { rtkClipboard.WatchClipboardImg(ctxMain, id, resultChanImg) })
+	rtkMisc.GoSafe(func() { rtkClipboard.WatchClipboardPasteImg(ctxMain, id, resultChanPasteImg) })
 	for {
 		select {
 		case <-ctxMain.Done():
 			close(resultChan)
 			return
-		case isPasted := <-resultChanPasteImg:
-			if isPasted {
-				setIoSocketMode(readSocketMode, rtkCommon.IMAGE_CB)
-				resultChan <- EventResult{
-					Cmd: DispatchCmd{
-						FmtType: rtkCommon.IMAGE_CB,
-						State:   STATE_IO,
-						Command: COMM_DST,
-					},
-					Data: "",
-				}
+		case <-resultChanPasteImg:
+			//setIoSocketMode(readSocketMode, rtkCommon.IMAGE_CB)
+			resultChan <- EventResult{
+				Cmd: DispatchCmd{
+					FmtType: rtkCommon.IMAGE_CB,
+					State:   STATE_IO,
+					Command: COMM_DST,
+				},
+				Data: "",
 			}
 		case cbData := <-resultChanText:
-			setMsgSocketMode(readSocketMode)
+			//setMsgSocketMode(readSocketMode)
 			resultChan <- EventResult{
 				Cmd: DispatchCmd{
 					FmtType: rtkCommon.TEXT_CB,
@@ -55,7 +52,7 @@ func HandleClipboardEvent(ctxMain context.Context, readSocketMode *atomic.Value,
 				Data: cbData,
 			}
 		case cbData := <-resultChanImg:
-			setMsgSocketMode(readSocketMode)
+			//setMsgSocketMode(readSocketMode)
 			resultChan <- EventResult{
 				Cmd: DispatchCmd{
 					FmtType: rtkCommon.IMAGE_CB,
@@ -71,8 +68,8 @@ func HandleClipboardEvent(ctxMain context.Context, readSocketMode *atomic.Value,
 func HandleFileDropEvent(ctxMain context.Context, readSocketMode *atomic.Value, resultChan chan<- EventResult, id string) {
 	resultReqId := make(chan string)
 	resultRespId := make(chan string)
-	rtkUtils.GoSafe(func() {rtkFileDrop.WatchFileDropReqEvent(ctxMain, id, resultReqId)})
-	rtkUtils.GoSafe(func() {rtkFileDrop.WatchFileDropRespEvent(ctxMain, id, resultRespId)})
+	rtkMisc.GoSafe(func() { rtkFileDrop.WatchFileDropReqEvent(ctxMain, id, resultReqId) })
+	rtkMisc.GoSafe(func() { rtkFileDrop.WatchFileDropRespEvent(ctxMain, id, resultRespId) })
 
 	for {
 		select {
@@ -82,14 +79,22 @@ func HandleFileDropEvent(ctxMain context.Context, readSocketMode *atomic.Value, 
 		case fileDropId := <-resultReqId:
 			if fileDropId == id {
 				if data, ok := rtkFileDrop.GetFileDropData(id); ok {
-					setMsgSocketMode(readSocketMode)
+					//setMsgSocketMode(readSocketMode)
 					resultChan <- EventResult{
 						Cmd: DispatchCmd{
 							FmtType: rtkCommon.FILE_DROP,
 							State:   STATE_INIT,
 							Command: COMM_SRC,
 						},
-						Data: data.SrcFileInfo,
+						Data: rtkCommon.ExtDataFile{
+							SrcFileList:   data.SrcFileList,
+							ActionType:    data.ActionType,
+							FileType:      data.FileType,
+							TimeStamp:     data.TimeStamp,
+							FolderList:    data.FolderList,
+							TotalDescribe: data.TotalDescribe,
+							TotalSize:     data.TotalSize,
+						},
 					}
 				}
 			}
@@ -98,7 +103,7 @@ func HandleFileDropEvent(ctxMain context.Context, readSocketMode *atomic.Value, 
 				if data, ok := rtkFileDrop.GetFileDropData(id); ok {
 					if data.Cmd == rtkCommon.FILE_DROP_ACCEPT {
 						// Accept file: Prepeare to receive data
-						setIoSocketMode(readSocketMode, rtkCommon.FILE_DROP)
+						//setIoSocketMode(readSocketMode, rtkCommon.FILE_DROP)
 						resultChan <- EventResult{
 							Cmd: DispatchCmd{
 								FmtType: rtkCommon.FILE_DROP,
@@ -119,17 +124,17 @@ func HandleFileDropEvent(ctxMain context.Context, readSocketMode *atomic.Value, 
 						}
 						rtkFileDrop.ResetFileDropData(id)
 					} else {
-						log.Printf("[%s %d] Invalid fileDrop response data:%s with ID: %s", rtkUtils.GetFuncName(), rtkUtils.GetLine(), data.Cmd, id)
+						log.Printf("[%s %d] Invalid fileDrop response data:%s with ID: %s", rtkMisc.GetFuncName(), rtkMisc.GetLine(), data.Cmd, id)
 					}
 				} else {
-					log.Printf("[%s %d] Empty fileDrop response data with ID:%s", rtkUtils.GetFuncName(), rtkUtils.GetLine(), id)
+					log.Printf("[%s %d] Empty fileDrop response data with ID:%s", rtkMisc.GetFuncName(), rtkMisc.GetLine(), id)
 				}
 			}
 		}
 	}
 }
 
-func handleReadFromSocketMsg(buffer []byte, len int, msg *Peer2PeerMessage, id string) rtkCommon.SocketErr {
+func handleReadFromSocketMsg(buffer []byte, len int, msg *Peer2PeerMessage) rtkMisc.CrossShareErr {
 	buffer = buffer[:len]
 	buffer = bytes.Trim(buffer, "\x00")
 	buffer = bytes.Trim(buffer, "\x13")
@@ -141,167 +146,66 @@ func handleReadFromSocketMsg(buffer []byte, len int, msg *Peer2PeerMessage, id s
 
 	var temp TempMsg
 	err := json.Unmarshal(buffer, &temp)
-	// err := json.Unmarshal(buffer, msg)
 	if err != nil {
 		log.Println("Failed to unmarshal P2PMessage data", err.Error())
 		log.Printf("Err JSON len[%d] data:[%s] ", len, string(buffer))
 		//rtkUtils.WriteErrJson(s.RemoteAddr().String(), buffer)
-		return rtkCommon.ERR_JSON
+		return rtkMisc.ERR_BIZ_JSON_UNMARSHAL
 	}
 
 	*msg = temp.Peer2PeerMessage
+	if msg.Command == COMM_DISCONNECT || msg.Command == COMM_CANCEL_SRC || msg.Command == COMM_FILE_TRANSFER_INTERRUPT {
+		return rtkMisc.SUCCESS
+	}
+
 	switch msg.FmtType {
 	case rtkCommon.TEXT_CB:
 		var extDataText rtkCommon.ExtDataText
-		err := json.Unmarshal(temp.ExtData, &extDataText)
+		err = json.Unmarshal(temp.ExtData, &extDataText)
 		if err != nil {
 			log.Println("Err: decode ExtDataText:", err)
-			return rtkCommon.ERR_JSON
+			return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
 		}
 		msg.ExtData = extDataText
 	case rtkCommon.FILE_DROP:
 		// Response accept or reject
 		if msg.State == STATE_TRANS && msg.Command == COMM_DST {
 			var extDataCmd rtkCommon.FileDropCmd
-			err := json.Unmarshal(temp.ExtData, &extDataCmd)
+			err = json.Unmarshal(temp.ExtData, &extDataCmd)
 			if err != nil {
 				log.Println("Err: decode ExtDataFile:", err)
-				return rtkCommon.ERR_JSON
+				return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
 			}
 			msg.ExtData = extDataCmd
 		} else {
 			var extDataFile rtkCommon.ExtDataFile
-			err := json.Unmarshal(temp.ExtData, &extDataFile)
+			err = json.Unmarshal(temp.ExtData, &extDataFile)
 			if err != nil {
 				log.Println("Err: decode ExtDataFile:", err)
-				return rtkCommon.ERR_JSON
+				return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
 			}
 			msg.ExtData = extDataFile
 		}
 	case rtkCommon.IMAGE_CB:
 		var extDataImg rtkCommon.ExtDataImg
-		err := json.Unmarshal(temp.ExtData, &extDataImg)
+		err = json.Unmarshal(temp.ExtData, &extDataImg)
 		if err != nil {
 			log.Println("Err: decode ExtDataImg:", err)
-			return rtkCommon.ERR_JSON
+			return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
 		}
 		msg.ExtData = extDataImg
 	}
-	return rtkCommon.OK
-}
-
-func initFileDropDataTransfer(id string, name *string, dstFile **os.File, receivedBytes *uint64, fileSize *uint64, startTime *int64) rtkCommon.TransferErr {
-	fileDropData, ok := rtkFileDrop.GetFileDropData(id)
-	if !ok {
-		log.Printf("[%s %d] Not found fileDrop data", rtkUtils.GetFuncName(), rtkUtils.GetLine())
-		return rtkCommon.TRANS_ERR_OTHER
-	}
-	if fileDropData.Cmd != rtkCommon.FILE_DROP_ACCEPT {
-		log.Printf("[%s %d] Invalid fildDrop cmd state:%s", rtkUtils.GetFuncName(), rtkUtils.GetLine(), fileDropData.Cmd)
-		return rtkCommon.TRANS_ERR_UNKNOWN_CMD
-	}
-
-	errOpenFile := OpenDstFile(dstFile, fileDropData.DstFilePath)
-	if errOpenFile != nil {
-		return rtkCommon.TRANS_ERR_CREATE_FAILED
-	}
-
-	*name = filepath.Base(fileDropData.DstFilePath)
-	*startTime = time.Now().UnixMilli()
-	*fileSize = uint64(fileDropData.SrcFileInfo.FileSize_.SizeHigh)<<32 | uint64(fileDropData.SrcFileInfo.FileSize_.SizeLow)
-	log.Printf("(DST) Start to Copy file size:[%d]...", *fileSize)
-	*receivedBytes = uint64(0)
-	return rtkCommon.TRANS_OK
-}
-
-func initImageDataTransfer(imgBuffer *bytes.Buffer, receivedSize *uint64, fileSize *uint64, startTime *int64) rtkCommon.TransferErr {
-	cbData := rtkClipboard.GetLastClipboardData()
-	extData, ok := cbData.ExtData.(rtkCommon.ExtDataImg)
-	if !ok || cbData.FmtType != rtkCommon.IMAGE_CB {
-		log.Printf("[%s %d] Invalid image ext data type", rtkUtils.GetFuncName(), rtkUtils.GetLine())
-		return rtkCommon.TRANS_ERR_OTHER
-	}
-
-	*startTime = time.Now().UnixMilli()
-	*fileSize = uint64(extData.Size.SizeHigh)<<32 | uint64(extData.Size.SizeLow)
-	// clean image data
-	imgBuffer.Reset()
-	imgBuffer.Grow(int(*fileSize))
-	log.Printf("(DST) Start to Copy image size:[%d]...", *fileSize)
-	*receivedSize = uint64(0)
-	return rtkCommon.TRANS_OK
-}
-
-func handleReadFromSocketFileRaw(id, fileName string, file **os.File, buffer []byte, len int, receivedSize *uint64, fileSize uint64, startTime int64) bool {
-	log.Println("Receive data size:", len)
-	if len == 0 {
-		return true
-	}
-
-	if IsTransferError((buffer[:len])) {
-		HandleDataTransferError(COMM_CANCEL_SRC, id, fileName)
-		return true
-	}
-	*receivedSize += uint64(len)
-	WriteDstFile(file, buffer[:len])
-
-	ipAddr, _ := rtkUtils.GetClientIp(id)
-	if *receivedSize >= fileSize {
-		if fileDropData, ok := rtkFileDrop.GetFileDropData(id); ok {
-			rtkPlatform.GoUpdateProgressBar(ipAddr, id, fileSize, fileSize, int64(fileDropData.TimeStamp), fileDropData.DstFilePath)
-
-			//  For Android file
-			rtkPlatform.ReceiveFileDropCopyDataDone(int64(fileSize), fileDropData.DstFilePath)
-			rtkFileDrop.ResetFileDropData(id)
-		}
-		log.Printf("(DST) End to Copy file, total:[%d] use [%d] ms...", fileSize, time.Now().UnixMilli()-startTime)
-		return true
-	} else {
-		if fileDropData, ok := rtkFileDrop.GetFileDropData(id); ok {
-			rtkPlatform.GoUpdateProgressBar(ipAddr, id, fileSize, *receivedSize, int64(fileDropData.TimeStamp), fileDropData.DstFilePath)
-		}
-	}
-
-	return false
-}
-
-func handleReadFromSocketImageRaw(buffer []byte, length int, imgBuffer *bytes.Buffer, receivedSize *uint64, fileSize uint64, startTime int64) bool {
-	log.Println("Receive data size:", length)
-	if length == 0 {
-		return true
-	}
-
-	if IsTransferError((buffer[:length])) {
-		//HandleDataTransferError(COMM_CANCEL_SRC)
-		return true
-	}
-
-	// TODO: Now we receive all data and transfer to platform
-	// Consider send to Windows without image encode/decode
-	imgBuffer.Write(buffer[:length])
-	*receivedSize += uint64(length)
-	if *receivedSize >= fileSize {
-		log.Printf("(DST) End to Copy img, total:[%d] use [%d] ms...", fileSize, time.Now().UnixMilli()-startTime)
-
-		if extData, ok := rtkClipboard.GetLastClipboardData().ExtData.(rtkCommon.ExtDataImg); ok {
-			rtkPlatform.GoDataTransfer(imgBuffer.Bytes())
-			rtkPlatform.ReceiveImageCopyDataDone(int64(fileSize), extData.Header) // Only For Android
-			imgBuffer.Reset()
-		}
-		return true
-	}
-
-	return false
+	return rtkMisc.SUCCESS
 }
 
 func HandleReadFromSocket(ctxMain context.Context, readSocketMode *atomic.Value, resultChan chan<- EventResult, id string) {
 	readResult := make(chan struct {
 		buffer []byte
 		len    int
-		err    rtkCommon.SocketErr
+		err    rtkMisc.CrossShareErr
 	}, 5000)
 
-	rtkUtils.GoSafe(func() {
+	rtkMisc.GoSafe(func() {
 		for {
 			select {
 			case <-ctxMain.Done():
@@ -310,120 +214,67 @@ func HandleReadFromSocket(ctxMain context.Context, readSocketMode *atomic.Value,
 				return
 			default:
 				buffer := make([]byte, 32*1024) // 32KB
-				n, err := rtkConnection.ReadSocket(id, buffer)
+				n, errCode := rtkConnection.ReadSocket(id, buffer)
 				readResult <- struct {
 					buffer []byte
 					len    int
-					err    rtkCommon.SocketErr
-				}{buffer: buffer, len: n, err: err}
+					err    rtkMisc.CrossShareErr
+				}{buffer: buffer, len: n, err: errCode}
 
-				if err != rtkCommon.OK {
+				if errCode != rtkMisc.SUCCESS {
 					time.Sleep(100 * time.Millisecond)
 				}
 			}
 		}
 	})
 
-	var dstFileName string
-	defer func() {
-		if !isMsgSocketMode(readSocketMode) {
-			fmtType := getIoSocketFmtType(readSocketMode)
-			if fmtType == rtkCommon.FILE_DROP {
-				HandleDataTransferError(COMM_CANCEL_DST, id, dstFileName)
-			}
-		}
-	}()
-
-	// Params for data tranfer
-	startTime := int64(0)
-	isLastMsgSocketMode := isMsgSocketMode(readSocketMode)
-	fileSize := uint64(0)
-	receivedRawBytes := uint64(0)
-	var imgBuffer bytes.Buffer
-	var dstFile *os.File
-
 	for readMsg := range readResult {
-		if readMsg.err != rtkCommon.OK {
-			log.Printf("[%s] ID:[%s] ReadSocket failed  err:[%d]", rtkUtils.GetFuncInfo(), id, readMsg.err)
+		if readMsg.err != rtkMisc.SUCCESS {
+			log.Printf("[%s] ID:[%s] ReadSocket failed  errCode:[%d]", rtkMisc.GetFuncInfo(), id, readMsg.err)
 			continue
 		}
 
-		// Reveice msg data
-		if isMsgSocketMode(readSocketMode) {
-			isLastMsgSocketMode = true
-
-			var msg Peer2PeerMessage
-			errSocket := handleReadFromSocketMsg(readMsg.buffer, readMsg.len, &msg, id)
-			if errSocket != rtkCommon.OK {
-				if errSocket == rtkCommon.ERR_CANCEL { // how it happened??
-					if ctxMain.Err() == context.Canceled {
-						log.Printf("[%s %d] Err: Read canceled, retrying...", rtkUtils.GetFuncName(), rtkUtils.GetLine())
-					}
-					continue
-				} else if errSocket == rtkCommon.ERR_JSON {
-					log.Printf("[%s %d] Err: Read invalid JSON msg, retrying...", rtkUtils.GetFuncName(), rtkUtils.GetLine())
-					continue
-				}
-			}
-			log.Printf("[%s %d] EventResult fmt=%s, state=%s, cmd=%s", rtkUtils.GetFuncName(), rtkUtils.GetLine(), msg.FmtType, msg.State, msg.Command)
-
-			resultChan <- EventResult{
-				Cmd: DispatchCmd{
-					FmtType: msg.FmtType,
-					State:   msg.State,
-					Command: msg.Command,
-				},
-				Data: msg.ExtData,
-			}
-		} else { // Receive raw data
-			fmtType := getIoSocketFmtType(readSocketMode)
-			// TODO: refine this flow: how to check if first time downloading
-			if isLastMsgSocketMode {
-				// Init data transfer params
-				switch fmtType {
-				case rtkCommon.FILE_DROP:
-					isLastMsgSocketMode = false
-					ret := initFileDropDataTransfer(id, &dstFileName, &dstFile, &receivedRawBytes, &fileSize, &startTime)
-					if ret != rtkCommon.TRANS_OK {
-						log.Printf("[%s %d] Err: FileDrop tranfer initialized failed. Code:%d", rtkUtils.GetFuncName(), rtkUtils.GetLine(), ret)
-						setMsgSocketMode(readSocketMode)
-						isLastMsgSocketMode = true
-						// TODO: display error dialog
-						// TODO: send msg to SRC for cancel
-						continue
-					}
-				case rtkCommon.IMAGE_CB:
-					isLastMsgSocketMode = false
-					ret := initImageDataTransfer(&imgBuffer, &receivedRawBytes, &fileSize, &startTime)
-					if ret != rtkCommon.TRANS_OK {
-						log.Printf("[%s %d] Err: Image tranfer initialized failed. Code:%d", rtkUtils.GetFuncName(), rtkUtils.GetLine(), ret)
-						setMsgSocketMode(readSocketMode)
-						isLastMsgSocketMode = true
-						// TODO: display error dialog
-						// TODO: send msg to SRC for cancel
-						continue
-					}
-				default:
-					log.Printf("[%s %d] Unknown data transfer type:%s", rtkUtils.GetFuncName(), rtkUtils.GetLine(), fmtType)
-				}
-			}
-
-			if fmtType == rtkCommon.FILE_DROP {
-				if handleReadFromSocketFileRaw(id, dstFileName, &dstFile, readMsg.buffer, readMsg.len, &receivedRawBytes, fileSize, startTime) {
-					CloseDstFile(&dstFile)
-					setMsgSocketMode(readSocketMode)
-					isLastMsgSocketMode = true
-				}
-			} else if fmtType == rtkCommon.IMAGE_CB {
-				if handleReadFromSocketImageRaw(readMsg.buffer, readMsg.len, &imgBuffer, &receivedRawBytes, fileSize, startTime) {
-					setMsgSocketMode(readSocketMode)
-					isLastMsgSocketMode = true
-				}
-			}
+		var msg Peer2PeerMessage
+		errCode := handleReadFromSocketMsg(readMsg.buffer, readMsg.len, &msg)
+		if errCode != rtkMisc.SUCCESS {
+			log.Printf("[%s] handle Read message error, errCode:%d, retrying...", rtkMisc.GetFuncInfo(), errCode)
+			continue
 		}
+		log.Printf("[%s %d] EventResult fmt=%s, state=%s, cmd=%s", rtkMisc.GetFuncName(), rtkMisc.GetLine(), msg.FmtType, msg.State, msg.Command)
+
+		if msg.Command == COMM_DISCONNECT {
+			rtkConnection.OfflineEvent(id)
+			break
+		} else if msg.Command == COMM_FILE_TRANSFER_INTERRUPT {
+			// TODO: check if necessary to notice GUI
+			rtkConnection.CloseFmtTypeStream(id, rtkCommon.FILE_DROP)
+			continue
+		} else if msg.Command == COMM_CANCEL_SRC {
+			if msg.FmtType == rtkCommon.FILE_DROP {
+				fileDropData, ok := rtkFileDrop.GetFileDropData(id)
+				if !ok {
+					log.Printf("[%s] ID:[%s] Not found fileDrop data", rtkMisc.GetFuncInfo(), id)
+					continue
+				}
+				rtkFileDrop.ResetFileDropData(id)
+				// TODO:  check if necessary and how to notice DST GUI
+				HandleDataTransferError(COMM_CANCEL_SRC, id, fileDropData.DstFilePath)
+			}
+			continue
+		}
+
+		resultChan <- EventResult{
+			Cmd: DispatchCmd{
+				FmtType: msg.FmtType,
+				State:   msg.State,
+				Command: msg.Command,
+			},
+			Data: msg.ExtData,
+		}
+
 	}
 	close(resultChan)
-	log.Printf("[%s] ID:[%s] HandleReadFromSocket end by context !", rtkUtils.GetFuncInfo(), id)
+	log.Printf("[%s] ID:[%s] HandleReadFromSocket end by context !", rtkMisc.GetFuncInfo(), id)
 }
 
 func buildCmd(curState *StateType, curCommand *CommandType, event EventResult, buildState *StateType, buildCommand *CommandType) bool {
@@ -468,14 +319,14 @@ func buildCmd(curState *StateType, curCommand *CommandType, event EventResult, b
 		updateStateCommand(curState, curCommand, *buildState, *buildCommand)
 		return true
 	} else {
-		log.Printf("[%s %d] Invalid state: cur(%s, %s), next(%s, %s)", rtkUtils.GetFuncName(), rtkUtils.GetLine(), *curState, *curCommand, event.Cmd.State, event.Cmd.Command)
+		log.Printf("[%s %d] Invalid state: cur(%s, %s), next(%s, %s)", rtkMisc.GetFuncName(), rtkMisc.GetLine(), *curState, *curCommand, event.Cmd.State, event.Cmd.Command)
 		return false
 	}
 }
 
 func buildMessage(msg *Peer2PeerMessage, id string, event EventResult) bool {
 	msg.SourceID = rtkGlobal.NodeInfo.ID
-	msg.SourcePlatform = rtkPlatform.GetPlatform()
+	msg.SourcePlatform = rtkGlobal.NodeInfo.Platform
 	msg.FmtType = event.Cmd.FmtType
 	msg.State = event.Cmd.State
 	msg.Command = event.Cmd.Command
@@ -490,7 +341,7 @@ func buildMessage(msg *Peer2PeerMessage, id string, event EventResult) bool {
 				}
 				return true
 			} else {
-				log.Printf("[%s %d] Err: Import Clipboard - Text to msg failed", rtkUtils.GetFuncName(), rtkUtils.GetLine())
+				log.Printf("[%s %d] Err: Import Clipboard - Text to msg failed", rtkMisc.GetFuncName(), rtkMisc.GetLine())
 				return false
 			}
 		}
@@ -509,7 +360,7 @@ func buildMessage(msg *Peer2PeerMessage, id string, event EventResult) bool {
 				}
 				return true
 			} else {
-				log.Printf("[%s %d] Err: Import Clipboard - Image to msg failed", rtkUtils.GetFuncName(), rtkUtils.GetLine())
+				log.Printf("[%s %d] Err: Import Clipboard - Image to msg failed", rtkMisc.GetFuncName(), rtkMisc.GetLine())
 				return false
 			}
 		} else if event.Cmd.Command == COMM_DST {
@@ -528,12 +379,17 @@ func buildMessage(msg *Peer2PeerMessage, id string, event EventResult) bool {
 		} else if event.Cmd.Command == COMM_SRC {
 			if extData, ok := rtkFileDrop.GetFileDropData(id); ok {
 				msg.ExtData = rtkCommon.ExtDataFile{
-					Size:     extData.SrcFileInfo.FileSize_,
-					FilePath: extData.SrcFileInfo.FilePath,
+					SrcFileList:   extData.SrcFileList,
+					ActionType:    extData.ActionType,
+					FileType:      extData.FileType,
+					TimeStamp:     extData.TimeStamp,
+					FolderList:    extData.FolderList,
+					TotalDescribe: extData.TotalDescribe,
+					TotalSize:     extData.TotalSize,
 				}
 				return true
 			} else {
-				log.Printf("[%s %d] Err: Import FileDrop - File to msg failed", rtkUtils.GetFuncName(), rtkUtils.GetLine())
+				log.Printf("[%s %d] Err: Import FileDrop - File to msg failed", rtkMisc.GetFuncName(), rtkMisc.GetLine())
 				return false
 			}
 		} else if event.Cmd.Command == COMM_DST {
@@ -583,83 +439,22 @@ func WaitForReply(s net.Conn, match CommandType) rtkCommon.SocketErr {
 	return rtkCommon.OK
 }
 
-func writeToSocket(msg Peer2PeerMessage, id string) rtkCommon.SocketErr {
+func writeToSocket(msg *Peer2PeerMessage, id string) rtkMisc.CrossShareErr {
 	log.Printf("Write msg to: %s, platform=%s, fmt=%s, state=%s, cmd=%s", id, msg.SourcePlatform, msg.FmtType, msg.State, msg.Command)
 	encodedData, err := json.Marshal(msg)
 	if err != nil {
 		log.Println("Failed to marshal P2PMessage data:", err)
-		return rtkCommon.ERR_JSON
+		return rtkMisc.ERR_BIZ_JSON_MARSHAL
 	}
 
 	encodedData = bytes.Trim(encodedData, "\x00")
 	encodedData = bytes.Trim(encodedData, "\x13")
 
-	sockErr := rtkConnection.WriteSocket(id, encodedData)
-	if sockErr == rtkCommon.ERR_RESET {
+	errCode := rtkConnection.WriteSocket(id, encodedData)
+	if errCode == rtkMisc.ERR_BIZ_GET_STREAM_RESET {
 		return rtkConnection.WriteSocket(id, encodedData)
 	}
-
-	return sockErr
-}
-
-func OpenSrcFile(file **os.File, filePath string) error {
-	if *file != nil {
-		(*file).Close()
-		*file = nil
-	}
-
-	var err error
-	*file, err = os.OpenFile(filePath, os.O_RDONLY, 0644)
-	if err != nil {
-		*file = nil
-		log.Println("Error opening file:", err, "filePath:", filePath)
-		return err
-	}
-	_, errSeek := (*file).Seek(0, io.SeekStart)
-	if errSeek != nil {
-		(*file).Close()
-		*file = nil
-		log.Println("Error seek file:", err)
-		return errSeek
-	}
-	log.Println("OpenSrcFile")
-	return nil
-}
-
-func CloseSrcFile(file **os.File) {
-	if *file == nil {
-		return
-	}
-	(*file).Close()
-	*file = nil
-	log.Println("CloseSrcFile")
-}
-
-func OpenDstFile(file **os.File, filePath string) error {
-	if *file != nil {
-		(*file).Close()
-		*file = nil
-	}
-
-	var err error
-	*file, err = os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
-	if err != nil {
-		log.Printf("Error opening Dst file err: %v path: %v", err, filePath)
-		*file = nil
-		return err
-	}
-	log.Println("OpenDstFile")
-	return nil
-}
-
-func CloseDstFile(file **os.File) {
-	if *file == nil {
-		return
-	}
-
-	log.Println("CloseDstFile")
-	(*file).Close()
-	*file = nil
+	return errCode
 }
 
 func HandleDataTransferError(inbandCmd CommandType, id, fileName string) {
@@ -699,81 +494,55 @@ func WriteDstFile(file **os.File, content []byte) {
 			return
 		}
 	} else {
-		log.Printf("[%s %d] Err: Dst file is not open!", rtkUtils.GetFuncName(), rtkUtils.GetLine())
+		log.Printf("[%s %d] Err: Dst file is not open!", rtkMisc.GetFuncName(), rtkMisc.GetLine())
 	}
 }
 
 func processIoWrite(id string, fmtType rtkCommon.TransFmtType) {
-	// TODO: reconnect check
-	stream, ok := rtkConnection.GetStream(id)
-	if !ok {
-		log.Printf("[%s %d] Err: Not found stream by ID: %s", rtkUtils.GetFuncName(), rtkUtils.GetLine(), id)
-		return
-	}
-	startTime := time.Now().UnixMilli()
+	resultCode := rtkMisc.SUCCESS
+	ipAddr, _ := rtkUtils.GetClientIp(id)
+
 	if fmtType == rtkCommon.FILE_DROP {
-		fileDropReqData, ok := rtkFileDrop.GetFileDropData(id)
-		if !ok {
-			log.Printf("[%s %d] Err: Not found fileDrop data", rtkUtils.GetFuncName(), rtkUtils.GetLine())
-			goto ErrFlag
+		resultCode = writeFileDataToSocket(id)
+		if resultCode != rtkMisc.SUCCESS {
+			log.Printf("(SRC) ID[%s] IP[%s] Copy file list To Socket failed, ERR code:[%d]", id, ipAddr, resultCode)
 		}
-		if fileDropReqData.SrcFileInfo.FilePath == "" ||
-			(fileDropReqData.SrcFileInfo.FileSize_.SizeHigh == 0 && fileDropReqData.SrcFileInfo.FileSize_.SizeLow == 0) {
-			log.Printf("[%s %d] Err: Invalid fileDrop data", rtkUtils.GetFuncName(), rtkUtils.GetLine())
-			goto ErrFlag
-		}
-		var srcFile *os.File
-		errOpenFile := OpenSrcFile(&srcFile, fileDropReqData.SrcFileInfo.FilePath)
-		if errOpenFile != nil {
-			goto ErrFlag
-		}
-
-		defer CloseSrcFile(&srcFile)
-		defer rtkFileDrop.ResetFileDropData(id)
-		log.Println("(SRC) Start to copy file ...")
-		// TODO: write data timeout
-		// s.SetWriteDeadline(time.Now().Add(10 * time.Second))
-		// TODO: Update progress bar
-		n, err := io.Copy(stream, srcFile)
-		// s.SetWriteDeadline(time.Time{})
-		if err != nil {
-			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-				log.Println("Error sending file timeout:", netErr)
-			} else {
-				log.Println("Error sending file:", err)
-			}
-			return
-		}
-		log.Printf("(SRC) End to copy file, size:[%d] use [%d] ms ...", n, time.Now().UnixMilli()-startTime)
 	} else if fmtType == rtkCommon.IMAGE_CB {
-		if extData, ok := rtkClipboard.GetLastClipboardData().ExtData.(rtkCommon.ExtDataImg); ok {
-			log.Printf("(SRC) Start to copy img, len[%d]...", len(extData.Data))
-			_, err := io.Copy(stream, bytes.NewReader(extData.Data))
-			if err != nil {
-				log.Println("Error sending img:", err)
-				return
-			}
-			log.Printf("(SRC) End to copy img, use [%d] ms ...", time.Now().UnixMilli()-startTime)
-		} else {
-			log.Printf("[%s %d] Unknown ext data type", rtkUtils.GetFuncName(), rtkUtils.GetLine())
-			goto ErrFlag
+		resultCode = writeImageToSocket(id)
+		if resultCode != rtkMisc.SUCCESS {
+			log.Printf("(SRC) ID[%s] IP[%s] Copy image To Socket failed, ERR code:[%d]", id, ipAddr, resultCode)
 		}
 	}
 
-	return
+	if resultCode != rtkMisc.SUCCESS {
+		SendCmdMsgToPeer(id, COMM_CANCEL_SRC, fmtType, resultCode)
+	}
+}
 
-ErrFlag:
-	var msg Peer2PeerMessage
-	msg.SourceID = rtkGlobal.NodeInfo.ID
-	msg.SourcePlatform = rtkPlatform.GetPlatform()
-	msg.FmtType = fmtType
-	msg.TimeStamp = uint64(time.Now().Unix())
-	msg.Command = COMM_CANCEL_SRC
-	writeToSocket(msg, id)
+func processIoRead(id, ipAddr, deviceName string, fmtType rtkCommon.TransFmtType) {
+	if fmtType == rtkCommon.FILE_DROP {
+		dstFileName, resultCode := handleFileDataFromSocket(id, ipAddr, deviceName)
+		if resultCode != rtkMisc.SUCCESS {
+			// Both user cancellations and exceptions require notification to the other end
+			SendCmdMsgToPeer(id, COMM_FILE_TRANSFER_INTERRUPT, rtkCommon.TEXT_CB, rtkMisc.SUCCESS)
+			if resultCode != rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL {
+				log.Printf("(DST) ID[%s] IP[%s] Copy file [%s] From Socket failed, ERR code:[%d]", id, ipAddr, dstFileName, resultCode)
+				HandleDataTransferError(COMM_CANCEL_DST, id, dstFileName)
+			}
+		}
+	} else if fmtType == rtkCommon.IMAGE_CB {
+		resultCode := handleCopyImageFromSocket(id, ipAddr)
+		if resultCode != rtkMisc.SUCCESS {
+			log.Printf("(DST) ID[%s] IP[%s] Copy image From Socket failed, ERR code:[%d] ...", id, ipAddr, resultCode)
+			// TODO: send response to platform
+			HandleDataTransferError(COMM_CANCEL_DST, id, "")
+		}
+	}
+
 }
 
 func updateStateCommand(curState *StateType, curCommand *CommandType, updateState StateType, updateCommand CommandType) {
-	log.Printf("[%s %d] Current state from (%s, %s) to (%s, %s)", rtkUtils.GetFuncName(), rtkUtils.GetLine(), *curState, *curCommand, updateState, updateCommand)
+	log.Printf("[%s %d] Current state from (%s, %s) to (%s, %s)", rtkMisc.GetFuncName(), rtkMisc.GetLine(), *curState, *curCommand, updateState, updateCommand)
 	if updateState == STATE_INIT {
 		// convert STATE_INIT to STATE_INFO for INIT
 		*curState = STATE_INFO
@@ -789,19 +558,19 @@ func processTextCB(id string, event EventResult) bool {
 
 	if nextState == STATE_INFO && nextCommand == COMM_DST {
 		if extData, ok := event.Data.(rtkCommon.ExtDataText); ok {
-			log.Printf("[%s %d] Ready to paste text", rtkUtils.GetFuncName(), rtkUtils.GetLine())
+			log.Printf("[%s %d] Ready to paste text", rtkMisc.GetFuncName(), rtkMisc.GetLine())
 			// [Dst]: Setup clipboard and DO NOT send msg
-			rtkUtils.GoSafe(func() { rtkClipboard.SetupDstPasteText(id, []byte(extData.Text)) })
+			rtkMisc.GoSafe(func() { rtkClipboard.SetupDstPasteText(id, []byte(extData.Text)) })
 		} else {
-			log.Printf("[%s %d] Err: Setup past text failed", rtkUtils.GetFuncName(), rtkUtils.GetLine())
+			log.Printf("[%s %d] Err: Setup past text failed", rtkMisc.GetFuncName(), rtkMisc.GetLine())
 			return false
 		}
 	} else {
 		var msg Peer2PeerMessage
 		if buildMessage(&msg, id, event) {
-			writeToSocket(msg, id)
+			writeToSocket(&msg, id)
 		} else {
-			log.Printf("[%s %d] Build message failed", rtkUtils.GetFuncName(), rtkUtils.GetLine())
+			log.Printf("[%s %d] Build message failed", rtkMisc.GetFuncName(), rtkMisc.GetLine())
 			return false
 		}
 	}
@@ -814,22 +583,34 @@ func processImageCB(id string, event EventResult) bool {
 
 	if nextState == STATE_IO && nextCommand == COMM_SRC {
 		// [Src]: Start to trans file
-		rtkUtils.GoSafe(func() { processIoWrite(id, event.Cmd.FmtType) })
+		rtkMisc.GoSafe(func() { processIoWrite(id, event.Cmd.FmtType) })
 	} else if nextState == STATE_TRANS && nextCommand == COMM_DST {
 		if extData, ok := event.Data.(rtkCommon.ExtDataImg); ok {
-			log.Printf("[%s %d] Ready to paste image", rtkUtils.GetFuncName(), rtkUtils.GetLine())
+			log.Printf("[%s %d] Ready to paste image", rtkMisc.GetFuncName(), rtkMisc.GetLine())
 			// [Dst]: Setup clipboard and DO NOT send msg
-			rtkUtils.GoSafe(func() { rtkClipboard.SetupDstPasteImage(id, "", extData.Data, extData.Header, extData.Size.SizeLow) })
+			rtkMisc.GoSafe(func() { rtkClipboard.SetupDstPasteImage(id, "", extData.Data, extData.Header, extData.Size.SizeLow) })
 		} else {
-			log.Printf("[%s %d] Err: Setup past image failed", rtkUtils.GetFuncName(), rtkUtils.GetLine())
+			log.Printf("[%s %d] Err: Setup past image failed", rtkMisc.GetFuncName(), rtkMisc.GetLine())
 			return false
 		}
 	} else {
+		if nextState == STATE_IO && nextCommand == COMM_DST {
+			ipAddr, ok := rtkUtils.GetClientIp(id)
+			if !ok {
+				//return rtkMisc.ERR_BIZ_GET_CLIENT_INFO_EMPTY
+				return false
+			}
+			if errCode := rtkConnection.BuildFmtTypeTalker(id, rtkCommon.IMAGE_CB); errCode != rtkMisc.SUCCESS {
+				log.Printf("[%s]BuildImageTalker errCode:%+v ", rtkMisc.GetFuncInfo(), errCode)
+				return false
+			}
+			rtkMisc.GoSafe(func() { processIoRead(id, ipAddr, "", event.Cmd.FmtType) })
+		}
 		var msg Peer2PeerMessage
 		if buildMessage(&msg, id, event) {
-			writeToSocket(msg, id)
+			writeToSocket(&msg, id)
 		} else {
-			log.Printf("[%s %d] Build message failed", rtkUtils.GetFuncName(), rtkUtils.GetLine())
+			log.Printf("[%s %d] Build message failed", rtkMisc.GetFuncName(), rtkMisc.GetLine())
 			return false
 		}
 	}
@@ -844,32 +625,75 @@ func processFileDrop(id string, event EventResult) bool {
 		// Receive response from dst
 		if extData, ok := event.Data.(rtkCommon.FileDropCmd); ok {
 			if extData == rtkCommon.FILE_DROP_ACCEPT {
-				rtkUtils.GoSafe(func() { processIoWrite(id, event.Cmd.FmtType) }) // [Src]: Start to trans file
+				rtkMisc.GoSafe(func() { processIoWrite(id, event.Cmd.FmtType) }) // [Src]: Start to trans file
 			} else if extData == rtkCommon.FILE_DROP_REJECT {
 				// TODO: send response to platform (accept or reject)
 				rtkFileDrop.ResetFileDropData(id)
 			} else {
-				log.Printf("[%s %d] Unknown file drop response type: %s", rtkUtils.GetFuncName(), rtkUtils.GetLine(), extData)
+				log.Printf("[%s %d] Unknown file drop response type: %s", rtkMisc.GetFuncName(), rtkMisc.GetLine(), extData)
 			}
 		} else {
-			log.Printf("[%s %d] Invalid file drop response: %+v", rtkUtils.GetFuncName(), rtkUtils.GetLine(), extData)
+			log.Printf("[%s %d] Invalid file drop response: %+v", rtkMisc.GetFuncName(), rtkMisc.GetLine(), extData)
 		}
 	} else if nextState == STATE_TRANS && nextCommand == COMM_DST {
 		if extData, ok := event.Data.(rtkCommon.ExtDataFile); ok {
-			log.Printf("[%s %d] Ready to accept file", rtkUtils.GetFuncName(), rtkUtils.GetLine())
-			// [Dst]: Setup clipboard and DO NOT send msg
-			clientInfo, _ := rtkUtils.GetClientInfo(id)
-			rtkFileDrop.SetupDstFileDrop(id, extData.FilePath, clientInfo.Platform, extData.Size.SizeHigh, extData.Size.SizeLow, time.Now().UnixMilli())
+			log.Printf("[%s %d] Ready to accept file,ActionType:[%s] FileType:[%s]", rtkMisc.GetFuncName(), rtkMisc.GetLine(), extData.ActionType, extData.FileType)
+			// [Dst]: Setup file drop Data and DO NOT send msg
+
+			if len(extData.SrcFileList) == 0 && len(extData.FolderList) == 0 {
+				log.Printf("[%s] ID[%s] get file data is null", rtkMisc.GetFuncInfo(), id)
+				return false
+			}
+			clientInfo, err := rtkUtils.GetClientInfo(id)
+			if err != nil {
+				log.Printf("[%s] %s", rtkMisc.GetFuncInfo(), err.Error())
+				return false
+			}
+
+			if extData.ActionType == rtkCommon.P2PFileActionType_Drop {
+				if extData.FileType == rtkCommon.P2PFile_Type_Single {
+					rtkFileDrop.SetupDstFileDrop(id, clientInfo.IpAddr, clientInfo.Platform, extData.SrcFileList[0], extData.TimeStamp)
+				} else if extData.FileType == rtkCommon.P2PFile_Type_Multiple {
+					rtkFileDrop.SetupDstFileListDrop(id, clientInfo.IpAddr, clientInfo.Platform, extData.TotalDescribe, extData.SrcFileList, extData.FolderList, extData.TotalSize, extData.TimeStamp)
+				} else {
+					log.Printf("[%s] ID[%s] IP:[%s] get file unknown FileType:[%s] ", rtkMisc.GetFuncInfo(), id, clientInfo.IpAddr, extData.FileType)
+					return false
+				}
+			} else if extData.ActionType == rtkCommon.P2PFileActionType_Drag {
+				if extData.FileType == rtkCommon.P2PFile_Type_Single {
+					rtkFileDrop.SetupDstDragFile(id, clientInfo.IpAddr, clientInfo.Platform, extData.SrcFileList[0], extData.TotalSize, extData.TimeStamp)
+				} else if extData.FileType == rtkCommon.P2PFile_Type_Multiple {
+					rtkFileDrop.SetupDstDragFileList(id, clientInfo.IpAddr, clientInfo.Platform, extData.SrcFileList, extData.FolderList, extData.TotalSize, extData.TimeStamp, extData.TotalDescribe)
+				} else {
+					log.Printf("[%s] ID[%s] IP:[%s] get file unknown FileType:[%s] ", rtkMisc.GetFuncInfo(), id, clientInfo.IpAddr, extData.FileType)
+					return false
+				}
+			} else {
+				log.Printf("[%s] ID[%s] IP:[%s] get file unknown ActionType:[%s] ", rtkMisc.GetFuncInfo(), id, clientInfo.IpAddr, extData.ActionType)
+				return false
+			}
 		} else {
-			log.Printf("[%s %d] Err: Setup file drop failed", rtkUtils.GetFuncName(), rtkUtils.GetLine())
+			log.Printf("[%s %d] Err: Setup file drop failed", rtkMisc.GetFuncName(), rtkMisc.GetLine())
 			return false
 		}
 	} else {
+		if nextState == STATE_IO && nextCommand == COMM_DST { // [Dst]: build fmtType Stream first
+			clientInfo, err := rtkUtils.GetClientInfo(id)
+			if err != nil {
+				//return rtkMisc.ERR_BIZ_GET_CLIENT_INFO_EMPTY
+				return false
+			}
+			if errCode := rtkConnection.BuildFmtTypeTalker(id, event.Cmd.FmtType); errCode != rtkMisc.SUCCESS {
+				log.Printf("[%s]BuildFmtTypeTalker errCode:%+v ", rtkMisc.GetFuncInfo(), errCode)
+				return false
+			}
+			rtkMisc.GoSafe(func() { processIoRead(id, clientInfo.IpAddr, clientInfo.DeviceName, event.Cmd.FmtType) }) // [Dst]: be ready to receive file drop raw data
+		}
 		var msg Peer2PeerMessage
 		if buildMessage(&msg, id, event) {
-			writeToSocket(msg, id)
+			writeToSocket(&msg, id)
 		} else {
-			log.Printf("[%s %d] Build message failed", rtkUtils.GetFuncName(), rtkUtils.GetLine())
+			log.Printf("[%s %d] Build message failed", rtkMisc.GetFuncName(), rtkMisc.GetLine())
 			return false
 		}
 	}
@@ -940,30 +764,9 @@ func isValidState(curState StateType, curCommand CommandType, nextState StateTyp
 	}
 
 	if !ret {
-		log.Printf("[%s %d] Invalid state: cur(%s, %s), next(%s, %s)", rtkUtils.GetFuncName(), rtkUtils.GetLine(), curState, curCommand, nextState, nextCommand)
+		log.Printf("[%s %d] Invalid state: cur(%s, %s), next(%s, %s)", rtkMisc.GetFuncName(), rtkMisc.GetLine(), curState, curCommand, nextState, nextCommand)
 	}
 	return ret
-}
-
-type ReadSocketMode struct {
-	AllowReadMsg bool
-	DataType     rtkCommon.TransFmtType
-}
-
-func setMsgSocketMode(data *atomic.Value) {
-	data.Store(ReadSocketMode{true, rtkCommon.TEXT_CB})
-}
-
-func setIoSocketMode(data *atomic.Value, dataType rtkCommon.TransFmtType) {
-	data.Store(ReadSocketMode{false, dataType})
-}
-
-func isMsgSocketMode(data *atomic.Value) bool {
-	return data.Load().(ReadSocketMode).AllowReadMsg
-}
-
-func getIoSocketFmtType(data *atomic.Value) rtkCommon.TransFmtType {
-	return data.Load().(ReadSocketMode).DataType
 }
 
 func ProcessEventsForPeer(id string, ctx context.Context) {
@@ -971,13 +774,13 @@ func ProcessEventsForPeer(id string, ctx context.Context) {
 	curCommand := COMM_INIT
 
 	var readSocketMode atomic.Value
-	setMsgSocketMode(&readSocketMode)
+	//setMsgSocketMode(&readSocketMode)
 	eventResultClipboard := make(chan EventResult)
 	eventResultFileDrop := make(chan EventResult)
 	eventResultSocket := make(chan EventResult)
-	rtkUtils.GoSafe(func() {HandleClipboardEvent(ctx, &readSocketMode, eventResultClipboard, id)})
-	rtkUtils.GoSafe(func() {HandleFileDropEvent(ctx, &readSocketMode, eventResultFileDrop, id)})
-	rtkUtils.GoSafe(func() {HandleReadFromSocket(ctx, &readSocketMode, eventResultSocket, id)})
+	rtkMisc.GoSafe(func() { HandleClipboardEvent(ctx, &readSocketMode, eventResultClipboard, id) })
+	rtkMisc.GoSafe(func() { HandleFileDropEvent(ctx, &readSocketMode, eventResultFileDrop, id) })
+	rtkMisc.GoSafe(func() { HandleReadFromSocket(ctx, &readSocketMode, eventResultSocket, id) })
 
 	handleEvent := func(event EventResult) {
 		buildState := curState
@@ -996,18 +799,27 @@ func ProcessEventsForPeer(id string, ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Printf("[%s] ID:[%s] ProcessEventsForPeer is End by context", rtkUtils.GetFuncInfo(), id)
+			log.Printf("[%s] ID:[%s] ProcessEventsForPeer is End by context", rtkMisc.GetFuncInfo(), id)
 			if rtkClipboard.GetLastClipboardData().SourceID == id {
 				rtkClipboard.ResetLastClipboardData()
 			}
 			return
 		case event := <-eventResultClipboard:
+			if event.Cmd.State == "" || event.Cmd.Command == "" {
+				continue
+			}
 			log.Printf("[ProcessEvent Clipboard][%s] EventResult fmt=%s, state=%s, cmd=%s", ipAddr, event.Cmd.FmtType, event.Cmd.State, event.Cmd.Command)
 			handleEvent(event)
 		case event := <-eventResultFileDrop:
+			if event.Cmd.State == "" || event.Cmd.Command == "" {
+				continue
+			}
 			log.Printf("[ProcessEvent FileDrop][%s] EventResult fmt=%s, state=%s, cmd=%s", ipAddr, event.Cmd.FmtType, event.Cmd.State, event.Cmd.Command)
 			handleEvent(event)
 		case event := <-eventResultSocket:
+			if event.Cmd.State == "" || event.Cmd.Command == "" {
+				continue
+			}
 			log.Printf("[ProcessEvent Socket][%s] EventResult fmt=%s, state=%s, cmd=%s", ipAddr, event.Cmd.FmtType, event.Cmd.State, event.Cmd.Command)
 			handleEvent(event)
 		}

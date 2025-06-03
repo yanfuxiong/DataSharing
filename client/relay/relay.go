@@ -12,11 +12,12 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/client"
 	ma "github.com/multiformats/go-multiaddr"
 
-	rtkCommon "rtk-cross-share/common"
-	rtkConnection "rtk-cross-share/connection"
-	rtkGlobal "rtk-cross-share/global"
-	rtkPlatform "rtk-cross-share/platform"
-	rtkUtils "rtk-cross-share/utils"
+	rtkCommon "rtk-cross-share/client/common"
+	rtkConnection "rtk-cross-share/client/connection"
+	rtkGlobal "rtk-cross-share/client/global"
+	rtkPlatform "rtk-cross-share/client/platform"
+	rtkUtils "rtk-cross-share/client/utils"
+	rtkMisc "rtk-cross-share/misc"
 )
 
 func regiterToServer(ctx context.Context, s network.Stream, node host.Host) {
@@ -97,7 +98,7 @@ func BuildListener(ctx context.Context, node host.Host) {
 	relayServerAddr := rtkGlobal.RelayServerIPInfo + rtkGlobal.RelayServerID
 	setupRelayServerConnection(ctx, node, relayServerAddr)
 	node.SetStreamHandler(rtkGlobal.ProtocolID, func(s network.Stream) {
-		rtkUtils.GoSafe(func() {rtkConnection.HandleStream(s)})
+		rtkMisc.GoSafe(func() { rtkConnection.HandleStream(s) })
 	})
 }
 
@@ -127,5 +128,5 @@ func BuildTalker(ctx context.Context, node host.Host, targetId string) {
 		return
 	}
 
-	rtkUtils.GoSafe(func() {rtkConnection.ExecuteP2PConnect(ctx, stream, node)})
+	rtkMisc.GoSafe(func() { rtkConnection.ExecuteP2PConnect(ctx, stream, node) })
 }

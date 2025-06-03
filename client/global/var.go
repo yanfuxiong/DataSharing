@@ -1,8 +1,8 @@
 package global
 
 import (
-	"gopkg.in/natefinch/lumberjack.v2"
-	rtkCommon "rtk-cross-share/common"
+	rtkCommon "rtk-cross-share/client/common"
+	rtkMisc "rtk-cross-share/misc"
 	"sync"
 	"time"
 )
@@ -13,8 +13,10 @@ var NodeInfo = rtkCommon.NodeInfo{
 		PublicPort: "",
 		PublicIP:   "",
 	},
-	ID:         "",
-	DeviceName: "",
+	ID:             "",
+	DeviceName:     "",
+	Platform:       "",
+	SourcePortType: "",
 }
 
 var (
@@ -23,10 +25,8 @@ var (
 	ListenHost        string
 	ListenPort        int
 	GuestList         []string
-	ClientInfoMap     = make(map[string]rtkCommon.ClientInfo)
+	ClientInfoMap     = make(map[string]rtkMisc.ClientInfo)
 	ClientListRWMutex = sync.RWMutex{}
-	LogPath           string
-	CrashLogPath      string
-	LoggerWriteFile   lumberjack.Logger
-	RTT               map[string]time.Duration = make(map[string]time.Duration)
+
+	RTT map[string]time.Duration = make(map[string]time.Duration)
 )

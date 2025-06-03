@@ -4,9 +4,11 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	rtkConnection "rtk-cross-share/connection"
-	rtkPlatform "rtk-cross-share/platform"
-	rtkUtils "rtk-cross-share/utils"
+	rtkConnection "rtk-cross-share/client/connection"
+	rtkLogin "rtk-cross-share/client/login"
+	rtkPlatform "rtk-cross-share/client/platform"
+	rtkUtils "rtk-cross-share/client/utils"
+	rtkMisc "rtk-cross-share/misc"
 	"strconv"
 	"strings"
 	"time"
@@ -59,14 +61,14 @@ func DebugCmdLine() {
 			ip := "192.168.30.1:12345"
 			id := "QmQ7obXFx1XMFr6hCYXtovn9zREFqSXEtH5hdtpBDLjrAz"
 			name := "jack_huang123"
-			rtkPlatform.GoUpdateClientStatus(status, ip, id, name)
+			rtkPlatform.GoUpdateClientStatus(status, ip, id, name, "HDMI1")
 		} else if strings.Contains(line, "PIPE_SETUP_FILE_DROP") {
 			ip := "192.168.30.1:12345"
 			id := "QmQ7obXFx1XMFr6hCYXtovn9zREFqSXEtH5hdtpBDLjrAz"
 			// fileName := "D:\\jack_huang\\Downloads\\新增資料夾\\測試.mp4"
 			fileName := "D:\\jack_huang\\Downloads\\newFolder\\test.mp4"
 			var fileSize uint64 = 60727169
-			var timestamp int64 = 1697049243123
+			var timestamp uint64 = 1697049243123
 			rtkPlatform.GoSetupFileDrop(ip, id, fileName, rtkPlatform.GetPlatform(), fileSize, timestamp)
 		} else if strings.Contains(line, "PIPE_UPDATE_PROGRESS") {
 			ip := "192.168.30.1:12345"
@@ -75,7 +77,7 @@ func DebugCmdLine() {
 			// fileName := "D:\\jack_huang\\Downloads\\newFolder\\test.mp4test.mp4"
 			fileName := "D:\\jack_huang\\Downloads\\newFolder\\test.mp4"
 			var fileSize uint64 = 60727169
-			var timestamp int64 = int64(time.Now().UnixMilli())
+			var timestamp uint64 = uint64(time.Now().UnixMilli())
 			var sentSize uint64 = 0
 			for scanner.Scan() {
 				line2 := scanner.Text()
@@ -96,7 +98,7 @@ func DebugCmdLine() {
 					rtkPlatform.GoUpdateProgressBar(ip, id, fileSize, sentSize, timestamp, fileName)
 				}
 			}
-		}else if strings.Contains(line, "PIPE_UPDATE_SYSTEM_INFO") {
+		} else if strings.Contains(line, "PIPE_UPDATE_SYSTEM_INFO") {
 			for scanner.Scan() {
 				fmt.Println("IP & port:")
 				ip := scanner.Text()
@@ -116,13 +118,21 @@ func DebugCmdLine() {
 		} else if strings.Contains(line, "ClosePeer") {
 			rtkConnection.ClosePeer("QmatLKJ3uE7tc9gX4Kx6jhgyu7QzB5fYSQuU81js4jSSMD")
 		} else if strings.Contains(line, "SetupLogShut") {
-			rtkUtils.SetupLogShut()
+			rtkMisc.SetupLogShut()
 		} else if strings.Contains(line, "SetupLogFile") {
-			rtkUtils.SetupLogFile()
+			rtkMisc.SetupLogFile()
 		} else if strings.Contains(line, "SetupLogConsole") {
-			rtkUtils.SetupLogConsole()
+			rtkMisc.SetupLogConsole()
 		} else if strings.Contains(line, "SetupLogAll") {
-			rtkUtils.SetupLogConsoleFile()
+			rtkMisc.SetupLogConsoleFile()
+		} else if strings.Contains(line, "reqClient") {
+			rtkLogin.SendReqClientListToLanServer()
+		} else if strings.Contains(line, "StopLanServerRun") {
+			rtkLogin.StopLanServerRun()
+		} else if strings.Contains(line, "getMacAddressCallback") {
+			rtkPlatform.GoGetMacAddressCallback(rtkMisc.LanServerName)
+		} else if strings.Contains(line, "extractaDIASCallback") {
+			rtkPlatform.GoExtractDIASCallback()
 		}
 		// } else if strings.Contains(line, "PASTE_FILE") {
 		// 	rtkPlatform.GoClipboardPasteFileCallback("123")

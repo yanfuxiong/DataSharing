@@ -52,25 +52,26 @@ func (s *safeConnect) GetConnect() net.Conn {
 	return nil
 }
 
-func (s *safeConnect) Write(b []byte) (int, error) {
+func (s *safeConnect) Write(b []byte) rtkMisc.CrossShareErr {
 	s.connectMutex.Lock()
 	defer s.connectMutex.Unlock()
 	if s.isAlive && s.connectLanServer != nil {
-		n, err := s.connectLanServer.Write(append(b, '\n'))
+		_, err := s.connectLanServer.Write(append(b, '\n'))
 		if err != nil {
-			return 0, err
+			log.Printf("[%s] LanServer Write err:%+v", err)
+			return rtkMisc.ERR_NETWORK_C2S_WRITE
 		}
 
 		err = bufio.NewWriter(s.connectLanServer).Flush()
 		if err != nil {
 			log.Printf("[%s] LanServer Flush Error:%+v ", rtkMisc.GetFuncInfo(), err.Error())
-			return 0, err
+			return rtkMisc.ERR_NETWORK_C2S_FLUSH
 		}
-		return n, err
+		return rtkMisc.SUCCESS
 	}
 
 	log.Printf("[%s] connectLanServer is not alive! Write failed!", rtkMisc.GetFuncInfo())
-	return 0, errors.New("connectLanServer is not alive")
+	return rtkMisc.ERR_BIZ_C2S_GET_EMPTY_CONNECT
 }
 
 func (s *safeConnect) Read(b *[]byte) (int, error) {

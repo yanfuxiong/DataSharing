@@ -6,19 +6,23 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 	"io"
 	"log"
 	"net"
-	rtkBuildConfig "rtk-cross-share/buildConfig"
-	rtkCommon "rtk-cross-share/common"
-	rtkGlobal "rtk-cross-share/global"
-	rtkPlatform "rtk-cross-share/platform"
-	rtkUtils "rtk-cross-share/utils"
+	rtkCommon "rtk-cross-share/client/common"
+	rtkGlobal "rtk-cross-share/client/global"
+	rtkLogin "rtk-cross-share/client/login"
+	rtkPlatform "rtk-cross-share/client/platform"
+	rtkUtils "rtk-cross-share/client/utils"
+	rtkMisc "rtk-cross-share/misc"
+
+	"github.com/libp2p/go-libp2p"
+
 	"sync"
 	"time"
 
-	"github.com/libp2p/go-libp2p"
+	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
+
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	peer "github.com/libp2p/go-libp2p/core/peer"
@@ -27,7 +31,7 @@ import (
 )
 
 func getMutex(id string) *sync.Mutex {
-	value, ok := mutexMap.Load(id)
+	value, ok := mutexMap.LoadOrStore(id, &sync.Mutex{})
 	if !ok {
 		mutex := &sync.Mutex{}
 		mutexMap.Store(id, mutex)
@@ -41,26 +45,27 @@ func GetConnectNode() host.Host {
 }
 
 func ConnectionInit() {
-	log.Printf("[%s] listen host[%s] port[%d] connection start init", rtkUtils.GetFuncInfo(), rtkGlobal.ListenHost, rtkGlobal.ListenPort)
-	node = setupNode(rtkGlobal.ListenHost, rtkGlobal.ListenPort)
+	log.Printf("[%s] listen host[%s] port[%d] connection start init", rtkMisc.GetFuncInfo(), rtkGlobal.ListenHost, rtkGlobal.ListenPort)
+	setupNode(rtkGlobal.ListenHost, rtkGlobal.ListenPort)
+	nodeMutex.RLock()
+	defer nodeMutex.RUnlock()
+	if node == nil {
+		log.Fatalf("[%s] node is nil!", rtkMisc.GetFuncInfo())
+	}
 	pingServer = ping.NewPingService(node)
 }
 
-func updateSystemInfo() {
-	// Update system info
-	ipAddr := rtkUtils.ConcatIP(rtkGlobal.NodeInfo.IPAddr.PublicIP, rtkGlobal.NodeInfo.IPAddr.PublicPort)
-	serviceVer := "v" + rtkBuildConfig.Version + " (" + rtkBuildConfig.BuildDate + ")"
-
-	rtkPlatform.GoUpdateSystemInfo(ipAddr, serviceVer)
-}
-
 func cancelHostNode() {
+	nodeMutex.Lock()
+	defer nodeMutex.Unlock()
 	if node != nil {
+		log.Println("begin close p2p node info!")
 		node.Peerstore().Close()
 		node.Network().Close()
 		node.ConnManager().Close()
 		node.Close()
 		node = nil
+		log.Println("close p2p node info!")
 	}
 }
 
@@ -68,87 +73,33 @@ func Run(ctx context.Context) {
 	defer cancelHostNode()
 	defer CancelStreamPool()
 
-	rtkPlatform.SetGoPipeConnectedCallback(func() {
-		// Update system info
-		updateSystemInfo()
-
-		// Update all clients status
-		clientMap := rtkUtils.GetClientMap()
-		for _, info := range clientMap {
-			rtkPlatform.GoUpdateClientStatus(1, info.IpAddr, info.ID, info.DeviceName)
-		}
-	})
-
-	if rtkPlatform.GetPlatform() == rtkGlobal.PlatformWindows { // only windows need watch network info
-		rtkUtils.GoSafe(func() { WatchNetworkInfo(ctx) })
+	if rtkGlobal.NodeInfo.Platform == rtkGlobal.PlatformWindows { // only windows need watch network info
+		rtkMisc.GoSafe(func() { WatchNetworkInfo(ctx) })
 	}
-
-	rtkUtils.GoSafe(func() { WatchNetworkConnected(ctx) })
 
 	buildListener()
 
-	rtkUtils.GoSafe(func() { BuildMDNSTalker(ctx) })
+	ticker := time.NewTicker(pingInternal)
+	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
+			time.Sleep(100 * time.Millisecond) // this delay is wait SendDisconnectToAllPeer complete befor cancelHostNode
 			log.Println("connectionController run is end by main context, cancel node!")
 			return
-		case <-time.After(30 * time.Second):
+		case <-ticker.C:
 			CheckAllStreamAlive(ctx)
-		case peerInfo := <-reConnectPeerChan:
-			select {
-			case <-ctx.Done():
-				log.Println("connectionController reConnected delay is end by main context, cancel node!")
-				return
-			case <-time.After(peerInfo.DelayTime):
-				if !IsNetworkConnected() {
-					log.Printf("[%s] the Network is unavailable! ID:[%s] is skip reconnect!", rtkUtils.GetFuncInfo(), peerInfo.Peer.ID.String())
-					continue
-				}
-
-				peerInfo.RetryCount++
-				if peerInfo.RetryCount > peerInfo.MaxCount {
-					if !IsStreamExisted(peerInfo.Peer.ID.String()) {
-						OfflineStream(peerInfo.Peer.ID.String())
-					}
-					continue
-				}
-
-				if node.Network().Connectedness(peerInfo.Peer.ID) != network.Connected {
-					log.Printf("Start connect to %+v,  %d times to retry, close peer first ", peerInfo.Peer.Addrs, peerInfo.RetryCount)
-					ClosePeer(peerInfo.Peer.ID.String())
-					if err := node.Connect(ctx, peerInfo.Peer); err != nil {
-						log.Printf("Connect to peer %+v failed:%+v", peerInfo.Peer.Addrs, err)
-						reConnectPeerChan <- peerInfo
-						continue
-					}
-				} else {
-					log.Printf("Start open a new stream to %+v,  %d times to retry ...", peerInfo.Peer.Addrs, peerInfo.RetryCount)
-				}
-
-				if IsStreamExisted(peerInfo.Peer.ID.String()) {
-					log.Printf("[%s] %+v a new stream is Opened , so skip it", rtkUtils.GetFuncInfo(), peerInfo.Peer.Addrs)
-					continue
-				}
-
-				stream, err := node.NewStream(ctx, peerInfo.Peer.ID, protocol.ID(rtkGlobal.ProtocolDirectID))
-				if err != nil {
-					log.Printf("[%s] Stream open failed: %+v", rtkUtils.GetFuncInfo(), err)
-					reConnectPeerChan <- peerInfo
-					continue
-				}
-
-				onlineEvent(stream, false)
-			}
-
+		case clientList := <-rtkLogin.GetClientListFlag:
+			rtkMisc.GoSafe(func() { buildClientListTalker(ctx, clientList) })
 		}
 	}
 }
 
-func setupNode(ip string, port int) host.Host {
+func setupNode(ip string, port int) {
 	priv := rtkPlatform.GenKey()
 
+	cancelHostNode()
 	sourceAddrStr := fmt.Sprintf("/ip4/%s/tcp/%d", ip, port)
 	sourceMultiAddr, err := ma.NewMultiaddr(sourceAddrStr)
 	if err != nil {
@@ -157,10 +108,10 @@ func setupNode(ip string, port int) host.Host {
 	}
 
 	if port <= 0 {
-		log.Println("(MDNS) listen port is not set. Use a random port")
+		log.Println("p2p listen port is not set. Use a random port")
 	}
 
-	node, err := libp2p.New(
+	tempNode, err := libp2p.New(
 		//libp2p.ListenAddrStrings(listen_addrs(rtkMdns.MdnsCfg.ListenPort)...), // Add mdns port with different initialization
 		libp2p.ListenAddrs(sourceMultiAddr),
 		libp2p.NATPortMap(),
@@ -173,42 +124,63 @@ func setupNode(ip string, port int) host.Host {
 	)
 	if err != nil {
 		log.Printf("Failed to create node: %v", err)
+		// TODO: consider if mobile use 4G/5G network
 		panic(err)
 	}
 
-	log.Println("=======================================================")
-	log.Println("Self ID: ", node.ID().String())
-	log.Println("Self node Addr: ", node.Addrs())
-	log.Println("Self listen Addr: ", node.Network().ListenAddresses())
-	log.Println("=======================================================\n\n")
-
-	if len(node.Addrs()) == 0 {
+	if len(tempNode.Addrs()) == 0 {
 		log.Printf("Failed to create node, Addrs is null!")
 		panic(fmt.Sprintf("addr is null!"))
 	}
 
-	node.Network().Listen(node.Addrs()...)
-	for _, p := range node.Peerstore().Peers() {
-		node.Peerstore().ClearAddrs(p)
+	tempNode.Network().Listen(tempNode.Addrs()...)
+	for _, p := range tempNode.Peerstore().Peers() {
+		tempNode.Peerstore().ClearAddrs(p)
 	}
 
 	if rtkPlatform.IsHost() {
-		rtkUtils.WriteNodeID(node.ID().String(), rtkPlatform.GetHostIDPath())
+		rtkUtils.WriteNodeID(tempNode.ID().String(), rtkPlatform.GetHostIDPath())
 	}
 
-	rtkUtils.WriteNodeID(node.ID().String(), rtkPlatform.GetIDPath())
+	rtkUtils.WriteNodeID(tempNode.ID().String(), rtkPlatform.GetIDPath())
 
-	rtkGlobal.NodeInfo.IPAddr.LocalPort = rtkUtils.GetLocalPort(node.Addrs())
-	rtkGlobal.NodeInfo.ID = node.ID().String()
-	rtkGlobal.NodeInfo.DeviceName = rtkUtils.ConcatIP(rtkUtils.ExtractTCPIPandPort(node.Addrs()[0]))
-	rtkGlobal.NodeInfo.IPAddr.PublicIP, rtkGlobal.NodeInfo.IPAddr.PublicPort = rtkUtils.ExtractTCPIPandPort(node.Addrs()[0])
+	rtkGlobal.NodeInfo.IPAddr.LocalPort = rtkUtils.GetLocalPort(tempNode.Addrs())
+	rtkGlobal.NodeInfo.ID = tempNode.ID().String()
 
-	log.Printf("Public IP[%s], Public port[%s], LocalPort[%s]", rtkGlobal.NodeInfo.IPAddr.PublicIP, rtkGlobal.NodeInfo.IPAddr.PublicPort, rtkGlobal.NodeInfo.IPAddr.LocalPort)
+	// filter IP by skip [0.0.0.0, 127.0.0.1]
+	filterAddr := func(addrs []ma.Multiaddr) (string, string) {
+		for _, addr := range addrs {
+			ip, port := rtkUtils.ExtractTCPIPandPort(addr)
+			if ip != rtkMisc.DefaultIp && ip != rtkMisc.LoopBackIp {
+				return ip, port
+			}
+		}
+		return rtkUtils.ExtractTCPIPandPort(addrs[0])
+	}
+	publicIp, publicPort := filterAddr(tempNode.Addrs())
+	deviceName := rtkPlatform.GoGetDeviceName()
+	if deviceName == "" {
+		rtkGlobal.NodeInfo.DeviceName = publicIp
+	} else {
+		rtkGlobal.NodeInfo.DeviceName = deviceName
+	}
+	rtkGlobal.NodeInfo.IPAddr.PublicIP = publicIp
+	rtkGlobal.NodeInfo.IPAddr.PublicPort = publicPort
 
-	return node
+	log.Println("=======================================================")
+	log.Println("Self ID: ", rtkGlobal.NodeInfo.ID)
+	log.Println("Self node Addr: ", tempNode.Addrs())
+	log.Println("Self listen Addr: ", tempNode.Network().ListenAddresses())
+	log.Println("Self device name: ", rtkGlobal.NodeInfo.DeviceName)
+	log.Println("Self Platform: ", rtkGlobal.NodeInfo.Platform)
+	log.Printf("Self Public IP[%s], Public Port[%s], LocalPort[%s]", rtkGlobal.NodeInfo.IPAddr.PublicIP, rtkGlobal.NodeInfo.IPAddr.PublicPort, rtkGlobal.NodeInfo.IPAddr.LocalPort)
+	log.Println("=======================================================\n\n")
+
+	nodeMutex.Lock()
+	node = tempNode
+	nodeMutex.Unlock()
 }
 
-// TODO : refine this flow later
 func getDelayTime(id peer.ID) time.Duration {
 	if node.ID() > id {
 		return retryDelay
@@ -217,288 +189,386 @@ func getDelayTime(id peer.ID) time.Duration {
 }
 
 func buildListener() {
-	node.SetStreamHandler(rtkGlobal.ProtocolDirectID, func(stream network.Stream) {
-		onlineEvent(stream, true)
+	nodeMutex.RLock()
+	defer nodeMutex.RUnlock()
+	if node == nil {
+		log.Fatalf("[%s] node is nil!", rtkMisc.GetFuncInfo())
+	}
+
+	node.SetStreamHandler(protocol.ID(rtkGlobal.ProtocolDirectID), func(stream network.Stream) {
+		onlineEvent(stream, true, nil)
+	})
+
+	node.SetStreamHandler(protocol.ID(rtkGlobal.ProtocolImageTransmission), func(stream network.Stream) {
+		UpdateFmtTypeStream(stream, rtkCommon.IMAGE_CB)
+		noticeFmtTypeStreamReady(stream.Conn().RemotePeer().String(), rtkCommon.IMAGE_CB)
+	})
+
+	node.SetStreamHandler(protocol.ID(rtkGlobal.ProtocolFileTransmission), func(stream network.Stream) {
+		UpdateFmtTypeStream(stream, rtkCommon.FILE_DROP)
+		noticeFmtTypeStreamReady(stream.Conn().RemotePeer().String(), rtkCommon.FILE_DROP)
 	})
 }
 
-func buildTalker(ctx context.Context, peer peer.AddrInfo) error {
-	if node.Network().Connectedness(peer.ID) == network.Connected {
-		log.Printf("[%s] ID:[%s] Connected is already existed, skip connect.", rtkUtils.GetFuncInfo(), peer.ID.String())
-		return nil
+func buildTalker(ctx context.Context, client rtkMisc.ClientInfo) rtkMisc.CrossShareErr {
+	ip, port := rtkUtils.SplitIPAddr(client.IpAddr)
+	ipAddr := fmt.Sprintf("/ip4/%s/tcp/%s", ip, port)
+	addr := ma.StringCast(ipAddr)
+	idB58, err := peer.Decode(client.ID)
+	if err != nil {
+		log.Printf("[%s] ID decode failed: %s", rtkMisc.GetFuncInfo(), client.ID)
+		return rtkMisc.ERR_BIZ_P2P_PEER_DECODE
+	}
+	peer := peer.AddrInfo{
+		ID:    idB58,
+		Addrs: []ma.Multiaddr{addr},
 	}
 
-	log.Printf("begin  to connect %+v \n\n", peer)
-	if err := node.Connect(ctx, peer); err != nil {
-		log.Printf("Connect peer%+v failed:%+v", peer, err)
-		return err
+	nodeMutex.RLock()
+	defer nodeMutex.RUnlock()
+	if node == nil {
+		log.Printf("[%s] node is nil!", rtkMisc.GetFuncInfo())
+		return rtkMisc.ERR_BIZ_P2P_NODE_NULL
 	}
-	log.Printf("connect %+v end\n", peer)
+
+	if node.Network().Connectedness(peer.ID) != network.Connected {
+		node.Network().ClosePeer(peer.ID)
+		log.Printf("begin  to connect %+v ... \n\n", peer)
+		if err := node.Connect(ctx, peer); err != nil {
+			log.Printf("[%s] Connect peer%+v failed:%+v", rtkMisc.GetFuncInfo(), peer, err)
+			if errors.Is(err, context.DeadlineExceeded) {
+				return rtkMisc.ERR_NETWORK_P2P_CONNECT_DEADLINE
+			} else if errors.Is(err, context.Canceled) {
+				return rtkMisc.ERR_NETWORK_P2P_CONNECT_CANCEL
+			} else if netErr, ok := err.(net.Error); ok {
+				log.Printf("[Socket][%s] Err: Read fail network error(%v)", rtkMisc.GetFuncInfo(), netErr.Error())
+				if netErr.Timeout() {
+					return rtkMisc.ERR_NETWORK_P2P_TIMEOUT
+				}
+			}
+			return rtkMisc.ERR_NETWORK_P2P_CONNECT
+		}
+		log.Printf("connect %+v end\n", peer)
+	}
 
 	if IsStreamExisted(peer.ID.String()) {
-		log.Printf("[%s] ID:[%s] a Stream is already existed, skip NewStream.", rtkUtils.GetFuncInfo(), peer.ID.String())
-		return nil
+		// DEBUG
+		//log.Printf("[%s] ID:[%s] a Stream is already existed, skip NewStream.", rtkMisc.GetFuncInfo(), peer.ID.String())
+		return rtkMisc.SUCCESS
 	}
 
 	stream, err := node.NewStream(ctx, peer.ID, protocol.ID(rtkGlobal.ProtocolDirectID))
 	if err != nil {
-		log.Println("Stream open failed", err)
-		return err
+		log.Printf("[%s] ID:[%s] open a stream failed:%+v", rtkMisc.GetFuncInfo(), peer.ID.String(), err)
+		if errors.Is(err, context.DeadlineExceeded) {
+			return rtkMisc.ERR_NETWORK_P2P_OPEN_STREAM_DEADLINE
+		} else if errors.Is(err, context.Canceled) {
+			return rtkMisc.ERR_NETWORK_P2P_OPEN_STREAM_CANCEL
+		}
+		return rtkMisc.ERR_NETWORK_P2P_OPEN_STREAM
 	}
 
-	onlineEvent(stream, false)
-	return nil
-
+	return onlineEvent(stream, false, &client)
 }
 
-func WriteSocket(id string, data []byte) rtkCommon.SocketErr {
+func BuildFmtTypeTalker(id string, fmtType rtkCommon.TransFmtType) rtkMisc.CrossShareErr {
+	ctx := context.Background()
+	ipAddr := GetStreamIpAddr(id)
+	stream, ok := GetStream(id)
+	if !ok {
+		log.Printf("[%s] ID:[%s] IP[%s] get no stream info or stream is closed", rtkMisc.GetFuncInfo(), id, ipAddr)
+		return rtkMisc.ERR_BIZ_GET_STREAM_EMPTY
+	}
+
+	nodeMutex.RLock()
+	defer nodeMutex.RUnlock()
+	var fmtTypeStream network.Stream
+	var err error
+	if fmtType == rtkCommon.FILE_DROP {
+		fmtTypeStream, err = node.NewStream(ctx, stream.Conn().RemotePeer(), protocol.ID(rtkGlobal.ProtocolFileTransmission))
+		if err != nil {
+			log.Printf("[%s] ID:[%s] IP:[%s] open %s stream failed:%+v", rtkMisc.GetFuncInfo(), id, ipAddr, fmtType, err)
+			if errors.Is(err, context.DeadlineExceeded) {
+				return rtkMisc.ERR_NETWORK_P2P_OPEN_STREAM_DEADLINE
+			} else if errors.Is(err, context.Canceled) {
+				return rtkMisc.ERR_NETWORK_P2P_OPEN_STREAM_CANCEL
+			}
+			return rtkMisc.ERR_NETWORK_P2P_OPEN_STREAM
+		}
+	} else if fmtType == rtkCommon.IMAGE_CB {
+		fmtTypeStream, err = node.NewStream(ctx, stream.Conn().RemotePeer(), protocol.ID(rtkGlobal.ProtocolImageTransmission))
+		if err != nil {
+			log.Printf("[%s] ID:[%s] IP:[%s] open %s stream failed:%+v", rtkMisc.GetFuncInfo(), id, ipAddr, fmtType, err)
+			if errors.Is(err, context.DeadlineExceeded) {
+				return rtkMisc.ERR_NETWORK_P2P_OPEN_STREAM_DEADLINE
+			} else if errors.Is(err, context.Canceled) {
+				return rtkMisc.ERR_NETWORK_P2P_OPEN_STREAM_CANCEL
+			}
+			return rtkMisc.ERR_NETWORK_P2P_OPEN_STREAM
+		}
+	} else {
+		log.Printf("[%s] ID:[%s] IP:[%s]BuildFmtTypeTalker failed! Unknown fmtType:[%s]", rtkMisc.GetFuncInfo(), id, ipAddr, fmtType)
+		return rtkMisc.ERR_BIZ_UNKNOWN_FMTTYPE
+	}
+
+	UpdateFmtTypeStream(fmtTypeStream, fmtType)
+	return rtkMisc.SUCCESS
+}
+
+func buildClientListTalker(ctx context.Context, clientList []rtkMisc.ClientInfo) {
+	if len(clientList) == 0 {
+		// DEBUG log
+		// log.Println("Self is the first login Client , no any other client to build talker")
+		return
+	}
+
+	for _, client := range clientList {
+		if client.ID == "" || client.IpAddr == "" {
+			log.Printf("ClientListFromLanServer get ID:[%s] IPAddr:[%s] , continue!", client.ID, client.IpAddr)
+			continue
+		}
+
+		ip, port := rtkUtils.SplitIPAddr(client.IpAddr)
+		if ip == "" || port == "" || ip == rtkMisc.LoopBackIp {
+			log.Printf("ClientListFromLanServer get ID:[%s] IPAddr:[%s] , continue!", client.ID, client.IpAddr)
+			continue
+		}
+
+		rtkMisc.GoSafeWithParam(func(args ...any) {
+			errCode := buildTalker(ctx, client)
+			if errCode != rtkMisc.SUCCESS {
+				log.Printf("[%s] ID:[%s] IPAddr:[%s] buildTalker failed, errCode:%d ", rtkMisc.GetFuncInfo(), client.ID, client.IpAddr, errCode)
+			}
+		}, client)
+	}
+}
+
+func WriteSocket(id string, data []byte) rtkMisc.CrossShareErr {
 	// FIXME: this cause dead lock
 	// mutex := getMutex(id)
 	// mutex.Lock()
 	// defer mutex.Unlock()
 	if len(data) == 0 {
 		log.Println("Write faile: empty data")
-		return rtkCommon.ERR_OTHER
+		return rtkMisc.ERR_BIZ_P2P_WRITE_EMPTY_DATA
 	}
 
 	ipAddr := GetStreamIpAddr(id)
 	sInfo, ok := GetStreamInfo(id)
 	if !ok {
-		log.Printf("[%s][%s] WriteSocket err, get no stream or stream is closed", rtkUtils.GetFuncInfo(), ipAddr)
-		return rtkCommon.ERR_OTHER
+		log.Printf("[%s][%s] WriteSocket err, get no stream or stream is closed", rtkMisc.GetFuncInfo(), ipAddr)
+		return rtkMisc.ERR_BIZ_GET_STREAM_EMPTY
 	}
 
 	s := rtkUtils.NewConnFromStream(sInfo.s)
 	if _, err := s.Write(data); err != nil {
 		if CheckStreamReset(id, sInfo.timeStamp) {
-			return rtkCommon.ERR_RESET
+			return rtkMisc.ERR_BIZ_GET_STREAM_RESET
 		}
 
-		log.Printf("[%s][%s] Write faild:[%+v] , and execute offlineEvent ", rtkUtils.GetFuncInfo(), ipAddr, err)
+		log.Printf("[%s][%s] Write failed:[%+v], and execute offlineEvent ", rtkMisc.GetFuncInfo(), ipAddr, err)
 		offlineEvent(sInfo.s)
 
 		// TODO: check if necessary
 		if errors.Is(err, io.EOF) {
-			log.Println("Write fail: Stream closed by peer")
-			return rtkCommon.ERR_EOF
+			return rtkMisc.ERR_NETWORK_P2P_EOF
 		} else if netErr, ok := err.(net.Error); ok {
-			log.Println("Write fail network error", netErr.Error())
-			return rtkCommon.ERR_NETWORK
-		} else {
-			log.Println("Write fail", err.Error())
-			return rtkCommon.ERR_OTHER
+			log.Printf("[Socket][%s] Err: Read fail network error(%v)", ipAddr, netErr.Error())
+			if netErr.Timeout() {
+				return rtkMisc.ERR_NETWORK_P2P_TIMEOUT
+			}
+		} else if errors.Is(err, network.ErrReset) {
+			return rtkMisc.ERR_NETWORK_P2P_RESET
+		} else if errors.Is(err, network.ErrNoConn) {
+			return rtkMisc.ERR_NETWORK_P2P_CONNECT
 		}
 	}
-	log.Printf("[%s] Write to socket successfully", rtkUtils.GetFuncInfo())
-	return rtkCommon.OK
+
+	bufio.NewWriter(s).Flush()
+	log.Printf("[%s] DST ID:[%s] Write to socket successfully", rtkMisc.GetFuncInfo(), id)
+	return rtkMisc.SUCCESS
 }
 
-func ReadSocket(id string, buffer []byte) (int, rtkCommon.SocketErr) {
+func ReadSocket(id string, buffer []byte) (int, rtkMisc.CrossShareErr) {
 	ipAddr := GetStreamIpAddr(id)
 	sInfo, ok := GetStreamInfo(id)
 	if !ok {
-		return 0, rtkCommon.ERR_CONNECTION
+		return 0, rtkMisc.ERR_BIZ_GET_STREAM_EMPTY
 	}
 
 	s := rtkUtils.NewConnFromStream(sInfo.s)
 	n, err := s.Read(buffer)
 	if err != nil {
 		if CheckStreamReset(id, sInfo.timeStamp) {
-			return 0, rtkCommon.ERR_RESET
+			return 0, rtkMisc.ERR_BIZ_GET_STREAM_RESET
 		}
 
-		log.Printf("[%s][%s] Read failed [%+v],  execute offlineEvent ", rtkUtils.GetFuncInfo(), ipAddr, err)
+		log.Printf("[%s][%s] Read failed [%+v],  execute offlineEvent ", rtkMisc.GetFuncInfo(), ipAddr, err)
 		offlineEvent(sInfo.s)
 
-		// TODO: check if necessary
 		if errors.Is(err, io.EOF) {
-			log.Println("Read fail: Stream closed by peer")
-			return n, rtkCommon.ERR_EOF
+			return n, rtkMisc.ERR_NETWORK_P2P_EOF
 		} else if netErr, ok := err.(net.Error); ok {
 			log.Printf("[Socket][%s] Err: Read fail network error(%v)", ipAddr, netErr.Error())
 			if netErr.Timeout() {
-				return n, rtkCommon.ERR_TIMEOUT
+				return n, rtkMisc.ERR_NETWORK_P2P_TIMEOUT
 			}
-			return n, rtkCommon.ERR_NETWORK
-		} else {
-			log.Printf("[Socket][%s] Err: Read fail(%v)", ipAddr, err.Error())
-			return n, rtkCommon.ERR_OTHER
+		} else if errors.Is(err, network.ErrReset) {
+			return n, rtkMisc.ERR_NETWORK_P2P_RESET
+		} else if errors.Is(err, network.ErrNoConn) {
+			return n, rtkMisc.ERR_NETWORK_P2P_CONNECT
 		}
+
+		return n, rtkMisc.ERR_NETWORK_P2P_OTHER
 	}
 
-	return n, rtkCommon.OK
+	return n, rtkMisc.SUCCESS
 }
 
-func onlineEvent(stream network.Stream, isFromListener bool) {
+func onlineEvent(stream network.Stream, isFromListener bool, clientInfo *rtkMisc.ClientInfo) rtkMisc.CrossShareErr {
 	id := stream.Conn().RemotePeer().String()
 	mutex := getMutex(id)
 	mutex.Lock()
 	defer mutex.Unlock()
-	UpdateStream(id, stream)
 
 	ipAddr := rtkUtils.GetRemoteAddrFromStream(stream)
-	var peerDeviceName, peerPlatForm string
-	// TODO: this maybe cause dead lock, refine  it later
+	var peerDeviceName, peerPlatForm, srcPortType string
 	if isFromListener {
-		handleRegister(stream, &peerPlatForm, &peerDeviceName)
+		resultCode := handleNotice(stream, &peerPlatForm, &peerDeviceName, &srcPortType)
+		if resultCode != rtkMisc.SUCCESS {
+			stream.Reset()
+			log.Printf("[%s] ID:[%s] IP:[%s] errCode:%d, so reset this stream, onlineEvent failed!", id, ipAddr, resultCode)
+			return resultCode
+		}
 	} else {
-		registerToPeer(stream, &peerPlatForm, &peerDeviceName)
+		resultCode := noticeToPeer(stream)
+		if resultCode != rtkMisc.SUCCESS {
+			stream.Reset()
+			log.Printf("[%s] ID:[%s] IP:[%s] errCode:%d, so reset this stream, onlineEvent failed!", id, ipAddr, resultCode)
+			return resultCode
+		}
+		peerDeviceName = clientInfo.DeviceName
+		peerPlatForm = clientInfo.Platform
+		srcPortType = clientInfo.SourcePortType
 	}
 
-	log.Println("************************************************")
+	UpdateStream(id, stream)
+	log.Println("****************************************************************************************")
 	if isFromListener {
 		log.Println("Connected from ID:", id, " IP:", ipAddr)
 	} else {
 		log.Println("Connected to ID:", id, " IP:", ipAddr)
 	}
-	log.Println("************************************************")
+	log.Println("****************************************************************************************\n\n")
 
-	if peerDeviceName == "" {
-		peerDeviceName = ipAddr
-	}
-
-	updateUIOnlineStatus(true, id, ipAddr, peerPlatForm, peerDeviceName)
+	updateUIOnlineStatus(true, id, ipAddr, peerPlatForm, peerDeviceName, srcPortType)
 	StartProcessChan <- id
 
-	log.Printf("Found and Connect peer total use [%d] ms", time.Now().UnixMilli()-MdnsStartTime)
+	return rtkMisc.SUCCESS
 }
 
 func offlineEvent(stream network.Stream) {
-	ipAddr := rtkUtils.GetRemoteAddrFromStream(stream)
 	id := stream.Conn().RemotePeer().String()
 	mutex := getMutex(id)
 	mutex.Lock()
 	defer mutex.Unlock()
 
-	clientInfo, _ := rtkUtils.GetClientInfo(id)
-	updateUIOnlineStatus(false, id, ipAddr, "", clientInfo.DeviceName)
-	// Disconnect and update stream map
+	clientInfo, err := rtkUtils.GetClientInfo(id)
+	if err == nil {
+		updateUIOnlineStatus(false, id, clientInfo.IpAddr, clientInfo.Platform, clientInfo.DeviceName, clientInfo.SourcePortType)
+	} else {
+		log.Printf("[%s] %s, so not need updateUIOnlineStatus!", rtkMisc.GetFuncInfo(), err.Error())
+	}
+
+	// Disconnect and remove stream map
 	EndProcessChan <- id
 	CloseStream(id)
 
-	log.Println("************************************************")
-	log.Println("Lost connection with ID:", id, " IP:", ipAddr)
-	log.Println("************************************************")
+	log.Println("************************************************************************************************")
+	log.Println("Lost connection with ID:", id, " IP:", clientInfo.IpAddr)
+	log.Println("************************************************************************************************\n\n")
 }
 
-func updateUIOnlineStatus(isOnline bool, id, ipAddr, platfrom, deviceName string) {
+func OfflineEvent(id string) {
+	s, bExisted := GetStream(id)
+	if !bExisted {
+		log.Printf("[%s] the stream is already not existed!", id)
+		return
+	}
+	log.Printf("ID:[%s] offline event come from peer!", id)
+	offlineEvent(s)
+}
+
+func updateUIOnlineStatus(isOnline bool, id, ipAddr, platfrom, deviceName, srcPortType string) {
 	if isOnline {
-		log.Printf("[%s ] IP:[%s] Online: increase client count", rtkUtils.GetFuncInfo(), ipAddr)
-		rtkPlatform.GoUpdateClientStatus(1, ipAddr, id, deviceName)
-		rtkUtils.InsertClientInfoMap(id, ipAddr, platfrom, deviceName)
+		log.Printf("[%s] IP:[%s] Online: increase client count", rtkMisc.GetFuncInfo(), ipAddr)
+		rtkPlatform.GoUpdateClientStatus(1, ipAddr, id, deviceName, srcPortType)
+		rtkUtils.InsertClientInfoMap(id, ipAddr, platfrom, deviceName, srcPortType)
 		rtkPlatform.FoundPeer()
 	} else {
-		log.Printf("[%s] IP:[%s] Offline: decrease client count", rtkUtils.GetFuncInfo(), ipAddr)
-		rtkPlatform.GoUpdateClientStatus(0, ipAddr, id, deviceName)
+		log.Printf("[%s] IP:[%s] Offline: decrease client count", rtkMisc.GetFuncInfo(), ipAddr)
+		rtkPlatform.GoUpdateClientStatus(0, ipAddr, id, deviceName, srcPortType)
 		rtkUtils.LostClientInfoMap(id)
 		rtkPlatform.FoundPeer()
 	}
 }
 
-func registerToPeer(s network.Stream, platForm, name *string) error {
-	rw := bufio.NewReadWriter(bufio.NewReader(s), bufio.NewWriter(s))
+func noticeToPeer(s network.Stream) rtkMisc.CrossShareErr {
+	write := bufio.NewWriter(s)
 	ipAddr := rtkUtils.GetRemoteAddrFromStream(s)
 
 	registMsg := rtkCommon.RegistMdnsMessage{
-		Host:       rtkPlatform.GetHostID(),
-		Id:         rtkGlobal.NodeInfo.ID,
-		Platform:   rtkPlatform.GetPlatform(),
-		DeviceName: rtkGlobal.NodeInfo.DeviceName,
+		Host:           rtkPlatform.GetHostID(),
+		Id:             rtkGlobal.NodeInfo.ID,
+		Platform:       rtkGlobal.NodeInfo.Platform,
+		DeviceName:     rtkGlobal.NodeInfo.DeviceName,
+		SourcePortType: rtkGlobal.NodeInfo.SourcePortType,
 	}
-	if err := json.NewEncoder(rw).Encode(registMsg); err != nil {
-		log.Println("failed to send register message: %w", err)
-		return err
+	if err := json.NewEncoder(write).Encode(registMsg); err != nil {
+		log.Printf("[%s] ID:[%s] Stream json.NewEncoder.Encode err:%+v", rtkMisc.GetFuncInfo(), s.Conn().RemotePeer().String(), err)
+		if errors.Is(err, context.DeadlineExceeded) {
+			return rtkMisc.ERR_NETWORK_P2P_WRITER_DEADLINE
+		} else if errors.Is(err, context.Canceled) {
+			return rtkMisc.ERR_NETWORK_P2P_WRITER_CANCELED
+		} else if errors.Is(err, network.ErrReset) {
+			return rtkMisc.ERR_NETWORK_P2P_WRITER_RESET
+		}
+		return rtkMisc.ERR_NETWORK_P2P_WRITER
 	}
-	if err := rw.Flush(); err != nil {
-		log.Println("Error flushing write buffer: %w", err)
-		return err
+	if err := write.Flush(); err != nil {
+		log.Printf("[%s] ID:[%s] Error flushing write buffer: %+v", rtkMisc.GetFuncInfo(), s.Conn().RemotePeer().String(), err)
+		return rtkMisc.ERR_NETWORK_P2P_FLUSH
 	}
-	var regResonseMsg rtkCommon.RegistMdnsMessage
-	if err := json.NewDecoder(rw).Decode(&regResonseMsg); err != nil {
-		log.Println("failed to read register response message: %w", err)
-		return err
-	}
-
-	*platForm = registMsg.Platform
-	*name = regResonseMsg.DeviceName
-	log.Printf("[%s] IP:[%s]registerToPeer success!", rtkUtils.GetFuncInfo(), ipAddr)
-	return nil
+	log.Printf("[%s] IP:[%s]noticeToPeer success!", rtkMisc.GetFuncInfo(), ipAddr)
+	return rtkMisc.SUCCESS
 }
 
-func handleRegister(s network.Stream, platForm, name *string) error {
-	rw := bufio.NewReadWriter(bufio.NewReader(s), bufio.NewWriter(s))
+func handleNotice(s network.Stream, platForm, name, srcPortType *string) rtkMisc.CrossShareErr {
+	read := bufio.NewReader(s)
 	ipAddr := rtkUtils.GetRemoteAddrFromStream(s)
 
 	var regMsg rtkCommon.RegistMdnsMessage
-	err := json.NewDecoder(rw).Decode(&regMsg)
+	err := json.NewDecoder(read).Decode(&regMsg)
 	if err != nil {
-		if err == context.Canceled || err == context.DeadlineExceeded {
-			fmt.Println("Stream context canceled or deadline exceeded:", err)
+		log.Printf("[%s] ID:[%s] Stream json.NewDecoder.Decode err:%+v", rtkMisc.GetFuncInfo(), s.Conn().RemotePeer().String(), err)
+		if errors.Is(err, context.DeadlineExceeded) {
+			return rtkMisc.ERR_NETWORK_P2P_READER_DEADLINE
+		} else if errors.Is(err, context.Canceled) {
+			return rtkMisc.ERR_NETWORK_P2P_READER_CANCELED
+		} else if errors.Is(err, network.ErrReset) {
+			return rtkMisc.ERR_NETWORK_P2P_READER_RESET
 		}
-		if err.Error() == "stream reset" {
-			fmt.Println("Stream reset by peer:", err)
-		}
-		return err
+		return rtkMisc.ERR_NETWORK_P2P_READER
 	}
 
 	*platForm = regMsg.Platform
 	*name = regMsg.DeviceName
+	*srcPortType = regMsg.SourcePortType
 
-	registMsg := rtkCommon.RegistMdnsMessage{
-		Host:       rtkPlatform.GetHostID(),
-		Id:         rtkGlobal.NodeInfo.ID,
-		Platform:   rtkPlatform.GetPlatform(),
-		DeviceName: rtkGlobal.NodeInfo.DeviceName,
-	}
-
-	if err := json.NewEncoder(rw).Encode(&registMsg); err != nil {
-		fmt.Println("failed to read register response message: ", err)
-		return err
-	}
-	if err := rw.Flush(); err != nil {
-		fmt.Println("Error flushing write buffer: ", err)
-		return err
-	}
-	log.Printf("[%s] IP:[%s] handleRegister success!", rtkUtils.GetFuncInfo(), ipAddr)
-	return nil
+	log.Printf("[%s] IP:[%s] handleNotice success!", rtkMisc.GetFuncInfo(), ipAddr)
+	return rtkMisc.SUCCESS
 }
 
 func SetMDNSPeer(peer peer.AddrInfo) {
 	mdnsPeerChan <- peer
-}
-
-func BuildMDNSTalker(ctx context.Context) {
-	for {
-		select {
-		case <-ctx.Done():
-			log.Println("BuildMDNSTalker is end by main context")
-			return
-		case mdnsPeer := <-mdnsPeerChan:
-			if node.ID() < mdnsPeer.ID {
-				time.Sleep(2 * time.Second)
-				if node.Network().Connectedness(mdnsPeer.ID) == network.Connected {
-					continue
-				} else {
-					log.Printf("[MDNS] Wait for node %s timeout, execute direct connect...", mdnsPeer.ID.String())
-				}
-			}
-			if IsStreamExisted(mdnsPeer.ID.String()) {
-				log.Printf("[MDNS] [%s]  Stream already existed, skip connect. ", mdnsPeer.ID.String())
-				continue
-			}
-
-			err := buildTalker(ctx, mdnsPeer)
-			if err != nil {
-				reConnectInfo := ReConnectPeerInfo{
-					Peer:       mdnsPeer,
-					RetryCount: 0,
-					MaxCount:   retryConnection,
-					DelayTime:  getDelayTime(mdnsPeer.ID),
-				}
-
-				reConnectPeerChan <- reConnectInfo
-			}
-		}
-
-	}
 }

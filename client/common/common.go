@@ -3,9 +3,11 @@ package common
 type FileDropCmd string
 
 const (
-	FILE_DROP_REQUEST FileDropCmd = "FILE_DROP_REQUEST"
-	FILE_DROP_ACCEPT  FileDropCmd = "FILE_DROP_ACCEPT"
-	FILE_DROP_REJECT  FileDropCmd = "FILE_DROP_REJECT"
+	FILE_DROP_REQUEST   FileDropCmd = "FILE_DROP_REQUEST"
+	FILE_DROP_ACCEPT    FileDropCmd = "FILE_DROP_ACCEPT"
+	FILE_DROP_REJECT    FileDropCmd = "FILE_DROP_REJECT"
+	FILE_DROP_CANCEL    FileDropCmd = "FILE_DROP_CANCEL"
+	FILE_DROP_INTERRUPT FileDropCmd = "FILE_DROP_INTERRUPT"
 )
 
 type ConnectMessage struct {
@@ -23,10 +25,11 @@ type RegMessage struct {
 }
 
 type RegistMdnsMessage struct {
-	Host       string
-	Id         string
-	Platform   string
-	DeviceName string
+	Host           string
+	Id             string
+	Platform       string
+	DeviceName     string
+	SourcePortType string
 }
 
 type RegResponseMessage struct {

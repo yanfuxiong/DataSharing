@@ -9,10 +9,10 @@ import (
 	"fmt"
 	"log"
 	"os"
-	rtkCommon "rtk-cross-share/common"
-	rtkGlobal "rtk-cross-share/global"
-	"runtime"
-	"runtime/debug"
+	"path/filepath"
+	rtkCommon "rtk-cross-share/client/common"
+	rtkGlobal "rtk-cross-share/client/global"
+	rtkMisc "rtk-cross-share/misc"
 	"strconv"
 	"strings"
 
@@ -21,84 +21,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/crypto"
 	ma "github.com/multiformats/go-multiaddr"
 	mh "github.com/multiformats/go-multihash"
-	"gopkg.in/natefinch/lumberjack.v2"
 )
-
-func GoSafe(fn func()) {
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				rtkGlobal.LoggerWriteFile.Close()
-
-				LoggerCrashWriteFile := lumberjack.Logger{
-					Filename:   rtkGlobal.CrashLogPath,
-					MaxSize:    256,
-					MaxBackups: 3,
-					MaxAge:     30,
-					Compress:   true,
-				}
-				log.SetOutput(&LoggerCrashWriteFile)
-
-				log.Printf("Recovered from panic: %v\n", r)
-				log.Printf("Stack trace:\n%s", debug.Stack())
-
-				LoggerCrashWriteFile.Close()
-				os.Exit(1)
-			}
-		}()
-		fn()
-	}()
-}
-
-func GetFuncName() string {
-	pc, _, _, ok := runtime.Caller(1)
-	if !ok {
-		return "UnknownFunction"
-	}
-	fn := runtime.FuncForPC(pc)
-	if fn == nil {
-		return "UnknownFunction"
-	}
-	fullName := fn.Name()
-	if fullName == "" {
-		return "UnknownFunction"
-	}
-	parts := strings.Split(fullName, ".")
-	if len(parts) == 0 {
-		return "UnknownFunction"
-	}
-	return parts[len(parts)-1]
-}
-
-func GetLine() int {
-	_, _, line, ok := runtime.Caller(1)
-	if !ok {
-		return -1
-	}
-	return line
-}
-
-func GetFuncInfo() string {
-	funcName := "UnknownFunc:"
-	pc, _, line, ok := runtime.Caller(1)
-	if !ok {
-		return funcName + strconv.Itoa(line)
-	}
-	fn := runtime.FuncForPC(pc)
-	if fn == nil {
-		return funcName + strconv.Itoa(line)
-	}
-	fullName := fn.Name()
-	if fullName == "" {
-		return funcName + strconv.Itoa(line)
-	}
-	parts := strings.Split(fullName, ".")
-	if len(parts) == 0 {
-		return funcName + strconv.Itoa(line)
-	}
-	funcName = parts[len(parts)-1] + ":"
-	return funcName + strconv.Itoa(line)
-}
 
 func ContentEqual(a, b []byte) bool {
 	if len(a) != len(b) {
@@ -112,37 +35,19 @@ func ContentEqual(a, b []byte) bool {
 	return true
 }
 
-func ConcatIP(ip string, port string) string {
-	publicIP := fmt.Sprintf("%s:%s", ip, port)
-	return publicIP
-}
-
-func SplitIP(ip string) (string, string) {
-	parts := strings.Split(ip, ":")
-	return parts[0], parts[1]
-}
-
-func IsInTheList(target string, list []string) bool {
-	for _, item := range list {
-		if strings.EqualFold(item, target) {
-			return true
-		}
+func SplitIPAddr(ipAddr string) (string, string) {
+	parts := strings.Split(ipAddr, ":")
+	if len(parts) >= 2 {
+		return parts[0], parts[1]
 	}
-	return false
-}
-
-func FileExists(filename string) bool {
-	info, err := os.Stat(filename)
-	if os.IsNotExist(err) {
-		return false
-	}
-	return !info.IsDir()
+	return parts[0], ""
 }
 
 func WriteNodeID(ID string, filename string) {
 	file, err := os.Create(filename)
 	if err != nil {
-		log.Fatal(err)
+		log.Printf("[%s] err:%+v", rtkMisc.GetFuncInfo(), err)
+		panic(err)
 	}
 	defer file.Close()
 
@@ -176,7 +81,7 @@ func ReadMdnsPort(filename string) string {
 }
 
 func WriteErrJson(name string, strContent []byte) {
-	fileName := fmt.Sprintf("/storage/emulated/0/Android/data/com.rtk.myapplication/files/%s.log", name)
+	fileName := fmt.Sprintf("/storage/emulated/0/Android/data/com.rtk.crossshare/files/%s.log", name)
 	file, err := os.OpenFile(fileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
 		log.Fatal(err)
@@ -228,18 +133,24 @@ func GenKey(privKeyFile string) crypto.PrivKey {
 	if err != nil {
 		priv, _, err = crypto.GenerateKeyPair(crypto.RSA, 2048)
 		if err != nil {
-			log.Fatal(err)
+			log.Printf("[%s] err:%+v", rtkMisc.GetFuncInfo(), err)
+			panic(err)
 		}
 
 		jsonData, err := MarshalPrivateKeyToPEM(priv)
 		err = os.WriteFile(privKeyFile, jsonData, 0644)
 		if err != nil {
-			log.Fatal(err)
+			log.Printf("[%s] err:%+v", rtkMisc.GetFuncInfo(), err)
+			panic(err)
 		}
 		return priv
 	}
 
 	priv, err = UnmarshalPrivateKeyFromPEM(content)
+	if err != nil {
+		log.Printf("[%s] err:%+v", rtkMisc.GetFuncInfo(), err)
+		panic(err)
+	}
 
 	return priv
 }
@@ -287,7 +198,7 @@ func ExtractTCPIPandPort(maddr ma.Multiaddr) (string, string) {
 
 func GetRemoteAddrFromStream(stream network.Stream) string {
 	ip, port := ExtractTCPIPandPort(stream.Conn().RemoteMultiaddr())
-	return ConcatIP(ip, port)
+	return rtkMisc.ConcatIP(ip, port)
 }
 
 func RemoveMySelfID(slice []string, s string) []string {
@@ -301,14 +212,14 @@ func RemoveMySelfID(slice []string, s string) []string {
 	return slice[:i]
 }
 
-func GetClientInfo(id string) (rtkCommon.ClientInfo, error) {
+func GetClientInfo(id string) (rtkMisc.ClientInfo, error) {
 	rtkGlobal.ClientListRWMutex.RLock()
 	defer rtkGlobal.ClientListRWMutex.RUnlock()
 
 	if val, ok := rtkGlobal.ClientInfoMap[id]; ok {
 		return val, nil
 	}
-	return rtkCommon.ClientInfo{}, errors.New(fmt.Sprintf("not found ClientInfo by id:%s", id))
+	return rtkMisc.ClientInfo{}, errors.New(fmt.Sprintf("not found ClientInfo by id:%s", id))
 }
 
 func GetClientIp(id string) (string, bool) {
@@ -322,14 +233,13 @@ func GetClientIp(id string) (string, bool) {
 	return "", false
 }
 
-func InsertClientInfoMap(id, ipAddr, platform, name string) {
+func InsertClientInfoMap(id, ipAddr, platform, name, srcPortType string) {
 	rtkGlobal.ClientListRWMutex.Lock()
 	defer rtkGlobal.ClientListRWMutex.Unlock()
 
 	if _, ok := rtkGlobal.ClientInfoMap[id]; !ok {
-		rtkGlobal.ClientInfoMap[id] = rtkCommon.ClientInfo{ID: id, IpAddr: ipAddr, Platform: platform, DeviceName: name}
+		rtkGlobal.ClientInfoMap[id] = rtkMisc.ClientInfo{ID: id, IpAddr: ipAddr, Platform: platform, DeviceName: name, SourcePortType: srcPortType}
 	}
-
 }
 
 func LostClientInfoMap(id string) {
@@ -356,7 +266,8 @@ func GetClientList() string {
 	for _, val := range rtkGlobal.ClientInfoMap {
 		clientList += val.IpAddr + "#"
 		clientList += val.ID + "#"
-		clientList += val.DeviceName + ","
+		clientList += val.DeviceName + "#"
+		clientList += val.SourcePortType + ","
 	}
 	return strings.Trim(clientList, ",")
 }
@@ -368,11 +279,57 @@ func GetClientCount() int {
 	return len(rtkGlobal.ClientInfoMap)
 }
 
-func GetClientMap() map[string]rtkCommon.ClientInfo {
+func GetClientMap() map[string]rtkMisc.ClientInfo {
 	rtkGlobal.ClientListRWMutex.RLock()
 	defer rtkGlobal.ClientListRWMutex.RUnlock()
 
 	return rtkGlobal.ClientInfoMap
+}
+
+func WalkPath(dirPath string, pathList *[]string, fileInfoList *[]rtkCommon.FileInfo, totalSize *uint64) error {
+	rootPath := filepath.Dir(dirPath)
+
+	// TODO: Need to be compatible with incompatible system separators
+	dirPath = strings.ReplaceAll(dirPath, "/", "\\")
+
+	err := filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			dstPath, bExsit := strings.CutPrefix(path, rootPath)
+			if bExsit {
+				*pathList = append(*pathList, dstPath)
+			} else {
+				log.Printf("full path:[%s] CutPrefix:[%s] error\n", dstPath, rootPath)
+			}
+		} else {
+			fileSize := info.Size()
+			dstFile, bOk := strings.CutPrefix(path, rootPath)
+			if bOk {
+				file := rtkCommon.FileInfo{
+					FileSize_: rtkCommon.FileSize{
+						SizeHigh: uint32(fileSize >> 32),
+						SizeLow:  uint32(fileSize & 0xFFFFFFFF),
+					},
+					FilePath: path,
+					FileName: dstFile,
+				}
+				*totalSize += uint64(fileSize)
+				*fileInfoList = append(*fileInfoList, file)
+			} else {
+				log.Printf("file full path:[%s] CutPrefix:[%s] error\n", dstFile, rootPath)
+			}
+
+		}
+		return nil
+	})
+
+	if err != nil {
+		log.Printf("[%s] Walk path:[%s] Error:%+v\n", rtkMisc.GetFuncInfo(), dirPath, err)
+	}
+
+	return err
 }
 
 func Base64Decode(src string) []byte {
@@ -399,12 +356,13 @@ var (
 	HackDeviceNameMap map[string]string     = make(map[string]string)
 	deviceInfoMap     map[string]DeviceInfo = make(map[string]DeviceInfo)
 	DeviceStaticPort  string                = ""
+	DeviceSrcAndPort  rtkMisc.SourcePort
 )
 
 func InitDeviceInfo(filename string) {
 	file, err := os.Open(filename)
 	if err != nil {
-		log.Printf("[%s %d] Err: Not found device table: %s", GetFuncName(), GetLine(), filename)
+		log.Printf("[%s %d] Err: Not found device table: %s", rtkMisc.GetFuncName(), rtkMisc.GetLine(), filename)
 		return
 	}
 
@@ -419,20 +377,20 @@ func InitDeviceInfo(filename string) {
 		if idx == 0 {
 			port := strings.SplitN(line, ":", 2)
 			if len(port) < 2 {
-				log.Printf("[%s %d] Err: Invalid param count(port), please check .DeviceInfo file", GetFuncName(), GetLine())
+				log.Printf("[%s %d] Err: Invalid param count(port), please check .DeviceInfo file", rtkMisc.GetFuncName(), rtkMisc.GetLine())
 				return
 			}
 
 			DeviceStaticPort = string(port[1])
 
 			if DeviceStaticPort == "" {
-				log.Printf("[%s %d] Err: Empty staticPort, please check .DeviceInfo file", GetFuncName(), GetLine())
+				log.Printf("[%s %d] Err: Empty staticPort, please check .DeviceInfo file", rtkMisc.GetFuncName(), rtkMisc.GetLine())
 				return
 			}
 		} else { // Get device info
 			parts := strings.SplitN(line, ":", 3)
 			if len(parts) < 3 {
-				log.Printf("[%s %d] Err: Invalid param count, please check .DeviceInfo file", GetFuncName(), GetLine())
+				log.Printf("[%s %d] Err: Invalid param count, please check .DeviceInfo file", rtkMisc.GetFuncName(), rtkMisc.GetLine())
 				return
 			}
 
@@ -473,11 +431,57 @@ func GetDeviceIp(id string) (string, error) {
 	}
 }
 
+func InitDeviceSrcAndPort(filename string) {
+	file, err := os.Open(filename)
+	if err != nil {
+		log.Printf("[%s] Err: Not found device src and port: %s", rtkMisc.GetFuncInfo(), filename)
+		return
+	}
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		srcAndPort := strings.SplitN(line, ",", 2)
+		if len(srcAndPort) < 2 {
+			log.Printf("[%s] Err: Invalid param count(srcAndPort), please check .DeviceSrcPort file", rtkMisc.GetFuncInfo())
+			return
+		}
+
+		if srcAndPort[0] == "" || srcAndPort[1] == "" {
+			log.Printf("[%s] Err: Empty src port, please check .DeviceSrcPort file", rtkMisc.GetFuncInfo())
+			return
+		}
+
+		src, err := strconv.Atoi(srcAndPort[0])
+		if err != nil {
+			log.Printf("[%s] Err: Invalid source format: %s", rtkMisc.GetFuncInfo(), srcAndPort[0])
+			return
+		}
+		port, err := strconv.Atoi(srcAndPort[1])
+		if err != nil {
+			log.Printf("[%s] Err: Invalid port format: %s", rtkMisc.GetFuncInfo(), srcAndPort[1])
+			return
+		}
+
+		DeviceSrcAndPort.Source = src
+		DeviceSrcAndPort.Port = port
+		log.Printf("[%s] Parse \"%s\" successfully. (source,port)=(%d,%d)", rtkMisc.GetFuncInfo(), filename, src, port)
+		break
+	}
+}
+
+func GetDeviceSrcPort() rtkMisc.SourcePort {
+	return DeviceSrcAndPort
+}
+
 // Deprecated with InitDeviceInfo
 func InitDeviceTable(filename string) {
 	file, err := os.Open(filename)
 	if err != nil {
-		log.Printf("[%s %d] Err: Not found device table: %s", GetFuncName(), GetLine(), filename)
+		log.Printf("[%s %d] Err: Not found device table: %s", rtkMisc.GetFuncName(), rtkMisc.GetLine(), filename)
 		return
 	}
 
@@ -491,7 +495,7 @@ func InitDeviceTable(filename string) {
 
 		parts := strings.SplitN(line, ":", 2)
 		if len(parts) < 2 {
-			log.Printf("[%s %d] Err: Invalid param count", GetFuncName(), GetLine())
+			log.Printf("[%s %d] Err: Invalid param count", rtkMisc.GetFuncName(), rtkMisc.GetLine())
 			return
 		}
 
@@ -509,4 +513,16 @@ func QueryDeviceName(id string) string {
 	} else {
 		return ""
 	}
+}
+
+func ReadDiasID(filename string) string {
+	var err error
+	var content []byte
+	content, err = os.ReadFile(filename)
+	if err != nil {
+		log.Printf("[%s] diasID_Hack_file [%s]", rtkMisc.GetFuncInfo(), err)
+		return ""
+	}
+	log.Printf("[%s]", string(content[:]))
+	return string(content[:])
 }

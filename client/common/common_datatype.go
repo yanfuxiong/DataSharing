@@ -1,5 +1,19 @@
 package common
 
+type FileActionType string
+
+const (
+	P2PFileActionType_Drop FileActionType = "FileActionType_Drop"
+	P2PFileActionType_Drag FileActionType = "FileActionType_Drag"
+)
+
+type FileType string
+
+const (
+	P2PFile_Type_Single   FileType = "File_Type_Single"
+	P2PFile_Type_Multiple FileType = "File_Type_Multiple"
+)
+
 type FileSize struct {
 	SizeHigh uint32
 	SizeLow  uint32
@@ -7,7 +21,8 @@ type FileSize struct {
 
 type FileInfo struct {
 	FileSize_ FileSize
-	FilePath  string
+	FilePath  string //full path
+	FileName  string //this must start with folder name, eg: folderName/aaa/bbb/ccc.txt
 }
 
 type ImgHeader struct {
@@ -31,8 +46,13 @@ type ExtDataText struct {
 }
 
 type ExtDataFile struct {
-	Size     FileSize
-	FilePath string
+	SrcFileList   []FileInfo
+	ActionType    FileActionType
+	FileType      FileType
+	TimeStamp     uint64
+	FolderList    []string // must start with folder name and end with '/'.  eg: folderName/aaa/bbb/
+	TotalDescribe string   // eg: 820MB /1.2GB
+	TotalSize     uint64
 }
 
 type ExtDataImg struct {
