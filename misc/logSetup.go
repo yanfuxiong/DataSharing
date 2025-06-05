@@ -48,6 +48,8 @@ func SetupLogFile() {
 		Compress:   true,
 	}
 	log.SetOutput(&LoggerWriteFile)
+	log.Println("begin to write log to file!")
+	os.Chmod(LogPath, 0644)
 }
 
 func SetupLogShut() {
@@ -74,6 +76,8 @@ func SetupLogConsoleFile() {
 	}
 
 	log.SetOutput(io.MultiWriter(os.Stdout, &LoggerWriteFile))
+	log.Println("begin to write log to file and printed to console!")
+	os.Chmod(LogPath, 0644)
 }
 
 func SetLogRotate() {

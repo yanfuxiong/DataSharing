@@ -31,7 +31,7 @@ func GoSafeWithParam(fn func(args ...any), args ...any) {
 
 				log.Printf("Recovered from panic: %v\n", r)
 				log.Printf("Stack trace:\n%s", debug.Stack())
-
+				os.Chmod(CrashLogPath, 0644)
 				LoggerCrashWriteFile.Close()
 				os.Exit(1)
 			}
