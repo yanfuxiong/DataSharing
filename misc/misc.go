@@ -18,6 +18,7 @@ func GoSafeWithParam(fn func(args ...any), args ...any) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
+				log.Printf("crash info write into file:[%s]", CrashLogPath)
 				LoggerWriteFile.Close()
 
 				LoggerCrashWriteFile := lumberjack.Logger{
