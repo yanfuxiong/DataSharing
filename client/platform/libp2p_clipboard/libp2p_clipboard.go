@@ -211,16 +211,6 @@ func SetDIASID(DiasID string) {
 	rtkPlatform.GoGetMacAddress(DiasID)
 }
 
-func GetIfNeedSetDIASID() bool {
-	status := rtkPlatform.GoGetDIASStatus()
-	log.Printf("[%s] status:%d", rtkMisc.GetFuncInfo(), status)
-	if status == 6 || status == 7 {
-		return false
-	} else {
-		return true
-	}
-}
-
 func SetConfirmDocumentsAccept(ifConfirm bool) {
 	log.Printf("[%s], ifConfirm:[%+v]", rtkMisc.GetFuncInfo(), ifConfirm)
 	rtkPlatform.SetConfirmDocumentsAccept(ifConfirm)

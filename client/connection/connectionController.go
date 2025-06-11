@@ -79,7 +79,7 @@ func Run(ctx context.Context) {
 
 	buildListener()
 
-	ticker := time.NewTicker(pingInternal)
+	ticker := time.NewTicker(pingInterval)
 	defer ticker.Stop()
 
 	for {

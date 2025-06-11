@@ -22,6 +22,9 @@ import (
 )
 
 func SetLanServerName(name string) {
+	if lanServerName != "" && lanServerName != name {
+		lanServerAddr = ""
+	}
 	lanServerName = name
 }
 
@@ -59,7 +62,7 @@ func ConnectLanServerRun(ctx context.Context) {
 					goto RunFlag
 				}
 				if nCount == 3 {
-					log.Printf("connect To LanServerAddr:[%s] %d times failed!  try to lookup Service over again!", lanServerAddr, nCount)
+					//log.Printf("connect To LanServerAddr:[%s] %d times failed!  try to lookup Service over again!", lanServerAddr, nCount)
 					lanServerAddr = ""
 					serverInstanceMap.Delete(lanServerName)
 				}

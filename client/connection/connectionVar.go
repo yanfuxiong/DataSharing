@@ -14,7 +14,7 @@ const (
 
 	// libp2p default backoff time is 5 seccond
 	retryDelay    = 5 * time.Second
-	pingInternal  = 3 * time.Second
+	pingInterval  = 8 * time.Second // TODO: refine this. Expect to detect disconnection in 10 seconds
 	pingTimeout   = 2 * time.Second
 	pingErrMaxCnt = 3
 )

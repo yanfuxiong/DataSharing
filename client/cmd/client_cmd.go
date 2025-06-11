@@ -33,7 +33,6 @@ func init() {
 	rtkGlobal.ListenPort = rtkGlobal.DefaultPort
 	rtkGlobal.NodeInfo.Platform = rtkPlatform.GetPlatform()
 
-	rtkLogin.NotifyDIASStatus(rtkLogin.DIAS_Status_Wait_DiasMonitor)
 	rtkPlatform.SetGoNetworkSwitchCallback(func() {
 		networkSwitchFlagChan <- struct{}{}
 	})
@@ -103,6 +102,7 @@ func listen_addrs(port int) []string {
 }
 
 func Run() {
+	rtkLogin.NotifyDIASStatus(rtkLogin.DIAS_Status_Wait_DiasMonitor)
 	rtkMisc.InitLog(rtkPlatform.GetLogFilePath(), rtkPlatform.GetCrashLogFilePath(), 0)
 	if rtkBuildConfig.Debug == "1" {
 		rtkMisc.SetupLogConsoleFile()
@@ -138,6 +138,7 @@ func Run() {
 }
 
 func MainInit(serverId, serverIpInfo, listenHost string, listentPort int) {
+	rtkLogin.NotifyDIASStatus(rtkLogin.DIAS_Status_Wait_DiasMonitor)
 	rtkMisc.InitLog(rtkPlatform.GetLogFilePath(), rtkPlatform.GetCrashLogFilePath(), 0)
 	if rtkBuildConfig.Debug == "1" {
 		rtkMisc.SetupLogConsoleFile()

@@ -334,6 +334,9 @@ func CancelStreamPool() {
 		}
 		delete(streamPoolMap, id)
 		nCount++
+
+		ipAddr := rtkUtils.GetRemoteAddrFromStream(sInfo.s)
+		updateUIOnlineStatus(false, id, ipAddr, "", "", "")
 	}
 	streamPoolMutex.Unlock()
 	log.Printf("CancelStreamPool stream count:%d", nCount)

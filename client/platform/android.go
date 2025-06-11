@@ -30,6 +30,7 @@ var (
 	privKeyFile              string
 	hostID                   string
 	nodeID                   string
+	lockFile                 string
 	logFile                  string
 	crashLogFile             string
 	downloadPath             string
@@ -51,6 +52,7 @@ type Callback interface {
 	CallbackUpdateProgressBar(ip, id, filename string, recvSize, total int64, timestamp int64)
 	CallbackUpdateMultipleProgressBar(ip, id, deviceName, currentFileName string, sentFileCnt, totalFileCnt int, currentFileSize, totalSize, sentSize, timestamp int64)
 	CallbackFileError(id, filename, err string)
+	CallbackUpdateDiasStatus(status int)
 }
 
 var CallbackInstance Callback = nil
@@ -63,6 +65,7 @@ func initFilePath() {
 	privKeyFile = ".priv.pem"
 	hostID = ".HostID"
 	nodeID = ".ID"
+	lockFile = "singleton.lock"
 	logFile = "p2p.log"
 	crashLogFile = "crash.log"
 	downloadPath = ""
@@ -419,10 +422,6 @@ func GoUpdateMultipleProgressBar(ip, id, deviceName, currentFileName string, sen
 	CallbackInstance.CallbackUpdateMultipleProgressBar(ip, id, deviceName, currentFileName, int(sentFileCnt), int(totalFileCnt), int64(currentFileSize), int64(totalSize), int64(sentSize), int64(timestamp))
 }
 
-func GoDeinitProgressBar() {
-
-}
-
 func GoUpdateSystemInfo(ip, serviceVer string) {
 
 }
@@ -508,10 +507,6 @@ func GetPlatform() string {
 	return rtkGlobal.PlatformAndroid
 }
 
-func GetMdnsPortConfigPath() string {
-	return ""
-}
-
 func LockFile(file *os.File) error {
 	return nil
 }
@@ -561,6 +556,11 @@ func GoGetSrcAndPortFromIni() rtkMisc.SourcePort {
 func GoDIASStatusNotify(diasStatus uint32) {
 	currentDiasStatus = diasStatus
 	log.Printf("[%s] diasStatus:%d", rtkMisc.GetFuncInfo(), currentDiasStatus)
+	if CallbackInstance == nil {
+		log.Println("GoDIASStatusNotify - failed - callbackInstance is nil")
+		return
+	}
+	CallbackInstance.CallbackUpdateDiasStatus(int(diasStatus))
 }
 
 func GoGetDIASStatus() uint32 {

@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/libp2p/go-reuseport"
 	"log"
 	"net"
 	rtkCommon "rtk-cross-share/client/common"
@@ -15,6 +14,8 @@ import (
 	rtkPlatform "rtk-cross-share/client/platform"
 	rtkMisc "rtk-cross-share/misc"
 	"time"
+
+	"github.com/libp2p/go-reuseport"
 
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"

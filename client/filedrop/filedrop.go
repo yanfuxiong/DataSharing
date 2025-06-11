@@ -26,6 +26,11 @@ type FileDropData struct {
 	Cmd         rtkCommon.FileDropCmd
 }
 
+type caneclInfo struct {
+	caneclFn      func()
+	isCaneclByGui bool
+}
+
 var (
 	fileDropDataMap    = make(map[string]FileDropData) // key: ID
 	fileDropDataMutex  sync.RWMutex
@@ -196,17 +201,31 @@ func CancelFileTransfer(id, ip string, timestamp uint64) {
 			log.Printf("[%s] ID:[%s],IPAddr:[%s], timestamp:[%d] invalid! ", rtkMisc.GetFuncInfo(), id, ip, timestamp)
 			return
 		}
-		value.(func())()
-		caneclFileTransMap.Delete(id)
-		log.Printf("ID:[%s],IPAddr:[%s] CancelFileTransfer success!", id, ip)
+		caneclData := value.(caneclInfo)
+		if !caneclData.isCaneclByGui {
+			caneclData.caneclFn()
+			caneclData.caneclFn = nil
+			caneclData.isCaneclByGui = true
+			caneclFileTransMap.Store(id, caneclData)
+			log.Printf("ID:[%s],IPAddr:[%s] CancelFileTransfer success by platform GUI!", id, ip)
+		}
 	} else {
 		log.Printf("[%s] ID:[%s],IPAddr:[%s] get no caneclFileTransMap data!", rtkMisc.GetFuncInfo(), id, ip)
 	}
 }
 
 func SetCancelFileTransferFunc(id string, fn func()) {
-	log.Printf("[%s] ID:[%s] SetCancelFileTransferFunc success!", rtkMisc.GetFuncInfo(), id)
-	caneclFileTransMap.Store(id, fn)
+	caneclFileTransMap.Store(id, caneclInfo{
+		caneclFn:      fn,
+		isCaneclByGui: false,
+	})
+}
+
+func IsCancelFileTransferByGui(id string) bool {
+	if value, ok := caneclFileTransMap.Load(id); ok {
+		return value.(caneclInfo).isCaneclByGui
+	}
+	return false
 }
 
 func WatchFileDropReqEvent(ctx context.Context, id string, resultChan chan<- string) {
