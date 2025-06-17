@@ -16,6 +16,15 @@ typedef struct {
     unsigned long compression;
 } IMAGE_HEADER;
 
+typedef enum NOTI_MSG_CODE
+{
+    NOTI_MSG_CODE_CONN_STATUS_SUCCESS       = 1,
+    NOTI_MSG_CODE_CONN_STATUS_FAIL          = 2,
+    NOTI_MSG_CODE_FILE_TRANS_DONE_SENDER    = 3,
+    NOTI_MSG_CODE_FILE_TRANS_DONE_RECEIVER  = 4,
+    NOTI_MSG_CODE_FILE_TRANS_REJECT         = 5,
+} NOTI_MSG_CODE;
+
 typedef void (*StartClipboardMonitorCallback)();
 static void StartClipboardMonitorCallbackFunc(StartClipboardMonitorCallback cb) {
     if (cb) cb();
@@ -133,9 +142,11 @@ import "C"
 import (
 	"fmt"
 	"log"
+	"path/filepath"
 	rtkCmd "rtk-cross-share/client/cmd"
 	rtkCommon "rtk-cross-share/client/common"
 	rtkPlatform "rtk-cross-share/client/platform"
+	rtkUtils "rtk-cross-share/client/utils"
 	rtkMisc "rtk-cross-share/misc"
 	"unsafe"
 )
@@ -163,6 +174,42 @@ func GoStringToWChar(str string) *C.wchar_t {
 
 	C.memcpy(cStr, unsafe.Pointer(&utf16Str[0]), C.size_t(size))
 	return (*C.wchar_t)(cStr)
+}
+
+type WCharArray struct {
+	Array **C.wchar_t
+	items []*C.wchar_t
+}
+
+func NewWCharArray(strs []string) *WCharArray {
+	ptrSize := unsafe.Sizeof(uintptr(0))
+	cArray := C.malloc(C.size_t(len(strs)+1) * C.size_t(ptrSize))
+	if cArray == nil {
+		panic("C.malloc failed")
+	}
+
+	cStrs := make([]*C.wchar_t, len(strs))
+	for i, s := range strs {
+		cStr := GoStringToWChar(s)
+		cStrs[i] = cStr
+		elemPtr := (**C.wchar_t)(unsafe.Pointer(uintptr(cArray) + uintptr(i)*ptrSize))
+		*elemPtr = cStr
+	}
+
+	endPtr := (**C.wchar_t)(unsafe.Pointer(uintptr(cArray) + uintptr(len(strs))*ptrSize))
+	*endPtr = nil
+
+	return &WCharArray{
+		Array: (**C.wchar_t)(cArray),
+		items: cStrs,
+	}
+}
+
+func (w *WCharArray) Free() {
+	for _, ptr := range w.items {
+		C.free(unsafe.Pointer(ptr))
+	}
+	C.free(unsafe.Pointer(w.Array))
 }
 
 var (
@@ -199,16 +246,13 @@ func init() {
 	rtkPlatform.SetUpdateClientStatusCallback(GoTriggerCallbackUpdateClientStatus)
 	rtkPlatform.SetImageDataTransferCallback(GoTriggerCallbackImageDataTransfer)
 	rtkPlatform.SetSetupDstImageCallback(GoTriggerCallbackSetupDstPasteImage)
-
+	rtkPlatform.SetCleanClipboardCallback(GoTriggerCallbackCleanClipboard)
 	rtkPlatform.SetDragFileListNotifyCallback(GoTriggerCallbackDragFileListNotify)
+	rtkPlatform.SetMultiFilesDropNotifyCallback(GoTriggerCallbackMultiFilesDropNotify)
+	rtkPlatform.SetMultipleProgressBarCallback(GoTriggerCallbackMultipleProgressBar)
+	rtkPlatform.SetNotiMessageFileTransCallback(GoTriggerCallbackNotiMessage)
+
 	rtkPlatform.SetConfirmDocumentsAccept(false)
-
-	/*C.MultiFilesDropNotifyCallbackFunc(g_MultiFilesDropNotifyCallback, ipPort, clientID, 2, 2048, 1625097600, fileName, 1024)
-	C.UpdateMultipleProgressBarCallbackFunc(g_UpdateMultipleProgressBarCallback, ipPort, clientID, fileName, 1, 2, 1024, 2048, 512, 1625097600)
-
-	C.NotiMessageCallbackFunc(g_NotiMessageCallback, 1625097600, 2001, (**C.wchar_t)(unsafe.Pointer(&notiParams[0])), 2)
-	C.CleanClipboardCallbackFunc(g_CleanClipboardCallback)
-	*/
 }
 
 func GoTriggerCallbackSetAuthViaIndex(index uint32) {
@@ -249,7 +293,7 @@ func GoTriggerCallbackGetDownloadPath() string {
 		return ""
 	}
 	path := WCharToGoString(C.GetDownloadPathCallbackFunc(g_GetDownloadPathCallback))
-	log.Printf("[%s] get download path:[%s]", rtkMisc.GetFuncInfo(), path)
+	log.Printf("[%s] get download path:[%s] success!", rtkMisc.GetFuncInfo(), path)
 	return path
 }
 
@@ -332,6 +376,40 @@ func GoTriggerCallbackImageDataTransfer(data []byte) {
 	C.DataTransferCallbackFunc(g_DataTransferCallback, (*C.uchar)(unsafe.Pointer(&data[0])), cLen)
 }
 
+func GoTriggerCallbackCleanClipboard() {
+	if g_CleanClipboardCallback == nil {
+		log.Printf("%s g_CleanClipboardCallback is not set!", rtkMisc.GetFuncInfo())
+		return
+	}
+	log.Printf("[%s] trigger!", rtkMisc.GetFuncInfo())
+	C.CleanClipboardCallbackFunc(g_CleanClipboardCallback)
+}
+
+func GoTriggerCallbackMultipleProgressBar(ip, id, deviceName, currentFileName string, sentFileCnt, totalFileCnt uint32, currentFileSize, totalSize, sentSize, timestamp uint64) {
+	if g_UpdateMultipleProgressBarCallback == nil {
+		log.Printf("%s g_UpdateMultipleProgressBarCallback is not set!", rtkMisc.GetFuncInfo())
+		return
+	}
+
+	cIp := C.CString(ip)
+	defer C.free(unsafe.Pointer(cIp))
+	cId := C.CString(id)
+	defer C.free(unsafe.Pointer(cId))
+
+	cSentFileCnt := C.uint(sentFileCnt)
+	cTotalFileCnt := C.uint(totalFileCnt)
+
+	cCurrentFileSize := C.ulonglong(currentFileSize)
+	cSentSize := C.ulonglong(sentSize)
+	cTotalSize := C.ulonglong(totalSize)
+	cTimestamp := C.ulonglong(timestamp)
+	cCurrentFileName := GoStringToWChar(currentFileName)
+	defer C.free(unsafe.Pointer(cCurrentFileName))
+
+	//const char *ipPort, const char *clientID, const wchar_t *currentFileName, uint32_t sentFilesCnt, uint32_t totalFilesCnt, uint64_t currentFileSize, uint64_t totalSize, uint64_t sentSize, uint64_t timestamp
+	C.UpdateMultipleProgressBarCallbackFunc(g_UpdateMultipleProgressBarCallback, cIp, cId, cCurrentFileName, cSentFileCnt, cTotalFileCnt, cCurrentFileSize, cTotalSize, cSentSize, cTimestamp)
+}
+
 func GoTriggerCallbackDragFileListNotify(ip, id, platform string, fileCnt uint32, totalSize uint64, timestamp uint64, firstFileName string, firstFileSize uint64) {
 	if g_DragFileListNotifyCallback == nil {
 		log.Printf("%s g_DragFileListNotifyCallback is not set!", rtkMisc.GetFuncInfo())
@@ -351,6 +429,52 @@ func GoTriggerCallbackDragFileListNotify(ip, id, platform string, fileCnt uint32
 
 	log.Printf("[%s] ID:[%s] IP:[%s] cnt:[%d] total:[%d] timestamp:[%d] firstFile:[%s] firstSize:[%d]", rtkMisc.GetFuncInfo(), ip, id, fileCnt, totalSize, timestamp, firstFileName, firstFileSize)
 	C.DragFileListNotifyCallbackFunc(g_DragFileListNotifyCallback, cIp, cId, cFileCnt, cToalSize, cTimestamp, cFirstFileName, cFirstFileSize)
+}
+
+func GoTriggerCallbackMultiFilesDropNotify(ip, id, platform string, fileCnt uint32, totalSize uint64, timestamp uint64, firstFileName string, firstFileSize uint64) {
+	if g_MultiFilesDropNotifyCallback == nil {
+		log.Printf("%s g_MultiFilesDropNotifyCallback is not set!", rtkMisc.GetFuncInfo())
+		return
+	}
+	cIp := C.CString(ip)
+	defer C.free(unsafe.Pointer(cIp))
+	cId := C.CString(id)
+	defer C.free(unsafe.Pointer(cId))
+
+	cFileCnt := C.uint(fileCnt)
+	cToalSize := C.ulonglong(totalSize)
+	cFirstFileSize := C.ulonglong(firstFileSize)
+	cTimestamp := C.ulonglong(timestamp)
+	cFirstFileName := GoStringToWChar(firstFileName)
+	defer C.free(unsafe.Pointer(cFirstFileName))
+
+	log.Printf("[%s] ID:[%s] IP:[%s] cnt:[%d] total:[%d] timestamp:[%d] firstFile:[%s] firstSize:[%d]", rtkMisc.GetFuncInfo(), ip, id, fileCnt, totalSize, timestamp, firstFileName, firstFileSize)
+	C.MultiFilesDropNotifyCallbackFunc(g_MultiFilesDropNotifyCallback, cIp, cId, cFileCnt, cToalSize, cTimestamp, cFirstFileName, cFirstFileSize)
+}
+
+func GoTriggerCallbackNotiMessage(fileName, clientName, platform string, timestamp uint64, isSender bool) {
+	if g_NotiMessageCallback == nil {
+		log.Printf("%s g_NotiMessageCallback is not set!", rtkMisc.GetFuncInfo())
+		return
+	}
+
+	cTimestamp := C.ulonglong(timestamp)
+	cCode := C.uint(C.NOTI_MSG_CODE_FILE_TRANS_DONE_RECEIVER)
+	if isSender {
+		cCode = C.uint(C.NOTI_MSG_CODE_FILE_TRANS_DONE_SENDER)
+	}
+	cFileName := GoStringToWChar(fileName)
+	defer C.free(unsafe.Pointer(cFileName))
+	cClientName := GoStringToWChar(clientName)
+	defer C.free(unsafe.Pointer(cClientName))
+	paramArray := []string{fileName, clientName}
+	cParamArray := NewWCharArray(paramArray)
+	defer cParamArray.Free()
+	cParamCnt := C.int(len(paramArray))
+
+	log.Printf("[%s] timestamp:[%d] code:[%d] notiParam:[%+v] cParamCnt:[%d]", rtkMisc.GetFuncInfo(), cTimestamp, cCode, cParamArray.Array, cParamCnt)
+	//(uint64_t timestamp, uint32_t notiCode, const wchar_t *notiParam[], int paramCount)
+	C.NotiMessageCallbackFunc(g_NotiMessageCallback, cTimestamp, cCode, cParamArray.Array, cParamCnt)
 }
 
 //export InitGoServer
@@ -452,14 +576,56 @@ func SetDragFile(timeStamp C.uint64_t, filePath *C.wchar_t) {
 	fmt.Printf("SetDragFile(%d, %q)\n", timeStamp, WCharToGoString(filePath))
 }
 
+//export SetConfirmDocumentsAccept
+func SetConfirmDocumentsAccept(ifConfirm bool) {
+	log.Printf("[%s], ifConfirm:[%+v]", rtkMisc.GetFuncInfo(), ifConfirm)
+	//rtkPlatform.SetConfirmDocumentsAccept(ifConfirm)
+}
+
 //export SetDragFileListRequest
 func SetDragFileListRequest(filePathArry **C.wchar_t, arryLength C.uint32_t, timeStamp C.uint64_t) {
-	paths := (*[1 << 30]*C.wchar_t)(unsafe.Pointer(filePathArry))[:arryLength:arryLength]
-	goPaths := make([]string, arryLength)
-	for i := range goPaths {
-		goPaths[i] = WCharToGoString(paths[i])
+	fileList := make([]rtkCommon.FileInfo, 0)
+	folderList := make([]string, 0)
+	totalSize := uint64(0)
+	fileCount := uint32(arryLength)
+	nFileCnt := 0
+	nFolderCnt := 0
+	nPathSize := uint64(0)
+
+	for i := uint32(0); i < fileCount; i++ {
+		wcharPtr := *(**C.wchar_t)(unsafe.Pointer(uintptr(unsafe.Pointer(filePathArry)) + uintptr(i)*unsafe.Sizeof(*filePathArry)))
+		file := WCharToGoString(wcharPtr)
+		if rtkMisc.FolderExists(file) {
+			nFileCnt = len(fileList)
+			nFolderCnt = len(folderList)
+			nPathSize = totalSize
+			rtkUtils.WalkPath(file, &folderList, &fileList, &totalSize)
+			log.Printf("[%s] walk a path:[%s], get [%d] files and [%d] folders, total size:[%d]", rtkMisc.GetFuncInfo(), file, len(fileList)-nFileCnt, len(folderList)-nFolderCnt, totalSize-nPathSize)
+		} else if rtkMisc.FileExists(file) {
+			fileSize, err := rtkMisc.FileSize(file)
+			if err != nil {
+				log.Printf("[%s] get file:[%s] size error, skit it!", rtkMisc.GetFuncInfo(), file)
+				continue
+			}
+			fileList = append(fileList, rtkCommon.FileInfo{
+				FileSize_: rtkCommon.FileSize{
+					SizeHigh: uint32(fileSize >> 32),
+					SizeLow:  uint32(fileSize & 0xFFFFFFFF),
+				},
+				FilePath: file,
+				FileName: filepath.Base(file),
+			})
+			totalSize += fileSize
+			log.Printf("[%s] get a file:[%s], size:[%d] ", rtkMisc.GetFuncInfo(), file, fileSize)
+		} else {
+			log.Printf("[%s] get file or path:[%s] is invalid, skit it!", rtkMisc.GetFuncInfo(), file)
+		}
 	}
-	fmt.Printf("SetDragFileListRequest(%v, %d, %d)\n", goPaths, arryLength, timeStamp)
+	timestamp := uint64(timeStamp)
+	totalDesc := rtkMisc.FileSizeDesc(totalSize)
+
+	log.Printf("[%s] get file count:[%d] folder count:[%d], totalSize:[%d] totalDesc:[%s] timestamp:[%d]", rtkMisc.GetFuncInfo(), len(fileList), len(folderList), totalSize, totalDesc, timestamp)
+	rtkPlatform.GoDragFileListRequest(&fileList, &folderList, totalSize, timestamp, totalDesc)
 }
 
 //export SetCancelFileTransfer
@@ -478,17 +644,51 @@ func SetCancelFileTransfer(ipPort *C.char, clientID *C.char, timeStamp C.uint64_
 
 //export SetMultiFilesDropRequest
 func SetMultiFilesDropRequest(ipPort *C.char, clientID *C.char, timeStamp C.uint64_t, filePathArry **C.wchar_t, arryLength C.uint32_t) {
-	paths := (*[1 << 30]*C.wchar_t)(unsafe.Pointer(filePathArry))[:arryLength:arryLength]
-	goPaths := make([]string, arryLength)
-	for i := range goPaths {
-		goPaths[i] = WCharToGoString(paths[i])
+	//(cIp *C.char, cId *C.char, cTimestamp C.ulonglong, cFileList **C.wchar_t, cFileCount C.uint)
+	id := C.GoString(clientID)
+	ip := C.GoString(ipPort)
+	fileList := make([]rtkCommon.FileInfo, 0)
+	folderList := make([]string, 0)
+	totalSize := uint64(0)
+	fileCount := uint32(arryLength)
+	nFileCnt := 0
+	nFolderCnt := 0
+	nPathSize := uint64(0)
+
+	for i := uint32(0); i < fileCount; i++ {
+		wcharPtr := *(**C.wchar_t)(unsafe.Pointer(uintptr(unsafe.Pointer(filePathArry)) + uintptr(i)*unsafe.Sizeof(*filePathArry)))
+		file := WCharToGoString(wcharPtr)
+		if rtkMisc.FolderExists(file) {
+			nFileCnt = len(fileList)
+			nFolderCnt = len(folderList)
+			nPathSize = totalSize
+			rtkUtils.WalkPath(file, &folderList, &fileList, &totalSize)
+			log.Printf("[%s] walk a path:[%s], get [%d] files and [%d] folders , total size:[%d] ", rtkMisc.GetFuncInfo(), file, len(fileList)-nFileCnt, len(folderList)-nFolderCnt, totalSize-nPathSize)
+		} else if rtkMisc.FileExists(file) {
+			fileSize, err := rtkMisc.FileSize(file)
+			if err != nil {
+				log.Printf("[%s] get file:[%s] size error, skit it!", rtkMisc.GetFuncInfo(), file)
+				continue
+			}
+			fileList = append(fileList, rtkCommon.FileInfo{
+				FileSize_: rtkCommon.FileSize{
+					SizeHigh: uint32(fileSize >> 32),
+					SizeLow:  uint32(fileSize & 0xFFFFFFFF),
+				},
+				FilePath: file,
+				FileName: filepath.Base(file),
+			})
+			totalSize += fileSize
+			log.Printf("[%s] get a file:[%s], size:[%d] ", rtkMisc.GetFuncInfo(), file, fileSize)
+		} else {
+			log.Printf("[%s] get file or path:[%s] is invalid, skit it!", rtkMisc.GetFuncInfo(), file)
+		}
 	}
-	fmt.Printf("SetMultiFilesDropRequest(%q, %q, %d, %v, %d)\n",
-		C.GoString(ipPort),
-		C.GoString(clientID),
-		timeStamp,
-		goPaths,
-		arryLength)
+	timestamp := uint64(timeStamp)
+	totalDesc := rtkMisc.FileSizeDesc(totalSize)
+
+	log.Printf("[%s] ID[%s] IP:[%s] get file count:[%d] folder count:[%d], totalSize:[%d] totalDesc:[%s] timestamp:[%d]", rtkMisc.GetFuncInfo(), id, ip, len(fileList), len(folderList), totalSize, totalDesc, timestamp)
+	rtkPlatform.GoMultiFilesDropRequest(id, &fileList, &folderList, totalSize, timestamp, totalDesc)
 }
 
 //export SetStartClipboardMonitorCallback

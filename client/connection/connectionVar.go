@@ -28,13 +28,26 @@ var (
 	// mutexMap by ID
 	mutexMap sync.Map
 
-	StartProcessChan = make(chan string)
-	EndProcessChan   = make(chan string)
-	CancelAllProcess = make(chan struct{})
-	MdnsStartTime    = int64(0) // mdns services start time stamp
+	MdnsStartTime = int64(0) // mdns services start time stamp
 
 	mdnsPeerChan            = make(chan peer.AddrInfo)
 	mdnsNoticeNetworkStatus = make(chan bool)
 
 	noticeFmtTypeSteamReadyChanMap sync.Map
+
+	callbackStartProcessForPeer func(id string)
+	callbackStopProcessForPeer  func(id string)
 )
+
+type (
+	callbackStartProcessForPeerFunc func(id string)
+	callbackStopProcessForPeerFunc  func(id string)
+)
+
+func SetStartProcessForPeerCallback(cb callbackStartProcessForPeerFunc) {
+	callbackStartProcessForPeer = cb
+}
+
+func SetStopProcessForPeerCallback(cb callbackStopProcessForPeerFunc) {
+	callbackStopProcessForPeer = cb
+}

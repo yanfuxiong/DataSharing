@@ -9,7 +9,7 @@ targetDLL_debug="client_windows_debug.dll"
 isBuildRelease=false
 isBuildDebug=true
 
-ldflags_release="-X rtk-cross-share/client/buildConfig.Version=$version -X rtk-cross-share/client/buildConfig.BuildDate=$buildDate -X rtk-cross-share/client/buildConfig.Debug=0 -H=windowsgui"
+ldflags_release="-X rtk-cross-share/client/buildConfig.Version=$version -X rtk-cross-share/client/buildConfig.BuildDate=$buildDate -X rtk-cross-share/client/buildConfig.Debug=0 "
 ldflags_debug="-X rtk-cross-share/client/buildConfig.Version=$version -X rtk-cross-share/client/buildConfig.BuildDate=$buildDate -X rtk-cross-share/client/buildConfig.Debug=1 -w=false "
 
 echo "Compile Start"

@@ -172,7 +172,7 @@ func writeFileDataToSocket(id, ipAddr string) rtkMisc.CrossShareErr {
 	}
 
 	if fileDropReqData.FileType == rtkCommon.P2PFile_Type_Multiple {
-		log.Printf("(SRC) Start Copy file data to IP:[%s], file count:[%d] folder count:[%d] totalSize:[%s] TotalDescribe:[%s] ...", ipAddr, fileCount, folderCount, fileDropReqData.TotalSize, fileDropReqData.TotalDescribe)
+		log.Printf("(SRC) Start Copy file data to IP:[%s], file count:[%d] folder count:[%d] totalSize:[%d] TotalDescribe:[%s] ...", ipAddr, fileCount, folderCount, fileDropReqData.TotalSize, fileDropReqData.TotalDescribe)
 	}
 	for _, file := range fileDropReqData.SrcFileList {
 		fileSize := uint64(file.FileSize_.SizeHigh)<<32 | uint64(file.FileSize_.SizeLow)

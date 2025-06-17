@@ -23,7 +23,7 @@ func StartProcessForPeer(id string) {
 	ipAddr := rtkConnection.GetStreamIpAddr(id)
 	if _, ok := processForPeerMap[id]; !ok {
 		ctx, canecl := context.WithCancel(context.Background())
-		rtkMisc.GoSafe(func() { ProcessEventsForPeer(id, ctx) })
+		rtkMisc.GoSafe(func() { ProcessEventsForPeer(id, ipAddr, ctx) })
 		processForPeerMap[id] = canecl
 		log.Printf("[%s][%s][%s] ProcessEventsForPeer is Start !", rtkMisc.GetFuncInfo(), id, ipAddr)
 	} else {

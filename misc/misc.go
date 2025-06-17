@@ -3,6 +3,7 @@ package misc
 import (
 	"errors"
 	"fmt"
+	"gopkg.in/natefinch/lumberjack.v2"
 	"log"
 	"os"
 	"path/filepath"
@@ -10,8 +11,6 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
-
-	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 func GoSafeWithParam(fn func(args ...any), args ...any) {
@@ -233,4 +232,8 @@ func CreateDir(dir string, dirModeOpt ...os.FileMode) error {
 		return fmt.Errorf("failed to check directory[%s] error: %+v", dir, err)
 	}
 	return nil
+}
+
+func GetCurrentDir() (string, error) {
+	return os.Getwd()
 }

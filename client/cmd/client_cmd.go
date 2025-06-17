@@ -14,6 +14,7 @@ import (
 	rtkPlatform "rtk-cross-share/client/platform"
 	rtkUtils "rtk-cross-share/client/utils"
 	rtkMisc "rtk-cross-share/misc"
+
 	"strconv"
 	"time"
 )
@@ -27,30 +28,16 @@ var (
 
 func init() {
 	getLanServerMacTimeStamp = 0
-	rtkPlatform.SetupCallbackSettings()
 
 	rtkGlobal.ListenHost = rtkMisc.DefaultIp
 	rtkGlobal.ListenPort = rtkGlobal.DefaultPort
 	rtkGlobal.NodeInfo.Platform = rtkPlatform.GetPlatform()
 
+	rtkConnection.SetStartProcessForPeerCallback(rtkPeer2Peer.StartProcessForPeer)
+	rtkConnection.SetStopProcessForPeerCallback(rtkPeer2Peer.EndProcessForPeer)
+
 	rtkPlatform.SetGoNetworkSwitchCallback(func() {
 		networkSwitchFlagChan <- struct{}{}
-	})
-
-	rtkPlatform.SetGoPipeConnectedCallback(func() {
-		// Update system info
-		ipAddr := rtkMisc.ConcatIP(rtkGlobal.NodeInfo.IPAddr.PublicIP, rtkGlobal.NodeInfo.IPAddr.PublicPort)
-		serviceVer := "v" + rtkBuildConfig.Version + " (" + rtkBuildConfig.BuildDate + ")"
-		rtkPlatform.GoUpdateSystemInfo(ipAddr, serviceVer)
-
-		// Update all clients status
-		clientMap := rtkUtils.GetClientMap()
-		for _, info := range clientMap {
-			rtkPlatform.GoUpdateClientStatus(1, info.IpAddr, info.ID, info.DeviceName, info.SourcePortType)
-		}
-
-		// Update DIAS status
-		rtkLogin.NotifyDIASStatus(rtkLogin.CurrentDiasStatus)
 	})
 
 	rtkPlatform.SetGoExtractDIASCallback(func() {
@@ -103,34 +90,30 @@ func listen_addrs(port int) []string {
 
 func Run() {
 	rtkLogin.NotifyDIASStatus(rtkLogin.DIAS_Status_Wait_DiasMonitor)
-	rtkMisc.InitLog(rtkPlatform.GetLogFilePath(), rtkPlatform.GetCrashLogFilePath(), 0)
-	if rtkBuildConfig.Debug == "1" {
-		rtkMisc.SetupLogConsoleFile()
-	} else {
-		rtkMisc.SetupLogFile()
-	}
 
 	log.Println("========================")
 	log.Println("Version: ", rtkBuildConfig.Version)
 	log.Println("Build Date: ", rtkBuildConfig.BuildDate)
 	log.Printf("========================\n\n")
 
-	lockFilePath := "singleton.lock"
+	lockFilePath := rtkPlatform.GetLockFilePath()
 	file, err := os.OpenFile(lockFilePath, os.O_CREATE|os.O_RDWR, 0666)
 	if err != nil {
-		fmt.Println("Failed to open or create lock file:", err)
+		log.Println("Failed to open or create lock file:", err)
 		return
 	}
 	defer file.Close()
 
 	err = rtkPlatform.LockFile(file)
 	if err != nil {
-		fmt.Println("Another instance is already running.")
+		log.Println("Another instance is already running.")
 		return
 	}
 	defer rtkPlatform.UnlockFile(file)
 
-	rtkMisc.GoSafe(func() { rtkDebug.DebugCmdLine() })
+	if rtkBuildConfig.CmdDebug == "1" {
+		rtkMisc.GoSafe(func() { rtkDebug.DebugCmdLine() })
+	}
 
 	rtkMisc.GoSafe(func() { businessProcess() })
 
@@ -169,6 +152,21 @@ func MainInit(serverId, serverIpInfo, listenHost string, listentPort int) {
 		log.Printf("listenHost:[%s] listentPort:[%d]", listenHost, listentPort)
 		log.Fatalf("MainInit  parameter is invalid \n\n")
 	}
+
+	lockFilePath := rtkPlatform.GetLockFilePath()
+	file, err := os.OpenFile(lockFilePath, os.O_CREATE|os.O_RDWR, 0666)
+	if err != nil {
+		log.Println("Failed to open or create lock file:", err)
+		return
+	}
+	defer file.Close()
+
+	err = rtkPlatform.LockFile(file)
+	if err != nil {
+		log.Println("Another instance is already running.")
+		return
+	}
+	defer rtkPlatform.UnlockFile(file)
 
 	rtkMisc.GoSafe(func() { businessProcess() })
 
@@ -237,14 +235,8 @@ func businessStart(ctx context.Context) {
 				// TODO: refine this cancel flow, we need send disconnect message to all peer befor cancel
 				rtkPeer2Peer.SendDisconnectToAllPeer(true)
 				return
-			case id := <-rtkConnection.StartProcessChan:
-				rtkPeer2Peer.StartProcessForPeer(id)
-			case id := <-rtkConnection.EndProcessChan:
-				rtkPeer2Peer.EndProcessForPeer(id)
-			case <-rtkConnection.CancelAllProcess:
-				rtkPeer2Peer.CaneclProcessForPeerMap()
 			case <-rtkLogin.DisconnectLanServerFlag:
-				//TODO: check this flow
+				//TODO: refine this flow
 				rtkPeer2Peer.SendDisconnectToAllPeer(false)
 				rtkConnection.OfflineAllStreamEvent()
 			case <-ticker.C:

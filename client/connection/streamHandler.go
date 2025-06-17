@@ -13,8 +13,8 @@ import (
 )
 
 type streamInfo struct {
-	s network.Stream
-	//isAlive    bool		//remove  param "isAlive", Reconnection triggered by LanServer
+	s          network.Stream
+	ipAddr     string
 	timeStamp  int64
 	pingErrCnt int
 
@@ -87,6 +87,7 @@ func UpdateStream(id string, stream network.Stream) {
 
 	streamPoolMap[id] = streamInfo{
 		s:          stream,
+		ipAddr:     ipAddr,
 		timeStamp:  time.Now().UnixMilli(),
 		pingErrCnt: 0,
 		sFileDrop:  nil,
@@ -325,6 +326,7 @@ func CancelStreamPool() {
 	nCount := uint8(0)
 	streamPoolMutex.Lock()
 	for id, sInfo := range streamPoolMap {
+		updateUIOnlineStatus(false, id, sInfo.ipAddr, "", "", "")
 		sInfo.s.Close()
 		if sInfo.sFileDrop != nil {
 			sInfo.sFileDrop.Close()
@@ -334,9 +336,6 @@ func CancelStreamPool() {
 		}
 		delete(streamPoolMap, id)
 		nCount++
-
-		ipAddr := rtkUtils.GetRemoteAddrFromStream(sInfo.s)
-		updateUIOnlineStatus(false, id, ipAddr, "", "", "")
 	}
 	streamPoolMutex.Unlock()
 	log.Printf("CancelStreamPool stream count:%d", nCount)

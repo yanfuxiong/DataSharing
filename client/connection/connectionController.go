@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net"
+	rtkBuildConfig "rtk-cross-share/client/buildConfig"
 	rtkCommon "rtk-cross-share/client/common"
 	rtkGlobal "rtk-cross-share/client/global"
 	rtkLogin "rtk-cross-share/client/login"
@@ -176,6 +177,10 @@ func setupNode(ip string, port int) {
 	log.Printf("Self Public IP[%s], Public Port[%s], LocalPort[%s]", rtkGlobal.NodeInfo.IPAddr.PublicIP, rtkGlobal.NodeInfo.IPAddr.PublicPort, rtkGlobal.NodeInfo.IPAddr.LocalPort)
 	log.Println("=======================================================\n\n")
 
+	ipAddr := rtkMisc.ConcatIP(rtkGlobal.NodeInfo.IPAddr.PublicIP, rtkGlobal.NodeInfo.IPAddr.PublicPort)
+	serviceVer := "v" + rtkBuildConfig.Version + " (" + rtkBuildConfig.BuildDate + ")"
+	rtkPlatform.GoUpdateSystemInfo(ipAddr, serviceVer)
+
 	nodeMutex.Lock()
 	node = tempNode
 	nodeMutex.Unlock()
@@ -210,7 +215,7 @@ func buildListener() {
 	})
 }
 
-func buildTalker(ctx context.Context, client rtkMisc.ClientInfo) rtkMisc.CrossShareErr {
+func buildTalker(ctxMain context.Context, client rtkMisc.ClientInfo) rtkMisc.CrossShareErr {
 	ip, port := rtkUtils.SplitIPAddr(client.IpAddr)
 	ipAddr := fmt.Sprintf("/ip4/%s/tcp/%s", ip, port)
 	addr := ma.StringCast(ipAddr)
@@ -230,6 +235,9 @@ func buildTalker(ctx context.Context, client rtkMisc.ClientInfo) rtkMisc.CrossSh
 		log.Printf("[%s] node is nil!", rtkMisc.GetFuncInfo())
 		return rtkMisc.ERR_BIZ_P2P_NODE_NULL
 	}
+
+	ctx, cancel := context.WithTimeout(ctxMain, 5*time.Second)
+	defer cancel()
 
 	if node.Network().Connectedness(peer.ID) != network.Connected {
 		node.Network().ClosePeer(peer.ID)
@@ -272,11 +280,12 @@ func buildTalker(ctx context.Context, client rtkMisc.ClientInfo) rtkMisc.CrossSh
 }
 
 func BuildFmtTypeTalker(id string, fmtType rtkCommon.TransFmtType) rtkMisc.CrossShareErr {
-	ctx := context.Background()
-	ipAddr := GetStreamIpAddr(id)
-	stream, ok := GetStream(id)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	sInfo, ok := GetStreamInfo(id)
 	if !ok {
-		log.Printf("[%s] ID:[%s] IP[%s] get no stream info or stream is closed", rtkMisc.GetFuncInfo(), id, ipAddr)
+		log.Printf("[%s] ID:[%s] IP[%s] get no stream info or stream is closed", rtkMisc.GetFuncInfo(), id, sInfo.ipAddr)
 		return rtkMisc.ERR_BIZ_GET_STREAM_EMPTY
 	}
 
@@ -285,9 +294,9 @@ func BuildFmtTypeTalker(id string, fmtType rtkCommon.TransFmtType) rtkMisc.Cross
 	var fmtTypeStream network.Stream
 	var err error
 	if fmtType == rtkCommon.FILE_DROP {
-		fmtTypeStream, err = node.NewStream(ctx, stream.Conn().RemotePeer(), protocol.ID(rtkGlobal.ProtocolFileTransmission))
+		fmtTypeStream, err = node.NewStream(ctx, sInfo.s.Conn().RemotePeer(), protocol.ID(rtkGlobal.ProtocolFileTransmission))
 		if err != nil {
-			log.Printf("[%s] ID:[%s] IP:[%s] open %s stream failed:%+v", rtkMisc.GetFuncInfo(), id, ipAddr, fmtType, err)
+			log.Printf("[%s] ID:[%s] IP:[%s] open %s stream failed:%+v", rtkMisc.GetFuncInfo(), id, sInfo.ipAddr, fmtType, err)
 			if errors.Is(err, context.DeadlineExceeded) {
 				return rtkMisc.ERR_NETWORK_P2P_OPEN_STREAM_DEADLINE
 			} else if errors.Is(err, context.Canceled) {
@@ -296,9 +305,9 @@ func BuildFmtTypeTalker(id string, fmtType rtkCommon.TransFmtType) rtkMisc.Cross
 			return rtkMisc.ERR_NETWORK_P2P_OPEN_STREAM
 		}
 	} else if fmtType == rtkCommon.IMAGE_CB {
-		fmtTypeStream, err = node.NewStream(ctx, stream.Conn().RemotePeer(), protocol.ID(rtkGlobal.ProtocolImageTransmission))
+		fmtTypeStream, err = node.NewStream(ctx, sInfo.s.Conn().RemotePeer(), protocol.ID(rtkGlobal.ProtocolImageTransmission))
 		if err != nil {
-			log.Printf("[%s] ID:[%s] IP:[%s] open %s stream failed:%+v", rtkMisc.GetFuncInfo(), id, ipAddr, fmtType, err)
+			log.Printf("[%s] ID:[%s] IP:[%s] open %s stream failed:%+v", rtkMisc.GetFuncInfo(), id, sInfo.ipAddr, fmtType, err)
 			if errors.Is(err, context.DeadlineExceeded) {
 				return rtkMisc.ERR_NETWORK_P2P_OPEN_STREAM_DEADLINE
 			} else if errors.Is(err, context.Canceled) {
@@ -307,7 +316,7 @@ func BuildFmtTypeTalker(id string, fmtType rtkCommon.TransFmtType) rtkMisc.Cross
 			return rtkMisc.ERR_NETWORK_P2P_OPEN_STREAM
 		}
 	} else {
-		log.Printf("[%s] ID:[%s] IP:[%s]BuildFmtTypeTalker failed! Unknown fmtType:[%s]", rtkMisc.GetFuncInfo(), id, ipAddr, fmtType)
+		log.Printf("[%s] ID:[%s] IP:[%s]BuildFmtTypeTalker failed! Unknown fmtType:[%s]", rtkMisc.GetFuncInfo(), id, sInfo.ipAddr, fmtType)
 		return rtkMisc.ERR_BIZ_UNKNOWN_FMTTYPE
 	}
 
@@ -329,7 +338,7 @@ func buildClientListTalker(ctx context.Context, clientList []rtkMisc.ClientInfo)
 		}
 
 		ip, port := rtkUtils.SplitIPAddr(client.IpAddr)
-		if ip == "" || port == "" || ip == rtkMisc.LoopBackIp {
+		if ip == "" || port == "" || ip == rtkMisc.DefaultIp || ip == rtkMisc.LoopBackIp {
 			log.Printf("ClientListFromLanServer get ID:[%s] IPAddr:[%s] , continue!", client.ID, client.IpAddr)
 			continue
 		}
@@ -353,10 +362,9 @@ func WriteSocket(id string, data []byte) rtkMisc.CrossShareErr {
 		return rtkMisc.ERR_BIZ_P2P_WRITE_EMPTY_DATA
 	}
 
-	ipAddr := GetStreamIpAddr(id)
 	sInfo, ok := GetStreamInfo(id)
 	if !ok {
-		log.Printf("[%s][%s] WriteSocket err, get no stream or stream is closed", rtkMisc.GetFuncInfo(), ipAddr)
+		log.Printf("[%s][%s] WriteSocket err, get no stream or stream is closed", rtkMisc.GetFuncInfo(), sInfo.ipAddr)
 		return rtkMisc.ERR_BIZ_GET_STREAM_EMPTY
 	}
 
@@ -366,14 +374,14 @@ func WriteSocket(id string, data []byte) rtkMisc.CrossShareErr {
 			return rtkMisc.ERR_BIZ_GET_STREAM_RESET
 		}
 
-		log.Printf("[%s][%s] Write failed:[%+v], and execute offlineEvent ", rtkMisc.GetFuncInfo(), ipAddr, err)
+		log.Printf("[%s][%s] Write failed:[%+v], and execute offlineEvent ", rtkMisc.GetFuncInfo(), sInfo.ipAddr, err)
 		offlineEvent(sInfo.s)
 
 		// TODO: check if necessary
 		if errors.Is(err, io.EOF) {
 			return rtkMisc.ERR_NETWORK_P2P_EOF
 		} else if netErr, ok := err.(net.Error); ok {
-			log.Printf("[Socket][%s] Err: Read fail network error(%v)", ipAddr, netErr.Error())
+			log.Printf("[Socket][%s] Err: Read fail network error(%v)", sInfo.ipAddr, netErr.Error())
 			if netErr.Timeout() {
 				return rtkMisc.ERR_NETWORK_P2P_TIMEOUT
 			}
@@ -390,7 +398,6 @@ func WriteSocket(id string, data []byte) rtkMisc.CrossShareErr {
 }
 
 func ReadSocket(id string, buffer []byte) (int, rtkMisc.CrossShareErr) {
-	ipAddr := GetStreamIpAddr(id)
 	sInfo, ok := GetStreamInfo(id)
 	if !ok {
 		return 0, rtkMisc.ERR_BIZ_GET_STREAM_EMPTY
@@ -403,13 +410,13 @@ func ReadSocket(id string, buffer []byte) (int, rtkMisc.CrossShareErr) {
 			return 0, rtkMisc.ERR_BIZ_GET_STREAM_RESET
 		}
 
-		log.Printf("[%s][%s] Read failed [%+v],  execute offlineEvent ", rtkMisc.GetFuncInfo(), ipAddr, err)
+		log.Printf("[%s][%s] Read failed [%+v],  execute offlineEvent ", rtkMisc.GetFuncInfo(), sInfo.ipAddr, err)
 		offlineEvent(sInfo.s)
 
 		if errors.Is(err, io.EOF) {
 			return n, rtkMisc.ERR_NETWORK_P2P_EOF
 		} else if netErr, ok := err.(net.Error); ok {
-			log.Printf("[Socket][%s] Err: Read fail network error(%v)", ipAddr, netErr.Error())
+			log.Printf("[Socket][%s] Err: Read fail network error(%v)", sInfo.ipAddr, netErr.Error())
 			if netErr.Timeout() {
 				return n, rtkMisc.ERR_NETWORK_P2P_TIMEOUT
 			}
@@ -462,7 +469,7 @@ func onlineEvent(stream network.Stream, isFromListener bool, clientInfo *rtkMisc
 	log.Println("****************************************************************************************\n\n")
 
 	updateUIOnlineStatus(true, id, ipAddr, peerPlatForm, peerDeviceName, srcPortType)
-	StartProcessChan <- id
+	callbackStartProcessForPeer(id)
 
 	return rtkMisc.SUCCESS
 }
@@ -481,7 +488,7 @@ func offlineEvent(stream network.Stream) {
 	}
 
 	// Disconnect and remove stream map
-	EndProcessChan <- id
+	callbackStopProcessForPeer(id)
 	CloseStream(id)
 
 	log.Println("************************************************************************************************")

@@ -243,7 +243,7 @@ func SetupDstPasteImage(id string, desc string, content []byte, imgHeader rtkCom
 	log.Printf("[Paste] H=%d,W=%d,Planes=%d,BitCnt=%d,Compress=%d, src=%s",
 		imgHeader.Height, imgHeader.Width, imgHeader.Planes, imgHeader.BitCount, imgHeader.Compression, id)
 	updateImageClipboardData(id, filesize, imgHeader, content)
-	rtkPlatform.GoSetupDstPasteImage(desc, content, imgHeader, dataSize)
+	rtkPlatform.GoSetupDstPasteImage(id, content, imgHeader, dataSize)
 }
 
 func SetupDstPasteFile(desc, fileName, platform string, fileSizeHigh uint32, fileSizeLow uint32) {

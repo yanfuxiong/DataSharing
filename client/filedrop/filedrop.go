@@ -281,6 +281,6 @@ func SetupDstFileListDrop(id, ip, platform, totalDesc string, fileList []rtkComm
 		}
 
 		rtkPlatform.GoMultiFilesDropNotify(ip, id, platform, nFileCount, totalSize, timestamp, firstFileName, firstFileSize) //No need to confirm
-		UpdateFileDropRespDataFromDst(id, rtkCommon.FILE_DROP_ACCEPT, rtkPlatform.DownloadPath())
+		UpdateFileDropRespDataFromDst(id, rtkCommon.FILE_DROP_ACCEPT, rtkPlatform.GetDownloadPath())
 	}
 }

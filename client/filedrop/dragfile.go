@@ -66,13 +66,9 @@ func updateDragFileReqData(id string) {
 		Cmd:         rtkCommon.FILE_DROP_REQUEST,
 	}
 
-	if len(dragFileInfoList) == 1 && len(dragFolderList) == 0 {
-		targetData.FileType = rtkCommon.P2PFile_Type_Single
-	} else {
-		targetData.FileType = rtkCommon.P2PFile_Type_Multiple
-		if len(dragFolderList) > 0 {
-			targetData.FolderList = append([]string(nil), dragFolderList...)
-		}
+	targetData.FileType = rtkCommon.P2PFile_Type_Multiple
+	if len(dragFolderList) > 0 {
+		targetData.FolderList = append([]string(nil), dragFolderList...)
 	}
 
 	fileDropDataMutex.Lock()
@@ -90,7 +86,7 @@ func updateDragFileRespData(id string) {
 		}
 		if fileDragData.Cmd == rtkCommon.FILE_DROP_REQUEST {
 			fileDragData.Cmd = rtkCommon.FILE_DROP_ACCEPT
-			fileDragData.DstFilePath = rtkPlatform.DownloadPath()
+			fileDragData.DstFilePath = rtkPlatform.GetDownloadPath()
 			fileDropDataMap[id] = fileDragData
 		} else {
 			log.Printf("[%s] Err: Update file drag failed. Invalid cmd: %s", rtkMisc.GetFuncInfo(), fileDragData.Cmd)
@@ -144,7 +140,6 @@ func SetupDstDragFile(id, ip, platform string, fileInfo rtkCommon.FileInfo, file
 func SetupDstDragFileList(id, ip, platform string, fileInfoList []rtkCommon.FileInfo, folderList []string, totalSize, timeStamp uint64, totalDesc string) {
 	UpdateDragFileListFromDst(fileInfoList, folderList, totalSize, timeStamp, totalDesc)
 	UpdateDragFileReqDataFromDst(id)
-	UpdateDragFileRespDataFromDst(id)
 
 	nFileCount := uint32(len(fileInfoList))
 	firstFileSize := uint64(0)
@@ -157,4 +152,5 @@ func SetupDstDragFileList(id, ip, platform string, fileInfoList []rtkCommon.File
 	}
 
 	rtkPlatform.GoDragFileListNotify(ip, id, platform, nFileCount, totalSize, timeStamp, firstFileName, firstFileSize)
+	UpdateDragFileRespDataFromDst(id)
 }
