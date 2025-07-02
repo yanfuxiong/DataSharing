@@ -5,7 +5,7 @@ $clipboardLib = "libclipboard.a"
 $clientGo = "main\client_main.go"
 
 # go build param
-$version = "2.1.16"
+$version = "2.1.20"
 $buildDate = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ss")
 $isBuildRelease = $true
 $isBuildDebug = $true

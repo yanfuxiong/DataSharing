@@ -48,6 +48,7 @@ func WatchNetworkInfo(ctx context.Context) {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
+	printNetError := true
 	for {
 		select {
 		case <-ctx.Done():
@@ -55,11 +56,15 @@ func WatchNetworkInfo(ctx context.Context) {
 		case <-ticker.C:
 			currentIpList, ok := rtkMisc.GetNetworkIP()
 			if !ok {
-				log.Printf("[%s] GetNetworkIP error!", rtkMisc.GetFuncInfo())
+				if printNetError {
+					log.Printf("[%s] GetNetworkIP error!", rtkMisc.GetFuncInfo())
+					printNetError = false
+				}
 				continue
 			}
 
 			lastIp = rtkGlobal.ServerIPAddr
+			printNetError = true
 			// FIXME: it will trigger few times even it already got new IP
 			if lastIp != "" && !rtkMisc.IsInTheList(lastIp, currentIpList) && rtkMisc.IsNetworkConnected() {
 				log.Println("==============================================================================")

@@ -28,20 +28,20 @@ const (
 	g_DBConnectionStr = "file:" + rtkGlobal.DB_PATH + rtkGlobal.DB_NAME + "?_busy_timeout=5000&cache=shared&mode=rwc&_jounal_mode=WAL" //sqlite connect string
 
 	// SQL
-	sql_Query_ClientInfo      = "SELECT PkIndex,ClientId FROM t_client_info WHERE ClientId=?;"
-	sql_Insert_ClientInfo     = "INSERT INTO t_client_info (ClientId,Host, IPAddr,DeviceName, Platform) VALUES (?, ?, ?, ?, ?);"
-	sql_Update_ClientInfo     = "UPDATE t_client_info SET Online=true,IPAddr=? , UpdateTime = (datetime('now','localtime')) WHERE PkIndex=?;"
-	sql_Update_SourcePort     = "UPDATE t_client_info SET Source = ?, Port = ?, UpdateTime = (datetime('now','localtime')) where PkIndex = ? ;"
-	sql_Update_HeartBeat      = "UPDATE t_client_info SET UpdateTime = (datetime('now','localtime')) where PkIndex = ? ;"
-	sql_Online_Client         = "UPDATE t_client_info SET Online=true,UpdateTime = (datetime('now','localtime')) where PkIndex = ? ;"
-	sql_Offline_Client        = "UPDATE t_client_info SET Online = false, UpdateTime = (datetime('now','localtime')) where PkIndex = ? ;"
-	sql_Offline_All           = "UPDATE t_client_info SET Online = false, UpdateTime = (datetime('now','localtime')) where Online = true;"
-	sql_Query_OnlineClient    = "SELECT  client.ClientId, client.Host, client.IPAddr,client.DeviceName, client.Platform,client.Source,client.Port, client.UpdateTime FROM t_client_info client,t_auth_info auth where client.PkIndex=auth.ClientIndex and client.Online = true and auth.AuthStatus=true; "
-	sql_UpSert_AuthStatus     = "INSERT INTO t_auth_info (ClientIndex) VALUES (?) ON CONFLICT (ClientIndex) DO UPDATE SET UpdateTime = (datetime('now','localtime')),AuthStatus=? ;"
-	sql_Query_DeviceName      = "SELECT DeviceName FROM t_client_info WHERE PkIndex=?;"
-	sql_Query_ClientBySrcPort = "SELECT PkIndex, ClientId FROM t_client_info WHERE Source=? AND Port=? AND Online=1 ORDER BY UpdateTime DESC LIMIT 1"
-	sql_Query_ReconnList      = "SELECT c.ClientId, c.IPAddr, c.Platform, c.DeviceName FROM t_client_info c, t_auth_info a WHERE c.Online=1 AND c.PkIndex=a.ClientIndex AND a.AuthStatus=true AND (strftime('%s', 'now') - strftime('%s', c.UpdateTime)) > ?;"
-	sql_Query_SrcPort         = "SELECT Source,Port FROM t_client_info WHERE PkIndex=?;"
+	sql_Query_ClientInfo          = "SELECT PkIndex,ClientId FROM t_client_info WHERE ClientId=?;"
+	sql_Insert_ClientInfo         = "INSERT INTO t_client_info (ClientId,Host, IPAddr,DeviceName, Platform) VALUES (?, ?, ?, ?, ?);"
+	sql_Update_ClientInfo         = "UPDATE t_client_info SET Online=true,IPAddr=? , UpdateTime = (datetime('now','localtime')) WHERE PkIndex=?;"
+	sql_Update_SourcePort         = "UPDATE t_client_info SET Source = ?, Port = ?, UpdateTime = (datetime('now','localtime')) where PkIndex = ? ;"
+	sql_Update_HeartBeat          = "UPDATE t_client_info SET UpdateTime = (datetime('now','localtime')) where PkIndex = ? ;"
+	sql_Online_Client             = "UPDATE t_client_info SET Online=true,UpdateTime = (datetime('now','localtime')) where PkIndex = ? ;"
+	sql_Offline_Client            = "UPDATE t_client_info SET Online = false, UpdateTime = (datetime('now','localtime')) where PkIndex = ? ;"
+	sql_Offline_All               = "UPDATE t_client_info SET Online = false, UpdateTime = (datetime('now','localtime')) where Online = true;"
+	sql_Query_OnlineClient        = "SELECT  client.ClientId, client.Host, client.IPAddr,client.DeviceName, client.Platform,client.Source,client.Port, client.UpdateTime FROM t_client_info client,t_auth_info auth where client.PkIndex=auth.ClientIndex and client.Online = true and auth.AuthStatus=true; "
+	sql_UpSert_AuthStatus         = "INSERT INTO t_auth_info (ClientIndex) VALUES (?) ON CONFLICT (ClientIndex) DO UPDATE SET UpdateTime = (datetime('now','localtime')),AuthStatus=? ;"
+	sql_Query_DeviceName          = "SELECT DeviceName FROM t_client_info WHERE PkIndex=?;"
+	sql_Query_ClientBySrcPort     = "SELECT PkIndex, ClientId FROM t_client_info WHERE Source=? AND Port=? AND Online=1 ORDER BY UpdateTime DESC LIMIT 1"
+	sql_Query_ReconnList          = "SELECT c.ClientId, c.IPAddr, c.Platform, c.DeviceName, c.Source, c.Port FROM t_client_info c, t_auth_info a WHERE c.Online=1 AND c.PkIndex=a.ClientIndex AND a.AuthStatus=true AND (strftime('%s', 'now') - strftime('%s', c.UpdateTime)) > ?;"
+	sql_Query_DeviceNameBySrcPort = "SELECT c.DeviceName FROM t_client_info c, t_auth_info a WHERE Source=? AND Port=? AND c.Online=true AND c.PkIndex=a.ClientIndex AND a.AuthStatus=true;"
 )
 
 // sqlite table struct
@@ -84,7 +84,7 @@ func InitSqlite(ctx context.Context) {
 		    Host 			TEXT,
 		    IPAddr   		TEXT NOT NULL ,
 		    Source		 	INTEGER,
-			Port			INTEGER,
+		    Port			INTEGER,
 		    Online 			BOOLEAN NOT NULL DEFAULT TRUE,
 		    DeviceName 		TEXT,
 		    Platform  		TEXT,
@@ -350,33 +350,6 @@ func QueryDeviceName(pkIndex int) (string, error) {
 	return deviceName, nil
 }
 
-func QuerySrcPort(pkIndex uint32, src, port *int) rtkMisc.CrossShareErr {
-	if pkIndex <= 0 {
-		log.Printf("pkIndex:[%d] Err, QuerySrcPort failed!", pkIndex)
-		return rtkMisc.ERR_BIZ_S2C_INVALID_INDEX
-	}
-
-	rows, err := g_SqlInstance.Query(sql_Query_SrcPort, pkIndex)
-	if err != nil {
-		log.Printf("QuerySrcPort by pkIndex:[%d] Query error[%+v]", pkIndex, err)
-		return rtkMisc.ERR_DB_SQLITE_QUERY
-	}
-	defer rows.Close()
-
-	var errQuery error
-	for rows.Next() {
-		if errQuery = rows.Scan(src, port); errQuery != nil {
-			return rtkMisc.ERR_DB_SQLITE_SCAN
-		}
-	}
-	if err = rows.Err(); err != nil {
-		log.Printf("QuerySrcPort rows err:%+v", err)
-		return rtkMisc.ERR_DB_SQLITE_ROWS
-	}
-	log.Printf("[%s] get src:%d  port:%d by pkIndex:%d", rtkMisc.GetFuncInfo(), *src, *port, pkIndex)
-	return rtkMisc.SUCCESS
-}
-
 func QueryClientBySrcPort(source, port int) (int, string, error) {
 	if source < 0 || port < 0 {
 		log.Printf("[%s] Invalid (source,port)=(%d,%d)", rtkMisc.GetFuncInfo(), source, port)
@@ -410,6 +383,34 @@ func QueryClientBySrcPort(source, port int) (int, string, error) {
 	return clientIdx, clientId, nil
 }
 
+func QueryDeviceNameBySrcPort(source, port int) (string, error) {
+	if source < 0 || port < 0 {
+		log.Printf("[%s] Invalid (source,port)=(%d,%d)", rtkMisc.GetFuncInfo(), source, port)
+		return "", errors.New("Invalid source or port")
+	}
+
+	rows, err := g_SqlInstance.Query(sql_Query_DeviceNameBySrcPort, source, port)
+	if err != nil {
+		log.Printf("[%s] Query error[%+v]", rtkMisc.GetFuncInfo(), err)
+		return "", err
+	}
+	defer rows.Close()
+
+	var deviceName string = ""
+	var errQuery error
+	for rows.Next() {
+		if errQuery = rows.Scan(&deviceName); errQuery != nil {
+			return "", errQuery
+		}
+	}
+	if err = rows.Err(); err != nil {
+		log.Printf("[%s] rows err:%+v", rtkMisc.GetFuncInfo(), err)
+		return "", err
+	}
+
+	return deviceName, nil
+}
+
 func QueryReconnList(reconnList *[]rtkMisc.ClientInfo) rtkMisc.CrossShareErr {
 	rows, err := g_SqlInstance.Query(sql_Query_ReconnList, g_ReconnListInterval)
 	if err != nil {
@@ -420,7 +421,7 @@ func QueryReconnList(reconnList *[]rtkMisc.ClientInfo) rtkMisc.CrossShareErr {
 	clientList := make([]ClientInfoTb, 0)
 	for rows.Next() {
 		var client ClientInfoTb
-		if err = rows.Scan(&client.clientId, &client.ipAddr, &client.platform, &client.deviceName); err != nil {
+		if err = rows.Scan(&client.clientId, &client.ipAddr, &client.platform, &client.deviceName, &client.source, &client.port); err != nil {
 			log.Println(err)
 			continue
 		}
@@ -435,10 +436,11 @@ func QueryReconnList(reconnList *[]rtkMisc.ClientInfo) rtkMisc.CrossShareErr {
 
 	for _, client := range clientList {
 		*reconnList = append(*reconnList, rtkMisc.ClientInfo{
-			ID:         client.clientId,
-			IpAddr:     client.ipAddr,
-			Platform:   client.platform,
-			DeviceName: client.deviceName,
+			ID:             client.clientId,
+			IpAddr:         client.ipAddr,
+			Platform:       client.platform,
+			DeviceName:     client.deviceName,
+			SourcePortType: rtkCommon.GetClientSourcePortType(client.source, client.port),
 		})
 	}
 

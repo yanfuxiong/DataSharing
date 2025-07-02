@@ -164,7 +164,7 @@ func SendMultiFilesDropRequest(multiFilesData string) {
 }
 
 func IfClipboardPasteFile(fileName, id string, isReceive bool) {
-	FilePath := rtkPlatform.DownloadPath()
+	FilePath := rtkPlatform.GetDownloadPath()
 	if fileName != "" {
 		FilePath = filepath.Join(FilePath, fileName)
 	} else {
@@ -196,6 +196,7 @@ func SetHostListenAddr(listenHost string, listenPort int) {
 		return
 	}
 	if rtkGlobal.ListenHost != rtkMisc.DefaultIp &&
+		rtkGlobal.ListenHost != "" &&
 		rtkGlobal.ListenPort != rtkGlobal.DefaultPort &&
 		(listenHost != rtkGlobal.ListenHost || listenPort != rtkGlobal.ListenPort) {
 		log.Printf("[%s] The previous host Addr:[%s:%d], new host Addr:[%s:%d] ", rtkMisc.GetFuncInfo(), rtkGlobal.ListenHost, rtkGlobal.ListenPort, listenHost, listenPort)
@@ -209,6 +210,11 @@ func SetHostListenAddr(listenHost string, listenPort int) {
 func SetDIASID(DiasID string) {
 	log.Printf(" [%s]  DiasID:[%s]", rtkMisc.GetFuncInfo(), DiasID)
 	rtkPlatform.GoGetMacAddress(DiasID)
+}
+
+func SetDetectPluginEvent(isPlugin bool, productName string) {
+	log.Printf(" [%s] isPlugin:[%+v]  productName:[%s]", rtkMisc.GetFuncInfo(), isPlugin, productName)
+	rtkPlatform.GoTriggerDetectPluginEvent(isPlugin, productName)
 }
 
 func SetConfirmDocumentsAccept(ifConfirm bool) {

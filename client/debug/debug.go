@@ -127,13 +127,13 @@ func DebugCmdLine() {
 			rtkMisc.SetupLogConsoleFile()
 		} else if strings.Contains(line, "reqClient") {
 			rtkLogin.SendReqClientListToLanServer()
-		} else if strings.Contains(line, "StopLanServerRun") {
+		} /*else if strings.Contains(line, "StopLanServerRun") {
 			rtkLogin.StopLanServerRun()
 		} else if strings.Contains(line, "getMacAddressCallback") {
 			rtkPlatform.GoGetMacAddressCallback(rtkMisc.LanServerName)
 		} else if strings.Contains(line, "extractaDIASCallback") {
 			rtkPlatform.GoExtractDIASCallback()
-		}
+		}*/
 		// } else if strings.Contains(line, "PASTE_FILE") {
 		// 	rtkPlatform.GoClipboardPasteFileCallback("123")
 		// } else if strings.Contains(line, "FILE_DROP_TEST_1") {

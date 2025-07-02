@@ -2,7 +2,6 @@ package utils
 
 import (
 	"errors"
-	"fmt"
 	"log"
 	"net"
 )
@@ -16,7 +15,7 @@ func GetAddrsFromPlatform(addrsList []string) {
 			continue
 		}
 		g_addrs = append(g_addrs, addr)
-		fmt.Printf("GetAddrsFromPlatform get addr: %+v", addr)
+		log.Printf("GetAddrsFromPlatform get addr: %+v", addr)
 	}
 	log.Printf("xyfGetAddrsFromPlatform get size: %+v\n", len(g_addrs))
 }
@@ -48,9 +47,9 @@ func InterfaceFromJavaAddrs() ([]net.Addr, error) {
 			addrs[i] = ipNet
 		}
 	}
-	for i, addr := range addrs {
+	/*for i, addr := range addrs {
 		log.Printf("InterfaceFromJavaAddrs %+v - %v : %v", i, addr.Network(), addr.String())
-	}
+	}*/
 	return addrs, nil
 }
 

@@ -23,6 +23,7 @@ var (
 		{"TestUpdateDeviceName(UnixSocket-JSON)", func() { testUpdateDeviceName(scanner) }},
 		{"TestSendDragFileStart(UnixSocket-JSON)", func() { testSendDragFileStart(scanner) }},
 		{"TestGetDiasId(UnixSocket-JSON)", func() { testGetDiasId() }},
+		{"QueryDeviceNameBySrcPort(Database)", func() { queryDeviceNameBySrcPort(scanner) }},
 	}
 )
 
@@ -101,6 +102,18 @@ func updateAuthStatue(scanner *bufio.Scanner) {
 		authStatusBool = true
 	}
 	rtkdbManager.UpdateAuthStatus(index, authStatusBool)
+}
+
+func queryDeviceNameBySrcPort(scanner *bufio.Scanner) {
+	src, ret := readIntInput("Source(HDMI:8, DP/TypeC:13): ", scanner)
+	if !ret {
+		return
+	}
+	port, ret := readIntInput("Port(0~3): ", scanner)
+	if !ret {
+		return
+	}
+	rtkdbManager.QueryDeviceNameBySrcPort(src, port)
 }
 
 func updateDeviceName(scanner *bufio.Scanner) {

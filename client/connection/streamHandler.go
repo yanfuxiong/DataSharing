@@ -138,14 +138,14 @@ func UpdateFmtTypeStream(stream network.Stream, fmtType rtkCommon.TransFmtType) 
 	if sInfo, ok := streamPoolMap[id]; ok {
 		if fmtType == rtkCommon.IMAGE_CB {
 			if sInfo.sImage != nil {
-				log.Printf("[%s] ID:[%s] IP:[%s]  found old image stream is alive, close it first", rtkMisc.GetFuncInfo(), id, ipAddr)
-				sInfo.sImage.Close()
+				//log.Printf("[%s] ID:[%s] IP:[%s]  found old image stream is alive, close it first", rtkMisc.GetFuncInfo(), id, ipAddr)
+				//sInfo.sImage.Close()
 			}
 			sInfo.sImage = stream
 		} else if fmtType == rtkCommon.FILE_DROP {
 			if sInfo.sFileDrop != nil {
-				log.Printf("[%s] ID:[%s] IP:[%s]  found old file Drop stream is alive, close it first", rtkMisc.GetFuncInfo(), id, ipAddr)
-				sInfo.sFileDrop.Close()
+				//log.Printf("[%s] ID:[%s] IP:[%s]  found old file Drop stream is alive, close it first", rtkMisc.GetFuncInfo(), id, ipAddr)
+				//sInfo.sFileDrop.Close()
 			}
 			sInfo.sFileDrop = stream
 		} else {

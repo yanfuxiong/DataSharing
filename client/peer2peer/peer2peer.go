@@ -133,7 +133,7 @@ func HandleFileDropEvent(ctxMain context.Context, readSocketMode *atomic.Value, 
 	}
 }
 
-func handleReadFromSocketMsg(buffer []byte, len int, msg *Peer2PeerMessage) rtkMisc.CrossShareErr {
+func processInbandRead(buffer []byte, len int, msg *Peer2PeerMessage) rtkMisc.CrossShareErr {
 	buffer = buffer[:len]
 	buffer = bytes.Trim(buffer, "\x00")
 	buffer = bytes.Trim(buffer, "\x13")
@@ -215,7 +215,7 @@ func handleReadFromSocketMsg(buffer []byte, len int, msg *Peer2PeerMessage) rtkM
 	return rtkMisc.SUCCESS
 }
 
-func HandleReadFromSocket(ctxMain context.Context, readSocketMode *atomic.Value, resultChan chan<- EventResult, id string) {
+func HandleReadInbandFromSocket(ctxMain context.Context, readSocketMode *atomic.Value, resultChan chan<- EventResult, id string) {
 	defer close(resultChan)
 	for {
 		select {
@@ -239,7 +239,7 @@ func HandleReadFromSocket(ctxMain context.Context, readSocketMode *atomic.Value,
 			}
 
 			var msg Peer2PeerMessage
-			errCode = handleReadFromSocketMsg(buffer, nLen, &msg)
+			errCode = processInbandRead(buffer, nLen, &msg)
 			if errCode != rtkMisc.SUCCESS {
 				log.Printf("[%s] handle Read message error, errCode:%d, retrying...", rtkMisc.GetFuncInfo(), errCode)
 				continue
@@ -647,8 +647,7 @@ func processFileDrop(id string, event EventResult) bool {
 		}
 	} else if nextState == STATE_TRANS && nextCommand == COMM_DST {
 		if extData, ok := event.Data.(rtkCommon.ExtDataFile); ok {
-			//log.Printf("[%s %d] Ready to accept file", rtkMisc.GetFuncName(), rtkMisc.GetLine())
-			log.Printf("[%s %d] Ready to accept file,ActionType:[%s] FileType:[%s]", rtkMisc.GetFuncName(), rtkMisc.GetLine(), extData.ActionType, extData.FileType)
+			log.Printf("[%s] Ready to accept file,ActionType:[%s] FileType:[%s]", rtkMisc.GetFuncInfo(), extData.ActionType, extData.FileType)
 			// [Dst]: Setup file drop Data and DO NOT send msg
 
 			if len(extData.SrcFileList) == 0 && len(extData.FolderList) == 0 {
@@ -791,7 +790,7 @@ func ProcessEventsForPeer(id, ipAddr string, ctx context.Context) {
 	eventResultSocket := make(chan EventResult)
 	rtkMisc.GoSafe(func() { HandleClipboardEvent(ctx, &readSocketMode, eventResultClipboard, id) })
 	rtkMisc.GoSafe(func() { HandleFileDropEvent(ctx, &readSocketMode, eventResultFileDrop, id) })
-	rtkMisc.GoSafe(func() { HandleReadFromSocket(ctx, &readSocketMode, eventResultSocket, id) })
+	rtkMisc.GoSafe(func() { HandleReadInbandFromSocket(ctx, &readSocketMode, eventResultSocket, id) })
 
 	handleEvent := func(event EventResult) {
 		buildState := curState

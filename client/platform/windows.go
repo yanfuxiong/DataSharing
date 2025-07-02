@@ -110,6 +110,7 @@ type (
 	CallbackReqSourceAndPortFunc       func()
 	CallbackUpdateSystemInfoFunc       func(ipAddr string, verInfo string)
 	CallbackUpdateClientStatusFunc     func(status uint32, ip, id, deviceName, deviceType string)
+	CallbackDetectPluginEventFunc      func(isPlugin bool, productName string)
 )
 
 var (
@@ -210,6 +211,10 @@ func SetGoExtractDIASCallback(cb CallbackExtractDIASFunc) {
 
 func SetGoGetMacAddressCallback(cb CallbackGetMacAddressFunc) {
 	callbackGetMacAddressCB = cb
+}
+
+func SetDetectPluginEventCallback(cb CallbackDetectPluginEventFunc) {
+	//callbackDetectPluginEventCB = cb
 }
 
 func SetGoAuthStatusCodeCallback(cb CallbackAuthStatusCodeFunc) {
@@ -378,6 +383,10 @@ func GoReqSourceAndPort() {
 
 func GoDIASStatusNotify(diasStatus uint32) {
 	callbackDIASStatus(diasStatus)
+}
+
+func GetAuthData() (rtkMisc.CrossShareErr, rtkMisc.AuthDataInfo) {
+	return rtkMisc.ERR_BIZ_GET_CALLBACK_INSTANCE_NULL, rtkMisc.AuthDataInfo{}
 }
 
 func GoSetupDstPasteFile(desc, fileName, platform string, fileSizeHigh uint32, fileSizeLow uint32) {

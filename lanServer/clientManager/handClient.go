@@ -88,6 +88,25 @@ func handleReadFromClientMsg(buffer []byte, IPAddr string, MsgRsp *rtkMisc.C2SMe
 			}
 		}
 		MsgRsp.ExtData = authIndexMobileRsp
+	case rtkMisc.C2SMsg_AUTH_DATA_INDEX_MOBILE:
+		authDataIndexMobileRsp := rtkMisc.AuthDataIndexMobileResponse{Response: rtkMisc.GetResponse(rtkMisc.SUCCESS), AuthStatus: false}
+		var extData rtkMisc.AuthDataIndexMobileReq
+		err = json.Unmarshal(msg.ExtData, &extData)
+		if err != nil {
+			log.Printf("[%s] clientID:[%s] decode ExtDataText Err: %s", rtkMisc.GetFuncInfo(), msg.ClientID, err.Error())
+			authDataIndexMobileRsp.Response = rtkMisc.GetResponse(rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL)
+		} else {
+			log.Printf("[%s] Width[%d] Height[%d] Type[%d] Framerate[%d]  DisplayName:[%s]", rtkMisc.GetFuncInfo(), extData.AuthData.Width, extData.AuthData.Height, extData.AuthData.Type, extData.AuthData.Framerate, extData.AuthData.DisplayName)
+			// TODO: check AuthData
+			authStatus := true
+			errCode := rtkdbManager.UpdateAuthAndSrcPort(int(msg.ClientIndex), authStatus, 13, 0)
+			if errCode != rtkMisc.SUCCESS {
+				authDataIndexMobileRsp.Response = rtkMisc.GetResponse(errCode)
+			} else {
+				authDataIndexMobileRsp.AuthStatus = authStatus
+			}
+		}
+		MsgRsp.ExtData = authDataIndexMobileRsp
 	case rtkMisc.C2SMsg_REQ_CLIENT_LIST:
 		getClientListRsp := rtkMisc.GetClientListResponse{Response: rtkMisc.GetResponse(rtkMisc.SUCCESS), ClientList: make([]rtkMisc.ClientInfo, 0)}
 		errCode := rtkdbManager.QueryOnlineClientList(&getClientListRsp.ClientList)

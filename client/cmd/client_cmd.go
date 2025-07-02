@@ -20,8 +20,8 @@ import (
 )
 
 var (
-	getLanServerMacFlagChan  = make(chan struct{}, 1)
-	extractDIASFlagChan      = make(chan struct{})
+	cablePlugInFlagChan      = make(chan struct{}, 1)
+	cablePlugOutFlagChan     = make(chan struct{})
 	networkSwitchFlagChan    = make(chan struct{})
 	getLanServerMacTimeStamp int64
 )
@@ -35,25 +35,43 @@ func init() {
 
 	rtkConnection.SetStartProcessForPeerCallback(rtkPeer2Peer.StartProcessForPeer)
 	rtkConnection.SetStopProcessForPeerCallback(rtkPeer2Peer.EndProcessForPeer)
+	rtkLogin.SetDisconnectAllClientCallback(func() {
+		rtkPeer2Peer.SendDisconnectToAllPeer(false)
+		rtkConnection.OfflineAllStreamEvent()
+	})
 
 	rtkPlatform.SetGoNetworkSwitchCallback(func() {
 		networkSwitchFlagChan <- struct{}{}
 	})
 
+	rtkPlatform.SetDetectPluginEventCallback(func(isPlugin bool, productName string) {
+		if isPlugin {
+			log.Printf("Detect cable plug-in")
+			if productName != "" {
+				rtkLogin.SetProductName(productName)
+			}
+
+			cablePlugInFlagChan <- struct{}{}
+		} else {
+			log.Printf("Detect cable plug-out")
+			cablePlugOutFlagChan <- struct{}{}
+		}
+	})
+
 	rtkPlatform.SetGoExtractDIASCallback(func() {
 		log.Printf("Detect cable plug-out")
-		extractDIASFlagChan <- struct{}{}
+		cablePlugOutFlagChan <- struct{}{}
 	})
 
 	rtkPlatform.SetGoGetMacAddressCallback(func(mac string) {
-		log.Printf("Get MAC address: %s", mac)
+		log.Printf("Detect cable plug-in, get MAC address: %s", mac)
 		if getLanServerMacTimeStamp != 0 && (time.Now().UnixMilli()-getLanServerMacTimeStamp < 200) {
 			log.Printf("GetMacAddress trigger interval time is too short, so discard it!")
 			return
 		}
 		getLanServerMacTimeStamp = time.Now().UnixMilli()
 		rtkLogin.SetLanServerName(mac)
-		getLanServerMacFlagChan <- struct{}{}
+		cablePlugInFlagChan <- struct{}{}
 	})
 
 	rtkPlatform.SetGoAuthStatusCodeCallback(func(status uint8) {
@@ -143,6 +161,7 @@ func MainInit(serverId, serverIpInfo, listenHost string, listentPort int) {
 		rtkGlobal.RelayServerIPInfo = serverIpInfo
 		rtkGlobal.ListenPort = listentPort
 		rtkGlobal.ListenHost = listenHost
+
 		rtkGlobal.NodeInfo.IPAddr.PublicIP = listenHost
 		rtkGlobal.NodeInfo.IPAddr.PublicPort = strconv.Itoa(listentPort)
 		log.Printf("set relayServerID: [%s], relayServerIPInfo:[%s]", serverId, serverIpInfo)
@@ -153,7 +172,7 @@ func MainInit(serverId, serverIpInfo, listenHost string, listentPort int) {
 		log.Fatalf("MainInit  parameter is invalid \n\n")
 	}
 
-	lockFilePath := rtkPlatform.GetLockFilePath()
+	/*lockFilePath := rtkPlatform.GetLockFilePath()
 	file, err := os.OpenFile(lockFilePath, os.O_CREATE|os.O_RDWR, 0666)
 	if err != nil {
 		log.Println("Failed to open or create lock file:", err)
@@ -166,7 +185,7 @@ func MainInit(serverId, serverIpInfo, listenHost string, listentPort int) {
 		log.Println("Another instance is already running.")
 		return
 	}
-	defer rtkPlatform.UnlockFile(file)
+	defer rtkPlatform.UnlockFile(file)*/
 
 	rtkMisc.GoSafe(func() { businessProcess() })
 
@@ -180,7 +199,7 @@ func businessProcess() {
 	cancelFunc = nil
 	for {
 		select {
-		case <-getLanServerMacFlagChan:
+		case <-cablePlugInFlagChan:
 			log.Println("===========================================================================")
 			log.Println("******** Get lan Server mac Address, business start! ********")
 			if cancelFunc != nil {
@@ -209,7 +228,7 @@ func businessProcess() {
 				log.Printf("******** Client Network is Switch, business is not start! ******** ")
 				log.Println("===========================================================================\n\n")
 			}
-		case <-extractDIASFlagChan:
+		case <-cablePlugOutFlagChan:
 			log.Println("===========================================================================")
 			if cancelFunc != nil {
 				log.Printf("******** DIAS is extract, cancel all business! ******** ")
@@ -235,10 +254,6 @@ func businessStart(ctx context.Context) {
 				// TODO: refine this cancel flow, we need send disconnect message to all peer befor cancel
 				rtkPeer2Peer.SendDisconnectToAllPeer(true)
 				return
-			case <-rtkLogin.DisconnectLanServerFlag:
-				//TODO: refine this flow
-				rtkPeer2Peer.SendDisconnectToAllPeer(false)
-				rtkConnection.OfflineAllStreamEvent()
 			case <-ticker.C:
 				nProcessCount := rtkPeer2Peer.GetProcessForPeerCount()
 				nClientCount := rtkUtils.GetClientCount()
@@ -250,7 +265,7 @@ func businessStart(ctx context.Context) {
 	})
 
 	// Init connection
-	rtkConnection.ConnectionInit()
+	rtkConnection.ConnectionInit(ctx)
 	rtkMisc.GoSafe(func() { rtkConnection.Run(ctx) })
 
 	rtkMisc.GoSafe(func() { rtkLogin.ConnectLanServerRun(ctx) })

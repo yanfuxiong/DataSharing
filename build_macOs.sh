@@ -1,5 +1,5 @@
 #!/bin/sh
-version="2.1.13"
+version="2.1.14"
 buildDate=$(date "+%Y-%m-%dT%H:%M:%S")
 ldflags="-X rtk-cross-share/client/buildConfig.Version=$version -X rtk-cross-share/client/buildConfig.BuildDate=$buildDate -X rtk-cross-share/client/buildConfig.Debug=1 -s -w -extldflags=-lresolv"
 cd ./client/platform/macOs

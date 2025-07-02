@@ -2,15 +2,12 @@ package login
 
 import (
 	"bufio"
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net"
-	rtkFileDrop "rtk-cross-share/client/filedrop"
 	rtkGlobal "rtk-cross-share/client/global"
 	rtkPlatform "rtk-cross-share/client/platform"
 	rtkUtils "rtk-cross-share/client/utils"
@@ -28,9 +25,14 @@ func SetLanServerName(name string) {
 	lanServerName = name
 }
 
+func SetProductName(name string) {
+	productName = name
+}
+
 func init() {
 	lanServerName = ""
 	lanServerAddr = ""
+	productName = ""
 	isReconnectRunning.Store(false)
 
 	pSafeConnect = &safeConnect{
@@ -40,6 +42,8 @@ func init() {
 	}
 	heartBeatTicker = nil
 	cancelBrowse = nil
+
+	disconnectAllClientFunc = nil
 }
 
 func ConnectLanServerRun(ctx context.Context) {
@@ -189,8 +193,8 @@ func BrowseInstance() rtkMisc.CrossShareErr {
 	resultChan := make(chan browseParam)
 
 	var err rtkMisc.CrossShareErr
-	if rtkGlobal.NodeInfo.Platform == rtkGlobal.PlatformiOS {
-		err = browseLanServeriOS(ctx, rtkMisc.LanServiceType, resultChan)
+	if rtkGlobal.NodeInfo.Platform == rtkGlobal.PlatformiOS || rtkGlobal.NodeInfo.Platform == rtkGlobal.PlatformAndroid {
+		err = browseLanServerMobile(ctx, rtkMisc.LanServiceType, rtkMisc.LanServerDomain, resultChan)
 	} else {
 		err = browseLanServer(ctx, rtkMisc.LanServiceType, rtkMisc.LanServerDomain, resultChan)
 	}
@@ -216,28 +220,53 @@ func stopBrowseInstance() {
 }
 
 func getLanServerAddr() (string, rtkMisc.CrossShareErr) {
-	if lanServerName == "" {
-		log.Printf("[%s] lanServerName is not set!", rtkMisc.GetFuncInfo())
-		return "", rtkMisc.ERR_BIZ_C2S_GET_NO_SERVER_NAME
-	}
-
-	mapValue, ok := serverInstanceMap.Load(lanServerName)
-	if ok {
-		lanServerIp := mapValue.(string)
-		if len(lanServerIp) > 0 {
-			log.Printf("get LanServer addr from browse serverInstanceMap!")
-			return lanServerIp, rtkMisc.SUCCESS
-		}
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 
-	if rtkGlobal.NodeInfo.Platform == rtkGlobal.PlatformiOS {
-		return lookupLanServeriOS(ctx, lanServerName, rtkMisc.LanServiceType)
-	} else {
+	if rtkGlobal.NodeInfo.Platform == rtkGlobal.PlatformWindows {
+		if lanServerName == "" {
+			log.Printf("[%s] lanServerName is not set!", rtkMisc.GetFuncInfo())
+			return "", rtkMisc.ERR_BIZ_C2S_GET_NO_SERVER_NAME
+		}
+
+		mapValue, ok := serverInstanceMap.Load(lanServerName)
+		if ok {
+			lanServerIp := mapValue.(string)
+			if len(lanServerIp) > 0 {
+				log.Printf("get LanServer addr from browse serverInstanceMap!")
+				return lanServerIp, rtkMisc.SUCCESS
+			}
+		}
 		return lookupLanServer(ctx, lanServerName, rtkMisc.LanServiceType, rtkMisc.LanServerDomain)
+	} else {
+		if lanServerName != "" {
+			mapValue, ok := serverInstanceMap.Load(lanServerName)
+			if ok {
+				lanServerIp := mapValue.(string)
+				if len(lanServerIp) > 0 {
+					log.Printf("get LanServer addr from browse serverInstanceMap!")
+					return lanServerIp, rtkMisc.SUCCESS
+				}
+			}
+		}
+
+		resultChan := make(chan browseParam)
+		errCode := browseLanServerMobile(ctx, rtkMisc.LanServiceType, rtkMisc.LanServerDomain, resultChan)
+		if errCode != rtkMisc.SUCCESS {
+			return "", errCode
+		}
+
+		select {
+		case <-ctx.Done():
+			return "", rtkMisc.ERR_NETWORK_C2S_BROWSER_TIMEOUT
+		case param := <-resultChan:
+			if len(param.instance) > 0 && len(param.ip) > 0 {
+				serverInstanceMap.Store(param.instance, param.ip)
+				return param.ip, rtkMisc.SUCCESS
+			}
+		}
 	}
+	return "", rtkMisc.ERR_NETWORK_C2S_BROWSER_INVALID
 }
 
 func connectToLanServer() rtkMisc.CrossShareErr {
@@ -323,10 +352,9 @@ func ReConnectLanServer() {
 	}
 
 ReConnectSuccessFlag:
-
 	if sendReqMsgToLanServer(rtkMisc.C2SMsg_RESET_CLIENT) == rtkMisc.SUCCESS {
 		heartBeatFlag <- struct{}{}
-		return
+		log.Printf("ReConnectLanServer success!")
 	}
 }
 
@@ -341,9 +369,14 @@ func StopLanServerRun() {
 
 func stopLanServerBusiness() {
 	log.Printf("connect lanServer business is all stop!")
+	NotifyDIASStatus(DIAS_Status_Wait_DiasMonitor)
 	pSafeConnect.Close()
-	DisconnectLanServerFlag <- struct{}{}
 	heartBeatTicker.Reset(time.Duration(999 * time.Hour))
+	if disconnectAllClientFunc == nil {
+		log.Printf("disconnectAllClientFunc is nil, not cancel all client business!")
+		return
+	}
+	disconnectAllClientFunc()
 }
 
 func cancelLanServerBusiness() {
@@ -360,263 +393,9 @@ func cancelLanServerBusiness() {
 	}
 }
 
-// TODO: Callback by windows process
-func SendReqClientListToLanServer() {
-	// TODO: retry a  few times or keep trying??
-	nCount := 0
-	for {
-		nCount++
-		if nCount > 3 {
-			log.Printf("[%s] send requst client list 3 times failed!", rtkMisc.GetFuncInfo())
-			break
-		}
-
-		if sendReqMsgToLanServer(rtkMisc.C2SMsg_REQ_CLIENT_LIST) == rtkMisc.SUCCESS {
-			break
-		}
-		time.Sleep(1 * time.Second)
-	}
-}
-
-func SendReqAuthIndexMobileToLanServer() rtkMisc.CrossShareErr {
-	return sendReqMsgToLanServer(rtkMisc.C2SMsg_AUTH_INDEX_MOBILE)
-}
-
-func sendReqMsgToLanServer(MsgType rtkMisc.C2SMsgType) rtkMisc.CrossShareErr {
-	var msg rtkMisc.C2SMessage
-	msg.MsgType = MsgType
-	resultCode := buildMessageReq(&msg)
-	if resultCode != rtkMisc.SUCCESS {
-		return resultCode
-	}
-
-	encodedData, err := json.Marshal(msg)
-	if err != nil {
-		log.Println("Failed to Marshal C2SMessage data:", err)
-		return rtkMisc.ERR_BIZ_JSON_MARSHAL
-	}
-	encodedData = bytes.Trim(encodedData, "\x00")
-	errCode := pSafeConnect.Write(encodedData)
-	if errCode != rtkMisc.SUCCESS {
-		log.Printf("[%s] LanServer IPAddr:[%s]  sending msg[%s] errCode:%d ", rtkMisc.GetFuncInfo(), pSafeConnect.ConnectIPAddr(), MsgType, errCode)
-		pSafeConnect.Close()
-		return errCode
-	}
-
-	if MsgType != rtkMisc.C2SMsg_CLIENT_HEARTBEAT {
-		log.Printf("[%s] MsgType:[%s], Write a message success!", rtkMisc.GetFuncInfo(), MsgType)
-	}
-	return rtkMisc.SUCCESS
-}
-
-func buildMessageReq(msg *rtkMisc.C2SMessage) rtkMisc.CrossShareErr {
-	msg.TimeStamp = time.Now().UnixMilli()
-	msg.ClientID = rtkGlobal.NodeInfo.ID
-
-	switch msg.MsgType {
-	case rtkMisc.C2SMsg_CLIENT_HEARTBEAT:
-		msg.ClientIndex = rtkGlobal.NodeInfo.ClientIndex
-	case rtkMisc.C2SMsg_INIT_CLIENT:
-		reqData := rtkMisc.InitClientMessageReq{
-			HOST:       rtkGlobal.HOST_ID,
-			ClientID:   rtkGlobal.NodeInfo.ID,
-			Platform:   rtkGlobal.NodeInfo.Platform,
-			DeviceName: rtkGlobal.NodeInfo.DeviceName,
-			IPAddr:     rtkMisc.ConcatIP(rtkGlobal.NodeInfo.IPAddr.PublicIP, rtkGlobal.NodeInfo.IPAddr.PublicPort),
-		}
-		msg.ExtData = reqData
-
-	case rtkMisc.C2SMsg_RESET_CLIENT:
-		msg.ClientIndex = rtkGlobal.NodeInfo.ClientIndex
-	case rtkMisc.C2SMsg_AUTH_INDEX_MOBILE:
-		msg.ClientIndex = rtkGlobal.NodeInfo.ClientIndex
-		reqData := rtkMisc.AuthIndexMobileReq{
-			SourceAndPort: rtkPlatform.GoGetSrcAndPortFromIni(),
-		}
-		msg.ExtData = reqData
-	case rtkMisc.C2SMsg_REQ_CLIENT_LIST:
-		msg.ClientIndex = rtkGlobal.NodeInfo.ClientIndex
-	default:
-		log.Printf("Unknown MsgType[%s]", msg.MsgType)
-		return rtkMisc.ERR_BIZ_C2S_UNKNOWN_MSG_TYPE
-	}
-
-	return rtkMisc.SUCCESS
-}
-
-func handleReadMessageFromServer(buffer []byte) rtkMisc.CrossShareErr {
-	buffer = bytes.Trim(buffer, "\x00")
-
-	if len(buffer) == 0 {
-		return rtkMisc.ERR_BIZ_C2S_READ_EMPTY_DATA
-	}
-
-	type TempMsg struct {
-		ExtData json.RawMessage
-		rtkMisc.C2SMessage
-	}
-	var rspMsg TempMsg
-	err := json.Unmarshal(buffer, &rspMsg)
-	if err != nil {
-		log.Println("Failed to unmarshal C2SMessage data: ", err.Error())
-		log.Printf("Err JSON len[%d] data:[%s] ", len(buffer), string(buffer))
-		return rtkMisc.ERR_BIZ_JSON_UNMARSHAL
-	}
-
-	if rspMsg.MsgType != rtkMisc.C2SMsg_CLIENT_HEARTBEAT && rspMsg.MsgType != rtkMisc.CS2Msg_RECONN_CLIENT_LIST {
-		log.Printf("Received a Response msg from Server, clientID:[%s] ClientIndex:[%d] MsgType:[%s] RTT:[%d]ms", rspMsg.ClientID, rspMsg.ClientIndex, rspMsg.MsgType, time.Now().UnixMilli()-rspMsg.TimeStamp)
-	}
-
-	switch rspMsg.MsgType {
-	case rtkMisc.C2SMsg_CLIENT_HEARTBEAT:
-	//log.Printf("HearBeat, RTT:[%d]ms", time.Now().UnixMilli()-rspMsg.TimeStamp)
-	case rtkMisc.C2SMsg_RESET_CLIENT:
-		var resetClientRsp rtkMisc.ResetClientResponse
-		err = json.Unmarshal(rspMsg.ExtData, &resetClientRsp)
-		if err != nil {
-			log.Printf("clientID:[%s]decode ExtDataText  Err: %+v", rspMsg.ClientID, err)
-			return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
-		} else {
-			if resetClientRsp.Code != rtkMisc.SUCCESS {
-				log.Printf("Requst Reset Client failed,  code:[%d] errMsg:[%s]", resetClientRsp.Code, resetClientRsp.Msg)
-				return resetClientRsp.Code
-			}
-		}
-		log.Printf("Requst Reset Client Response success, request client list!")
-		errCode := sendReqMsgToLanServer(rtkMisc.C2SMsg_REQ_CLIENT_LIST)
-		if errCode != rtkMisc.SUCCESS {
-			log.Printf("[%s] Err: Send REQ_CLIENT_LIST failed: [%d]", rtkMisc.GetFuncInfo(), errCode)
-		}
-	case rtkMisc.C2SMsg_INIT_CLIENT:
-		var initClientRsp rtkMisc.InitClientMessageResponse
-		err = json.Unmarshal(rspMsg.ExtData, &initClientRsp)
-		if err != nil {
-			log.Printf("clientID:[%s]decode ExtDataText  Err: %+v", rspMsg.ClientID, err)
-			return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
-		} else {
-			if initClientRsp.Code != rtkMisc.SUCCESS {
-				log.Printf("Requst Init Client failed,  code:[%d] errMsg:[%s]", initClientRsp.Code, initClientRsp.Msg)
-				return initClientRsp.Code
-			}
-		}
-		rtkGlobal.NodeInfo.ClientIndex = initClientRsp.ClientIndex
-		heartBeatFlag <- struct{}{}
-		log.Printf("Requst Init Client success, get Client Index:[%d]", initClientRsp.ClientIndex)
-
-		if rtkGlobal.NodeInfo.Platform == rtkGlobal.PlatformAndroid || rtkGlobal.NodeInfo.Platform == rtkGlobal.PlatformiOS {
-			SendReqAuthIndexMobileToLanServer()
-		} else {
-			rtkPlatform.GoAuthViaIndex(rtkGlobal.NodeInfo.ClientIndex)
-		}
-	case rtkMisc.C2SMsg_AUTH_INDEX_MOBILE:
-		var authIndexMobileRsp rtkMisc.AuthIndexMobileResponse
-		err = json.Unmarshal(rspMsg.ExtData, &authIndexMobileRsp)
-		if err != nil {
-			log.Printf("clientID:[%s] Index:[%d] Err: decode ExtDataText:%+v", rspMsg.ClientID, rspMsg.ClientIndex, err)
-			return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
-		}
-
-		if authIndexMobileRsp.Code != rtkMisc.SUCCESS {
-			return authIndexMobileRsp.Code
-		}
-
-		if authIndexMobileRsp.AuthStatus != true {
-			log.Printf("clientID:[%s] Index[%d] Err: Unauthorized", rspMsg.ClientID, rspMsg.ClientIndex)
-			return rtkMisc.ERR_BIZ_S2C_UNAUTH
-		}
-		SendReqClientListToLanServer()
-	case rtkMisc.C2SMsg_REQ_CLIENT_LIST:
-		var getClientListRsp rtkMisc.GetClientListResponse
-		err = json.Unmarshal(rspMsg.ExtData, &getClientListRsp)
-		if err != nil {
-			log.Printf("clientID:[%s] Index:[%d] Err: decode ExtDataText:%+v", rspMsg.ClientID, rspMsg.ClientIndex, err)
-			return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
-		}
-
-		if getClientListRsp.Code != rtkMisc.SUCCESS {
-			return getClientListRsp.Code
-		}
-		clientList := make([]rtkMisc.ClientInfo, 0)
-		for _, client := range getClientListRsp.ClientList {
-			if client.ID != rtkGlobal.NodeInfo.ID {
-				clientList = append(clientList, rtkMisc.ClientInfo{
-					ID:             client.ID,
-					IpAddr:         client.IpAddr,
-					Platform:       client.Platform,
-					DeviceName:     client.DeviceName,
-					SourcePortType: client.SourcePortType,
-				})
-			} else {
-				rtkGlobal.NodeInfo.SourcePortType = client.SourcePortType
-			}
-		}
-		nClientCount := len(clientList)
-		if nClientCount == 0 {
-			NotifyDIASStatus(DIAS_Status_Wait_Other_Clients)
-		} else {
-			NotifyDIASStatus(DIAS_Status_Get_Clients_Success)
-		}
-
-		GetClientListFlag <- clientList
-		log.Printf("Request Client List success, get online ClienList len [%d], self SourcePortType:[%s]", nClientCount, rtkGlobal.NodeInfo.SourcePortType)
-	case rtkMisc.C2SMsg_REQ_CLIENT_DRAG_FILE:
-		var targetID string
-		err = json.Unmarshal(rspMsg.ExtData, &targetID)
-		if err != nil {
-			log.Printf("clientID:[%s] Index:[%d] Err: decode ExtDataText:%+v", rspMsg.ClientID, rspMsg.ClientIndex, err)
-			return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
-		}
-		log.Printf("Call Client Drag file by LanServer success, get target Client id:[%s]", targetID)
-		rtkFileDrop.UpdateDragFileReqDataFromLocal(targetID)
-	case rtkMisc.CS2Msg_RECONN_CLIENT_LIST:
-		var reconnListReq rtkMisc.ReconnClientListReq
-		err = json.Unmarshal(rspMsg.ExtData, &reconnListReq)
-		if err != nil {
-			log.Printf("clientID:[%s] Index:[%d] Err: decode ExtDataText:%+v", rspMsg.ClientID, rspMsg.ClientIndex, err)
-			return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
-		}
-
-		clientList := reconnListHandler(reconnListReq.ClientList, reconnListReq.ConnDirect)
-		GetClientListFlag <- clientList
-	default:
-		log.Printf("[%s]Unknown MsgType:[%s]", rtkMisc.GetFuncInfo(), rspMsg.MsgType)
-		return rtkMisc.ERR_BIZ_C2S_UNKNOWN_MSG_TYPE
-	}
-
-	return rtkMisc.SUCCESS
-}
-
 func NotifyDIASStatus(status CrossShareDiasStatus) {
 	CurrentDiasStatus = status
 	rtkPlatform.GoDIASStatusNotify(uint32(status))
-}
-
-func reconnListHandler(reconnList []rtkMisc.ClientInfo, connDirection rtkMisc.ReconnDirection) []rtkMisc.ClientInfo {
-	clientList := make([]rtkMisc.ClientInfo, 0)
-	for _, client := range reconnList {
-		if client.ID == rtkGlobal.NodeInfo.ID {
-			continue
-		}
-
-		if connDirection == rtkMisc.RECONN_GREATER {
-			if rtkGlobal.NodeInfo.ID < client.ID {
-				continue
-			}
-		} else {
-			if rtkGlobal.NodeInfo.ID > client.ID {
-				continue
-			}
-		}
-
-		clientList = append(clientList, rtkMisc.ClientInfo{
-			ID:             client.ID,
-			IpAddr:         client.IpAddr,
-			Platform:       client.Platform,
-			DeviceName:     client.DeviceName,
-			SourcePortType: client.SourcePortType,
-		})
-	}
-	return clientList
 }
 
 func browseLanServer(ctx context.Context, serviceType, domain string, resultChan chan<- browseParam) rtkMisc.CrossShareErr {
@@ -634,6 +413,45 @@ func browseLanServer(ctx context.Context, serviceType, domain string, resultChan
 				lanServerIp := fmt.Sprintf("%s:%d", entry.AddrIPv4[0].String(), entry.Port)
 				log.Printf("Browse get a Service:[%s] IP:[%s],use [%d] ms", entry.Instance, lanServerIp, time.Now().UnixMilli()-startTime)
 				resultChan <- browseParam{entry.Instance, lanServerIp}
+			}
+		}
+		log.Printf("Stop Browse service instances...")
+		close(resultChan)
+	})
+
+	err = resolver.Browse(ctx, serviceType, domain, entries)
+	if err != nil {
+		log.Printf("[%s] Failed to browse:%+v", rtkMisc.GetFuncInfo(), err.Error())
+		return rtkMisc.ERR_NETWORK_C2S_BROWSER
+	}
+
+	log.Printf("Start Browse service instances...")
+	return rtkMisc.SUCCESS
+}
+
+func browseLanServerMobile(ctx context.Context, serviceType, domain string, resultChan chan<- browseParam) rtkMisc.CrossShareErr {
+	startTime := time.Now().UnixMilli()
+	resolver, err := zeroconf.NewResolver(rtkUtils.GetNetInterfaces(), nil)
+	if err != nil {
+		log.Printf("[%s] Failed to initialize resolver:%+v", rtkMisc.GetFuncInfo(), err.Error())
+		return rtkMisc.ERR_NETWORK_C2S_RESOLVER
+	}
+
+	entries := make(chan *zeroconf.ServiceEntry)
+	rtkMisc.GoSafe(func() {
+		for entry := range entries {
+			if len(entry.AddrIPv4) > 0 {
+				tmpIp := entry.AddrIPv4[0].String()
+				targetText := "ip=" + tmpIp
+
+				lanServerIp := fmt.Sprintf("%s:%d", tmpIp, entry.Port)
+				if rtkMisc.IsInTheList(targetText, entry.Text) {
+					log.Printf("Browse get a Service:[%s] IP:[%s],this is target service, use [%d] ms", entry.Instance, lanServerIp, time.Now().UnixMilli()-startTime)
+					SetLanServerName(entry.Instance)
+					resultChan <- browseParam{entry.Instance, lanServerIp}
+				} else {
+					log.Printf("Browse get a Service:[%s] IP:[%s],use [%d] ms", entry.Instance, lanServerIp, time.Now().UnixMilli()-startTime)
+				}
 			}
 		}
 		log.Printf("Stop Browse service instances...")
@@ -723,4 +541,3 @@ func lookupLanServeriOS(ctx context.Context, instance, serviceType string) (stri
 		return val.ip, rtkMisc.SUCCESS
 	}
 }
-

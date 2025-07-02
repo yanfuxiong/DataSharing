@@ -3,7 +3,6 @@ package misc
 import (
 	"errors"
 	"fmt"
-	"gopkg.in/natefinch/lumberjack.v2"
 	"log"
 	"os"
 	"path/filepath"
@@ -11,6 +10,8 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
+
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 func GoSafeWithParam(fn func(args ...any), args ...any) {

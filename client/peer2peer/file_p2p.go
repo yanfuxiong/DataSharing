@@ -378,8 +378,6 @@ func handleFileFromSocket(ipAddr, id string, read *cancelableReader, fileSize ui
 	}
 
 	if uint64(nDstWrite) >= fileSize {
-		//  For Android file
-		//rtkPlatform.ReceiveFileDropCopyDataDone(int64(fileSize), dstFullPath)
 		log.Printf("(DST) IP[%s] End to Copy file:[%s] success, total:[%d] use [%d] ms", ipAddr, filename, nDstWrite, time.Now().UnixMilli()-startTime)
 		return rtkMisc.SUCCESS
 	} else {

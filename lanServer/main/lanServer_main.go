@@ -62,7 +62,7 @@ func checkLanServerExists() (string, bool) {
 	}
 }
 
-func main() {
+func MainInit() {
 	flag.Parse()
 
 	logFile := fmt.Sprintf("%s%s.log", rtkGlobal.LOG_PATH, rtkBuildConfig.ServerName)
@@ -229,6 +229,7 @@ func registerMdns(server *zeroconf.Server) []net.Addr {
 			// iOS use the IP in textRecord to skip the different IP from bonjour service
 			contextText := "ip=" + ipAddr
 			server, err = zeroconf.Register(*name, *service, *domain, *port, []string{contextText}, []net.Interface{*iface})
+
 			if err != nil {
 				if printErrMdns {
 					log.Printf("Err: mDNS register failed: %s", err.Error())

@@ -1,7 +1,7 @@
 package global
 
 const (
-	LOG_PATH         = "/data/cross_share/"
+	LOG_PATH         = "/data/vendor/realtek/cross_share/"
 	SOCKET_PATH_ROOT = "/mnt/vendor/tvdata/database/cross_share/"
 	DB_PATH          = "/mnt/vendor/tvdata/database/cross_share/"
 	DB_NAME          = "cross_share.db"

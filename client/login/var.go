@@ -19,21 +19,32 @@ const (
 	DIAS_Status_Get_Clients_Success
 )
 
+type callbackDisconnectAllClientFunc func()
+
 var (
-	serverInstanceMap   sync.Map //KEY: instance
-	cancelBrowse        func()
-	lanServerAddr       string
-	lanServerName       string
-	pSafeConnect        *safeConnect
-	heartBeatTicker     *time.Ticker
-	heartBeatFlag       = make(chan struct{}, 1)
-	isReconnectRunning  atomic.Bool
-	reconnectCancelFunc func()
+	serverInstanceMap sync.Map //KEY: instance
+	cancelBrowse      func()
+	lanServerAddr     string
+	lanServerName     string
+	productName       string
+	pSafeConnect      *safeConnect
+
+	heartBeatTicker *time.Ticker
+	heartBeatFlag   = make(chan struct{}, 1)
+	//stopLanServerRunFlag = make(chan struct{}, 1)
+	isReconnectRunning      atomic.Bool
+	reconnectCancelFunc     func()
+	disconnectAllClientFunc callbackDisconnectAllClientFunc
+
+	mobileAuthData rtkMisc.AuthDataInfo
 
 	// Used by connection package
-	GetClientListFlag       = make(chan []rtkMisc.ClientInfo)
-	DisconnectLanServerFlag = make(chan struct{})
-	
+	GetClientListFlag = make(chan []rtkMisc.ClientInfo)
+
 	// Used by cmd package
 	CurrentDiasStatus CrossShareDiasStatus
 )
+
+func SetDisconnectAllClientCallback(cb callbackDisconnectAllClientFunc) {
+	disconnectAllClientFunc = cb
+}

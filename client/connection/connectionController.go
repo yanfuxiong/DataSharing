@@ -45,9 +45,25 @@ func GetConnectNode() host.Host {
 	return node
 }
 
-func ConnectionInit() {
+func ConnectionInit(ctx context.Context) {
 	log.Printf("[%s] listen host[%s] port[%d] connection start init", rtkMisc.GetFuncInfo(), rtkGlobal.ListenHost, rtkGlobal.ListenPort)
-	setupNode(rtkGlobal.ListenHost, rtkGlobal.ListenPort)
+
+	if setupNode(rtkGlobal.ListenHost, rtkGlobal.ListenPort) != nil {
+		ticker := time.NewTicker(3 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if setupNode(rtkGlobal.ListenHost, rtkGlobal.ListenPort) == nil {
+					goto setNodeSuccessFlag
+				}
+			}
+		}
+	}
+
+setNodeSuccessFlag:
 	nodeMutex.RLock()
 	defer nodeMutex.RUnlock()
 	if node == nil {
@@ -97,7 +113,7 @@ func Run(ctx context.Context) {
 	}
 }
 
-func setupNode(ip string, port int) {
+func setupNode(ip string, port int) error {
 	priv := rtkPlatform.GenKey()
 
 	cancelHostNode()
@@ -125,13 +141,13 @@ func setupNode(ip string, port int) {
 	)
 	if err != nil {
 		log.Printf("Failed to create node: %v", err)
-		// TODO: consider if mobile use 4G/5G network
-		panic(err)
+		return err
 	}
 
 	if len(tempNode.Addrs()) == 0 {
 		log.Printf("Failed to create node, Addrs is null!")
-		panic(fmt.Sprintf("addr is null!"))
+		tempNode.Close()
+		return fmt.Errorf("addr is null!")
 	}
 
 	tempNode.Network().Listen(tempNode.Addrs()...)
@@ -184,6 +200,8 @@ func setupNode(ip string, port int) {
 	nodeMutex.Lock()
 	node = tempNode
 	nodeMutex.Unlock()
+
+	return nil
 }
 
 func getDelayTime(id peer.ID) time.Duration {
@@ -236,7 +254,7 @@ func buildTalker(ctxMain context.Context, client rtkMisc.ClientInfo) rtkMisc.Cro
 		return rtkMisc.ERR_BIZ_P2P_NODE_NULL
 	}
 
-	ctx, cancel := context.WithTimeout(ctxMain, 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctxMain, ctxTimeout_normal)
 	defer cancel()
 
 	if node.Network().Connectedness(peer.ID) != network.Connected {
@@ -280,7 +298,7 @@ func buildTalker(ctxMain context.Context, client rtkMisc.ClientInfo) rtkMisc.Cro
 }
 
 func BuildFmtTypeTalker(id string, fmtType rtkCommon.TransFmtType) rtkMisc.CrossShareErr {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), ctxTimeout_short)
 	defer cancel()
 
 	sInfo, ok := GetStreamInfo(id)

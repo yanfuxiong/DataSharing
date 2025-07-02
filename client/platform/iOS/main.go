@@ -20,6 +20,7 @@ typedef void (*CallbackUpdateMultipleProgressBar)(char* ip,char* id, char* devic
 typedef void (*CallbackFileError)(char* id, char* fileName, char* err);
 typedef void (*CallbackMethodStartBrowseMdns)(char* instance, char* serviceType);
 typedef void (*CallbackMethodStopBrowseMdns)();
+typedef char* (*CallbackAuthData)();
 
 static CallbackMethodText gCallbackMethodText = 0;
 static CallbackMethodImage gCallbackMethodImage = 0;
@@ -35,6 +36,7 @@ static CallbackUpdateMultipleProgressBar gCallbackUpdateMultipleProgressBar = 0;
 static CallbackFileError gCallbackFileError = 0;
 static CallbackMethodStartBrowseMdns gCallbackMethodStartBrowseMdns = 0;
 static CallbackMethodStopBrowseMdns gCallbackMethodStopBrowseMdns = 0;
+static CallbackAuthData gCallbackAuthData = 0;
 
 static void setCallbackMethodText(CallbackMethodText cb) {gCallbackMethodText = cb;}
 static void invokeCallbackMethodText(char* str) {
@@ -92,6 +94,11 @@ static void setCallbackMethodStopBrowseMdns(CallbackMethodStopBrowseMdns cb) {gC
 static void invokeCallbackMethodStopBrowseMdns() {
 	if (gCallbackMethodStopBrowseMdns) {gCallbackMethodStopBrowseMdns();}
 }
+static void setCallbackGetAuthData(CallbackAuthData cb) {gCallbackAuthData = cb;}
+static char* invokeCallbackGetAuthData() {
+	if (gCallbackAuthData) { return gCallbackAuthData();}
+    return null;
+}
 */
 import "C"
 
@@ -130,6 +137,7 @@ func init() {
 	rtkPlatform.SetCallbackFileError(GoTriggerCallbackFileError)
 	rtkPlatform.SetCallbackMethodStartBrowseMdns(GoTriggerCallbackMethodStartBrowseMdns)
 	rtkPlatform.SetCallbackMethodStopBrowseMdns(GoTriggerCallbackMethodStopBrowseMdns)
+	rtkPlatform.SetGetAuthDataCallback(GoTriggerCallbackGetAuthData)
 	rtkPlatform.SetConfirmDocumentsAccept(false)
 }
 
@@ -182,6 +190,7 @@ func GoTriggerCallbackMethodFileDone(name string, fileSize int64) {
 }
 
 func GoTriggerCallbackMethodFoundPeer() {
+	log.Printf("[%s] FoundPeer Trigger!", rtkMisc.GetFuncInfo())
 	C.invokeCallbackMethodFoundPeer()
 }
 
@@ -274,6 +283,14 @@ func GoTriggerCallbackMethodStartBrowseMdns(instance, serviceType string) {
 
 func GoTriggerCallbackMethodStopBrowseMdns() {
 	C.invokeCallbackMethodStopBrowseMdns()
+}
+
+func GoTriggerCallbackGetAuthData() string {
+	cAuthData := C.invokeCallbackGetAuthData()
+	defer C.free(unsafe.Pointer(cAuthData))
+
+	log.Printf("[%s] %s", rtkMisc.GetFuncInfo(), cAuthData)
+	return C.GoString(cAuthData)
 }
 
 //export SetCallbackMethodText
@@ -486,7 +503,7 @@ func SendMultiFilesDropRequest(multiFilesData string) {
 
 //export SetFileDropResponse
 func SetFileDropResponse(fileName, id string, isReceive bool) {
-	FilePath := rtkPlatform.DownloadPath() + "/"
+	FilePath := rtkPlatform.GetDownloadPath() + "/"
 	if fileName != "" {
 		FilePath += fileName
 	} else {
@@ -531,6 +548,18 @@ func SetHostListenAddr(listenHost string, listenPort int) {
 func SetDIASID(DiasID string) {
 	log.Printf(" [%s]  DiasID:[%s]", rtkMisc.GetFuncInfo(), DiasID)
 	rtkPlatform.GoGetMacAddressCallback(DiasID)
+}
+
+//export SetDetectPluginEvent
+func SetDetectPluginEvent(isPlugin bool) {
+	log.Printf(" [%s] isPlugin:[%+v]", rtkMisc.GetFuncInfo(), isPlugin)
+	rtkPlatform.GoTriggerDetectPluginEvent(isPlugin)
+}
+
+//export SetCallbackGetAuthData
+func SetCallbackGetAuthData(cb C.CallbackAuthData) {
+	log.Printf("[%s] SetCallbackGetAuthData", rtkMisc.GetFuncInfo())
+	C.setCallbackGetAuthData(cb)
 }
 
 //export GetVersion

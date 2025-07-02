@@ -25,6 +25,7 @@ var (
 	privKeyFile              string
 	hostID                   string
 	nodeID                   string
+	lockFile                 string
 	logFile                  string
 	crashLogFile             string
 	downloadPath             string
@@ -36,6 +37,7 @@ func initFilePath() {
 	hostID = ".HostID"
 	nodeID = ".ID"
 	logFile = "p2p.log"
+	lockFile = "singleton.lock"
 	crashLogFile = "crash.log"
 	downloadPath = ""
 }
@@ -44,7 +46,7 @@ func GetRootPath() string {
 	return rootPath
 }
 
-func DownloadPath() string {
+func GetDownloadPath() string {
 	return downloadPath
 }
 
@@ -54,6 +56,10 @@ func GetLogFilePath() string {
 
 func GetCrashLogFilePath() string {
 	return crashLogFile
+}
+
+func GetLockFilePath() string {
+	return lockFile
 }
 
 type (
@@ -70,10 +76,11 @@ type (
 	CallbackMethodFoundPeer           func()
 	CallbackUpdateProgressBar         func(string, string, uint64, uint64, uint64)
 	CallbackUpdateMultipleProgressBar func(string, string, string, string, uint32, uint32, uint64, uint64, uint64, uint64)
-
-	CallbackFileError             func(string, string, string)
-	CallbackMethodStartBrowseMdns func(string, string)
-	CallbackMethodStopBrowseMdns  func()
+	CallbackFileError                 func(string, string, string)
+	CallbackMethodStartBrowseMdns     func(string, string)
+	CallbackMethodStopBrowseMdns      func()
+	CallbackDetectPluginEventFunc     func(isPlugin bool, productName string)
+	CallbackGetAuthDataFunc           func() string
 )
 
 var (
@@ -93,6 +100,8 @@ var (
 	callbackFileError                 CallbackFileError                 = nil
 	callbackMethodStartBrowseMdns     CallbackMethodStartBrowseMdns     = nil
 	callbackMethodStopBrowseMdns      CallbackMethodStopBrowseMdns      = nil
+	callbackDetectPluginEvent         CallbackDetectPluginEventFunc     = nil
+	callbackGetAuthData               CallbackGetAuthDataFunc           = nil
 )
 
 func SetGoNetworkSwitchCallback(cb CallbackNetworkSwitchFunc) {
@@ -249,6 +258,14 @@ func SetGoGetMacAddressCallback(cb CallbackGetMacAddressFunc) {
 	CallbackGetMacAddressCB = cb
 }
 
+func SetDetectPluginEventCallback(cb CallbackDetectPluginEventFunc) {
+	callbackDetectPluginEvent = cb
+}
+
+func SetGetAuthDataCallback(cb CallbackGetAuthDataFunc) {
+	callbackGetAuthData = cb
+}
+
 func GoReqSourceAndPort() {
 }
 
@@ -308,6 +325,8 @@ func SetupRootPath(path string) {
 	privKeyFile = getPath(settingsPath, privKeyFile)
 	hostID = getPath(settingsPath, hostID)
 	nodeID = getPath(settingsPath, nodeID)
+	lockFile = getPath(settingsPath, lockFile)
+
 	logFile = getPath(logPath, logFile)
 	crashLogFile = getPath(logPath, crashLogFile)
 }
@@ -334,6 +353,10 @@ func GoBrowseMdnsResultCallback(instance, ip string, port int) {
 func GoGetMacAddressCallback(mac string) {
 	log.Printf("[%s]  mac :[%s]", rtkMisc.GetFuncInfo(), mac)
 	CallbackGetMacAddressCB(mac)
+}
+
+func GoTriggerDetectPluginEvent(isPlugin bool) {
+	callbackDetectPluginEvent(isPlugin, "")
 }
 
 func SetConfirmDocumentsAccept(ifConfirm bool) {
@@ -536,10 +559,6 @@ func GoExtractDIASCallback() {
 
 }
 
-func GoDeinitProgressBar() {
-
-}
-
 func GoUpdateSystemInfo(ip, serviceVer string) {
 
 }
@@ -614,11 +633,19 @@ func GetMdnsPortConfigPath() string {
 }
 
 func LockFile(file *os.File) error {
-	return nil
+	err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+	if err != nil {
+		log.Println("Failed to lock file:", err) //err:  resource temporarily unavailable
+	}
+	return err
 }
 
 func UnlockFile(file *os.File) error {
-	return nil
+	err := syscall.Flock(int(file.Fd()), syscall.LOCK_UN|syscall.LOCK_NB)
+	if err != nil {
+		log.Println("Failed to lock file:", err)
+	}
+	return err
 }
 
 // Deprecated: unused
@@ -641,6 +668,25 @@ func GetConfirmDocumentsAccept() bool {
 
 func GoDIASStatusNotify(diasStatus uint32) {
 
+}
+
+func GetAuthData() (rtkMisc.CrossShareErr, rtkMisc.AuthDataInfo) {
+	if callbackGetAuthData == nil {
+		log.Println("callbackGetAuthData is null !")
+		return rtkMisc.ERR_BIZ_GET_CALLBACK_INSTANCE_NULL, rtkMisc.AuthDataInfo{}
+	}
+	authDataJsonInfo := callbackGetAuthData()
+	log.Printf("[%s] get json data:[%s]", rtkMisc.GetFuncInfo(), authDataJsonInfo)
+
+	var authData rtkMisc.AuthDataInfo
+	err := json.Unmarshal([]byte(authDataJsonInfo), &authData)
+	if err != nil {
+		log.Printf("[%s] Unmarshal[%s] err:%+v", rtkMisc.GetFuncInfo(), authDataJsonInfo, err)
+		return rtkMisc.ERR_BIZ_JSON_UNMARSHAL, rtkMisc.AuthDataInfo{}
+	}
+
+	log.Printf("[%s] width:[%d] height:[%d] Framerate:[%d] type:[%d] DisplayName:[%s]", rtkMisc.GetFuncInfo(), authData.Width, authData.Height, authData.Framerate, authData.Type, authData.DisplayName)
+	return rtkMisc.SUCCESS, authData
 }
 
 func GoGetSrcAndPortFromIni() rtkMisc.SourcePort {
