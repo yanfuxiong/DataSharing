@@ -34,6 +34,7 @@ func init() {
 	lanServerAddr = ""
 	productName = ""
 	isReconnectRunning.Store(false)
+	reconnectCancelFunc = nil
 
 	pSafeConnect = &safeConnect{
 		connectMutex:     sync.RWMutex{},
@@ -66,7 +67,7 @@ func ConnectLanServerRun(ctx context.Context) {
 					goto RunFlag
 				}
 				if nCount == 3 {
-					//log.Printf("connect To LanServerAddr:[%s] %d times failed!  try to lookup Service over again!", lanServerAddr, nCount)
+					log.Printf("initLanServer %d times failed!  try to lookup Service over again!", nCount)
 					lanServerAddr = ""
 					serverInstanceMap.Delete(lanServerName)
 				}
@@ -84,7 +85,7 @@ RunFlag:
 	readResult := make(chan struct {
 		buffer  string
 		errCode rtkMisc.CrossShareErr
-	})
+	}, 5)
 
 	rtkMisc.GoSafe(func() {
 		var printNetworkErr = true
@@ -137,7 +138,10 @@ RunFlag:
 			lanServerHeartbeatStart()
 		case <-heartBeatTicker.C:
 			heartBeatFunc()
-		case readData := <-readResult:
+		case readData, isClose := <-readResult:
+			if !isClose {
+				continue
+			}
 			if readData.errCode != rtkMisc.SUCCESS {
 				pSafeConnect.Close()
 				log.Printf("[%s] read lanServer socket Data, errcode:%d", rtkMisc.GetFuncInfo(), readData.errCode)
@@ -372,10 +376,6 @@ func stopLanServerBusiness() {
 	NotifyDIASStatus(DIAS_Status_Wait_DiasMonitor)
 	pSafeConnect.Close()
 	heartBeatTicker.Reset(time.Duration(999 * time.Hour))
-	if disconnectAllClientFunc == nil {
-		log.Printf("disconnectAllClientFunc is nil, not cancel all client business!")
-		return
-	}
 	disconnectAllClientFunc()
 }
 
@@ -445,6 +445,7 @@ func browseLanServerMobile(ctx context.Context, serviceType, domain string, resu
 				targetText := "ip=" + tmpIp
 
 				lanServerIp := fmt.Sprintf("%s:%d", tmpIp, entry.Port)
+				//TODO: Filter according to  productName
 				if rtkMisc.IsInTheList(targetText, entry.Text) {
 					log.Printf("Browse get a Service:[%s] IP:[%s],this is target service, use [%d] ms", entry.Instance, lanServerIp, time.Now().UnixMilli()-startTime)
 					SetLanServerName(entry.Instance)

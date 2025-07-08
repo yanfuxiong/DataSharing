@@ -97,7 +97,7 @@ static void invokeCallbackMethodStopBrowseMdns() {
 static void setCallbackGetAuthData(CallbackAuthData cb) {gCallbackAuthData = cb;}
 static char* invokeCallbackGetAuthData() {
 	if (gCallbackAuthData) { return gCallbackAuthData();}
-    return null;
+	return NULL;
 }
 */
 import "C"
@@ -289,8 +289,9 @@ func GoTriggerCallbackGetAuthData() string {
 	cAuthData := C.invokeCallbackGetAuthData()
 	defer C.free(unsafe.Pointer(cAuthData))
 
-	log.Printf("[%s] %s", rtkMisc.GetFuncInfo(), cAuthData)
-	return C.GoString(cAuthData)
+	authData := C.GoString(cAuthData)
+	log.Printf("[%s] %s", rtkMisc.GetFuncInfo(), authData)
+	return authData
 }
 
 //export SetCallbackMethodText
@@ -517,6 +518,12 @@ func SetFileDropResponse(fileName, id string, isReceive bool) {
 		rtkPlatform.GoFileDropResponse(id, rtkCommon.FILE_DROP_REJECT, "")
 		log.Printf("(DST) FilePath:[%s] from id:[%s] reject", FilePath, id)
 	}
+}
+
+//export SetCancelFileTransfer
+func SetCancelFileTransfer(ipPort, clientID string, timeStamp uint64) {
+	log.Printf("[%s]  ID:[%s] IP:[%s]  timestamp[%d]", rtkMisc.GetFuncInfo(), clientID, ipPort, timeStamp)
+	rtkPlatform.GoCancelFileTrans(ipPort, clientID, timeStamp)
 }
 
 //export SetNetWorkConnected

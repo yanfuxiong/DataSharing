@@ -11,29 +11,15 @@ import (
 	"time"
 )
 
-// TODO: Callback by windows process
-func SendReqClientListToLanServer() {
-	// TODO: retry a  few times or keep trying??
-	nCount := 0
-	for {
-		nCount++
-		if nCount > 3 {
-			log.Printf("[%s] send requst client list 3 times failed!", rtkMisc.GetFuncInfo())
-			break
-		}
-
-		if sendReqMsgToLanServer(rtkMisc.C2SMsg_REQ_CLIENT_LIST) == rtkMisc.SUCCESS {
-			break
-		}
-		time.Sleep(1 * time.Second)
-	}
+func SendReqClientListToLanServer() rtkMisc.CrossShareErr {
+	return sendReqMsgToLanServer(rtkMisc.C2SMsg_REQ_CLIENT_LIST)
 }
 
 func SendReqAuthIndexMobileToLanServer() rtkMisc.CrossShareErr {
 	return sendReqMsgToLanServer(rtkMisc.C2SMsg_AUTH_INDEX_MOBILE)
 }
 
-func SendReqAuthDataAndIndexMobileToLanServer() rtkMisc.CrossShareErr {
+func sendReqAuthDataAndIndexMobileToLanServer() rtkMisc.CrossShareErr {
 	return sendReqMsgToLanServer(rtkMisc.C2SMsg_AUTH_DATA_INDEX_MOBILE)
 }
 
@@ -162,18 +148,17 @@ func handleReadMessageFromServer(buffer []byte) rtkMisc.CrossShareErr {
 		log.Printf("Requst Init Client success, get Client Index:[%d]", initClientRsp.ClientIndex)
 
 		if rtkGlobal.NodeInfo.Platform == rtkGlobal.PlatformAndroid || rtkGlobal.NodeInfo.Platform == rtkGlobal.PlatformiOS {
-			//SendReqAuthIndexMobileToLanServer()
 			errCode, authData := rtkPlatform.GetAuthData()
 			if errCode != rtkMisc.SUCCESS {
 				log.Printf("[%s] GetAuthData errCode:[%d]", rtkMisc.GetFuncInfo(), errCode)
 				return errCode
 			}
 			mobileAuthData = authData
-			return SendReqAuthDataAndIndexMobileToLanServer()
+			return sendReqAuthDataAndIndexMobileToLanServer()
 		} else {
 			rtkPlatform.GoAuthViaIndex(rtkGlobal.NodeInfo.ClientIndex)
 		}
-	case rtkMisc.C2SMsg_AUTH_INDEX_MOBILE:
+	case rtkMisc.C2SMsg_AUTH_INDEX_MOBILE: //TODO: To remove it  and be replaced by C2SMsg_AUTH_DATA_INDEX_MOBILE
 		var authIndexMobileRsp rtkMisc.AuthIndexMobileResponse
 		err = json.Unmarshal(rspMsg.ExtData, &authIndexMobileRsp)
 		if err != nil {
@@ -206,7 +191,7 @@ func handleReadMessageFromServer(buffer []byte) rtkMisc.CrossShareErr {
 			log.Printf("[%s] clientID:[%s] Index[%d] Err: Unauthorized", rtkMisc.GetFuncInfo(), rspMsg.ClientID, rspMsg.ClientIndex)
 			return rtkMisc.ERR_BIZ_S2C_UNAUTH
 		}
-		SendReqClientListToLanServer()
+		return SendReqClientListToLanServer()
 	case rtkMisc.C2SMsg_REQ_CLIENT_LIST:
 		var getClientListRsp rtkMisc.GetClientListResponse
 		err = json.Unmarshal(rspMsg.ExtData, &getClientListRsp)

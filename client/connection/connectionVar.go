@@ -10,15 +10,17 @@ import (
 )
 
 const (
-	retryConnection = 3
-
 	// libp2p default backoff time is 5 seccond
-	retryDelay        = 5 * time.Second
 	pingInterval      = 8 * time.Second // TODO: refine this. Expect to detect disconnection in 10 seconds
 	pingTimeout       = 2 * time.Second
 	pingErrMaxCnt     = 3
 	ctxTimeout_normal = 5 * time.Second
 	ctxTimeout_short  = 2 * time.Second
+)
+
+type (
+	callbackStartProcessForPeerFunc     func(id, ipAddr string) func()
+	callbackSendDisconnectMsgToPeerFunc func(id string)
 )
 
 var (
@@ -37,19 +39,14 @@ var (
 
 	noticeFmtTypeSteamReadyChanMap sync.Map
 
-	callbackStartProcessForPeer func(id string)
-	callbackStopProcessForPeer  func(id string)
-)
-
-type (
-	callbackStartProcessForPeerFunc func(id string)
-	callbackStopProcessForPeerFunc  func(id string)
+	callbackStartProcessForPeer     callbackStartProcessForPeerFunc
+	callbackSendDisconnectMsgToPeer callbackSendDisconnectMsgToPeerFunc
 )
 
 func SetStartProcessForPeerCallback(cb callbackStartProcessForPeerFunc) {
 	callbackStartProcessForPeer = cb
 }
 
-func SetStopProcessForPeerCallback(cb callbackStopProcessForPeerFunc) {
-	callbackStopProcessForPeer = cb
+func SetSendDisconnectMsgToPeerCallback(cb callbackSendDisconnectMsgToPeerFunc) {
+	callbackSendDisconnectMsgToPeer = cb
 }

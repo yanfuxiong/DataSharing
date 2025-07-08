@@ -12,7 +12,6 @@ import (
 	rtkLogin "rtk-cross-share/client/login"
 	rtkPeer2Peer "rtk-cross-share/client/peer2peer"
 	rtkPlatform "rtk-cross-share/client/platform"
-	rtkUtils "rtk-cross-share/client/utils"
 	rtkMisc "rtk-cross-share/misc"
 
 	"strconv"
@@ -34,12 +33,9 @@ func init() {
 	rtkGlobal.NodeInfo.Platform = rtkPlatform.GetPlatform()
 
 	rtkConnection.SetStartProcessForPeerCallback(rtkPeer2Peer.StartProcessForPeer)
-	rtkConnection.SetStopProcessForPeerCallback(rtkPeer2Peer.EndProcessForPeer)
-	rtkLogin.SetDisconnectAllClientCallback(func() {
-		rtkPeer2Peer.SendDisconnectToAllPeer(false)
-		rtkConnection.OfflineAllStreamEvent()
-	})
-
+	rtkConnection.SetSendDisconnectMsgToPeerCallback(rtkPeer2Peer.SendDisconnectMsgToPeer)
+	rtkLogin.SetDisconnectAllClientCallback(rtkConnection.CancelStreamPool)
+	
 	rtkPlatform.SetGoNetworkSwitchCallback(func() {
 		networkSwitchFlagChan <- struct{}{}
 	})
@@ -107,13 +103,12 @@ func listen_addrs(port int) []string {
 }
 
 func Run() {
-	rtkLogin.NotifyDIASStatus(rtkLogin.DIAS_Status_Wait_DiasMonitor)
-
-	log.Println("========================")
+	log.Println("=======================================================")
 	log.Println("Version: ", rtkBuildConfig.Version)
 	log.Println("Build Date: ", rtkBuildConfig.BuildDate)
-	log.Printf("========================\n\n")
+	log.Println("=======================================================\n\n")
 
+	rtkLogin.NotifyDIASStatus(rtkLogin.DIAS_Status_Wait_DiasMonitor)
 	lockFilePath := rtkPlatform.GetLockFilePath()
 	file, err := os.OpenFile(lockFilePath, os.O_CREATE|os.O_RDWR, 0666)
 	if err != nil {
@@ -139,19 +134,12 @@ func Run() {
 }
 
 func MainInit(serverId, serverIpInfo, listenHost string, listentPort int) {
-	rtkLogin.NotifyDIASStatus(rtkLogin.DIAS_Status_Wait_DiasMonitor)
-	rtkMisc.InitLog(rtkPlatform.GetLogFilePath(), rtkPlatform.GetCrashLogFilePath(), 0)
-	if rtkBuildConfig.Debug == "1" {
-		rtkMisc.SetupLogConsoleFile()
-	} else {
-		rtkMisc.SetupLogFile()
-	}
-
 	log.Println("=======================================================")
 	log.Println("Version: ", rtkBuildConfig.Version)
 	log.Println("Build Date: ", rtkBuildConfig.BuildDate)
 	log.Println("=======================================================\n\n")
 
+	rtkLogin.NotifyDIASStatus(rtkLogin.DIAS_Status_Wait_DiasMonitor)
 	if len(serverId) > 0 && len(serverIpInfo) > 0 &&
 		listenHost != "" &&
 		listenHost != rtkMisc.DefaultIp &&
@@ -201,7 +189,7 @@ func businessProcess() {
 		select {
 		case <-cablePlugInFlagChan:
 			log.Println("===========================================================================")
-			log.Println("******** Get lan Server mac Address, business start! ********")
+			log.Println("******** DIAS is access, business start! ********")
 			if cancelFunc != nil {
 				log.Printf("******** Cancel the old business first! ********")
 				cancelFunc()
@@ -245,27 +233,9 @@ func businessProcess() {
 }
 
 func businessStart(ctx context.Context) {
-	rtkMisc.GoSafe(func() {
-		ticker := time.NewTicker(time.Duration(5) * time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				// TODO: refine this cancel flow, we need send disconnect message to all peer befor cancel
-				rtkPeer2Peer.SendDisconnectToAllPeer(true)
-				return
-			case <-ticker.C:
-				nProcessCount := rtkPeer2Peer.GetProcessForPeerCount()
-				nClientCount := rtkUtils.GetClientCount()
-				if nProcessCount != nClientCount {
-					log.Printf("[%s] Attention please, get ClientCount:[%d] is not match ProcessCount:[%d] \n\n", rtkMisc.GetFuncInfo(), nClientCount, nProcessCount)
-				}
-			}
-		}
-	})
-
 	// Init connection
 	rtkConnection.ConnectionInit(ctx)
+
 	rtkMisc.GoSafe(func() { rtkConnection.Run(ctx) })
 
 	rtkMisc.GoSafe(func() { rtkLogin.ConnectLanServerRun(ctx) })

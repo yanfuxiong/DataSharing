@@ -102,8 +102,7 @@ func Run(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			time.Sleep(100 * time.Millisecond) // this delay is wait SendDisconnectToAllPeer complete befor cancelHostNode
-			log.Println("connectionController run is end by main context, cancel node!")
+			log.Println("connectionController Run is end by main context!")
 			return
 		case <-ticker.C:
 			CheckAllStreamAlive(ctx)
@@ -204,13 +203,6 @@ func setupNode(ip string, port int) error {
 	return nil
 }
 
-func getDelayTime(id peer.ID) time.Duration {
-	if node.ID() > id {
-		return retryDelay
-	}
-	return retryDelay + 100*time.Millisecond
-}
-
 func buildListener() {
 	nodeMutex.RLock()
 	defer nodeMutex.RUnlock()
@@ -223,12 +215,12 @@ func buildListener() {
 	})
 
 	node.SetStreamHandler(protocol.ID(rtkGlobal.ProtocolImageTransmission), func(stream network.Stream) {
-		UpdateFmtTypeStream(stream, rtkCommon.IMAGE_CB)
+		UpdateFmtTypeStream(stream, rtkCommon.IMAGE_CB, false)
 		noticeFmtTypeStreamReady(stream.Conn().RemotePeer().String(), rtkCommon.IMAGE_CB)
 	})
 
 	node.SetStreamHandler(protocol.ID(rtkGlobal.ProtocolFileTransmission), func(stream network.Stream) {
-		UpdateFmtTypeStream(stream, rtkCommon.FILE_DROP)
+		UpdateFmtTypeStream(stream, rtkCommon.FILE_DROP, false)
 		noticeFmtTypeStreamReady(stream.Conn().RemotePeer().String(), rtkCommon.FILE_DROP)
 	})
 }
@@ -338,7 +330,7 @@ func BuildFmtTypeTalker(id string, fmtType rtkCommon.TransFmtType) rtkMisc.Cross
 		return rtkMisc.ERR_BIZ_UNKNOWN_FMTTYPE
 	}
 
-	UpdateFmtTypeStream(fmtTypeStream, fmtType)
+	UpdateFmtTypeStream(fmtTypeStream, fmtType, true)
 	return rtkMisc.SUCCESS
 }
 
@@ -487,8 +479,6 @@ func onlineEvent(stream network.Stream, isFromListener bool, clientInfo *rtkMisc
 	log.Println("****************************************************************************************\n\n")
 
 	updateUIOnlineStatus(true, id, ipAddr, peerPlatForm, peerDeviceName, srcPortType)
-	callbackStartProcessForPeer(id)
-
 	return rtkMisc.SUCCESS
 }
 
@@ -506,9 +496,7 @@ func offlineEvent(stream network.Stream) {
 	}
 
 	// Disconnect and remove stream map
-	callbackStopProcessForPeer(id)
 	CloseStream(id)
-
 	log.Println("************************************************************************************************")
 	log.Println("Lost connection with ID:", id, " IP:", clientInfo.IpAddr)
 	log.Println("************************************************************************************************\n\n")

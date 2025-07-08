@@ -181,6 +181,7 @@ func GoTriggerCallbackMethodFileDone(name string, fileSize int64) {
 }
 
 func GoTriggerCallbackMethodFoundPeer() {
+	log.Printf("[%s] FoundPeer Trigger!", rtkMisc.GetFuncInfo())
 	C.invokeCallbackMethodFoundPeer()
 }
 
@@ -448,7 +449,7 @@ func SendMultiFilesDropRequest(multiFilesData string) {
 		log.Printf("[%s] Unmarshal[%s] err:%+v", rtkMisc.GetFuncInfo(), multiFilesData, err)
 		return
 	}
-	log.Printf("id:[%s] ip:[%s] len:[%d]", multiFileInfo.Id, multiFileInfo.Ip, len(multiFileInfo.PathList))
+	log.Printf("id:[%s] ip:[%s] len:[%d] json:[%s]", multiFileInfo.Id, multiFileInfo.Ip, len(multiFileInfo.PathList), multiFilesData)
 
 	fileList := make([]rtkCommon.FileInfo, 0)
 	folderList := make([]string, 0)
@@ -484,7 +485,7 @@ func SendMultiFilesDropRequest(multiFilesData string) {
 
 //export SetFileDropResponse
 func SetFileDropResponse(fileName, id string, isReceive bool) {
-	FilePath := rtkPlatform.DownloadPath() + "/"
+	FilePath := rtkPlatform.GetDownloadPath() + "/"
 	if fileName != "" {
 		FilePath += fileName
 	} else {
@@ -498,6 +499,12 @@ func SetFileDropResponse(fileName, id string, isReceive bool) {
 		rtkPlatform.GoFileDropResponse(id, rtkCommon.FILE_DROP_REJECT, "")
 		log.Printf("(DST) FilePath:[%s] from id:[%s] reject", FilePath, id)
 	}
+}
+
+//export SetCancelFileTransfer
+func SetCancelFileTransfer(ipPort, clientID string, timeStamp int64) {
+	log.Printf("[%s]  ID:[%s] IP:[%s]  timestamp[%d]", rtkMisc.GetFuncInfo(), clientID, ipPort, timeStamp)
+	rtkPlatform.GoCancelFileTrans(ipPort, clientID, timeStamp)
 }
 
 //export SetNetWorkConnected
@@ -531,6 +538,14 @@ func SetDIASID(DiasID string) {
 	rtkPlatform.GoGetMacAddressCallback(DiasID)
 }
 
+//export SetDetectPluginEvent
+func SetDetectPluginEvent(isPlugin bool) {
+	log.Printf(" [%s] isPlugin:[%+v]", rtkMisc.GetFuncInfo(), isPlugin)
+	rtkPlatform.GoTriggerDetectPluginEvent(isPlugin)
+}
+
+
+
 //export GetVersion
 func GetVersion() *C.char {
 	return C.CString(rtkBuildConfig.Version)
@@ -545,6 +560,12 @@ func GetBuildDate() *C.char {
 func SetupRootPath(rootPath string) {
 	log.Printf("[%s] rootPath:[%s]", rtkMisc.GetFuncInfo(), rootPath)
 	rtkPlatform.SetupRootPath(rootPath)
+}
+
+//export SetSrcAndPort
+func SetSrcAndPort(source, port int) {
+	log.Printf("[%s] , source:[%d], port:[%d]", rtkMisc.GetFuncInfo(), source, port)
+	rtkPlatform.GoSetSrcAndPort(source, port)
 }
 
 //export SetBrowseMdnsResult

@@ -14,11 +14,10 @@ import (
 	rtkPlatform "rtk-cross-share/client/platform"
 	rtkUtils "rtk-cross-share/client/utils"
 	rtkMisc "rtk-cross-share/misc"
-	"sync/atomic"
 	"time"
 )
 
-func HandleClipboardEvent(ctxMain context.Context, readSocketMode *atomic.Value, resultChan chan<- EventResult, id string) {
+func HandleClipboardEvent(ctxMain context.Context, resultChan chan<- EventResult, id string) {
 	resultChanText := make(chan rtkCommon.ClipBoardData)
 	resultChanImg := make(chan rtkCommon.ClipBoardData)
 	resultChanPasteImg := make(chan struct{})
@@ -31,7 +30,6 @@ func HandleClipboardEvent(ctxMain context.Context, readSocketMode *atomic.Value,
 			close(resultChan)
 			return
 		case <-resultChanPasteImg:
-			//setIoSocketMode(readSocketMode, rtkCommon.IMAGE_CB)
 			resultChan <- EventResult{
 				Cmd: DispatchCmd{
 					FmtType: rtkCommon.IMAGE_CB,
@@ -41,7 +39,6 @@ func HandleClipboardEvent(ctxMain context.Context, readSocketMode *atomic.Value,
 				Data: "",
 			}
 		case cbData := <-resultChanText:
-			//setMsgSocketMode(readSocketMode)
 			resultChan <- EventResult{
 				Cmd: DispatchCmd{
 					FmtType: rtkCommon.TEXT_CB,
@@ -51,7 +48,6 @@ func HandleClipboardEvent(ctxMain context.Context, readSocketMode *atomic.Value,
 				Data: cbData,
 			}
 		case cbData := <-resultChanImg:
-			//setMsgSocketMode(readSocketMode)
 			resultChan <- EventResult{
 				Cmd: DispatchCmd{
 					FmtType: rtkCommon.IMAGE_CB,
@@ -64,7 +60,7 @@ func HandleClipboardEvent(ctxMain context.Context, readSocketMode *atomic.Value,
 	}
 }
 
-func HandleFileDropEvent(ctxMain context.Context, readSocketMode *atomic.Value, resultChan chan<- EventResult, id string) {
+func HandleFileDropEvent(ctxMain context.Context, resultChan chan<- EventResult, id string) {
 	resultReqId := make(chan string)
 	resultRespId := make(chan string)
 	rtkMisc.GoSafe(func() { rtkFileDrop.WatchFileDropReqEvent(ctxMain, id, resultReqId) })
@@ -78,7 +74,6 @@ func HandleFileDropEvent(ctxMain context.Context, readSocketMode *atomic.Value, 
 		case fileDropId := <-resultReqId:
 			if fileDropId == id {
 				if data, ok := rtkFileDrop.GetFileDropData(id); ok {
-					//setMsgSocketMode(readSocketMode)
 					resultChan <- EventResult{
 						Cmd: DispatchCmd{
 							FmtType: rtkCommon.FILE_DROP,
@@ -102,7 +97,6 @@ func HandleFileDropEvent(ctxMain context.Context, readSocketMode *atomic.Value, 
 				if data, ok := rtkFileDrop.GetFileDropData(id); ok {
 					if data.Cmd == rtkCommon.FILE_DROP_ACCEPT {
 						// Accept file: Prepeare to receive data
-						//setIoSocketMode(readSocketMode, rtkCommon.FILE_DROP)
 						resultChan <- EventResult{
 							Cmd: DispatchCmd{
 								FmtType: rtkCommon.FILE_DROP,
@@ -215,7 +209,7 @@ func processInbandRead(buffer []byte, len int, msg *Peer2PeerMessage) rtkMisc.Cr
 	return rtkMisc.SUCCESS
 }
 
-func HandleReadInbandFromSocket(ctxMain context.Context, readSocketMode *atomic.Value, resultChan chan<- EventResult, id string) {
+func HandleReadInbandFromSocket(ctxMain context.Context, resultChan chan<- EventResult, id string) {
 	defer close(resultChan)
 	for {
 		select {
@@ -508,14 +502,14 @@ func processIoWrite(id, ipAddr string, fmtType rtkCommon.TransFmtType) {
 		if resultCode != rtkMisc.SUCCESS {
 			log.Printf("(SRC) ID[%s] IP[%s] Copy file list To Socket failed, ERR code:[%d]", id, ipAddr, resultCode)
 			if resultCode != rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_CANCEL {
-				SendCmdMsgToPeer(id, COMM_FILE_TRANSFER_SRC_INTERRUPT, fmtType, resultCode)
+				sendCmdMsgToPeer(id, COMM_FILE_TRANSFER_SRC_INTERRUPT, fmtType, resultCode)
 			}
 		}
 	} else if fmtType == rtkCommon.IMAGE_CB {
 		resultCode = writeImageToSocket(id)
 		if resultCode != rtkMisc.SUCCESS {
 			log.Printf("(SRC) ID[%s] IP[%s] Copy image To Socket failed, ERR code:[%d]", id, ipAddr, resultCode)
-			SendCmdMsgToPeer(id, COMM_CB_TRANSFER_SRC_INTERRUPT, fmtType, resultCode)
+			sendCmdMsgToPeer(id, COMM_CB_TRANSFER_SRC_INTERRUPT, fmtType, resultCode)
 		}
 	}
 }
@@ -528,14 +522,14 @@ func processIoRead(id, ipAddr, deviceName string, fmtType rtkCommon.TransFmtType
 			// Both user cancellations and exceptions require notification to the other end
 			HandleDataTransferError(COMM_CANCEL_DST, id, dstFileName)
 			if resultCode != rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL {
-				SendCmdMsgToPeer(id, COMM_FILE_TRANSFER_DST_INTERRUPT, fmtType, resultCode)
+				sendCmdMsgToPeer(id, COMM_FILE_TRANSFER_DST_INTERRUPT, fmtType, resultCode)
 			}
 		}
 	} else if fmtType == rtkCommon.IMAGE_CB {
 		resultCode := handleCopyImageFromSocket(id, ipAddr)
 		if resultCode != rtkMisc.SUCCESS {
 			log.Printf("(DST) ID[%s] IP[%s] Copy image From Socket failed, ERR code:[%d] ...", id, ipAddr, resultCode)
-			SendCmdMsgToPeer(id, COMM_CB_TRANSFER_DST_INTERRUPT, fmtType, resultCode)
+			sendCmdMsgToPeer(id, COMM_CB_TRANSFER_DST_INTERRUPT, fmtType, resultCode)
 			HandleDataTransferError(COMM_CANCEL_DST, id, "")
 		}
 	}
@@ -605,7 +599,7 @@ func processImageCB(id string, event EventResult) bool {
 				//return rtkMisc.ERR_BIZ_GET_CLIENT_INFO_EMPTY
 				return false
 			}
-			if errCode := rtkConnection.BuildFmtTypeTalker(id, rtkCommon.IMAGE_CB); errCode != rtkMisc.SUCCESS {
+			if errCode := rtkConnection.BuildFmtTypeTalker(id, event.Cmd.FmtType); errCode != rtkMisc.SUCCESS {
 				log.Printf("[%s]BuildImageTalker errCode:%+v ", rtkMisc.GetFuncInfo(), errCode)
 				return false
 			}
@@ -783,14 +777,12 @@ func ProcessEventsForPeer(id, ipAddr string, ctx context.Context) {
 	curState := STATE_INIT
 	curCommand := COMM_INIT
 
-	var readSocketMode atomic.Value
-	//setMsgSocketMode(&readSocketMode)
 	eventResultClipboard := make(chan EventResult)
 	eventResultFileDrop := make(chan EventResult)
 	eventResultSocket := make(chan EventResult)
-	rtkMisc.GoSafe(func() { HandleClipboardEvent(ctx, &readSocketMode, eventResultClipboard, id) })
-	rtkMisc.GoSafe(func() { HandleFileDropEvent(ctx, &readSocketMode, eventResultFileDrop, id) })
-	rtkMisc.GoSafe(func() { HandleReadInbandFromSocket(ctx, &readSocketMode, eventResultSocket, id) })
+	rtkMisc.GoSafe(func() { HandleClipboardEvent(ctx, eventResultClipboard, id) })
+	rtkMisc.GoSafe(func() { HandleFileDropEvent(ctx, eventResultFileDrop, id) })
+	rtkMisc.GoSafe(func() { HandleReadInbandFromSocket(ctx, eventResultSocket, id) })
 
 	handleEvent := func(event EventResult) {
 		buildState := curState
