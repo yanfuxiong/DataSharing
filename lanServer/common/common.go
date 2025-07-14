@@ -6,6 +6,45 @@ import (
 	rtkMisc "rtk-cross-share/misc"
 )
 
+// sqlite table struct
+type ClientInfoTb struct {
+	Index      int
+	ClientId   string
+	Host       string
+	IpAddr     string
+	Source     int
+	Port       int
+	DeviceName string
+	Platform   string
+	Online     bool
+	AuthStatus bool
+	UpdateTime string
+	CreateTime string
+}
+
+func (c *ClientInfoTb) Dump() {
+	log.Printf("[ClientInfoTb] Index:%d, ClientId:%s, Host:%s, IpAddr:%s", c.Index, c.ClientId, c.Host, c.IpAddr)
+	log.Printf("[ClientInfoTb] Source:%d, Port:%d, DeviceName:%s, Platform:%s", c.Source, c.Port, c.DeviceName, c.Platform)
+	log.Printf("[ClientInfoTb] Online:%t, AuthStatus:%t, UpdateTime:%s, CreateTime:%s", c.Online, c.AuthStatus, c.UpdateTime, c.CreateTime)
+	log.Println()
+}
+
+type TimingData struct {
+	Source      int
+	Port        int
+	Width       int
+	Height      int
+	Framerate   int
+	DisplayMode int
+	DisplayName string
+}
+
+func (t *TimingData) Dump() {
+	log.Printf("[TimingData] Source:%d, Port:%d, Width:%d, Height:%d", t.Source, t.Port, t.Width, t.Height)
+	log.Printf("[TimingData] Framerate:%d, Type:%d, DisplayName:%s", t.Framerate, t.DisplayMode, t.DisplayName)
+	log.Println()
+}
+
 type SourcePortType string
 
 const (
@@ -17,6 +56,7 @@ const (
 	SrcPortType_MIRACAST SourcePortType = "Miracast"
 )
 
+// TODO: This mapping is hardcode now. Need to consider the different PCB in the future
 func GetClientSourcePortType(src, port int) string {
 	srcPortType := SrcPortType_UNKNOWN
 	if src == rtkGlobal.Src_HDMI && port == 0 {

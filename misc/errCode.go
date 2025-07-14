@@ -83,6 +83,8 @@ const ( //sqlite error code
 	ERR_DB_SQLITE_ROWS
 	ERR_DB_SQLITE_EXEC
 	ERR_DB_SQLITE_LAST_INSERTID
+	ERR_DB_SQLITE_INVALID_ARGS
+	ERR_DB_SQLITE_EMPTY_RESULT
 )
 
 /***************************************  business  info error code, begin with 5000  ****************************************************/
@@ -116,6 +118,7 @@ const (
 	ERR_BIZ_S2C_INVALID_INDEX
 	ERR_BIZ_S2C_UNAUTH
 	ERR_BIZ_S2C_CALLBACK_INVALID
+	ERR_BIZ_S2C_GET_CONNECT_RESET
 )
 
 // peer to peer business error code
@@ -180,7 +183,9 @@ var errInfoMap = map[CrossShareErr]string{
 	ERR_DB_SQLITE_SCAN:          "scan sqlite error!",
 	ERR_DB_SQLITE_EXEC:          "exec sqlite error!",
 	ERR_DB_SQLITE_ROWS:          "get sqlite rows error!",
-	ERR_DB_SQLITE_LAST_INSERTID: "get  sqlite last insert id error!",
+	ERR_DB_SQLITE_LAST_INSERTID: "get sqlite last insert id error!",
+	ERR_DB_SQLITE_INVALID_ARGS:  "invalid sqlite arguments",
+	ERR_DB_SQLITE_EMPTY_RESULT:  "empty result",
 
 	ERR_BIZ_JSON_MARSHAL:           "json marshal failed!",
 	ERR_BIZ_JSON_UNMARSHAL:         "json unmarshal failed!",

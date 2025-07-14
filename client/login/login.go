@@ -12,6 +12,7 @@ import (
 	rtkPlatform "rtk-cross-share/client/platform"
 	rtkUtils "rtk-cross-share/client/utils"
 	rtkMisc "rtk-cross-share/misc"
+	"strings"
 	"sync"
 	"time"
 
@@ -26,13 +27,13 @@ func SetLanServerName(name string) {
 }
 
 func SetProductName(name string) {
-	productName = name
+	g_ProductName = name
 }
 
 func init() {
 	lanServerName = ""
 	lanServerAddr = ""
-	productName = ""
+	g_ProductName = ""
 	isReconnectRunning.Store(false)
 	reconnectCancelFunc = nil
 
@@ -197,8 +198,10 @@ func BrowseInstance() rtkMisc.CrossShareErr {
 	resultChan := make(chan browseParam)
 
 	var err rtkMisc.CrossShareErr
-	if rtkGlobal.NodeInfo.Platform == rtkGlobal.PlatformiOS || rtkGlobal.NodeInfo.Platform == rtkGlobal.PlatformAndroid {
-		err = browseLanServerMobile(ctx, rtkMisc.LanServiceType, rtkMisc.LanServerDomain, resultChan)
+	if rtkGlobal.NodeInfo.Platform == rtkGlobal.PlatformiOS {
+		err = browseLanServeriOS(ctx, rtkMisc.LanServiceType, resultChan)
+	} else if rtkGlobal.NodeInfo.Platform == rtkGlobal.PlatformAndroid {
+		err = browseLanServerAndroid(ctx, rtkMisc.LanServiceType, rtkMisc.LanServerDomain, resultChan)
 	} else {
 		err = browseLanServer(ctx, rtkMisc.LanServiceType, rtkMisc.LanServerDomain, resultChan)
 	}
@@ -227,7 +230,7 @@ func getLanServerAddr() (string, rtkMisc.CrossShareErr) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 
-	if rtkGlobal.NodeInfo.Platform == rtkGlobal.PlatformWindows {
+	if rtkGlobal.NodeInfo.Platform == rtkGlobal.PlatformWindows || rtkGlobal.NodeInfo.Platform == rtkGlobal.PlatformMac {
 		if lanServerName == "" {
 			log.Printf("[%s] lanServerName is not set!", rtkMisc.GetFuncInfo())
 			return "", rtkMisc.ERR_BIZ_C2S_GET_NO_SERVER_NAME
@@ -255,7 +258,12 @@ func getLanServerAddr() (string, rtkMisc.CrossShareErr) {
 		}
 
 		resultChan := make(chan browseParam)
-		errCode := browseLanServerMobile(ctx, rtkMisc.LanServiceType, rtkMisc.LanServerDomain, resultChan)
+		var errCode rtkMisc.CrossShareErr
+		if rtkGlobal.NodeInfo.Platform == rtkGlobal.PlatformiOS {
+			errCode = browseLanServeriOS(ctx, rtkMisc.LanServiceType, resultChan)
+		} else {
+			errCode = browseLanServerAndroid(ctx, rtkMisc.LanServiceType, rtkMisc.LanServerDomain, resultChan)
+		}
 		if errCode != rtkMisc.SUCCESS {
 			return "", errCode
 		}
@@ -429,7 +437,7 @@ func browseLanServer(ctx context.Context, serviceType, domain string, resultChan
 	return rtkMisc.SUCCESS
 }
 
-func browseLanServerMobile(ctx context.Context, serviceType, domain string, resultChan chan<- browseParam) rtkMisc.CrossShareErr {
+func browseLanServerAndroid(ctx context.Context, serviceType, domain string, resultChan chan<- browseParam) rtkMisc.CrossShareErr {
 	startTime := time.Now().UnixMilli()
 	resolver, err := zeroconf.NewResolver(rtkUtils.GetNetInterfaces(), nil)
 	if err != nil {
@@ -438,21 +446,42 @@ func browseLanServerMobile(ctx context.Context, serviceType, domain string, resu
 	}
 
 	entries := make(chan *zeroconf.ServiceEntry)
+
+	getTextRecordMap := func(textRecord []string) map[string]string {
+		txtMap := make(map[string]string)
+		for _, txt := range textRecord {
+			parts := strings.SplitN(txt, "=", 2)
+			if len(parts) == 2 {
+				txtMap[parts[0]] = parts[1]
+			}
+		}
+		return txtMap
+	}
 	rtkMisc.GoSafe(func() {
 		for entry := range entries {
 			if len(entry.AddrIPv4) > 0 {
-				tmpIp := entry.AddrIPv4[0].String()
-				targetText := "ip=" + tmpIp
+				entryIp := entry.AddrIPv4[0].String()
+				lanServerIp := fmt.Sprintf("%s:%d", entryIp, entry.Port)
+				log.Printf("Browse get a Service:[%s] IP:[%s], use [%d] ms", entry.Instance, lanServerIp, time.Now().UnixMilli()-startTime)
 
-				lanServerIp := fmt.Sprintf("%s:%d", tmpIp, entry.Port)
-				//TODO: Filter according to  productName
-				if rtkMisc.IsInTheList(targetText, entry.Text) {
-					log.Printf("Browse get a Service:[%s] IP:[%s],this is target service, use [%d] ms", entry.Instance, lanServerIp, time.Now().UnixMilli()-startTime)
-					SetLanServerName(entry.Instance)
-					resultChan <- browseParam{entry.Instance, lanServerIp}
-				} else {
-					log.Printf("Browse get a Service:[%s] IP:[%s],use [%d] ms", entry.Instance, lanServerIp, time.Now().UnixMilli()-startTime)
+				txtMap := getTextRecordMap(entry.Text)
+				textRecordIp := txtMap[rtkMisc.TextRecordKeyIp]
+				textRecordProductName := txtMap[rtkMisc.TextRecordKeyProductName]
+				if textRecordIp != entryIp {
+					log.Printf("[%s] WARNING: Different IP. Entry:(%s); TextRecord:(%s)", rtkMisc.GetFuncInfo(), entryIp, textRecordIp)
+					continue
 				}
+
+				if (textRecordProductName != "") && (g_ProductName != "") {
+					if textRecordProductName != g_ProductName {
+						log.Printf("[%s] WARNING: Different ProductName. Mobile:(%s); TextRecord:(%s)", rtkMisc.GetFuncInfo(), g_ProductName, textRecordProductName)
+						continue
+					}
+				}
+
+				log.Printf("Found target! Service:[%s] IP:[%s], use [%d] ms", entry.Instance, lanServerIp, time.Now().UnixMilli()-startTime)
+				SetLanServerName(entry.Instance)
+				resultChan <- browseParam{entry.Instance, lanServerIp}
 			}
 		}
 		log.Printf("Stop Browse service instances...")

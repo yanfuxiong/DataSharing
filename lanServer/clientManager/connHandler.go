@@ -34,16 +34,19 @@ func updateConn(id string, timestamp int64, conn net.Conn) {
 	log.Printf("[%s] ID:[%s]  IPAddr:[%s] connection is update!", rtkMisc.GetFuncInfo(), id, conn.RemoteAddr())
 }
 
-func closeConn(id string, timestamp int64) {
+func closeConn(id string, timestamp int64) bool {
 	clientConnMutex.Lock()
+	defer clientConnMutex.Unlock()
+
 	if client, exsit := clientConnMap[id]; exsit {
 		if client.timeStamp == timestamp {
 			client.conn.Close()
 			delete(clientConnMap, id)
 			log.Printf("[%s] ID:[%s] connection is closed!", rtkMisc.GetFuncInfo(), id)
+			return true
 		}
 	}
-	clientConnMutex.Unlock()
+	return false
 }
 
 func getConn(id string) (net.Conn, bool) {
@@ -55,13 +58,18 @@ func getConn(id string) (net.Conn, bool) {
 	return nil, false
 }
 
-func write(b []byte, id string) rtkMisc.CrossShareErr {
+func write(b []byte, id string, timestamp int64) rtkMisc.CrossShareErr {
 	clientConnMutex.RLock()
 	defer clientConnMutex.RUnlock()
 	clientInfo, exsit := clientConnMap[id]
 	if !exsit {
 		log.Printf("[%s] ID:[%s] get no connection!", rtkMisc.GetFuncInfo(), id)
 		return rtkMisc.ERR_BIZ_S2C_GET_EMPTY_CONNECT
+	}
+
+	if timestamp > 0 && timestamp != clientInfo.timeStamp {
+		log.Printf("[%s] ID:[%s] get connection is reset!", rtkMisc.GetFuncInfo(), id)
+		return rtkMisc.ERR_BIZ_S2C_GET_CONNECT_RESET
 	}
 
 	encodedData := bytes.Trim(b, "\x00")

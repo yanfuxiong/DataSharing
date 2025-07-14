@@ -93,3 +93,8 @@ type AuthDataInfo struct {
 	Type        int // 0:Miracast, 1:USBC
 	DisplayName string
 }
+
+const (
+	DisplayModeMiracast = 0
+	DisplayModeUsbC     = 1
+)

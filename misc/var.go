@@ -9,4 +9,7 @@ const (
 	LanServerPort   = 42424
 
 	ClientHeartbeatInterval = 10 // second
+
+	TextRecordKeyIp          = "ip"
+	TextRecordKeyProductName = "productName"
 )

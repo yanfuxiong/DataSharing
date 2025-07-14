@@ -12,8 +12,8 @@ import (
 	rtkdbManager "rtk-cross-share/lanServer/dbManager"
 	rtkDebug "rtk-cross-share/lanServer/debug"
 	rtkGlobal "rtk-cross-share/lanServer/global"
+
 	rtkNetwork "rtk-cross-share/lanServer/network"
-	rtkunixSocket "rtk-cross-share/lanServer/unixSocket"
 	rtkMisc "rtk-cross-share/misc"
 	"time"
 
@@ -75,7 +75,7 @@ func MainInit() {
 	log.Println("=====================================================")
 	log.Printf("%s Version: %s", rtkBuildConfig.ServerName, rtkBuildConfig.Version)
 	log.Printf("%s Build Date: %s", rtkBuildConfig.ServerName, rtkBuildConfig.BuildDate)
-	log.Println("=====================================================\n\n")
+	log.Printf("=====================================================\n\n")
 
 	for {
 		if rtkMisc.IsNetworkConnected() {
@@ -94,14 +94,13 @@ func MainInit() {
 	rtkMisc.GoSafe(func() { rtkDebug.DebugCmdLine() })
 	rtkMisc.GoSafe(func() { rtkNetwork.WatchNetworkInfo(ctx) })
 	rtkMisc.GoSafe(func() { Run() })
-	runUnixSocket()
 
 	for {
 		<-rtkNetwork.GetNetworkSwitchFlag()
-		rtkdbManager.OfflineClientList()
+		rtkdbManager.UpdateAllClientOffline()
 		cancelServer <- struct{}{}
 		time.Sleep(5 * time.Second)
-		log.Println("==============================================================================\n\n")
+		log.Printf("==============================================================================\n\n")
 		rtkMisc.GoSafe(func() { Run() })
 	}
 }
@@ -187,7 +186,6 @@ func registerMdns(server *zeroconf.Server) []net.Addr {
 				}
 				continue
 			}
-			printErrIface = true
 
 			// Use the perferred interface MAC address as mDNS ID, even the interface has no IP
 			if mdnsId == "" {
@@ -238,25 +236,19 @@ func registerMdns(server *zeroconf.Server) []net.Addr {
 				continue
 			}
 			printErrMdns = true
-
+			printErrIface = true
 			return addrs
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
 }
 
-func runUnixSocket() {
-	// unix socket init
-	rtkMisc.GoSafe(func() { rtkunixSocket.BuildDdcciListener() })
-	rtkMisc.GoSafe(func() { rtkunixSocket.BuildJavaListener() })
-}
-
 func Run() {
-	ipAddress, bExisted := checkLanServerExists()
+	/*ipAddress, bExisted := checkLanServerExists()
 	if bExisted {
 		log.Printf("an other %s IPAddr:[%s] is already running! so exit!", rtkBuildConfig.ServerName, ipAddress)
 		log.Fatal(fmt.Sprintf("%s is already exist!", rtkBuildConfig.ServerName))
-	}
+	}*/
 
 	startTime := time.Now().UnixMilli()
 	var server *zeroconf.Server

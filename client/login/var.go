@@ -22,14 +22,16 @@ const (
 type callbackDisconnectAllClientFunc func()
 
 var (
-	serverInstanceMap       sync.Map //KEY: instance
-	cancelBrowse            func()
-	lanServerAddr           string
-	lanServerName           string
-	productName             string
-	pSafeConnect            *safeConnect
-	heartBeatTicker         *time.Ticker
-	heartBeatFlag           = make(chan struct{}, 1)
+	serverInstanceMap sync.Map //KEY: instance
+	cancelBrowse      func()
+	lanServerAddr     string
+	lanServerName     string
+	g_ProductName     string
+	pSafeConnect      *safeConnect
+
+	heartBeatTicker *time.Ticker
+	heartBeatFlag   = make(chan struct{}, 1)
+	//stopLanServerRunFlag = make(chan struct{}, 1)
 	isReconnectRunning      atomic.Bool
 	reconnectCancelFunc     func()
 	disconnectAllClientFunc callbackDisconnectAllClientFunc

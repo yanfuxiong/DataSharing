@@ -5,16 +5,16 @@ package platform
 import (
 	"bytes"
 	"context"
-	"syscall"
+	"encoding/json"
+	"fmt"
 	"log"
 	"os"
-	"fmt"
-	"encoding/json"
 	"path/filepath"
 	rtkCommon "rtk-cross-share/client/common"
 	rtkGlobal "rtk-cross-share/client/global"
 	rtkUtils "rtk-cross-share/client/utils"
 	rtkMisc "rtk-cross-share/misc"
+	"syscall"
 
 	"github.com/libp2p/go-libp2p/core/crypto"
 )
@@ -387,7 +387,7 @@ func GoCancelFileTrans(ip, id string, timestamp uint64) {
 		log.Println("callbackCancelFileTrans is null!")
 		return
 	}
-	callbackCancelFileTrans(id, ip, uint64(timestamp))
+	callbackCancelFileTrans(id, ip, timestamp)
 }
 
 func GoSetSrcAndPort(source, port int) {

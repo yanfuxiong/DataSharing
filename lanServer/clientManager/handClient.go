@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"log"
 	"net"
+	rtkCommon "rtk-cross-share/lanServer/common"
 	rtkdbManager "rtk-cross-share/lanServer/dbManager"
 	rtkMisc "rtk-cross-share/misc"
 	"time"
@@ -15,6 +16,17 @@ import (
 const (
 	reconnListInternal = 5 * time.Second
 )
+
+// =============================
+// TimingData get event
+// =============================
+type NotifyGetTimingDataCallback func() []rtkCommon.TimingData
+
+var notifyGetTimingDataCallback NotifyGetTimingDataCallback
+
+func SetNotifyGetTimingDataCallback(cb NotifyGetTimingDataCallback) {
+	notifyGetTimingDataCallback = cb
+}
 
 func handleReadFromClientMsg(buffer []byte, IPAddr string, MsgRsp *rtkMisc.C2SMessage) rtkMisc.CrossShareErr {
 	if len(buffer) == 0 {
@@ -48,7 +60,7 @@ func handleReadFromClientMsg(buffer []byte, IPAddr string, MsgRsp *rtkMisc.C2SMe
 	//rtkdbManager.UpdateHeartBeat(msg.ClientIndex)
 	case rtkMisc.C2SMsg_RESET_CLIENT:
 		resetRsp := rtkMisc.ResetClientResponse{Response: rtkMisc.GetResponse(rtkMisc.SUCCESS)}
-		errCode := rtkdbManager.OnlineClient(msg.ClientIndex)
+		errCode := rtkdbManager.UpdateClientOnline(int(msg.ClientIndex))
 		if errCode != rtkMisc.SUCCESS {
 			resetRsp = rtkMisc.ResetClientResponse{Response: rtkMisc.GetResponse(errCode)}
 		}
@@ -61,16 +73,16 @@ func handleReadFromClientMsg(buffer []byte, IPAddr string, MsgRsp *rtkMisc.C2SMe
 			log.Printf("clientID:[%s] decode ExtDataText Err: %s", msg.ClientID, err.Error())
 			initClientRsp.Response = rtkMisc.GetResponse(rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL)
 		} else {
-			pkIndex, errCode := rtkdbManager.UpSertClientInfo(&extData)
+			pkIndex, errCode := rtkdbManager.UpsertClientInfo(extData.ClientID, extData.HOST, extData.IPAddr, extData.DeviceName, extData.Platform)
 			if errCode != rtkMisc.SUCCESS {
 				initClientRsp.Response = rtkMisc.GetResponse(errCode)
 			} else {
-				initClientRsp.ClientIndex = pkIndex
-				MsgRsp.ClientIndex = pkIndex
+				initClientRsp.ClientIndex = uint32(pkIndex)
+				MsgRsp.ClientIndex = uint32(pkIndex)
 			}
 		}
 		MsgRsp.ExtData = initClientRsp
-	case rtkMisc.C2SMsg_AUTH_INDEX_MOBILE:
+	case rtkMisc.C2SMsg_AUTH_INDEX_MOBILE: //TODO: To remove it  and be replaced by C2SMsg_AUTH_DATA_INDEX_MOBILE
 		var extData rtkMisc.AuthIndexMobileReq
 		authIndexMobileRsp := rtkMisc.AuthIndexMobileResponse{Response: rtkMisc.GetResponse(rtkMisc.SUCCESS), AuthStatus: false}
 		err = json.Unmarshal(msg.ExtData, &extData)
@@ -97,7 +109,7 @@ func handleReadFromClientMsg(buffer []byte, IPAddr string, MsgRsp *rtkMisc.C2SMe
 			authDataIndexMobileRsp.Response = rtkMisc.GetResponse(rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL)
 		} else {
 			log.Printf("[%s] Width[%d] Height[%d] Type[%d] Framerate[%d]  DisplayName:[%s]", rtkMisc.GetFuncInfo(), extData.AuthData.Width, extData.AuthData.Height, extData.AuthData.Type, extData.AuthData.Framerate, extData.AuthData.DisplayName)
-			// TODO: check AuthData
+			// TODO: Need to verify  AuthData,  Temporarily write the dead data for now
 			authStatus := true
 			errCode := rtkdbManager.UpdateAuthAndSrcPort(int(msg.ClientIndex), authStatus, 13, 0)
 			if errCode != rtkMisc.SUCCESS {
@@ -109,9 +121,20 @@ func handleReadFromClientMsg(buffer []byte, IPAddr string, MsgRsp *rtkMisc.C2SMe
 		MsgRsp.ExtData = authDataIndexMobileRsp
 	case rtkMisc.C2SMsg_REQ_CLIENT_LIST:
 		getClientListRsp := rtkMisc.GetClientListResponse{Response: rtkMisc.GetResponse(rtkMisc.SUCCESS), ClientList: make([]rtkMisc.ClientInfo, 0)}
-		errCode := rtkdbManager.QueryOnlineClientList(&getClientListRsp.ClientList)
+		clientInfoList := make([]rtkCommon.ClientInfoTb, 0)
+		errCode := rtkdbManager.QueryOnlineClientList(&clientInfoList)
 		if errCode != rtkMisc.SUCCESS {
 			getClientListRsp.Response = rtkMisc.GetResponse(errCode)
+		}
+
+		for _, client := range clientInfoList {
+			getClientListRsp.ClientList = append(getClientListRsp.ClientList, rtkMisc.ClientInfo{
+				ID:             client.ClientId,
+				IpAddr:         client.IpAddr,
+				Platform:       client.Platform,
+				DeviceName:     client.DeviceName,
+				SourcePortType: rtkCommon.GetClientSourcePortType(client.Source, client.Port),
+			})
 		}
 
 		MsgRsp.ExtData = getClientListRsp
@@ -128,8 +151,9 @@ func HandleClient(ctx context.Context, conn net.Conn, timestamp int64) {
 	clientID := ""
 
 	defer func() {
-		rtkdbManager.OfflineClient(clientIndex)
-		closeConn(clientID, timestamp)
+		if closeConn(clientID, timestamp) {
+			rtkdbManager.UpdateClientOffline(int(clientIndex))
+		}
 	}()
 
 	for {
@@ -140,9 +164,8 @@ func HandleClient(ctx context.Context, conn net.Conn, timestamp int64) {
 		default:
 			err := conn.SetDeadline(time.Now().Add(time.Duration(rtkMisc.ClientHeartbeatInterval+5) * time.Second))
 			if err != nil {
-				log.Printf("IPAddr:[%s] connect SetDeadline err:%+v  retry after 100ms!", conn.RemoteAddr().String(), err)
-				time.Sleep(100 * time.Millisecond)
-				continue
+				log.Printf("IPAddr:[%s] connect SetDeadline err:%+v !", conn.RemoteAddr().String(), err)
+				return
 			}
 
 			// TODO: refine this flow
@@ -171,7 +194,7 @@ func HandleClient(ctx context.Context, conn net.Conn, timestamp int64) {
 				updateConn(clientID, timestamp, conn)
 			}
 
-			if writeMsg(&C2SRsp) != rtkMisc.SUCCESS {
+			if writeMsg(&C2SRsp, timestamp) != rtkMisc.SUCCESS {
 				return
 			}
 		}
@@ -179,7 +202,7 @@ func HandleClient(ctx context.Context, conn net.Conn, timestamp int64) {
 	}
 }
 
-func writeMsg(msg *rtkMisc.C2SMessage) rtkMisc.CrossShareErr {
+func writeMsg(msg *rtkMisc.C2SMessage, timestamp int64) rtkMisc.CrossShareErr {
 	encodedData, err := json.Marshal(msg)
 	if err != nil {
 		log.Println("Failed to marshal C2SMessage data:", err)
@@ -189,10 +212,10 @@ func writeMsg(msg *rtkMisc.C2SMessage) rtkMisc.CrossShareErr {
 	if msg.MsgType != rtkMisc.C2SMsg_CLIENT_HEARTBEAT && msg.MsgType != rtkMisc.CS2Msg_RECONN_CLIENT_LIST {
 		log.Printf("Write a msg to clientID:[%s] ClientIndex:[%d] MsgType:[%s]", msg.ClientID, msg.ClientIndex, msg.MsgType)
 	}
-	return write(encodedData, msg.ClientID)
+	return write(encodedData, msg.ClientID, timestamp)
 }
 
-// TODO: call by via unixSocket
+// TODO: call by via InterfaceMgr
 func SendDragFileEvent(srcId, targetId string, srcClientIndex uint32) rtkMisc.CrossShareErr {
 	msg := rtkMisc.C2SMessage{
 		ClientID:    srcId,
@@ -202,7 +225,7 @@ func SendDragFileEvent(srcId, targetId string, srcClientIndex uint32) rtkMisc.Cr
 		ExtData:     targetId,
 	}
 
-	return writeMsg(&msg)
+	return writeMsg(&msg, 0)
 }
 
 func ReconnClientListHandler(ctx context.Context) {
@@ -231,9 +254,20 @@ func ReconnClientListHandler(ctx context.Context) {
 
 func buildReconnClientList(reconnDirection rtkMisc.ReconnDirection) rtkMisc.CrossShareErr {
 	reconnListReq := rtkMisc.ReconnClientListReq{ClientList: make([]rtkMisc.ClientInfo, 0), ConnDirect: reconnDirection}
-	errCode := rtkdbManager.QueryReconnList(&reconnListReq.ClientList)
+	clientInfoList := make([]rtkCommon.ClientInfoTb, 0)
+	errCode := rtkdbManager.QueryReconnList(&clientInfoList)
 	if errCode != rtkMisc.SUCCESS {
 		return errCode
+	}
+
+	for _, client := range clientInfoList {
+		reconnListReq.ClientList = append(reconnListReq.ClientList, rtkMisc.ClientInfo{
+			ID:             client.ClientId,
+			IpAddr:         client.IpAddr,
+			Platform:       client.Platform,
+			DeviceName:     client.DeviceName,
+			SourcePortType: rtkCommon.GetClientSourcePortType(client.Source, client.Port),
+		})
 	}
 
 	retErrCode := rtkMisc.SUCCESS
@@ -255,5 +289,5 @@ func sendReconnClientList(id string, extData rtkMisc.ReconnClientListReq) rtkMis
 		ExtData:     extData,
 	}
 
-	return writeMsg(&msg)
+	return writeMsg(&msg, 0)
 }

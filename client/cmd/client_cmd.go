@@ -43,9 +43,7 @@ func init() {
 	rtkPlatform.SetDetectPluginEventCallback(func(isPlugin bool, productName string) {
 		if isPlugin {
 			log.Printf("Detect cable plug-in")
-			if productName != "" {
-				rtkLogin.SetProductName(productName)
-			}
+			rtkLogin.SetProductName(productName)
 
 			cablePlugInFlagChan <- struct{}{}
 		} else {
