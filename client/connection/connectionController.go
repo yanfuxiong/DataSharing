@@ -515,6 +515,7 @@ func OfflineEvent(id string) {
 func updateUIOnlineStatus(isOnline bool, id, ipAddr, platfrom, deviceName, srcPortType string) {
 	if isOnline {
 		log.Printf("[%s] IP:[%s] Online: increase client count", rtkMisc.GetFuncInfo(), ipAddr)
+		// TODO: android/ios/macOs client Online/Offline UI API replace with GoUpdateClientStatus
 		rtkPlatform.GoUpdateClientStatus(1, ipAddr, id, deviceName, srcPortType)
 		rtkUtils.InsertClientInfoMap(id, ipAddr, platfrom, deviceName, srcPortType)
 		rtkPlatform.FoundPeer()

@@ -535,7 +535,7 @@ func SetFileDropResponse(statusCode C.int, ipPort *C.char, clientID *C.char, fil
 
 //export SetMacAddress
 func SetMacAddress(cMacAddress *C.char, length C.int) {
-	fmt.Printf("SetMacAddress(%q, %d)\n", C.GoString(cMacAddress), length)
+	log.Printf("SetMacAddress(%q, %d)\n", C.GoString(cMacAddress), length)
 	if length != 6 {
 		log.Printf("[%s] getMacAddressCallback failed, invalid MAC length:%d", rtkMisc.GetFuncInfo(), length)
 		return
@@ -630,7 +630,7 @@ func SetDragFileListRequest(filePathArry **C.wchar_t, arryLength C.uint32_t, tim
 
 //export SetCancelFileTransfer
 func SetCancelFileTransfer(ipPort *C.char, clientID *C.char, timeStamp C.uint64_t) {
-	fmt.Printf("SetCancelFileTransfer(%q, %q, %d)\n",
+	log.Printf("SetCancelFileTransfer(%q, %q, %d)\n",
 		C.GoString(ipPort),
 		C.GoString(clientID),
 		timeStamp)
@@ -718,25 +718,25 @@ func SetDragFileNotifyCallback(callback C.DragFileNotifyCallback) {
 
 //export SetDragFileListNotifyCallback
 func SetDragFileListNotifyCallback(callback C.DragFileListNotifyCallback) {
-	fmt.Println("SetDragFileListNotifyCallback")
+	log.Println("SetDragFileListNotifyCallback")
 	g_DragFileListNotifyCallback = callback
 }
 
 //export SetMultiFilesDropNotifyCallback
 func SetMultiFilesDropNotifyCallback(callback C.MultiFilesDropNotifyCallback) {
-	fmt.Println("SetMultiFilesDropNotifyCallback")
+	log.Println("SetMultiFilesDropNotifyCallback")
 	g_MultiFilesDropNotifyCallback = callback
 }
 
 //export SetUpdateMultipleProgressBarCallback
 func SetUpdateMultipleProgressBarCallback(callback C.UpdateMultipleProgressBarCallback) {
-	fmt.Println("SetUpdateMultipleProgressBarCallback")
+	log.Println("SetUpdateMultipleProgressBarCallback")
 	g_UpdateMultipleProgressBarCallback = callback
 }
 
 //export SetDataTransferCallback
 func SetDataTransferCallback(callback C.DataTransferCallback) {
-	fmt.Println("SetDataTransferCallback")
+	log.Println("SetDataTransferCallback")
 	g_DataTransferCallback = callback
 }
 
@@ -760,13 +760,13 @@ func SetUpdateImageProgressBarCallback(callback C.UpdateImageProgressBarCallback
 
 //export SetUpdateClientStatusCallback
 func SetUpdateClientStatusCallback(callback C.UpdateClientStatusCallback) {
-	fmt.Println("SetUpdateClientStatusCallback")
+	log.Println("SetUpdateClientStatusCallback")
 	g_UpdateClientStatusCallback = callback
 }
 
 //export SetUpdateSystemInfoCallback
 func SetUpdateSystemInfoCallback(callback C.UpdateSystemInfoCallback) {
-	fmt.Println("SetUpdateSystemInfoCallback")
+	log.Println("SetUpdateSystemInfoCallback")
 	g_UpdateSystemInfoCallback = callback
 }
 
@@ -784,30 +784,30 @@ func SetCleanClipboardCallback(callback C.CleanClipboardCallback) {
 
 //export SetGetDeviceNameCallback
 func SetGetDeviceNameCallback(callback C.GetDeviceNameCallback) {
-	fmt.Println("SetGetDeviceNameCallback")
+	log.Println("SetGetDeviceNameCallback")
 	g_GetDeviceNameCallback = callback
 }
 
 //export SetAuthViaIndexCallback
 func SetAuthViaIndexCallback(callback C.AuthViaIndexCallback) {
-	fmt.Println("SetAuthViaIndexCallback")
+	log.Println("SetAuthViaIndexCallback")
 	g_AuthViaIndexCallback = callback
 }
 
 //export SetDIASStatusCallback
 func SetDIASStatusCallback(callback C.DIASStatusCallback) {
-	fmt.Println("SetDIASStatusCallback")
+	log.Println("SetDIASStatusCallback")
 	g_DIASStatusCallback = callback
 }
 
 //export SetRequestSourceAndPortCallback
 func SetRequestSourceAndPortCallback(callback C.RequestSourceAndPortCallback) {
-	fmt.Println("SetRequestSourceAndPortCallback")
+	log.Println("SetRequestSourceAndPortCallback")
 	g_RequestSourceAndPortCallback = callback
 }
 
 //export SetGetDownloadPathCallback
 func SetGetDownloadPathCallback(callback C.GetDownloadPathCallback) {
-	fmt.Println("SetGetDownloadPathCallback")
+	log.Println("SetGetDownloadPathCallback")
 	g_GetDownloadPathCallback = callback
 }

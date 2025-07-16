@@ -29,11 +29,11 @@ type Callback interface {
 }
 
 func SetupRootPath(rootPath string) {
-	log.Printf("[%s] rootPath:[%s]", rtkMisc.GetFuncInfo(), rootPath)
 	rtkPlatform.SetupRootPath(rootPath)
+	log.Printf("[%s] rootPath:[%s]", rtkMisc.GetFuncInfo(), rootPath)
 }
 
-func MainInit(cb Callback, deviceName, serverId, serverIpInfo, listentHost string, listenPort int) {
+func MainInit(cb Callback, deviceName, serverId, serverIpInfo, listentHost string, listentPort int) {
 	rtkPlatform.SetCallback(cb)
 	rtkPlatform.SetDeviceName(deviceName)
 
@@ -41,7 +41,7 @@ func MainInit(cb Callback, deviceName, serverId, serverIpInfo, listentHost strin
 	if rootPath == "" || !rtkMisc.FolderExists(rootPath) {
 		log.Fatalf("[%s] RootPath :[%s] is invalid!", rtkMisc.GetFuncInfo(), rootPath)
 	}
-	rtkCmd.MainInit(serverId, serverIpInfo, listentHost, listenPort)
+	rtkCmd.MainInit(serverId, serverIpInfo, listentHost, listentPort)
 }
 
 func SendMessage(s string) {
@@ -86,13 +86,12 @@ func SendImage(content string) {
 }
 
 func SendAddrsFromPlatform(addrsList string) {
-	fmt.Printf("[%s] addrsList [%s]", rtkMisc.GetFuncInfo(), addrsList)
 	parts := strings.Split(addrsList, "#")
 	rtkUtils.GetAddrsFromPlatform(parts)
 }
 
 func SendNetInterfaces(name string, index int) {
-	log.Printf("[%s] SendNetInterfaces [%s] index:[%d] mtu:[%d]", rtkMisc.GetFuncInfo(), name, index)
+	log.Printf("[%s] SendNetInterfaces [%s][%d]", rtkMisc.GetFuncInfo(), name, index)
 	rtkUtils.SetNetInterfaces(name, index)
 }
 

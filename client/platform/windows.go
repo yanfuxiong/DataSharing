@@ -487,12 +487,6 @@ func GoSetupDstPasteText(content []byte) {
 func FoundPeer() {
 }
 
-func GetClientList() string {
-	clientList := rtkUtils.GetClientList()
-	log.Printf("GetClientList :[%s]", clientList)
-	return clientList
-}
-
 func GenKey() crypto.PrivKey {
 	return rtkUtils.GenKey(privKeyFile)
 }

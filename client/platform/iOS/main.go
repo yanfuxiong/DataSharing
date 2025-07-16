@@ -8,10 +8,8 @@ package main
 
 typedef void (*CallbackMethodText)(char*);
 typedef void (*CallbackMethodImage)(char* content);
-typedef void (*LogMessageCallback)(char* msg);
 typedef void (*EventCallback)(int event);
 typedef void (*CallbackMethodFileConfirm)(char* id, char* platform, char* fileName, long long fileSize);
-typedef void (*CallbackMethodFileDone)(char* name, long long fileSize);
 typedef void (*CallbackMethodFoundPeer)();
 typedef void (*CallbackMethodFileNotify)(char* ip, char* id, char* platform, char* fileName, unsigned long long fileSize,unsigned long long timestamp);
 typedef void (*CallbackMethodFileListNotify)(char* ip, char* id, char* platform,unsigned int fileCnt, unsigned long long totalSize,unsigned long long timestamp, char* firstFileName, unsigned long long firstFileSize);
@@ -24,10 +22,8 @@ typedef char* (*CallbackAuthData)();
 
 static CallbackMethodText gCallbackMethodText = 0;
 static CallbackMethodImage gCallbackMethodImage = 0;
-static LogMessageCallback gLogMessageCallback = 0;
 static EventCallback gEventCallback = 0;
 static CallbackMethodFileConfirm gCallbackMethodFileConfirm = 0;
-static CallbackMethodFileDone gCallbackMethodFileDone = 0;
 static CallbackMethodFoundPeer gCallbackMethodFoundPeer = 0;
 static CallbackMethodFileNotify gCallbackMethodFileNotify = 0;
 static CallbackMethodFileListNotify gCallbackMethodFileListNotify = 0;
@@ -46,10 +42,6 @@ static void setCallbackMethodImage(CallbackMethodImage cb) {gCallbackMethodImage
 static void invokeCallbackMethodImage(char* str) {
 	if (gCallbackMethodImage) {gCallbackMethodImage(str);}
 }
-static void setLogMessageCallback(LogMessageCallback cb) {gLogMessageCallback = cb;}
-static void invokeLogMessageCallback(char* str) {
-	if (gLogMessageCallback) {gLogMessageCallback(str);}
-}
 static void setEventCallback(EventCallback cb) {gEventCallback = cb;}
 static void invokeEventCallback(int event) {
 	if (gEventCallback) {gEventCallback(event);}
@@ -57,10 +49,6 @@ static void invokeEventCallback(int event) {
 static void setCallbackMethodFileConfirm(CallbackMethodFileConfirm cb) {gCallbackMethodFileConfirm = cb;}
 static void invokeCallbackMethodFileConfirm(char* id, char* platform, char* fileName, long long fileSize) {
 	if (gCallbackMethodFileConfirm) {gCallbackMethodFileConfirm(id, platform, fileName, fileSize);}
-}
-static void setCallbackMethodFileDone(CallbackMethodFileDone cb) {gCallbackMethodFileDone = cb;}
-static void invokeCallbackMethodFileDone(char* name, long long fileSize) {
-	if (gCallbackMethodFileDone) {gCallbackMethodFileDone(name, fileSize);}
 }
 static void setCallbackMethodFoundPeer(CallbackMethodFoundPeer cb) {gCallbackMethodFoundPeer = cb;}
 static void invokeCallbackMethodFoundPeer() {
@@ -97,7 +85,7 @@ static void invokeCallbackMethodStopBrowseMdns() {
 static void setCallbackGetAuthData(CallbackAuthData cb) {gCallbackAuthData = cb;}
 static char* invokeCallbackGetAuthData() {
 	if (gCallbackAuthData) { return gCallbackAuthData();}
-	return NULL;
+    return NULL;
 }
 */
 import "C"
@@ -125,10 +113,8 @@ func main() {
 func init() {
 	rtkPlatform.SetCallbackMethodText(GoTriggerCallbackMethodText)
 	rtkPlatform.SetCallbackMethodImage(GoTriggerCallbackMethodImage)
-	rtkPlatform.SetLogMessageCallback(GoTriggerLogMessageCallback)
 	rtkPlatform.SetEventCallback(GoTriggerEventCallback)
 	rtkPlatform.SetCallbackMethodFileConfirm(GoTriggerCallbackMethodFileConfirm)
-	rtkPlatform.SetCallbackMethodFileDone(GoTriggerCallbackMethodFileDone)
 	rtkPlatform.SetCallbackFileNotify(GoTriggerCallbackMethodFileNotify)
 	rtkPlatform.SetCallbackFileListNotify(GoTriggerCallbackMethodFileListNotify)
 	rtkPlatform.SetCallbackMethodFoundPeer(GoTriggerCallbackMethodFoundPeer)
@@ -160,12 +146,6 @@ func GoTriggerCallbackMethodImage(str string) {
 	C.invokeCallbackMethodImage(cstr)
 }
 
-func GoTriggerLogMessageCallback(str string) {
-	cstr := C.CString(str)
-	defer C.free(unsafe.Pointer(cstr))
-	C.invokeLogMessageCallback(cstr)
-}
-
 func GoTriggerEventCallback(event int) {
 	cevent := C.int(event)
 	C.invokeEventCallback(cevent)
@@ -180,13 +160,6 @@ func GoTriggerCallbackMethodFileConfirm(id, platform, fileName string, fileSize 
 	defer C.free(unsafe.Pointer(cplatform))
 	defer C.free(unsafe.Pointer(cfileName))
 	C.invokeCallbackMethodFileConfirm(cid, cplatform, cfileName, cfileSize)
-}
-
-func GoTriggerCallbackMethodFileDone(name string, fileSize int64) {
-	cname := C.CString(name)
-	cfileSize := C.longlong(fileSize)
-	defer C.free(unsafe.Pointer(cname))
-	C.invokeCallbackMethodFileDone(cname, cfileSize)
 }
 
 func GoTriggerCallbackMethodFoundPeer() {
@@ -306,11 +279,6 @@ func SetCallbackMethodImage(cb C.CallbackMethodImage) {
 	C.setCallbackMethodImage(cb)
 }
 
-//export SetLogMessageCallback
-func SetLogMessageCallback(cb C.LogMessageCallback) {
-	C.setLogMessageCallback(cb)
-}
-
 //export SetEventCallback
 func SetEventCallback(cb C.EventCallback) {
 	C.setEventCallback(cb)
@@ -319,11 +287,6 @@ func SetEventCallback(cb C.EventCallback) {
 //export SetCallbackMethodFileConfirm
 func SetCallbackMethodFileConfirm(cb C.CallbackMethodFileConfirm) {
 	C.setCallbackMethodFileConfirm(cb)
-}
-
-//export SetCallbackMethodFileDone
-func SetCallbackMethodFileDone(cb C.CallbackMethodFileDone) {
-	C.setCallbackMethodFileDone(cb)
 }
 
 //export SetCallbackMethodFoundPeer
