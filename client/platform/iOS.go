@@ -95,6 +95,8 @@ type (
 	CallbackMethodBrowseMdnsResultFunc func(string, string, int)
 	CallbackDetectPluginEventFunc      func(isPlugin bool, productName string)
 	CallbackGetAuthDataFunc            func() string
+	CallbackDIASStatusFunc             func(uint32)
+	CallbackMonitorNameFunc            func(string)
 )
 
 var (
@@ -127,6 +129,8 @@ var (
 	callbackMethodBrowseMdnsResult     CallbackMethodBrowseMdnsResultFunc = nil
 	callbackDetectPluginEvent          CallbackDetectPluginEventFunc      = nil
 	callbackGetAuthData                CallbackGetAuthDataFunc            = nil
+	callbackDIASStatus                 CallbackDIASStatusFunc             = nil
+	callbackMonitorName                CallbackMonitorNameFunc            = nil
 )
 
 func SetGoNetworkSwitchCallback(cb CallbackNetworkSwitchFunc) {
@@ -232,6 +236,14 @@ func SetDetectPluginEventCallback(cb CallbackDetectPluginEventFunc) {
 
 func SetGetAuthDataCallback(cb CallbackGetAuthDataFunc) {
 	callbackGetAuthData = cb
+}
+
+func SetDIASStatusCallback(cb CallbackDIASStatusFunc) {
+	callbackDIASStatus = cb
+}
+
+func SetMonitorNameCallback(cb CallbackMonitorNameFunc) {
+	callbackMonitorName = cb
 }
 
 func GoReqSourceAndPort() {
@@ -626,8 +638,21 @@ func GetConfirmDocumentsAccept() bool {
 	return ifConfirmDocumentsAccept
 }
 
-func GoDIASStatusNotify(diasStatus uint32) {
+func GoMonitorNameNotify(name string) {
+	if callbackMonitorName == nil {
+		log.Printf("[%s] callbackMonitorName is nil, MonitorNameNotify failed!", rtkMisc.GetFuncInfo())
+		return
+	}
+	callbackMonitorName(name)
+}
 
+func GoDIASStatusNotify(diasStatus uint32) {
+	log.Printf("[%s] diasStatus:%d", rtkMisc.GetFuncInfo(), diasStatus)
+	if callbackDIASStatus == nil {
+		log.Printf("[%s] callbackDIASStatus is nil, DIASStatusNotify failed!", rtkMisc.GetFuncInfo())
+		return
+	}
+	callbackDIASStatus(diasStatus)
 }
 
 func GetAuthData() (rtkMisc.CrossShareErr, rtkMisc.AuthDataInfo) {

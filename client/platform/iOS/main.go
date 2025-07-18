@@ -19,6 +19,8 @@ typedef void (*CallbackFileError)(char* id, char* fileName, char* err);
 typedef void (*CallbackMethodStartBrowseMdns)(char* instance, char* serviceType);
 typedef void (*CallbackMethodStopBrowseMdns)();
 typedef char* (*CallbackAuthData)();
+typedef void (*CallbackSetDIASStatus)(unsigned int status);
+typedef void (*CallbackSetMonitorName)(char* monitorName);
 
 static CallbackMethodText gCallbackMethodText = 0;
 static CallbackMethodImage gCallbackMethodImage = 0;
@@ -33,6 +35,8 @@ static CallbackFileError gCallbackFileError = 0;
 static CallbackMethodStartBrowseMdns gCallbackMethodStartBrowseMdns = 0;
 static CallbackMethodStopBrowseMdns gCallbackMethodStopBrowseMdns = 0;
 static CallbackAuthData gCallbackAuthData = 0;
+static CallbackSetDIASStatus gCallbackSetDIASStatus = 0;
+static CallbackSetMonitorName gCallbackSetMonitorName = 0;
 
 static void setCallbackMethodText(CallbackMethodText cb) {gCallbackMethodText = cb;}
 static void invokeCallbackMethodText(char* str) {
@@ -87,6 +91,14 @@ static char* invokeCallbackGetAuthData() {
 	if (gCallbackAuthData) { return gCallbackAuthData();}
     return NULL;
 }
+static void setCallbackSetDIASStatus(CallbackSetDIASStatus cb) {gCallbackSetDIASStatus = cb;}
+static void invokeCallbackSetDIASStatus(unsigned int status) {
+	if (gCallbackSetDIASStatus) { gCallbackSetDIASStatus(status);}
+}
+static void setCallbackSetMonitorName(CallbackSetMonitorName cb) {gCallbackSetMonitorName = cb;}
+static void invokeCallbackSetMonitorName(char* monitorName) {
+	if (gCallbackSetMonitorName) { gCallbackSetMonitorName(monitorName);}
+}
 */
 import "C"
 
@@ -124,6 +136,9 @@ func init() {
 	rtkPlatform.SetCallbackMethodStartBrowseMdns(GoTriggerCallbackMethodStartBrowseMdns)
 	rtkPlatform.SetCallbackMethodStopBrowseMdns(GoTriggerCallbackMethodStopBrowseMdns)
 	rtkPlatform.SetGetAuthDataCallback(GoTriggerCallbackGetAuthData)
+	rtkPlatform.SetDIASStatusCallback(GoTriggerCallbackSetDIASStatus)
+	rtkPlatform.SetMonitorNameCallback(GoTriggerCallbackSetMonitorName)
+
 	rtkPlatform.SetConfirmDocumentsAccept(false)
 }
 
@@ -267,6 +282,19 @@ func GoTriggerCallbackGetAuthData() string {
 	return authData
 }
 
+func GoTriggerCallbackSetDIASStatus(status uint32) {
+	cStatus := C.uint(status)
+	C.invokeCallbackSetDIASStatus(cStatus)
+	log.Printf("[%s] status:%d", rtkMisc.GetFuncInfo(), status)
+}
+
+func GoTriggerCallbackSetMonitorName(name string) {
+	cMonitorName := C.CString(name)
+	defer C.free(unsafe.Pointer(cMonitorName))
+	C.invokeCallbackSetMonitorName(cMonitorName)
+	log.Printf("[%s] MonitorName:%s", rtkMisc.GetFuncInfo(), name)
+}
+
 //export SetCallbackMethodText
 func SetCallbackMethodText(cb C.CallbackMethodText) {
 	log.Printf("[%s] SetCallbackMethodText", rtkMisc.GetFuncInfo())
@@ -327,6 +355,24 @@ func SetCallbackMethodStartBrowseMdns(cb C.CallbackMethodStartBrowseMdns) {
 //export SetCallbackMethodStopBrowseMdns
 func SetCallbackMethodStopBrowseMdns(cb C.CallbackMethodStopBrowseMdns) {
 	C.setCallbackMethodStopBrowseMdns(cb)
+}
+
+//export SetCallbackGetAuthData
+func SetCallbackGetAuthData(cb C.CallbackAuthData) {
+	log.Printf("[%s] SetCallbackGetAuthData", rtkMisc.GetFuncInfo())
+	C.setCallbackGetAuthData(cb)
+}
+
+//export SetSetDIASStatusCallback
+func SetSetDIASStatusCallback(cb C.CallbackSetDIASStatus) {
+	log.Printf("[%s] SetSetDIASStatusCallback", rtkMisc.GetFuncInfo())
+	C.setCallbackSetDIASStatus(cb)
+}
+
+//export SetSetMonitorNameCallback
+func SetSetMonitorNameCallback(cb C.CallbackSetMonitorName) {
+	log.Printf("[%s] SetSetMonitorNameCallback", rtkMisc.GetFuncInfo())
+	C.setCallbackSetMonitorName(cb)
 }
 
 //export MainInit
@@ -524,12 +570,6 @@ func SetDIASID(DiasID string) {
 func SetDetectPluginEvent(isPlugin bool) {
 	log.Printf(" [%s] isPlugin:[%+v]", rtkMisc.GetFuncInfo(), isPlugin)
 	rtkPlatform.GoTriggerDetectPluginEvent(isPlugin)
-}
-
-//export SetCallbackGetAuthData
-func SetCallbackGetAuthData(cb C.CallbackAuthData) {
-	log.Printf("[%s] SetCallbackGetAuthData", rtkMisc.GetFuncInfo())
-	C.setCallbackGetAuthData(cb)
 }
 
 //export GetVersion

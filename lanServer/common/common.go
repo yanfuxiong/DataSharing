@@ -37,6 +37,7 @@ type TimingData struct {
 	Framerate   int
 	DisplayMode int
 	DisplayName string
+	DeviceName  string
 }
 
 func (t *TimingData) Dump() {

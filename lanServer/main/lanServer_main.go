@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -225,8 +226,9 @@ func registerMdns(server *zeroconf.Server) []net.Addr {
 			// It's necessary be a contentText.
 			// If the contentText is null or empty, that iOS cannot discover service
 			// iOS use the IP in textRecord to skip the different IP from bonjour service
-			contextText := "ip=" + ipAddr
-			server, err = zeroconf.Register(*name, *service, *domain, *port, []string{contextText}, []net.Interface{*iface})
+			textRecordIp := rtkMisc.TextRecordKeyIp + "=" + ipAddr
+			// TODO: ProductName from DIAS
+			server, err = zeroconf.Register(*name, *service, *domain, *port, []string{textRecordIp}, []net.Interface{*iface})
 
 			if err != nil {
 				if printErrMdns {
@@ -250,43 +252,59 @@ func Run() {
 		log.Fatal(fmt.Sprintf("%s is already exist!", rtkBuildConfig.ServerName))
 	}*/
 
-	startTime := time.Now().UnixMilli()
-	var server *zeroconf.Server
-	addrs := registerMdns(server)
-	defer func() {
-		if server != nil {
-			server.Shutdown()
-		}
-	}()
+	getServerListening := func() (net.Listener, error) {
+		startTime := time.Now().UnixMilli()
+		var server *zeroconf.Server
+		addrs := registerMdns(server)
+		defer func() {
+			if server != nil {
+				server.Shutdown()
+			}
+		}()
 
-	log.Printf("Register use [%d]ms, Published service info:", time.Now().UnixMilli()-startTime)
-	log.Println("- Name:", *name)
-	log.Println("- Type:", *service)
-	log.Println("- Domain:", *domain)
-	log.Println("- Port:", *port)
+		log.Printf("Register use [%d]ms, Published service info:", time.Now().UnixMilli()-startTime)
+		log.Println("- Name:", *name)
+		log.Println("- Type:", *service)
+		log.Println("- Domain:", *domain)
+		log.Println("- Port:", *port)
 
-	serverAddr := ""
-	for _, addr := range addrs {
-		if ipNet, ok := addr.(*net.IPNet); ok && !ipNet.IP.IsLoopback() {
-			if ipNet.IP.To4() != nil {
-				serverAddr = ipNet.IP.String()
+		serverAddr := ""
+		for _, addr := range addrs {
+			if ipNet, ok := addr.(*net.IPNet); ok && !ipNet.IP.IsLoopback() {
+				if ipNet.IP.To4() != nil {
+					serverAddr = ipNet.IP.String()
+				}
 			}
 		}
-	}
-	if serverAddr == "" {
-		log.Fatal(fmt.Sprintf("get IP is null!"))
+		if serverAddr == "" {
+			log.Printf("get serverAddr is  null !\n")
+			return nil, errors.New("get serverAddr is null!")
+		}
+
+		rtkGlobal.ServerIPAddr = serverAddr
+		rtkGlobal.ServerPort = *port
+
+		serverAddr = fmt.Sprintf("%s:%d", serverAddr, *port)
+		listener, err := net.Listen("tcp", serverAddr)
+		if err != nil {
+			log.Printf("Error listening:%+v", err)
+		}
+
+		return listener, err
 	}
 
-	rtkGlobal.ServerIPAddr = serverAddr
-	rtkGlobal.ServerPort = *port
-
-	serverAddr = fmt.Sprintf("%s:%d", serverAddr, *port)
-	listener, err := net.Listen("tcp", serverAddr)
-	if err != nil {
-		log.Fatal("Error listening:", err.Error())
+	var listener net.Listener
+	var err error
+	for {
+		listener, err = getServerListening()
+		if err == nil {
+			break
+		}
+		time.Sleep(5 * time.Second)
 	}
+
 	defer listener.Close()
-	log.Printf("%s is listening on %s success! \n", rtkBuildConfig.ServerName, serverAddr)
+	log.Printf("%s is listening on %s:%d success ! \n", rtkBuildConfig.ServerName, rtkGlobal.ServerIPAddr, rtkGlobal.ServerPort)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -298,7 +316,7 @@ func Run() {
 		case <-ctx.Done():
 			return
 		case <-cancelServer:
-			log.Printf("%s  %s listening is cancel!", rtkBuildConfig.ServerName, serverAddr)
+			log.Printf("%s  %s:%d listening is cancel!", rtkBuildConfig.ServerName, rtkGlobal.ServerIPAddr, rtkGlobal.ServerPort)
 			return
 		default:
 			conn, err := listener.Accept()

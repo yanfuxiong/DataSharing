@@ -6,17 +6,17 @@ package main
 typedef struct CLIENT_INFO_DATA
 {
     int index;
-    char* clientId;
-	char* host;
-	char* ipAddr;
+    char clientId[64];
+	char host[64];
+	char ipAddr[24];
 	int source;
 	int port;
-	char* deviceName;
-	char* platform;
+	char deviceName[64];
+	char platform[16];
 	int online;
 	int authStatus;
-	char* updateTime;
-	char* createTime;
+	char updateTime[32];
+	char createTime[32];
 } CLIENT_INFO_DATA;
 
 typedef struct TIMING_DATA
@@ -27,7 +27,8 @@ typedef struct TIMING_DATA
 	int height;
 	int framerate;
 	int displayMode;
-	char* displayName;
+	char* displayName; // for Miracast
+	char* deviceName; // for Miracast
 } TIMING_DATA;
 
 // Callback function type from C++ (AIDL)
@@ -70,6 +71,7 @@ static void onGetTimingDataCb(TIMING_DATA** list, int* size) {
 */
 import "C"
 import (
+	"reflect"
 	rtkCommon "rtk-cross-share/lanServer/common"
 	rtkIfaceMgr "rtk-cross-share/lanServer/interfaceMgr"
 	"unsafe"
@@ -179,7 +181,6 @@ func goDragFileStartCb(source, port, horzSize, vertSize, posX, posY int) {
 
 func goUpdateClientInfoCb(clientInfo rtkCommon.ClientInfoTb) {
 	C.onUpdateClientInfoCb(goToCClientInfo(clientInfo))
-	// TODO: Free CString
 }
 
 func goGetTimingDataCb() []rtkCommon.TimingData {
@@ -200,8 +201,10 @@ func goGetTimingDataCb() []rtkCommon.TimingData {
 			Framerate:   int(cSlice[i].framerate),
 			DisplayMode: int(cSlice[i].displayMode),
 			DisplayName: C.GoString(cSlice[i].displayName),
+			DeviceName:  C.GoString(cSlice[i].deviceName),
 		}
 		C.free(unsafe.Pointer(cSlice[i].displayName))
+		C.free(unsafe.Pointer(cSlice[i].deviceName))
 	}
 
 	return result
@@ -218,19 +221,46 @@ func goBoolToCInt(val bool) C.int {
 	}
 }
 
-func goToCClientInfo(clientInfo rtkCommon.ClientInfoTb) C.CLIENT_INFO_DATA {
-	return C.CLIENT_INFO_DATA{
-		index:      C.int(clientInfo.Index),
-		clientId:   C.CString(clientInfo.ClientId),
-		host:       C.CString(clientInfo.Host),
-		ipAddr:     C.CString(clientInfo.IpAddr),
-		source:     C.int(clientInfo.Source),
-		port:       C.int(clientInfo.Port),
-		deviceName: C.CString(clientInfo.DeviceName),
-		platform:   C.CString(clientInfo.Platform),
-		online:     goBoolToCInt(clientInfo.Online),
-		authStatus: goBoolToCInt(clientInfo.AuthStatus),
-		updateTime: C.CString(clientInfo.UpdateTime),
-		createTime: C.CString(clientInfo.CreateTime),
+func copyStringToFixedArray(dst interface{}, src string) {
+	v := reflect.ValueOf(dst)
+	if v.Kind() != reflect.Ptr || v.Elem().Kind() != reflect.Array {
+		return
 	}
+
+	arr := v.Elem()
+	maxLen := arr.Len()
+
+	b := []byte(src)
+	length := len(b)
+	if length >= maxLen {
+		length = maxLen - 1 // for end '\0'
+	}
+
+	basePtr := arr.UnsafeAddr()
+
+	for i := 0; i < length; i++ {
+		ptr := (*C.char)(unsafe.Pointer(basePtr + uintptr(i)))
+		*ptr = C.char(b[i])
+	}
+
+	// null terminator
+	ptr := (*C.char)(unsafe.Pointer(basePtr + uintptr(length)))
+	*ptr = 0
+}
+
+func goToCClientInfo(clientInfo rtkCommon.ClientInfoTb) C.CLIENT_INFO_DATA {
+	var cData C.CLIENT_INFO_DATA
+	cData.index = C.int(clientInfo.Index)
+	copyStringToFixedArray(&cData.clientId, clientInfo.ClientId)
+	copyStringToFixedArray(&cData.host, clientInfo.Host)
+	copyStringToFixedArray(&cData.ipAddr, clientInfo.IpAddr)
+	cData.source = C.int(clientInfo.Source)
+	cData.port = C.int(clientInfo.Port)
+	copyStringToFixedArray(&cData.deviceName, clientInfo.DeviceName)
+	copyStringToFixedArray(&cData.platform, clientInfo.Platform)
+	cData.online = goBoolToCInt(clientInfo.Online)
+	cData.authStatus = goBoolToCInt(clientInfo.AuthStatus)
+	copyStringToFixedArray(&cData.updateTime, clientInfo.UpdateTime)
+	copyStringToFixedArray(&cData.createTime, clientInfo.CreateTime)
+	return cData
 }

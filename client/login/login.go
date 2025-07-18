@@ -86,7 +86,7 @@ RunFlag:
 	readResult := make(chan struct {
 		buffer  string
 		errCode rtkMisc.CrossShareErr
-	}, 5)
+	}, 5) //add channel buffer to pervent stucking the channel receiver
 
 	rtkMisc.GoSafe(func() {
 		var printNetworkErr = true
@@ -139,8 +139,8 @@ RunFlag:
 			lanServerHeartbeatStart()
 		case <-heartBeatTicker.C:
 			heartBeatFunc()
-		case readData, isClose := <-readResult:
-			if !isClose {
+		case readData, ok := <-readResult:
+			if !ok {
 				continue
 			}
 			if readData.errCode != rtkMisc.SUCCESS {
@@ -382,14 +382,20 @@ func StopLanServerRun() {
 func stopLanServerBusiness() {
 	log.Printf("connect lanServer business is all stop!")
 	NotifyDIASStatus(DIAS_Status_Wait_DiasMonitor)
+	rtkPlatform.GoMonitorNameNotify("")
 	pSafeConnect.Close()
 	heartBeatTicker.Reset(time.Duration(999 * time.Hour))
+	if disconnectAllClientFunc == nil {
+		log.Printf("disconnectAllClientFunc is nil, not cancel all client stream and business!")
+		return
+	}
 	disconnectAllClientFunc()
 }
 
 func cancelLanServerBusiness() {
 	log.Printf("connect lanServer business is all cancel!")
 	NotifyDIASStatus(DIAS_Status_Wait_DiasMonitor)
+	rtkPlatform.GoMonitorNameNotify("")
 	pSafeConnect.Close()
 	lanServerAddr = ""
 	stopBrowseInstance()

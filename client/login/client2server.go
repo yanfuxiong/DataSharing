@@ -126,6 +126,7 @@ func handleReadMessageFromServer(buffer []byte) rtkMisc.CrossShareErr {
 				return resetClientRsp.Code
 			}
 		}
+		rtkPlatform.GoMonitorNameNotify(monitorName)
 		log.Printf("Requst Reset Client Response success, request client list!")
 		errCode := sendReqMsgToLanServer(rtkMisc.C2SMsg_REQ_CLIENT_LIST)
 		if errCode != rtkMisc.SUCCESS {
@@ -144,9 +145,11 @@ func handleReadMessageFromServer(buffer []byte) rtkMisc.CrossShareErr {
 			}
 		}
 		rtkGlobal.NodeInfo.ClientIndex = initClientRsp.ClientIndex
+		monitorName = initClientRsp.MonitorName
 		heartBeatFlag <- struct{}{}
 		log.Printf("Requst Init Client success, get Client Index:[%d]", initClientRsp.ClientIndex)
 
+		rtkPlatform.GoMonitorNameNotify(monitorName)
 		if rtkGlobal.NodeInfo.Platform == rtkGlobal.PlatformAndroid || rtkGlobal.NodeInfo.Platform == rtkGlobal.PlatformiOS {
 			errCode, authData := rtkPlatform.GetAuthData()
 			if errCode != rtkMisc.SUCCESS {

@@ -10,9 +10,8 @@ import (
 )
 
 const (
-	// libp2p default backoff time is 5 seccond
-	pingInterval      = 8 * time.Second // TODO: refine this. Expect to detect disconnection in 10 seconds
-	pingTimeout       = 2 * time.Second
+	pingInterval      = 3500 * time.Millisecond
+	pingTimeout       = 3000 * time.Millisecond
 	pingErrMaxCnt     = 3
 	ctxTimeout_normal = 5 * time.Second
 	ctxTimeout_short  = 2 * time.Second

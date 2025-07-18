@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"math"
 	"net"
 	rtkCommon "rtk-cross-share/lanServer/common"
 	rtkdbManager "rtk-cross-share/lanServer/dbManager"
@@ -108,14 +109,18 @@ func handleReadFromClientMsg(buffer []byte, IPAddr string, MsgRsp *rtkMisc.C2SMe
 			log.Printf("[%s] clientID:[%s] decode ExtDataText Err: %s", rtkMisc.GetFuncInfo(), msg.ClientID, err.Error())
 			authDataIndexMobileRsp.Response = rtkMisc.GetResponse(rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL)
 		} else {
+			// Compare timing with TimingData & AuthData
 			log.Printf("[%s] Width[%d] Height[%d] Type[%d] Framerate[%d]  DisplayName:[%s]", rtkMisc.GetFuncInfo(), extData.AuthData.Width, extData.AuthData.Height, extData.AuthData.Type, extData.AuthData.Framerate, extData.AuthData.DisplayName)
-			// TODO: Need to verify  AuthData,  Temporarily write the dead data for now
-			authStatus := true
-			errCode := rtkdbManager.UpdateAuthAndSrcPort(int(msg.ClientIndex), authStatus, 13, 0)
+			authStatus, source, port := checkMobileTiming(int(msg.ClientIndex), extData.AuthData)
+			errCode := rtkdbManager.UpdateAuthAndSrcPort(int(msg.ClientIndex), authStatus, source, port)
 			if errCode != rtkMisc.SUCCESS {
 				authDataIndexMobileRsp.Response = rtkMisc.GetResponse(errCode)
 			} else {
 				authDataIndexMobileRsp.AuthStatus = authStatus
+			}
+
+			if !authStatus {
+				log.Printf("[%s] WARNING: Authorize failed", rtkMisc.GetFuncInfo())
 			}
 		}
 		MsgRsp.ExtData = authDataIndexMobileRsp
@@ -144,6 +149,90 @@ func handleReadFromClientMsg(buffer []byte, IPAddr string, MsgRsp *rtkMisc.C2SMe
 	}
 
 	return rtkMisc.SUCCESS
+}
+
+func checkMobileTiming(clientIndex int, authData rtkMisc.AuthDataInfo) (bool, int, int) {
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	maxRetryCnt := 20
+	retryCnt := 0
+	for {
+		<-ticker.C
+		src, port := getMobileTimingSrcPort(clientIndex, authData)
+		if (src > 0) || (port > 0) {
+			return true, src, port
+		}
+
+		retryCnt++
+		log.Printf("[%s] Not found timing(%dx%d@%d), Retry:(%d/%d)",
+			rtkMisc.GetFuncInfo(), authData.Width, authData.Height, authData.Framerate, retryCnt, maxRetryCnt)
+		if retryCnt >= maxRetryCnt {
+			return false, 0, 0
+		}
+	}
+}
+
+func getMobileTimingSrcPort(clientIndex int, authData rtkMisc.AuthDataInfo) (int, int) {
+	timingDataList := notifyGetTimingDataCallback()
+	source := 0
+	port := 0
+
+	for idx, timingData := range timingDataList {
+		log.Printf("[%s] Timing from DIAS: [%d](%dx%d@%d), Mode:%d",
+			rtkMisc.GetFuncInfo(), idx, timingData.Width, timingData.Height, timingData.Framerate, timingData.DisplayMode)
+		// Check DisplayMode
+		if timingData.DisplayMode != authData.Type {
+			continue
+		}
+
+		if timingData.DisplayMode == rtkMisc.DisplayModeMiracast {
+			// Check DisplayName in MiraCast
+			if timingData.DisplayName != authData.DisplayName {
+				// DEBUG
+				log.Printf("[%s] Different MiraCast displayName: DIAS(%s), Mobile(%s)",
+					rtkMisc.GetFuncInfo(), timingData.DisplayName, authData.DisplayName)
+				continue
+			}
+
+			// Check DeviceName in MiraCast
+			clientInfo, err := rtkdbManager.QueryClientInfoByIndex(clientIndex)
+			if err != rtkMisc.SUCCESS {
+				log.Printf("[%s] Err(%d): Get device name failed from MiraCast", rtkMisc.GetFuncInfo(), err)
+				continue
+			}
+			if timingData.DeviceName != clientInfo.DeviceName {
+				// DEBUG
+				log.Printf("[%s] Different MiraCast deviceName: DIAS(%s), Mobile(%s)",
+					rtkMisc.GetFuncInfo(), timingData.DeviceName, clientInfo.DeviceName)
+				continue
+			}
+		} else {
+			// Check Framerate in USBC
+			if math.Abs(float64(timingData.Framerate-authData.Framerate)) > 1 {
+				log.Printf("[%s] Different framerate: DIAS framerate(%d hz), Mobile framerate(%d hz)",
+					rtkMisc.GetFuncInfo(), timingData.Framerate, authData.Framerate)
+				continue
+			}
+		}
+
+		// Check Timing(width, height)
+		// DO NOT check framerate in MiraCast, due to Application layer cannot get correct framerate from SurfaceFlinger
+		if timingData.Width != authData.Width ||
+			timingData.Height != authData.Height {
+			log.Printf("[%s] Different resolution: DIAS resolution(%dx%d), Mobile resolution(%dx%d)",
+				rtkMisc.GetFuncInfo(), timingData.Width, timingData.Height, authData.Width, authData.Height)
+			continue
+		}
+
+		source = timingData.Source
+		port = timingData.Port
+		log.Printf("[%s] Found timing. (%dx%d@%d)(Source,Port)=(%d,%d)",
+			rtkMisc.GetFuncInfo(), timingData.Width, timingData.Height, timingData.Framerate, source, port)
+		return source, port
+	}
+
+	return 0, 0
 }
 
 func HandleClient(ctx context.Context, conn net.Conn, timestamp int64) {

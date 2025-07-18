@@ -31,11 +31,12 @@ var (
 	ifConfirmDocumentsAccept bool
 )
 
-func init() {
-	currentDir, err := rtkMisc.GetCurrentDir()
-	if err != nil {
-		log.Fatalf("Error getting current directory:%+v", err)
-		return
+func InitPlatform(rootPath, downLoadPath, deviceName string) {
+	downloadPath = downLoadPath
+	if deviceName == "" {
+		strDeviceName = "UnknownDeviceName"
+	} else {
+		strDeviceName = deviceName
 	}
 
 	getPath := func(dirPath, filePath string) string {
@@ -44,8 +45,8 @@ func init() {
 
 	settingsDir := ".Settings"
 	logDir := "Log"
-	settingsPath := getPath(currentDir, settingsDir)
-	logPath := getPath(currentDir, logDir)
+	settingsPath := getPath(rootPath, settingsDir)
+	logPath := getPath(rootPath, logDir)
 
 	if !rtkMisc.FolderExists(settingsPath) {
 		rtkMisc.CreateDir(settingsPath)
@@ -70,15 +71,8 @@ func init() {
 	} else {
 		rtkMisc.SetupLogFile()
 	}
-}
 
-func InitPlatform() { // this must execute after main.go init()
-	downloadPath = getDownloadPathInternal()
-	strDeviceName = getDeviceName()
-
-	if downloadPath == "" || !rtkMisc.FolderExists(downloadPath) {
-		log.Fatalf("[%s] get downloadPath [%s] is invalid!", downloadPath)
-	}
+	log.Printf("[%s] init rootPath:[%s] downLoadPath:[%s], deviceName:[%s]", rtkMisc.GetFuncInfo(), rootPath, downLoadPath, strDeviceName)
 }
 
 type (
@@ -326,6 +320,10 @@ func GoCancelFileTrans(ip, id string, timestamp int64) {
 	callbackCancelFileTransDragCB(id, ip, uint64(timestamp))
 }
 
+func GoUpdateDownloadPath(path string) {
+	downloadPath = path
+}
+
 /*======================================= Used by GO business =======================================*/
 
 func GetDownloadPath() string {
@@ -389,6 +387,10 @@ func GetAuthData() (rtkMisc.CrossShareErr, rtkMisc.AuthDataInfo) {
 	return rtkMisc.ERR_BIZ_GET_CALLBACK_INSTANCE_NULL, rtkMisc.AuthDataInfo{}
 }
 
+func GoMonitorNameNotify(name string) {
+
+}
+
 func GoSetupDstPasteFile(desc, fileName, platform string, fileSizeHigh uint32, fileSizeLow uint32) {
 
 }
@@ -447,7 +449,6 @@ func GoUpdateProgressBar(ip, id string, fileSize, sentSize, timestamp uint64, fi
 
 }
 
-// export UpdateMultipleProgressBar
 func GoUpdateMultipleProgressBar(ip, id, deviceName, currentFileName string, sentFileCnt, totalFileCnt uint32, currentFileSize, totalSize, sentSize, timestamp uint64) {
 	callbacMultipleProgressBarCB(ip, id, deviceName, currentFileName, sentFileCnt, totalFileCnt, currentFileSize, totalSize, sentSize, timestamp)
 }

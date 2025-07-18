@@ -600,7 +600,7 @@ func processImageCB(id string, event EventResult) bool {
 				return false
 			}
 			if errCode := rtkConnection.BuildFmtTypeTalker(id, event.Cmd.FmtType); errCode != rtkMisc.SUCCESS {
-				log.Printf("[%s]BuildImageTalker errCode:%+v ", rtkMisc.GetFuncInfo(), errCode)
+				log.Printf("[%s]BuildFmtTypeTalker errCode:%+v ", rtkMisc.GetFuncInfo(), errCode)
 				return false
 			}
 			rtkMisc.GoSafe(func() { processIoRead(id, ipAddr, "", event.Cmd.FmtType) })
@@ -688,7 +688,7 @@ func processFileDrop(id string, event EventResult) bool {
 				return false
 			}
 			if errCode := rtkConnection.BuildFmtTypeTalker(id, event.Cmd.FmtType); errCode != rtkMisc.SUCCESS {
-				log.Printf("[%s]BuildFileTalker errCode:%+v ", rtkMisc.GetFuncInfo(), errCode)
+				log.Printf("[%s]BuildFmtTypeTalker errCode:%+v ", rtkMisc.GetFuncInfo(), errCode)
 				return false
 			}
 			rtkMisc.GoSafe(func() { processIoRead(id, clientInfo.IpAddr, clientInfo.DeviceName, event.Cmd.FmtType) }) // [Dst]: be ready to receive file drop raw data

@@ -105,7 +105,7 @@ static const wchar_t* GetDeviceNameCallbackFunc(GetDeviceNameCallback cb) {
     if (cb) {
 		return cb();
 	} else {
-	 	return NULL;
+		return NULL;
 	}
 }
 
@@ -126,7 +126,7 @@ static void RequestSourceAndPortCallbackFunc(RequestSourceAndPortCallback cb) {
 
 typedef const wchar_t* (*GetDownloadPathCallback)();
 static const wchar_t* GetDownloadPathCallbackFunc(GetDownloadPathCallback cb) {
-        if (cb) {
+    if (cb) {
 		return cb();
 	} else {
 	 	return NULL;
@@ -478,8 +478,19 @@ func GoTriggerCallbackNotiMessage(fileName, clientName, platform string, timesta
 }
 
 //export InitGoServer
-func InitGoServer() {
-	rtkPlatform.InitPlatform()
+func InitGoServer(cRootPath, cDownloadPath, cDeviceName *C.wchar_t) {
+	rootPath := WCharToGoString(cRootPath)
+	if rootPath == "" || !rtkMisc.FolderExists(rootPath) {
+		log.Fatalf("[%s] get rootPath [%s] is invalid!", rtkMisc.GetFuncInfo(), rootPath)
+	}
+
+	downloadPath := WCharToGoString(cDownloadPath)
+	if downloadPath == "" || !rtkMisc.FolderExists(downloadPath) {
+		log.Fatalf("[%s] get downloadPath [%s] is invalid!", rtkMisc.GetFuncInfo(), downloadPath)
+	}
+
+	deviceName := WCharToGoString(cDeviceName)
+	rtkPlatform.InitPlatform(rootPath, downloadPath, deviceName)
 	rtkCmd.Run()
 }
 
@@ -689,6 +700,17 @@ func SetMultiFilesDropRequest(ipPort *C.char, clientID *C.char, timeStamp C.uint
 
 	log.Printf("[%s] ID[%s] IP:[%s] get file count:[%d] folder count:[%d], totalSize:[%d] totalDesc:[%s] timestamp:[%d]", rtkMisc.GetFuncInfo(), id, ip, len(fileList), len(folderList), totalSize, totalDesc, timestamp)
 	rtkPlatform.GoMultiFilesDropRequest(id, &fileList, &folderList, totalSize, timestamp, totalDesc)
+}
+
+//export RequestUpdateDownloadPath
+func RequestUpdateDownloadPath(cDownloadPath *C.wchar_t) {
+	downloadPath := WCharToGoString(cDownloadPath)
+	if downloadPath == "" || !rtkMisc.FolderExists(downloadPath) {
+		log.Printf("[%s] get downloadPath [%s] is invalid!", rtkMisc.GetFuncInfo(), downloadPath)
+		return
+	}
+	log.Printf("[%s] update downloadPath:[%s] success!", rtkMisc.GetFuncInfo(), downloadPath)
+	rtkPlatform.GoUpdateDownloadPath(downloadPath)
 }
 
 //export SetStartClipboardMonitorCallback

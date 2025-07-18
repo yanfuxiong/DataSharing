@@ -215,12 +215,12 @@ func buildListener() {
 	})
 
 	node.SetStreamHandler(protocol.ID(rtkGlobal.ProtocolImageTransmission), func(stream network.Stream) {
-		UpdateFmtTypeStream(stream, rtkCommon.IMAGE_CB, false)
+		updateFmtTypeStreamSrc(stream, rtkCommon.IMAGE_CB)
 		noticeFmtTypeStreamReady(stream.Conn().RemotePeer().String(), rtkCommon.IMAGE_CB)
 	})
 
 	node.SetStreamHandler(protocol.ID(rtkGlobal.ProtocolFileTransmission), func(stream network.Stream) {
-		UpdateFmtTypeStream(stream, rtkCommon.FILE_DROP, false)
+		updateFmtTypeStreamSrc(stream, rtkCommon.FILE_DROP)
 		noticeFmtTypeStreamReady(stream.Conn().RemotePeer().String(), rtkCommon.FILE_DROP)
 	})
 }
@@ -330,7 +330,7 @@ func BuildFmtTypeTalker(id string, fmtType rtkCommon.TransFmtType) rtkMisc.Cross
 		return rtkMisc.ERR_BIZ_UNKNOWN_FMTTYPE
 	}
 
-	UpdateFmtTypeStream(fmtTypeStream, fmtType, true)
+	updateFmtTypeStreamDst(fmtTypeStream, fmtType)
 	return rtkMisc.SUCCESS
 }
 

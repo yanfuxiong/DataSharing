@@ -57,6 +57,7 @@ type Callback interface {
 	CallbackFileError(id, filename, err string)
 	CallbackUpdateDiasStatus(status int)
 	CallbackGetAuthData() string
+	CallbackSetMonitorName(monitorName string)
 }
 
 var CallbackInstance Callback = nil
@@ -556,6 +557,15 @@ func GoReqSourceAndPort() {
 
 func GoGetSrcAndPortFromIni() rtkMisc.SourcePort {
 	return rtkUtils.GetDeviceSrcPort()
+}
+
+func GoMonitorNameNotify(name string) {
+	if CallbackInstance == nil {
+		log.Println("[%s] failed, callbackInstance is nil", rtkMisc.GetFuncInfo())
+		return
+	}
+	log.Printf("[%s] monitor name: [%s]", rtkMisc.GetFuncInfo(), name)
+	CallbackInstance.CallbackSetMonitorName(name)
 }
 
 func GoDIASStatusNotify(diasStatus uint32) {

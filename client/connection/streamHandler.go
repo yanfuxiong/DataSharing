@@ -62,29 +62,23 @@ func CheckAllStreamAlive(ctx context.Context) {
 		}
 
 		rtkMisc.GoSafeWithParam(func(args ...any) {
-			nPingErrCnt := uint8(0)
-			for nPingErrCnt < 3 {
-				// Default timeout is 10 sec in Ping.go
-				// Use this context timeout instead of the timeout in Ping.go
-				pingCtx, cancelFun := context.WithTimeout(ctx, pingTimeout)
-				select {
-				case pingResult := <-pingServer.Ping(pingCtx, sInfo.s.Conn().RemotePeer()):
-					if pingResult.Error != nil {
-						log.Printf("[%s] IP[%s] Ping err:%+v", rtkMisc.GetFuncInfo(), sInfo.ipAddr, pingResult.Error)
-						pingFailFunc(key, sInfo)
-						nPingErrCnt++
-					} else {
-						if nPingErrCnt > 0 {
-							log.Printf("[%s] ID:[%s] IP:[%s]  RTT [%d]ms", rtkMisc.GetFuncInfo(), sInfo.s.Conn().RemotePeer().String(), sInfo.ipAddr, pingResult.RTT.Milliseconds())
-							updateStreamPingErrCntReset(key)
-						}
-						nPingErrCnt = 3
-					}
-				case <-pingCtx.Done():
+			// Default timeout is 10 sec in Ping.go
+			// Use this context timeout instead of the timeout in Ping.go
+			pingCtx, cancelFun := context.WithTimeout(ctx, pingTimeout)
+			defer cancelFun()
+			select {
+			case pingResult := <-pingServer.Ping(pingCtx, sInfo.s.Conn().RemotePeer()):
+				if pingResult.Error != nil {
+					log.Printf("[%s] IP[%s] Ping err:%+v", rtkMisc.GetFuncInfo(), sInfo.ipAddr, pingResult.Error)
 					pingFailFunc(key, sInfo)
-					nPingErrCnt++
+				} else {
+					if sInfo.pingErrCnt > 0 {
+						log.Printf("[%s] ID:[%s] IP:[%s]  RTT [%d]ms", rtkMisc.GetFuncInfo(), sInfo.s.Conn().RemotePeer().String(), sInfo.ipAddr, pingResult.RTT.Milliseconds())
+						updateStreamPingErrCntReset(key)
+					}
 				}
-				cancelFun()
+			case <-pingCtx.Done():
+				pingFailFunc(key, sInfo)
 			}
 
 		}, key, sInfo)
@@ -150,7 +144,7 @@ func CheckStreamReset(id string, oldStamp int64) bool {
 	return false
 }
 
-func UpdateFmtTypeStream(stream network.Stream, fmtType rtkCommon.TransFmtType, isTalker bool) {
+func updateFmtTypeStreamInternal(stream network.Stream, fmtType rtkCommon.TransFmtType, isDst bool) {
 	streamPoolMutex.Lock()
 	defer streamPoolMutex.Unlock()
 	id := stream.Conn().RemotePeer().String()
@@ -167,7 +161,7 @@ func UpdateFmtTypeStream(stream network.Stream, fmtType rtkCommon.TransFmtType, 
 				//sInfo.sFileDrop.Close()
 			}
 			sInfo.sFileDrop = stream
-			if isTalker {
+			if isDst {
 				sInfo.transFileState = TRANS_FILE_IN_PROGRESS_DST
 			} else {
 				sInfo.transFileState = TRANS_FILE_IN_PROGRESS_SRC
@@ -182,6 +176,13 @@ func UpdateFmtTypeStream(stream network.Stream, fmtType rtkCommon.TransFmtType, 
 	} else {
 		log.Printf("[%s] cannot found stream Info from streamPoolMap by ID:[%s]", rtkMisc.GetFuncInfo(), id)
 	}
+}
+func updateFmtTypeStreamSrc(stream network.Stream, fmtType rtkCommon.TransFmtType) {
+	updateFmtTypeStreamInternal(stream, fmtType, false)
+}
+
+func updateFmtTypeStreamDst(stream network.Stream, fmtType rtkCommon.TransFmtType) {
+	updateFmtTypeStreamInternal(stream, fmtType, true)
 }
 
 func GetFmtTypeStream(id string, fmtType rtkCommon.TransFmtType) (network.Stream, bool) {
