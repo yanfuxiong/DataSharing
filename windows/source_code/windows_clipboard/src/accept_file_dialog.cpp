@@ -12,6 +12,10 @@ AcceptFileDialog::AcceptFileDialog(QWidget *parent) :
     ui->file_info_label->clear();
     ui->path_label->clear();
     ui->device_icon_label->clear();
+
+    {
+        setWindowFlag(Qt::WindowStaysOnTopHint, true);
+    }
 }
 
 AcceptFileDialog::~AcceptFileDialog()
@@ -43,7 +47,7 @@ void AcceptFileDialog::setFileInfo(SendFileRequestMsgPtr ptr_msg)
                 .arg(CommonUtils::byteCountDisplay(ptr_msg->fileSize));
         ui->file_info_label->setText(infoText);
 
-        QString newFilePath = CommonUtils::desktopDirectoryPath() + "/" + CommonUtils::getFileNameByPath(ptr_msg->fileName);
+        QString newFilePath = CommonUtils::downloadDirectoryPath() + "/" + CommonUtils::getFileNameByPath(ptr_msg->fileName);
         ui->path_label->setText(newFilePath);
     }
 }

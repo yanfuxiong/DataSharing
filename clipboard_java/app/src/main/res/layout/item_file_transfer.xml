@@ -3,60 +3,211 @@
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:background="@drawable/below_shadow"
-    android:padding="16dp">
+    android:layout_marginStart="10dp"
+    android:layout_marginEnd="10dp"
+    android:padding="5dp">
 
 
     <LinearLayout
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:layout_toRightOf="@id/imageView">
+        >
         <ImageView
-            android:layout_width="50dp"
-            android:layout_height="50dp"
+            android:layout_width="55dp"
+            android:layout_height="55dp"
+            android:padding="5dp"
             android:id="@+id/imageView"
-            android:src="@drawable/liu"
             />
 
         <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+
+            android:layout_width="0dp"
+            android:layout_height="50dp"
+            android:layout_weight="1"
             android:orientation="vertical"
-            android:layout_marginTop="0dp"
-            android:layout_toRightOf="@id/imageView">
+            android:gravity="center_vertical">
 
-            <TextView
-                android:id="@+id/file_name"
+
+            <LinearLayout
+                android:id="@+id/layout_file_info"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="File Name"
-                android:textSize="18sp" />
-
+                android:visibility="gone"
+                android:orientation="horizontal">
             <TextView
-                android:id="@+id/file_size"
+                android:id="@+id/file_total"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="0 B"
-                android:textSize="14sp"
-                android:layout_marginTop="8dp"/>
+                android:text="Total:"
+                android:textColor="@color/black"
+                android:textSize="12sp" />
+                <TextView
+                    android:id="@+id/file_revice"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="0"
+                    android:textColor="@color/black"
+                    android:textSize="12sp" />
+                <TextView
+                    android:id="@+id/file_count"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="/50"
+                    android:textColor="@color/black"
+                    android:textSize="12sp" />
+                <TextView
+                    android:id="@+id/file_file"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text=" files"
+                    android:textColor="@color/black"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/file"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="( "
+                    android:textColor="@color/black"
+                    android:textSize="12sp" />
+                <TextView
+                    android:id="@+id/file_revice_size"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="0MB"
+                    android:textColor="@color/black"
+                    android:textSize="12sp" />
+                <TextView
+                    android:id="@+id/file_2"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="/"
+                    android:textColor="@color/black"
+                    android:textSize="12sp" />
+                <TextView
+                    android:id="@+id/file_count_size"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="500MB"
+                    android:textColor="@color/black"
+                    android:textSize="12sp" />
+                <TextView
+                    android:id="@+id/file_3"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text=" )"
+                    android:textColor="@color/black"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/file_name"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="File Name"
+                    android:textColor="@color/black"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/file_size"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="1dp"
+                    android:text="0 B"
+                    android:textColor="@color/black"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+
         </LinearLayout>
 
+        <ImageView
+            android:id="@+id/file_opne"
+            android:layout_width="25dp"
+            android:layout_height="25dp"
+            android:src="@drawable/open"
+            android:layout_gravity="center_vertical"
+            android:visibility="gone" />
 
-
+        <ImageView
+            android:id="@+id/close"
+            android:layout_width="25dp"
+            android:layout_height="25dp"
+            android:src="@drawable/garbage"
+            android:layout_marginLeft="10dp"
+            android:layout_gravity="center_vertical"
+            android:visibility="invisible" />
     </LinearLayout>
+
 
     <ProgressBar
         android:id="@+id/progress_bar"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="2dp"
         style="?android:attr/progressBarStyleHorizontal"/>
 
-    <TextView
-        android:id="@+id/file_time"
-        android:layout_width="wrap_content"
+    <RelativeLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text=" "
-        android:textSize="14sp"
-        android:layout_marginTop="2dp"/>
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/file_time"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:layout_alignParentLeft="true"
+            android:text="First text"
+            android:textColor="@color/black"
+            android:textSize="10sp" />
+
+        <TextView
+            android:id="@+id/file_device"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="130dp"
+            android:text="aaaaaa"
+            android:textColor="@color/black"
+            android:textSize="10sp" />
+
+        <TextView
+            android:id="@+id/percentage"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentRight="true"
+            android:layout_alignParentEnd="true"
+            android:textColor="@color/black"
+            android:textSize="10sp"
+            android:text="Second text" />
+
+        <TextView
+            android:id="@+id/result"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_toLeftOf="@id/percentage"
+            android:layout_toStartOf="@id/percentage"
+            android:textColor="@color/black"
+            android:layout_marginRight="3dp"
+            android:visibility="invisible"
+            android:textSize="10sp"
+            android:text="Third text" />
+
+
+
+    </RelativeLayout>
+
+    <Space
+        android:layout_width="0dp"
+        android:layout_height="5dp"
+        />
+
 
 </LinearLayout>

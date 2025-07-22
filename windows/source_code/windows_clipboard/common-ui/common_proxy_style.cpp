@@ -42,17 +42,14 @@ void CustomProxyStyle::polish(QWidget *widget)
         }
 
         if (auto tableView = qobject_cast<QTableView*>(widget)) {
-            tableView->setAlternatingRowColors(true);
+            tableView->setAlternatingRowColors(false);
             tableView->setContextMenuPolicy(Qt::ContextMenuPolicy::CustomContextMenu);
             tableView->setSelectionBehavior(QTableWidget::SelectionBehavior::SelectRows);
             tableView->horizontalHeader()->setStretchLastSection(true);
             tableView->horizontalHeader()->setDefaultAlignment(Qt::AlignVCenter | Qt::AlignLeft);
-            tableView->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeMode::Fixed);
+            tableView->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeMode::Interactive);
             tableView->verticalHeader()->setVisible(false);
             tableView->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-
-            tableView->verticalHeader()->setDefaultSectionSize(36);
-            tableView->horizontalHeader()->setDefaultSectionSize(120);
             break;
         }
     } while (false);

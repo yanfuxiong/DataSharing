@@ -10,7 +10,7 @@ FileOptInfoList::FileOptInfoList(QWidget *parent) :
     {
         connect(CommonSignals::getInstance(), &CommonSignals::updateFileOptInfoList, this, &FileOptInfoList::onUpdateFileOptInfoList);
         connect(CommonSignals::getInstance(), &CommonSignals::updateProgressInfoWithID, this, &FileOptInfoList::onUpdateProgressInfoWithID);
-        // FIXME: 仅用于测试
+        // FIXME:
         //connect(CommonSignals::getInstance(), &CommonSignals::updateClientList, this, &FileOptInfoList::onUpdateFileOptInfoList);
     }
 
@@ -33,7 +33,7 @@ void FileOptInfoList::onUpdateFileOptInfoList()
 
     m_recordWidgetList.clear();
 
-    const auto &fileOptRecordVec = g_getGlobalData()->cacheFileOptRecord;
+    const auto &fileOptRecordVec = g_getGlobalData()->cacheFileOptRecord.get<tag_db_timestamp>();
 //    if (fileOptRecordVec.empty()) {
 //        auto imageWidget = new QLabel(this);
 //        imageWidget->setStyleSheet("border-image:url(:/resource/background.jpg);");
@@ -60,10 +60,17 @@ void FileOptInfoList::onUpdateFileOptInfoList()
     Q_ASSERT(area->parent() != nullptr);
     Q_ASSERT(backgoundWidget->parent() != nullptr);
 
-    for (auto itr = fileOptRecordVec.rbegin(); itr != fileOptRecordVec.rend(); ++itr) {
+    for (auto itr = fileOptRecordVec.begin(); itr != fileOptRecordVec.end(); ++itr) {
         const auto &data = *itr;
-        QGroupBox *box = new QGroupBox; // 作为 FileRecordWidget 外层的父窗口
-        box->setObjectName("FileRecordWidgetBox"); // 名字与css文件对应
+        if (data.direction == 0) {
+            // FIXME: According to the latest requirements,
+            // the operation of actively sending files will not be recorded, so it will be skipped here and not displayed
+#ifdef NDEBUG
+            continue; // release 模式下执行
+#endif
+        }
+        QGroupBox *box = new QGroupBox;
+        box->setObjectName("FileRecordWidgetBox");
         {
             QHBoxLayout *pLayout = new QHBoxLayout;
             pLayout->setSpacing(0);
@@ -83,16 +90,20 @@ void FileOptInfoList::onUpdateFileOptInfoList()
 
 void FileOptInfoList::onUpdateProgressInfoWithID(int currentVal, const QByteArray &hashID)
 {
-    auto &cacheFileOptRecord = g_getGlobalData()->cacheFileOptRecord;
+    auto &cacheFileOptRecord = g_getGlobalData()->cacheFileOptRecord.get<tag_db_timestamp>();
 
-    // 倒序查找, 以最新的为准
-    for (auto itr = cacheFileOptRecord.rbegin(); itr != cacheFileOptRecord.rend(); ++itr) {
-        auto &recordData = *itr;
-        if (recordData.progressValue == -1 || recordData.progressValue > currentVal) {
+    for (auto itr = cacheFileOptRecord.begin(); itr != cacheFileOptRecord.end(); ++itr) {
+        const auto &recordData = *itr;
+        if (recordData.progressValue == -1
+            || recordData.progressValue > currentVal
+            || recordData.optStatus == FileOperationRecord::TransferFileCancelStatus) {
             continue;
         }
         if (recordData.toRecordData().getHashID() == hashID) {
-            recordData.progressValue = currentVal;
+            //recordData.progressValue = currentVal;
+            cacheFileOptRecord.modify(itr, [currentVal] (FileOperationRecord &data) {
+                data.progressValue = currentVal;
+            });
             break;
         }
     }
@@ -100,6 +111,49 @@ void FileOptInfoList::onUpdateProgressInfoWithID(int currentVal, const QByteArra
     for (const auto &widget : m_recordWidgetList) {
         if (widget->getHashID() == hashID) {
             widget->updateStatusInfo();
+            break;
+        }
+    }
+}
+
+void FileOptInfoList::updateCacheFileOptRecord(const QByteArray &hashID, UpdateProgressMsgPtr ptrMsg)
+{
+    auto &cacheFileOptRecord = g_getGlobalData()->cacheFileOptRecord.get<tag_db_timestamp>();
+
+    for (auto itr = cacheFileOptRecord.begin(); itr != cacheFileOptRecord.end(); ++itr) {
+        const auto &recordData = *itr;
+        if (recordData.toRecordData().getHashID() == hashID) {
+            cacheFileOptRecord.modify(itr, [ptrMsg] (FileOperationRecord &data) {
+                data.fileName = ptrMsg->fileName.toStdString();
+                data.fileSize = ptrMsg->fileSize;
+
+                data.sentFileCount = ptrMsg->sentFilesCount;
+                data.totalFileCount = ptrMsg->totalFilesCount;
+                data.sentFileSize = ptrMsg->totalSentSize;
+                data.totalFileSize = ptrMsg->totalFilesSize;
+                data.currentTransferFileName = ptrMsg->currentFileName;
+                data.currentTransferFileSize = ptrMsg->currentFileSize;
+
+                if (ptrMsg->totalFilesCount <= 1) {
+                    data.fileName = ptrMsg->currentFileName.toStdString();
+                    data.fileSize = ptrMsg->currentFileSize;
+                }
+            });
+            break;
+        }
+    }
+}
+
+void FileOptInfoList::updateCacheFileOptRecord(const QByteArray &hashID, int optStatus)
+{
+    auto &cacheFileOptRecord = g_getGlobalData()->cacheFileOptRecord.get<tag_db_timestamp>();
+
+    for (auto itr = cacheFileOptRecord.begin(); itr != cacheFileOptRecord.end(); ++itr) {
+        const auto &recordData = *itr;
+        if (recordData.toRecordData().getHashID() == hashID) {
+            cacheFileOptRecord.modify(itr, [optStatus] (FileOperationRecord &data) {
+                data.optStatus = optStatus;
+            });
             break;
         }
     }

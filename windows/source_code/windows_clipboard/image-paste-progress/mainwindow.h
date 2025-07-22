@@ -11,12 +11,13 @@
 #include "common_utils.h"
 #include "common_signals.h"
 #include "progress_bar_widget.h"
+#include "window_move_handler.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
 
-extern QByteArray g_hashIdValue;
+extern uint64_t g_timeStamp;
 
 class MainWindow : public QMainWindow
 {
@@ -33,16 +34,10 @@ private slots:
 private:
     void closeEvent(QCloseEvent *event) override;
 
-    void mousePressEvent(QMouseEvent *event) override;
-    void mouseReleaseEvent(QMouseEvent *event) override;
-    void mouseMoveEvent(QMouseEvent *event) override;
-
 private:
     Ui::MainWindow *ui;
     QPointer<QTimer> m_testTimer;
+    std::unique_ptr<WindowMoveHandler> m_moveHandler;
     QPointer<ProgressBarWidget> m_progressBarWidget;
-
-    QPoint m_clickedPos;
-    bool m_clickedStatus { false };
 };
 #endif // MAINWINDOW_H

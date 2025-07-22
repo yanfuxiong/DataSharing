@@ -9,7 +9,7 @@ import UIKit
 
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterDelegate {
-
+    
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         UNUserNotificationCenter.current().delegate = self
         PushNotiManager.shared.initNoti()
@@ -17,6 +17,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
         CSNetworkAccessibility.sharedInstance().setAlertEnable(true)
         NotificationCenter.default.addObserver(self, selector: #selector(netWorkChanged(_:)), name: CSNetworkAccessibilityChangedNotification, object: nil)
         ClipboardMonitor.shareInstance().startMonitoring()
+        ScreenManager.shared.startMonitoring()
         return true
     }
 
@@ -35,32 +36,32 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
 }
 
 extension AppDelegate {
-    @objc private func netWorkChanged(_ ntf:Notification) {
+    @objc private func netWorkChanged(_ ntf: Notification) {
+        Logger.info("AppDelegate - Network notification received: \(ntf)")
+        
         let status = CSNetworkAccessibility.sharedInstance().currentState()
+        Logger.info("AppDelegate - Current network status: \(status.rawValue)")
+        
         switch status {
         case .checking:
-            print("checking")
+            Logger.info("Network status: checking")
         case .unknown:
-            print("unknown")
-        case .accessible:
-            print("accessible")
+            Logger.info("Network status: unknown")
+        case .accessible, .accessibleWiFi, .accessibleCellular:
+            Logger.info("Network status: accessible")
             CSNetworkAccessibility.sharedInstance().initializeApp { success in
-                   if success {
-                       print("应用初始化成功")
-                   } else {
-                       print("应用初始化失败")
-                   }
-               }
+                Logger.info("App initialization result: \(success)")
+            }
         case .restricted:
-            print("restricted")
+            Logger.info("Network status: restricted")
         }
     }
 }
 
 extension AppDelegate {
     func userNotificationCenter(_ center: UNUserNotificationCenter,
-        willPresent notification: UNNotification,
-        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+                                willPresent notification: UNNotification,
+                                withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
         completionHandler([.banner, .list, .sound])
     }
 }

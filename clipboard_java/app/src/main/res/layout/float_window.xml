@@ -21,7 +21,6 @@
         android:layout_height="wrap_content"
         android:layout_below="@+id/float_text_view"
         android:textColor="@android:color/holo_blue_bright"/>
-        <!--android:text="liuyifei" /> -->
 
     <ImageView
         android:id="@+id/imageView"
@@ -29,6 +28,5 @@
         android:layout_height="50dp"
         android:layout_below="@+id/text_id"
         android:scaleType="centerInside" />
-        <!--android:src="@drawable/liu2" -->
 
 </RelativeLayout>

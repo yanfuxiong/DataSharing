@@ -15,7 +15,6 @@ enum HUDType {
 }
 
 extension MBProgressHUD {
-    
     private static func getKeyWindow(from view: UIView?) -> UIWindow? {
         var window = view?.window
         if window == nil {
@@ -23,7 +22,7 @@ extension MBProgressHUD {
         }
         return window
     }
-    
+
     private static func findWindowInScene() -> UIWindow? {
         let allScenes = UIApplication.value(forKey: "sharedApplication") as? UIApplication
         return allScenes?.connectedScenes
@@ -31,14 +30,14 @@ extension MBProgressHUD {
             .flatMap { $0.windows }
             .first { $0.isKeyWindow }
     }
-    
+
     private static func getBottomOffset(from view: UIView) -> CGFloat {
         guard let window = getKeyWindow(from: view) else {
             return MBProgressMaxOffset
         }
         return window.bounds.height / 2 - window.safeAreaInsets.bottom
     }
-    
+
     private static func createCustomContentView(imageName: String, message: String) -> UIView {
         let imageView = UIImageView(image: UIImage(named: imageName))
         imageView.contentMode = .scaleAspectFit
@@ -59,7 +58,7 @@ extension MBProgressHUD {
         stackView.axis = .horizontal
         stackView.spacing = 8
         stackView.alignment = .center
-        
+
         return stackView
     }
 

@@ -1,9 +1,50 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 #include "event_filter_process.h"
+#include "windows_event_monitor.h"
 #include <QWindowStateChangeEvent>
 #include <QProcess>
 #include <QMenu>
+#include <unordered_map>
+
+namespace {
+
+struct StatusTipsWindowInfo
+{
+    bool windowIsVisible { false };
+};
+
+std::unordered_map<uint64_t, StatusTipsWindowInfo> g_stausInfoMap;
+
+std::list<qint64> g_processIdList;
+
+static BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam)
+{
+    std::list<HWND> &windowHandleList = *reinterpret_cast<std::list<HWND>*>(lParam);
+    DWORD processId = 0;
+    ::GetWindowThreadProcessId(hwnd, &processId);
+
+    for (const auto &idData : g_processIdList) {
+        if (idData == processId) {
+            windowHandleList.push_back(hwnd);
+            break;
+        }
+    }
+
+    return TRUE;
+}
+
+std::list<HWND> getWindowsByProcessId()
+{
+    if (g_processIdList.empty()) {
+        return {};
+    }
+    std::list<HWND> windowHandleList;
+    ::EnumWindows(EnumWindowsProc, reinterpret_cast<LPARAM>(&windowHandleList));
+    return windowHandleList;
+}
+
+}
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -39,88 +80,33 @@ MainWindow::~MainWindow()
 void MainWindow::onLogMessage(const QString &message)
 {
     Q_UNUSED(message)
-    //ui->log_browser->append(QString("[%1]: %2").arg(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.zzz")).arg(message));
 }
 
 void MainWindow::onDispatchMessage(const QVariant &data)
 {
     if (data.canConvert<GetConnStatusResponseMsgPtr>() == true) {
-//        GetConnStatusResponseMsgPtr ptr_msg = data.value<GetConnStatusResponseMsgPtr>();
-//        if (ptr_msg->statusCode == 1) {
-//            Q_EMIT CommonSignals::getInstance()->showInfoMessageBox("connectionStatus", "connected to server.");
-//        } else {
-//            Q_EMIT CommonSignals::getInstance()->showWarningMessageBox("connectionStatus", "The server is in a disconnected state.");
-//        }
-        return;
-    }
-
-    if (data.canConvert<UpdateClientStatusMsgPtr>() == true) {
-        UpdateClientStatusMsgPtr ptr_msg = data.value<UpdateClientStatusMsgPtr>();
-
-        auto &clientVec = g_getGlobalData()->m_clientVec;
-        bool exists = false;
-        for (auto itr = clientVec.begin(); itr != clientVec.end(); ++itr) {
-            if ((*itr)->clientID == ptr_msg->clientID) {
-                exists = true;
-                if (ptr_msg->status == 0) {
-                    clientVec.erase(itr);
-                } else {
-                    *itr = ptr_msg;
-                }
-                break;
-            }
-        }
-        if (exists == false && ptr_msg->status == 1) {
-            clientVec.push_back(ptr_msg);
-        }
-        Q_EMIT CommonSignals::getInstance()->updateClientList();
-        return;
-    }
-
-    if (data.canConvert<UpdateImageProgressMsgPtr>() == true) {
-        UpdateImageProgressMsgPtr ptr_msg = data.value<UpdateImageProgressMsgPtr>();
-        if (1)
-        {
-            nlohmann::json infoJson;
-            infoJson["ip"] = ptr_msg->ip.toStdString();
-            infoJson["port"] = ptr_msg->port;
-            infoJson["clientID"] = ptr_msg->clientID.toStdString();
-            infoJson["fileSize"] = ptr_msg->fileSize;
-            infoJson["sentSize"] = ptr_msg->sentSize;
-            infoJson["timeStamp"] = QDateTime::fromMSecsSinceEpoch(ptr_msg->timeStamp).toString("yyyy-MM-dd hh:mm:ss.zzz").toStdString();
-            Q_EMIT CommonSignals::getInstance()->logMessage(infoJson.dump(4).c_str());
-        }
-
-        Q_EMIT CommonSignals::getInstance()->updateProgressInfoWithMsg(data);
-
-//        {
-//            uint64_t totalSize = ptr_msg->fileSize;
-//            uint64_t sentSize = ptr_msg->sentSize;
-//            int progressVal = static_cast<int>((sentSize / double(totalSize)) * 100);
-//            if (sentSize >= totalSize) {
-//                progressVal = 100;
-//            }
-
-//            RecordDataHash hashData;
-//            {
-//                hashData.fileSize = ptr_msg->fileSize;
-//                hashData.clientID = ptr_msg->clientID.toStdString();
-//                hashData.ip = ptr_msg->ip.toStdString();
-//            }
-//            Q_EMIT CommonSignals::getInstance()->updateProgressInfoWithID(progressVal, hashData.getHashID());
-//        }
         return;
     }
 
     if (data.canConvert<NotifyMessagePtr>() == true) {
         NotifyMessagePtr ptr_msg = data.value<NotifyMessagePtr>();
-        qInfo() << ptr_msg->toString().dump(4).c_str();
-        QProcess process;
-        for (const auto &exePath : statusTipsExePathList()) {
-            if (QFile::exists(exePath)) {
-                process.startDetached(exePath, { NotifyMessage::toByteArray(*ptr_msg).toHex().toUpper() });
-                break;
-            }
+        uint64_t timeStamp = ptr_msg->timeStamp;
+        qInfo() << "recv NotifyMessage:" << "timeStamp=" << timeStamp << "; notiCode=" << ptr_msg->notiCode;
+        auto itr = g_stausInfoMap.find(timeStamp);
+        if (itr == g_stausInfoMap.end() || itr->second.windowIsVisible == false) {
+            g_stausInfoMap[ptr_msg->timeStamp] = { true };
+            processNotifyMessage(ptr_msg);
+        } else {
+            m_workerThread.runInThread([ptr_msg] {
+                for (const auto &hwnd : getWindowsByProcessId()) {
+                    QByteArray sendData = NotifyMessage::toByteArray(*ptr_msg).toHex().toUpper();
+                    COPYDATASTRUCT cds;
+                    cds.dwData = UPDATE_STATUS_TIPS_MSG_TAG;
+                    cds.cbData = sendData.length();
+                    cds.lpData = sendData.data();
+                    ::SendMessage(hwnd, WM_COPYDATA, 0, reinterpret_cast<LPARAM>(&cds));
+                }
+            });
         }
         return;
     }
@@ -133,13 +119,12 @@ void MainWindow::closeEvent(QCloseEvent *event)
         event->ignore();
         return;
     }
-    QMainWindow::closeEvent(event);
+    qApp->exit();
 }
 
 void MainWindow::changeEvent(QEvent *event)
 {
     if (event->type() == QEvent::WindowStateChange) {
-        //QWindowStateChangeEvent *stateEvent = static_cast<QWindowStateChangeEvent*>(event);
         if (windowState().testFlag(Qt::WindowState::WindowMinimized)) {
             if (m_systemTrayIcon) {
                 hide();
@@ -176,4 +161,75 @@ QStringList MainWindow::statusTipsExePathList() const
     pathList << qApp->applicationDirPath() + "/status-tips.exe";
     pathList << qApp->applicationDirPath() + "/../status-tips/status-tips.exe";
     return pathList;
+}
+
+int MainWindow::getNotifyMessageDuration() const
+{
+    try {
+        return g_getGlobalData()->localConfig.at("crossShareServer").at("notifyMessageDuration").get<int>();
+    } catch (const std::exception &e) {
+        qWarning() << e.what();
+        return 3000; // 3000ms
+    }
+}
+
+UpdateClientStatusMsgPtr MainWindow::getClientStatusMsgByClientID(const QByteArray &clientID) const
+{
+    UpdateClientStatusMsgPtr ptr_client = nullptr;
+    for (const auto &data : g_getGlobalData()->m_clientVec) {
+        if (data->clientID == clientID) {
+            ptr_client = data;
+            break;
+        }
+    }
+    return ptr_client;
+}
+
+void MainWindow::processNotifyMessage(NotifyMessagePtr ptrMsg)
+{
+    qInfo() << ptrMsg->toString().dump(4).c_str();
+    QProcess process;
+    for (const auto &exePath : statusTipsExePathList()) {
+        if (QFile::exists(exePath)) {
+            ++m_processIndex;
+            ++m_processCount;
+            qint64 pid = 0;
+            process.startDetached(exePath,
+                                  { NotifyMessage::toByteArray(*ptrMsg).toHex().toUpper(), QString::number(m_processIndex) },
+                                  QString(),
+                                  &pid);
+            Q_ASSERT(pid != 0);
+            g_processIdList.push_back(pid);
+            uint64_t timeStamp = ptrMsg->timeStamp;
+            QTimer::singleShot(getNotifyMessageDuration(), Qt::TimerType::PreciseTimer, this, [this, pid, timeStamp] {
+                --m_processCount;
+                if (m_processCount <= 0) {
+                    m_processIndex = 0;
+                }
+                QProcess process;
+                process.setProcessChannelMode(QProcess::ProcessChannelMode::MergedChannels);
+                process.startDetached(QString("taskkill /PID %1").arg(pid));
+                Q_ASSERT(g_processIdList.empty() == false && g_processIdList.front() == pid);
+                g_processIdList.pop_front();
+
+                {
+                    auto itr = g_stausInfoMap.find(timeStamp);
+                    if (itr != g_stausInfoMap.end()) {
+                        itr->second.windowIsVisible = false;
+                    }
+                }
+
+                m_workerThread.runInThread([] {
+                    for (const auto &hwnd : getWindowsByProcessId()) {
+                        COPYDATASTRUCT cds;
+                        cds.dwData = UPDATE_WINDOW_POS_TAG;
+                        cds.cbData = 0;
+                        cds.lpData = NULL;
+                        ::SendMessage(hwnd, WM_COPYDATA, 0, reinterpret_cast<LPARAM>(&cds));
+                    }
+                });
+            });
+            break;
+        }
+    }
 }

@@ -15,7 +15,7 @@ extension GoString {
     func toString() -> String {
         guard let pointer = self.p else { return "" }
         let data = Data(bytes: pointer, count: Int(self.n))
-        print("\(self.n)")
+        Logger.info("\(self.n)")
         return String(data: data, encoding: .utf8) ?? ""
     }
 }
@@ -28,7 +28,7 @@ extension String {
     
     func base64ToImage() -> UIImage? {
         guard let imageData = Data(base64Encoded: self, options: .ignoreUnknownCharacters) else {
-            print("Failed to decode Base64 string")
+            Logger.info("Failed to decode Base64 string")
             return nil
         }
         let image = UIImage(data: imageData)
@@ -37,14 +37,14 @@ extension String {
     
     func toDictionary() -> [String: Any]? {
         guard let data = self.data(using: .utf8) else {
-            print("Error converting JSON string to Data")
+            Logger.info("Error converting JSON string to Data")
             return nil
         }
         do {
             let jsonObject = try JSONSerialization.jsonObject(with: data, options: .allowFragments)
             return jsonObject as? [String: Any]
         } catch {
-            print("Error converting JSON string to dictionary: \(error)")
+            Logger.info("Error converting JSON string to dictionary: \(error)")
             return nil
         }
     }
@@ -56,7 +56,7 @@ extension Dictionary where Key == String, Value: Any {
             let jsonData = try JSONSerialization.data(withJSONObject: self, options: .prettyPrinted)
             return String(data: jsonData, encoding: .utf8)
         } catch {
-            print("Error converting dictionary to JSON string: \(error)")
+            Logger.info("Error converting dictionary to JSON string: \(error)")
             return nil
         }
     }
@@ -65,7 +65,7 @@ extension Dictionary where Key == String, Value: Any {
 extension UIImage {
     func imageToBase64() -> String? {
         guard let imageData = self.jpegData(compressionQuality: 1.0) else {
-            print("Failed to convert image to data")
+            Logger.info("Failed to convert image to data")
             return nil
         }
         let base64String = imageData.base64EncodedString()
@@ -93,8 +93,8 @@ extension UserDefaults {
            let firstGroup = appGroups.first {
             return firstGroup
         }
-        print("Warning: App group ID not found in entitlements, using fallback value")
-        return "group.com.thundersoft.crossshare.ios"
+        Logger.info("Warning: App group ID not found in entitlements, using fallback value")
+        return "group.com.realtek.crossshare"
     }
     
     enum KEY: String {

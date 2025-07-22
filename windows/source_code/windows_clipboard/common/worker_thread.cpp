@@ -23,7 +23,7 @@ WorkerThread::~WorkerThread()
         connect(m_thread, &QThread::finished, tmpThread, [tmpThread] {
             if (tmpThread) {
                 delete tmpThread.data();
-                qDebug() << "线程对象析构......";
+                qDebug() << "WorkerThread::~WorkerThread()......";
             }
         });
         m_thread->quit();

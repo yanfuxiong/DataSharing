@@ -8,4 +8,4 @@ file(GLOB UI_FILES *.ui)
 
 add_executable(${PROJECT_NAME} WIN32 ${SRCS} ${HEADERS} ${UI_FILES} ${qrc_FILES} resource/ico.rc)
 
-target_link_libraries(${PROJECT_NAME} PRIVATE Qt5::Widgets Qt5::PrintSupport common common-ui)
+target_link_libraries(${PROJECT_NAME} PRIVATE Qt5::Widgets common common-ui)

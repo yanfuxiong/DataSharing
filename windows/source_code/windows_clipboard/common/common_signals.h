@@ -17,31 +17,36 @@ Q_SIGNALS:
     void showWarningMessageBox(const QString &title, const QString &message);
     void showStatusMessage(const QString &message);
     void logMessage(const QString &message);
+    void userSelectedFiles();
 
-    // --------------------- server部分的消息, 用于测试
-    void connectdForTestServer();
+    // --------------------- server
+    void connectedForTestServer();
     void sendDataForTestServer(const QByteArray &data);
     void addTestClient();
 
     //---------------------------------------------
 
     void sendDataToServer(const QByteArray &data);
+    void broadcastData(const QByteArray &data);
     void updateProgressInfo(int currentVal);
     void updateProgressInfoWithID(int currentVal, const QByteArray &hashID);
+    void updateProgressInfoWithMsg(const QVariant &msgData);
 
     void recvServerData(const QByteArray &data);
+    void pipeConnected();
     void pipeDisconnected();
 
     void dispatchMessage(const QVariant &data);
-    // 刷新客户端列表展示
     void updateClientList();
-    // true: 接受, false: 拒绝
+    // true: accept, false: reject
     void userAcceptFile(bool status);
 
     void systemConfigChanged();
     void updateControlStatus(bool status);
     void updateFileOptInfoList();
     void updateUserSelectedInfo();
+    void directoryJump(const QString &currentPath);
+    void processLinkFile(const QString &filePath);
 
 private:
     CommonSignals();

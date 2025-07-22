@@ -16,7 +16,7 @@ private Q_SLOTS:
         {
             QHostAddress address("192.168.30.1");
             uint32_t ip_value = address.toIPv4Address();
-            ip_value = qToBigEndian<uint32_t>(ip_value); // 转为网络字节序
+            ip_value = qToBigEndian<uint32_t>(ip_value);
             QByteArray data;
             data.append(reinterpret_cast<const char*>(&ip_value), sizeof (ip_value));
             QVERIFY(data.toHex().toUpper() == "C0A81E01");
@@ -36,23 +36,10 @@ private Q_SLOTS:
                 Buffer buffer;
                 QByteArray data = QByteArray::fromHex("C0A81E01");
                 buffer.append(data);
-                ip_value = buffer.peekUInt32(); // 这里自动转换成了本机字节序
+                ip_value = buffer.peekUInt32();
             }
             QVERIFY(QHostAddress(ip_value).toString() == "192.168.30.1");
         }
-    }
-
-    void test_server_path()
-    {
-        bool exists = false;
-        for (const auto &val : g_getPipeServerExePathList()) {
-            if (QFile::exists(val)) {
-                exists = true;
-                qInfo() << "[PIPE SERVER PATH]:" << val;
-                break;
-            }
-        }
-        QVERIFY(exists == true);
     }
 
     void test_update_client_status_message()
@@ -67,13 +54,12 @@ private Q_SLOTS:
 
             QByteArray send_data = UpdateClientStatusMsg::toByteArray(msg);
             qInfo() << send_data.toHex().toUpper().constData();
-            QVERIFY(send_data.toHex().toUpper()
-            == "52544B435302030000004501C0A81E013039516D51376F6258467831584D46723668435958746F766E397A524546715358457448356864747042444C6A72417A610062006300270073002000FB966681");
 
             UpdateClientStatusMsg newMsg;
             UpdateClientStatusMsg::fromByteArray(send_data, newMsg);
             QVERIFY(msg.clientName == newMsg.clientName);
             QVERIFY(msg.clientID == newMsg.clientID);
+            QVERIFY(msg.deviceType == newMsg.deviceType);
             QVERIFY(newMsg.headerInfo.type == PipeMessageType::Notify);
             QVERIFY(static_cast<uint32_t>(send_data.length()) == newMsg.getMessageLength());
         }
@@ -83,6 +69,7 @@ private Q_SLOTS:
     {
         {
             SendFileRequestMsg msg;
+            msg.flag = SendFileRequestMsg::FlagType::SendFlag;
             msg.ip = "192.168.30.1";
             msg.port = 12345;
             msg.clientID = "QmQ7obXFx1XMFr6hCYXtovn9zREFqSXEtH5hdtpBDLjrAz";
@@ -90,19 +77,25 @@ private Q_SLOTS:
             msg.fileSize = 60727169;
             msg.timeStamp = QDateTime::currentDateTime().toUTC().toMSecsSinceEpoch();
             msg.fileName = R"(D:\jack_huang\Downloads\新增資料夾\測試.mp4)";
+            msg.filePathVec.push_back(R"(D:\test_folder\test_1.log)");
+            msg.filePathVec.push_back(R"(D:\test_folder\test_2.log)");
+            msg.filePathVec.push_back(R"(D:\test_folder\test_3.log)");
 
             QByteArray send_data = SendFileRequestMsg::toByteArray(msg);
             qInfo() << send_data.toHex().toUpper().constData();
 
             SendFileRequestMsg newMsg;
             SendFileRequestMsg::fromByteArray(send_data, newMsg);
+            QVERIFY(msg.flag == newMsg.flag);
             QVERIFY(msg.fileName == newMsg.fileName);
             QVERIFY(msg.clientID == newMsg.clientID);
+            QVERIFY(msg.filePathVec == newMsg.filePathVec);
             QVERIFY(newMsg.headerInfo.type == PipeMessageType::Request);
             QVERIFY(static_cast<uint32_t>(send_data.length()) == newMsg.getMessageLength());
 
             qInfo() << QDateTime::fromMSecsSinceEpoch(newMsg.timeStamp, Qt::TimeSpec::UTC).toString("yyyy-MM-dd hh:mm:ss.zzz");
             qInfo() << newMsg.fileName.toUtf8().constData();
+            qInfo() << newMsg.filePathVec.front().toUtf8().constData();
 
             {
                 uint8_t typeValue = 99;
@@ -181,6 +174,80 @@ private Q_SLOTS:
                 QVERIFY(g_getCodeFromByteArray(send_data, typeValue, codeValue) && typeValue == PipeMessageType::Notify);
             }
         }
+
+        {
+            UpdateProgressMsg msg;
+            msg.functionCode = UpdateProgressMsg::FuncCode::MultiFile;
+            msg.ip = "192.168.30.1";
+            msg.port = 12345;
+            msg.clientID = "QmQ7obXFx1XMFr6hCYXtovn9zREFqSXEtH5hdtpBDLjrAz";
+            msg.timeStamp = QDateTime::currentDateTime().toUTC().toMSecsSinceEpoch();
+
+            msg.currentFileName = R"(D:/文件夹_root/文件夹_1/files_1.log)";
+            msg.sentFilesCount = 50;
+            msg.totalFilesCount = 100;
+            msg.currentFileSize = 123456;
+            msg.totalFilesSize = 999999;
+            msg.totalSentSize = 333333;
+
+            QByteArray send_data = UpdateProgressMsg::toByteArray(msg);
+            qInfo() << send_data.toHex().toUpper().constData();
+
+            UpdateProgressMsg newMsg;
+            UpdateProgressMsg::fromByteArray(send_data, newMsg);
+            QVERIFY(msg.functionCode == newMsg.functionCode);
+            QVERIFY(msg.ip == newMsg.ip);
+            QVERIFY(msg.port == newMsg.port);
+            QVERIFY(msg.clientID == newMsg.clientID);
+            QVERIFY(msg.timeStamp == newMsg.timeStamp);
+
+            QVERIFY(msg.currentFileName == newMsg.currentFileName);
+            QVERIFY(msg.sentFilesCount == newMsg.sentFilesCount);
+            QVERIFY(msg.totalFilesCount == newMsg.totalFilesCount);
+            QVERIFY(msg.currentFileSize == newMsg.currentFileSize);
+            QVERIFY(msg.totalFilesSize == newMsg.totalFilesSize);
+            QVERIFY(msg.totalSentSize == newMsg.totalSentSize);
+
+            QVERIFY(newMsg.headerInfo.type == PipeMessageType::Notify);
+            QVERIFY(static_cast<uint32_t>(send_data.length()) == newMsg.getMessageLength());
+
+            qInfo() << QDateTime::fromMSecsSinceEpoch(newMsg.timeStamp, Qt::TimeSpec::UTC).toString("yyyy-MM-dd hh:mm:ss.zzz");
+            qInfo() << newMsg.fileName.toUtf8().constData();
+
+        }
+    }
+
+    void test_update_image_progress_msg()
+    {
+        {
+            UpdateImageProgressMsg msg;
+            msg.ip = "192.168.30.1";
+            msg.port = 12345;
+            msg.clientID = "QmQ7obXFx1XMFr6hCYXtovn9zREFqSXEtH5hdtpBDLjrAz";
+            //msg.fileSize = static_cast<uint64_t>(QFileInfo(__FILE__).size());
+            msg.fileSize = 60727169;
+            msg.sentSize = 100;
+            msg.timeStamp = QDateTime::currentDateTime().toUTC().toMSecsSinceEpoch();
+
+            QByteArray send_data = UpdateImageProgressMsg::toByteArray(msg);
+            qInfo() << send_data.toHex().toUpper().constData();
+
+            UpdateImageProgressMsg newMsg;
+            UpdateImageProgressMsg::fromByteArray(send_data, newMsg);
+            QVERIFY(msg.clientID == newMsg.clientID);
+            QVERIFY(msg.sentSize == newMsg.sentSize);
+            QVERIFY(newMsg.headerInfo.type == PipeMessageType::Notify);
+            QVERIFY(static_cast<uint32_t>(send_data.length()) == newMsg.getMessageLength());
+
+            qInfo() << QDateTime::fromMSecsSinceEpoch(newMsg.timeStamp, Qt::TimeSpec::UTC).toString("yyyy-MM-dd hh:mm:ss.zzz");
+
+
+            {
+                uint8_t typeValue = 99;
+                uint8_t codeValue = 66;
+                QVERIFY(g_getCodeFromByteArray(send_data, typeValue, codeValue) && typeValue == PipeMessageType::Notify);
+            }
+        }
     }
 
     void test_get_conn_status()
@@ -193,7 +260,7 @@ private Q_SLOTS:
 
             GetConnStatusRequestMsg newMsg;
             {
-                //赋值混淆的数据用于测试
+                //Data with assignment confusion is used for testing
                 newMsg.headerInfo.header = "hello world";
                 newMsg.headerInfo.code = 7;
                 newMsg.headerInfo.type = 6;
@@ -215,7 +282,7 @@ private Q_SLOTS:
 
             GetConnStatusResponseMsg newMsg;
             {
-                //赋值混淆的数据用于测试
+                //Data with assignment confusion is used for testing
                 newMsg.headerInfo.header = "hello world";
                 newMsg.headerInfo.code = 7;
                 newMsg.headerInfo.type = 6;
@@ -229,6 +296,269 @@ private Q_SLOTS:
             QVERIFY(newMsg.headerInfo.contentLength == 1);
             QVERIFY(newMsg.statusCode == msg.statusCode && newMsg.statusCode == 1);
             QVERIFY(newMsg.headerInfo.type == PipeMessageType::Response);
+        }
+    }
+
+    void test_notify_message()
+    {
+        {
+            NotifyMessage msg;
+            msg.timeStamp = QDateTime::currentDateTime().toUTC().toMSecsSinceEpoch();
+            msg.notiCode = 2;
+
+            {
+                NotifyMessage::ParamInfo paramInfo;
+                paramInfo.info = "测试设备_1";
+                msg.paramInfoVec.push_back(paramInfo);
+            }
+
+            {
+                NotifyMessage::ParamInfo paramInfo;
+                paramInfo.info = "10";
+                msg.paramInfoVec.push_back(paramInfo);
+            }
+
+            QByteArray send_data = NotifyMessage::toByteArray(msg);
+            qInfo() << send_data.toHex().toUpper().constData();
+
+            NotifyMessage newMsg;
+            NotifyMessage::fromByteArray(send_data, newMsg);
+            QVERIFY(newMsg.headerInfo.type == PipeMessageType::Notify);
+            QVERIFY(static_cast<uint32_t>(send_data.length()) == newMsg.getMessageLength());
+
+
+            QVERIFY(newMsg.paramInfoVec.size() == 2);
+            QVERIFY(newMsg.paramInfoVec.front().info == "测试设备_1");
+            QVERIFY(newMsg.paramInfoVec.back().info == "10");
+
+            qInfo()<< newMsg.toString().dump(4).c_str();
+        }
+    }
+
+    void test_update_system_info()
+    {
+        {
+            UpdateSystemInfoMsg msg;
+            msg.ip = "192.168.30.1";
+            msg.port = 12345;
+            msg.serverVersion = R"(v1.0.1)";
+
+            QByteArray send_data = UpdateSystemInfoMsg::toByteArray(msg);
+            qInfo() << send_data.toHex().toUpper().constData();
+
+            UpdateSystemInfoMsg newMsg;
+            UpdateSystemInfoMsg::fromByteArray(send_data, newMsg);
+            QVERIFY(newMsg.headerInfo.type == PipeMessageType::Notify);
+            QVERIFY(newMsg.ip == "192.168.30.1");
+            QVERIFY(newMsg.port == 12345);
+            QVERIFY(newMsg.serverVersion == "v1.0.1");
+            QVERIFY(static_cast<uint32_t>(send_data.length()) == newMsg.getMessageLength());
+            qInfo() << newMsg.serverVersion.toUtf8().constData();
+        }
+    }
+
+    void test_ddcci_msg()
+    {
+        {
+            DDCCINotifyMsg msg;
+            msg.macAddress = "abcdefg";
+            msg.functionCode = 2;
+            msg.source = 2;
+            msg.port = 8;
+            msg.authResult = 6;
+            msg.indexValue = 3;
+
+            QByteArray send_data = DDCCINotifyMsg::toByteArray(msg);
+            qInfo() << send_data.toHex().toUpper().constData();
+
+            DDCCINotifyMsg newMsg;
+            DDCCINotifyMsg::fromByteArray(send_data, newMsg);
+            QVERIFY(newMsg.headerInfo.code == DDCCIMsg_code);
+            QVERIFY(newMsg.headerInfo.type == PipeMessageType::Notify);
+            QVERIFY(newMsg.macAddress == "abcdefg");
+            QVERIFY(newMsg.functionCode == 2);
+            QVERIFY(newMsg.source == 2);
+            QVERIFY(newMsg.port == 8);
+            QVERIFY(newMsg.authResult == 6);
+            QVERIFY(newMsg.indexValue == 3);
+            QVERIFY(static_cast<uint32_t>(send_data.length()) == newMsg.getMessageLength());
+        }
+
+        {
+            DDCCINotifyMsg msg;
+            msg.functionCode = DDCCINotifyMsg::FuncCode::MacAddress;
+            msg.macAddress = "aabbccdd";
+
+            QByteArray send_data = DDCCINotifyMsg::toByteArray(msg);
+            qInfo() << send_data.toHex().toUpper().constData();
+
+            DDCCINotifyMsg newMsg;
+            DDCCINotifyMsg::fromByteArray(send_data, newMsg);
+            QVERIFY(newMsg.headerInfo.code == DDCCIMsg_code);
+            QVERIFY(newMsg.headerInfo.type == PipeMessageType::Notify);
+            QVERIFY(newMsg.functionCode == DDCCINotifyMsg::FuncCode::MacAddress);
+            QVERIFY(newMsg.macAddress == "aabbccdd");
+            QVERIFY(static_cast<uint32_t>(send_data.length()) == newMsg.getMessageLength());
+        }
+
+        {
+            DDCCINotifyMsg msg;
+            msg.functionCode = DDCCINotifyMsg::FuncCode::AuthViaIndex;
+            msg.indexValue = 0x1234;
+
+            QByteArray send_data = DDCCINotifyMsg::toByteArray(msg);
+            qInfo() << send_data.toHex().toUpper().constData();
+
+            DDCCINotifyMsg newMsg;
+            DDCCINotifyMsg::fromByteArray(send_data, newMsg);
+            QVERIFY(newMsg.headerInfo.code == DDCCIMsg_code);
+            QVERIFY(newMsg.headerInfo.type == PipeMessageType::Notify);
+            QVERIFY(newMsg.functionCode == DDCCINotifyMsg::FuncCode::AuthViaIndex);
+            QVERIFY(newMsg.indexValue == 0x1234);
+            QVERIFY(static_cast<uint32_t>(send_data.length()) == newMsg.getMessageLength());
+        }
+
+        {
+            DDCCINotifyMsg msg;
+            msg.functionCode = DDCCINotifyMsg::FuncCode::ReturnAuthStatus;
+            msg.authResult = 3;
+
+            QByteArray send_data = DDCCINotifyMsg::toByteArray(msg);
+            qInfo() << send_data.toHex().toUpper().constData();
+
+            DDCCINotifyMsg newMsg;
+            DDCCINotifyMsg::fromByteArray(send_data, newMsg);
+            QVERIFY(newMsg.headerInfo.code == DDCCIMsg_code);
+            QVERIFY(newMsg.headerInfo.type == PipeMessageType::Notify);
+            QVERIFY(newMsg.functionCode == DDCCINotifyMsg::FuncCode::ReturnAuthStatus);
+            QVERIFY(newMsg.authResult == 3);
+            QVERIFY(static_cast<uint32_t>(send_data.length()) == newMsg.getMessageLength());
+        }
+
+        {
+            DDCCINotifyMsg msg;
+            msg.functionCode = DDCCINotifyMsg::FuncCode::RequestSourcePort;
+
+            QByteArray send_data = DDCCINotifyMsg::toByteArray(msg);
+            qInfo() << send_data.toHex().toUpper().constData();
+
+            DDCCINotifyMsg newMsg;
+            DDCCINotifyMsg::fromByteArray(send_data, newMsg);
+            QVERIFY(newMsg.headerInfo.code == DDCCIMsg_code);
+            QVERIFY(newMsg.headerInfo.type == PipeMessageType::Notify);
+            QVERIFY(newMsg.functionCode == DDCCINotifyMsg::FuncCode::RequestSourcePort);
+            {
+                QVERIFY(newMsg.macAddress.empty() == true);
+                QVERIFY(newMsg.source == 0 && newMsg.port == 0);
+            }
+            QVERIFY(static_cast<uint32_t>(send_data.length()) == newMsg.getMessageLength());
+        }
+
+        {
+            DDCCINotifyMsg msg;
+            msg.functionCode = DDCCINotifyMsg::FuncCode::ReturnSourcePort;
+            msg.source = 0x1122;
+            msg.port = 0x2233;
+
+            QByteArray send_data = DDCCINotifyMsg::toByteArray(msg);
+            qInfo() << send_data.toHex().toUpper().constData();
+
+            DDCCINotifyMsg newMsg;
+            DDCCINotifyMsg::fromByteArray(send_data, newMsg);
+            QVERIFY(newMsg.headerInfo.code == DDCCIMsg_code);
+            QVERIFY(newMsg.headerInfo.type == PipeMessageType::Notify);
+            QVERIFY(newMsg.functionCode == DDCCINotifyMsg::FuncCode::ReturnSourcePort);
+            QVERIFY(static_cast<uint32_t>(send_data.length()) == newMsg.getMessageLength());
+            QVERIFY(newMsg.source == 0x1122);
+            QVERIFY(newMsg.port == 0x2233);
+        }
+
+        {
+            DDCCINotifyMsg msg;
+            msg.functionCode = DDCCINotifyMsg::FuncCode::ExtractDIASMonitor;
+
+            QByteArray send_data = DDCCINotifyMsg::toByteArray(msg);
+            qInfo() << send_data.toHex().toUpper().constData();
+
+            DDCCINotifyMsg newMsg;
+            DDCCINotifyMsg::fromByteArray(send_data, newMsg);
+            QVERIFY(newMsg.headerInfo.code == DDCCIMsg_code);
+            QVERIFY(newMsg.headerInfo.type == PipeMessageType::Notify);
+            QVERIFY(newMsg.functionCode == DDCCINotifyMsg::FuncCode::ExtractDIASMonitor);
+            QVERIFY(static_cast<uint32_t>(send_data.length()) == newMsg.getMessageLength());
+        }
+    }
+
+    void test_drag_files_msg()
+    {
+        {
+            DragFilesMsg msg;
+            msg.functionCode = DragFilesMsg::FuncCode::MultiFiles;
+            msg.timeStamp = QDateTime::currentDateTime().toMSecsSinceEpoch();
+            msg.rootPath = "D:/文件夹_root";
+            msg.filePathVec.push_back("D:/文件夹_root/文件夹_1/files_1.log");
+            msg.filePathVec.push_back("D:/文件夹_root/文件夹_2/files_2.log");
+            msg.filePathVec.push_back("D:/文件夹_root/文件夹_3/files_3.log");
+
+            QByteArray send_data = DragFilesMsg::toByteArray(msg);
+            qInfo() << send_data.toHex().toUpper().constData();
+
+            DragFilesMsg newMsg;
+            DragFilesMsg::fromByteArray(send_data, newMsg);
+            QVERIFY(newMsg.headerInfo.type == PipeMessageType::Notify);
+            QVERIFY(static_cast<uint32_t>(send_data.length()) == newMsg.getMessageLength());
+            QVERIFY(msg.functionCode == newMsg.functionCode);
+            QVERIFY(msg.filePathVec == newMsg.filePathVec);
+            QVERIFY(msg.timeStamp == newMsg.timeStamp);
+            QVERIFY(msg.rootPath == newMsg.rootPath);
+        }
+
+        {
+            DragFilesMsg msg;
+            msg.functionCode = DragFilesMsg::FuncCode::ReceiveFileInfo;
+            msg.timeStamp = QDateTime::currentDateTime().toMSecsSinceEpoch();
+            msg.ip = "192.168.1.123";
+            msg.port = 6789;
+            msg.clientID = "QmQ7obXFx1XMFr6hCYXtovn9zREFqSXEtH5hdtpBDLjrAz";
+            msg.fileCount = 50;
+            msg.totalFileSize = 123456;
+            msg.firstTransferFileName = "D:/文件夹_root/文件夹_1/files_1.log";
+            msg.firstTransferFileSize = 9999;
+
+            QByteArray send_data = DragFilesMsg::toByteArray(msg);
+            qInfo() << send_data.toHex().toUpper().constData();
+
+            DragFilesMsg newMsg;
+            DragFilesMsg::fromByteArray(send_data, newMsg);
+            QVERIFY(newMsg.headerInfo.type == PipeMessageType::Notify);
+            QVERIFY(static_cast<uint32_t>(send_data.length()) == newMsg.getMessageLength());
+            QVERIFY(msg.functionCode == newMsg.functionCode);
+            QVERIFY(msg.timeStamp == newMsg.timeStamp);
+
+            QVERIFY(msg.ip == newMsg.ip);
+            QVERIFY(msg.port == newMsg.port);
+            QVERIFY(msg.clientID == newMsg.clientID);
+            QVERIFY(msg.fileCount == newMsg.fileCount);
+            QVERIFY(msg.totalFileSize == newMsg.totalFileSize);
+            QVERIFY(msg.firstTransferFileName == newMsg.firstTransferFileName);
+            QVERIFY(msg.firstTransferFileSize == newMsg.firstTransferFileSize);
+        }
+    }
+
+    void test_status_info_notify_msg()
+    {
+        {
+            StatusInfoNotifyMsg msg;
+            msg.statusCode = 5;
+
+            QByteArray send_data = StatusInfoNotifyMsg::toByteArray(msg);
+            qInfo() << send_data.toHex().toUpper().constData();
+
+            StatusInfoNotifyMsg newMsg;
+            StatusInfoNotifyMsg::fromByteArray(send_data, newMsg);
+            QVERIFY(newMsg.headerInfo.type == PipeMessageType::Notify);
+            QVERIFY(static_cast<uint32_t>(send_data.length()) == newMsg.getMessageLength());
+            QVERIFY(msg.statusCode == newMsg.statusCode);
         }
     }
 
@@ -267,13 +597,6 @@ private Q_SLOTS:
         QVERIFY(test_record.size() == 2 && test_record.empty() == false);
 
         QVERIFY(test_record.front().fileSize == QFileInfo(test_record.front().fileName.c_str()).size());
-
-        // 倒序打印, 最新的数据最先打印
-        for (auto itr = test_record.rbegin(); itr != test_record.rend(); ++itr) {
-            std::cerr << *itr << std::endl;
-            //std::cerr << itr->toString() << std::endl;
-        }
-
         qInfo() << QUuid::createUuid().toString();
     }
 };

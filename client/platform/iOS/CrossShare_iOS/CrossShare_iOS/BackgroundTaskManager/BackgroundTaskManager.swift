@@ -33,9 +33,9 @@ class BackgroundTaskManager: NSObject {
             try audioPlayer = AVAudioPlayer.init(contentsOf: mp4Video!)
             audioPlayer.volume = 0
             audioPlayer.numberOfLoops = -1
-            print("成功")
+            Logger.info("Success")
         } catch {
-            print(error)
+            Logger.info(error.localizedDescription)
         }
     }
     

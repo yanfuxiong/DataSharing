@@ -36,13 +36,13 @@ class ShareViewController: UIViewController {
                 provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { (item, error) in
                     defer { dispatchGroup.leave() }
                     if let url = item as? URL {
-                        print("Got file URL directly: \(url)")
+                        Logger.info("Got file URL directly: \(url)")
                         filePaths.append(url)
                     } else if let urlData = item as? Data, let url = URL(dataRepresentation: urlData, relativeTo: nil) {
-                        print("Got file URL from data: \(url)")
+                        Logger.info("Got file URL from data: \(url)")
                         filePaths.append(url)
                     } else if let urlString = item as? String, let url = URL(string: urlString) {
-                        print("Got file URL from string: \(url)")
+                        Logger.info("Got file URL from string: \(url)")
                         filePaths.append(url)
                     }
                 }
@@ -50,7 +50,7 @@ class ShareViewController: UIViewController {
                 provider.loadItem(forTypeIdentifier: UTType.data.identifier, options: nil) { (item, error) in
                     defer { dispatchGroup.leave() }
                     if let url = item as? URL {
-                        print("Got URL from data type: \(url)")
+                        Logger.info("Got URL from data type: \(url)")
                         filePaths.append(url)
                     } else if let data = item as? Data {
                         let tempDirectory = FileManager.default.temporaryDirectory
@@ -58,10 +58,10 @@ class ShareViewController: UIViewController {
                         let tempFileURL = tempDirectory.appendingPathComponent(fileName)
                         do {
                             try data.write(to: tempFileURL)
-                            print("Saved data to temporary file: \(tempFileURL)")
+                            Logger.info("Saved data to temporary file: \(tempFileURL)")
                             filePaths.append(tempFileURL)
                         } catch {
-                            print("Error saving data to temporary file: \(error)")
+                            Logger.info("Error saving data to temporary file: \(error)")
                         }
                     }
                 }
@@ -70,9 +70,9 @@ class ShareViewController: UIViewController {
                 if let firstType = availableTypeIdentifiers.first {
                     provider.loadItem(forTypeIdentifier: firstType, options: nil) { (item, error) in
                         defer { dispatchGroup.leave() }
-                        print("Processing item of type: \(firstType)")
+                        Logger.info("Processing item of type: \(firstType)")
                         if let url = item as? URL {
-                            print("Got URL from generic type: \(url)")
+                            Logger.info("Got URL from generic type: \(url)")
                             filePaths.append(url)
                         } else if let data = item as? Data {
                             let tempDirectory = FileManager.default.temporaryDirectory
@@ -81,25 +81,25 @@ class ShareViewController: UIViewController {
                             let tempFileURL = tempDirectory.appendingPathComponent(fileName + fileExtension)
                             do {
                                 try data.write(to: tempFileURL)
-                                print("Saved generic data to temporary file: \(tempFileURL)")
+                                Logger.info("Saved generic data to temporary file: \(tempFileURL)")
                                 filePaths.append(tempFileURL)
                             } catch {
-                                print("Error saving generic data: \(error)")
+                                Logger.info("Error saving generic data: \(error)")
                             }
                         } else {
-                            print("Unknown item type: \(String(describing: item))")
+                            Logger.info("Unknown item type: \(String(describing: item))")
                         }
                     }
                 } else {
                     dispatchGroup.leave()
-                    print("No available type identifiers for provider")
+                    Logger.info("No available type identifiers for provider")
                 }
             }
         }
         
         dispatchGroup.notify(queue: .main) {
             if filePaths.isEmpty {
-                print("No files found to share.")
+                Logger.info("No files found to share.")
                 self.cancelExtensionContext(with: "No files selected.")
                 return
             }
@@ -142,7 +142,8 @@ class ShareViewController: UIViewController {
                     ClientInfo(
                         ip: item["ip"].stringValue,
                         id: item["id"].stringValue,
-                        name: item["name"].stringValue
+                        name: item["name"].stringValue,
+                        deviceType: item["deviceType"].stringValue
                     )
                 }
             }
@@ -157,14 +158,14 @@ class ShareViewController: UIViewController {
                 fileNames.append(url.lastPathComponent)
                 url.stopAccessingSecurityScopedResource()
             } else {
-                print("Warning: Could not access security-scoped resource for \(url.lastPathComponent).")
+                Logger.info("Warning: Could not access security-scoped resource for \(url.lastPathComponent).")
                 fileNames.append("Unknown File")
             }
         }
         
-        print("Found \(clients.count) clients:")
+        Logger.info("Found \(clients.count) clients:")
         for client in clients {
-            print("Device: \(client.name), IP:Port: \(client.ip), ID: \(client.id)")
+            Logger.info("Device: \(client.name), IP:Port: \(client.ip), ID: \(client.id)")
         }
         
         var selectedClient: ClientInfo?
@@ -176,7 +177,7 @@ class ShareViewController: UIViewController {
             self.devicePopView = popView
             popView.onSelect = { [weak self] client in
                 guard let self = self else { return }
-                print("select device：\(client.name)")
+                Logger.info("select device：\(client.name)")
                 selectedClient = client
                 MBProgressHUD.showTips(.success,"Device: \(client.name)", toView: self.view, duration: 1.0)
             }
@@ -204,11 +205,40 @@ class ShareViewController: UIViewController {
                         return
                     }
                     guard let encodedFilePath = finalFilePath.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
-                        print("Error: Could not percent-encode file path")
+                        Logger.info("Error: Could not percent-encode file path")
                         self.cancelExtensionContext(with: "Failed to prepare file path.")
                         return
                     }
                     urlSchemeString = "crossshare://import?filePath=\(encodedFilePath)&clientId=\(currentSelectedClient.id)&clientIp=\(currentSelectedClient.ip)&fileSize=\(fileSize)&isMup=false"
+                } else if urls.count > 1 {
+                    var copiedFilePaths: [String] = []
+                    for url in urls {
+                        if let copiedPath = self.copyDocumentToTemp(url, timestamp) {
+                            copiedFilePaths.append(copiedPath)
+                        } else {
+                            print("Warning: Failed to copy \(url.lastPathComponent) to app group container.")
+                        }
+                    }
+
+                    if copiedFilePaths.isEmpty {
+                        self.cancelExtensionContext(with: "multi-file copy failed")
+                        return
+                    }
+                    
+                    do {
+                        let pathsJsonData = try JSONSerialization.data(withJSONObject: copiedFilePaths, options: [])
+                        guard let pathsJsonString = String(data: pathsJsonData, encoding: .utf8),
+                              let encodedPaths = pathsJsonString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
+                            print("Error: Could not create or encode paths JSON string for multiple files")
+                            self.cancelExtensionContext(with: "multi-file paths encoding failed")
+                            return
+                        }
+                        urlSchemeString = "crossshare://import?paths=\(encodedPaths)&clientId=\(currentSelectedClient.id)&clientIp=\(currentSelectedClient.ip)&isMup=true"
+                    } catch {
+                        print("Error: Could not serialize paths to JSON for multiple files: \(error)")
+                        self.cancelExtensionContext(with: "multi-file paths serialization failed")
+                        return
+                    }
                 } else {
                     self.cancelExtensionContext(with: "No files to share.")
                     return
@@ -218,7 +248,7 @@ class ShareViewController: UIViewController {
                     self.openURL(openURL)
                     self.extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
                 } else {
-                    print("Error: Could not create URL from scheme: \(urlSchemeString ?? "nil")")
+                    Logger.info("Error: Could not create URL from scheme: \(urlSchemeString ?? "nil")")
                     self.cancelExtensionContext(with: "URL creation failed")
                 }
             }
@@ -232,7 +262,7 @@ class ShareViewController: UIViewController {
                 }
             }
         } else {
-            print("No clients available to share with.")
+            Logger.info("No clients available to share with.")
             self.cancelExtensionContext(with: "No clients available to share with.")
         }
     }
@@ -257,7 +287,7 @@ class ShareViewController: UIViewController {
                 return fileSize.int64Value
             }
         } catch {
-            print("Error fetching file size: \(error)")
+            Logger.info("Error fetching file size: \(error)")
         }
         return nil
     }
@@ -277,7 +307,7 @@ class ShareViewController: UIViewController {
     
     private func copyDocumentToTemp(_ url: URL, _ timestamp: String) -> String? {
         guard let groupContainerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: UserDefaults.groupId) else {
-            print("[DocPicker][Err] Could not get App Group container URL. GroupID: \(UserDefaults.groupId)")
+            Logger.info("[DocPicker][Err] Could not get App Group container URL. GroupID: \(UserDefaults.groupId)")
             return nil
         }
         
@@ -285,7 +315,7 @@ class ShareViewController: UIViewController {
         if url.scheme == "file" {
             securityScopedAccess = url.startAccessingSecurityScopedResource()
             if !securityScopedAccess {
-                print("[DocPicker][Warn] Could not start security-scoped access for: \(url.path). Will attempt copy anyway.")
+                Logger.info("[DocPicker][Warn] Could not start security-scoped access for: \(url.path). Will attempt copy anyway.")
             }
         }
         defer {
@@ -305,29 +335,29 @@ class ShareViewController: UIViewController {
                 try FileManager.default.removeItem(at: destFullPath)
             }
             try FileManager.default.copyItem(at: url, to: destFullPath)
-            print("[DocPicker] Copied to App Group container: \(destFullPath.path)")
+            Logger.info("[DocPicker] Copied to App Group container: \(destFullPath.path)")
             return destFullPath.path
         } catch {
-            print("[DocPicker][Err] Copy to App Group container failed for \(url.path) to \(destFullPath.path): \(error)")
+            Logger.info("[DocPicker][Err] Copy to App Group container failed for \(url.path) to \(destFullPath.path): \(error)")
             return nil
         }
     }
     
     private func removeTempFolderByTimestamp(_ timestamp: String) {
         guard let groupContainerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: UserDefaults.groupId) else {
-            print("[DocPicker][Err] Could not get App Group container URL for cleanup. GroupID: \(UserDefaults.groupId)")
+            Logger.info("[DocPicker][Err] Could not get App Group container URL for cleanup. GroupID: \(UserDefaults.groupId)")
             return
         }
         let root = groupContainerURL.appendingPathComponent("SharedFiles").appendingPathComponent(timestamp)
         if FileManager.default.fileExists(atPath: root.path) {
             do {
                 try FileManager.default.removeItem(at: root)
-                print("[DocPicker] Cleaned files from App Group successfully: \(root.path)")
+                Logger.info("[DocPicker] Cleaned files from App Group successfully: \(root.path)")
             } catch {
-                print("[DocPicker][Err] Clean files from App Group failed: \(error)")
+                Logger.info("[DocPicker][Err] Clean files from App Group failed: \(error)")
             }
         } else {
-            print("[DocPicker][Info] Clean files from App Group: Path not found, nothing to clean: \(root.path)")
+            Logger.info("[DocPicker][Info] Clean files from App Group: Path not found, nothing to clean: \(root.path)")
         }
     }
     

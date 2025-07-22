@@ -1,4 +1,4 @@
-/* 去掉一些焦点框 */
+/* Remove some focus boxes */
 * {
     outline:none;
     font-family:"Microsoft YaHei";
@@ -21,7 +21,7 @@ QGroupBox#middle_box {
     border-radius:4px;
 }
 
-QGroupBox#bottom_box {
+QGroupBox#bottom_box, QGroupBox#tag_box_1, QGroupBox#tag_box_2, QGroupBox#tag_box_3,QGroupBox#tag_box_4 {
     border:none;
 }
 
@@ -81,9 +81,29 @@ QLabel#title_icon_2 {
     border-image:url(:/resource/icon/Group_3.svg);
 }
 
+QLabel#clear_all_icon {
+    border-image:url(:/resource/clear_all.svg);
+}
+
+QLabel#clear_all_icon:hover {
+    border-image:url(:/resource/clear_all_h.svg);
+}
+
+QLabel#back_label {
+    border-image:url(:/resource/back.svg);
+}
+
+QLabel#back_label:hover {
+    border-image:url(:/resource/back_h.svg);
+}
+
 QLabel#title_label {
     background:transparent;
     color:white;
+    /*image:url(:/resource/app_name.svg);
+    margin-top:8px;
+    margin-bottom:8px;
+    margin-left:5px;*/
 }
 
 QLabel#icon_left {
@@ -91,11 +111,23 @@ QLabel#icon_left {
 }
 
 QLabel#icon_right {
-    border-image:url(:/resource/icon/garbage.svg);
+    border-image:url(:/resource/icon/cancel.svg);
+}
+
+QLabel#icon_right:hover {
+    border-image:url(:/resource/icon/cancel_h.svg);
 }
 
 QLabel#failed_icon_label {
     border-image:url(:/resource/icon/check_small.svg);
+}
+
+QLabel#openFileLabel {
+    border-image:url(:/resource/icon/open.svg);
+}
+
+QLabel#openFileLabel:hover {
+    border-image:url(:/resource/icon/open_h.svg);
 }
 
 QPushButton {
@@ -120,27 +152,38 @@ QPushButton#openFile:hover {
     border: 1px solid yellow;
 }
 
-/* ---------------------- 垂直滚动条设置 -------------------------------------- */
+QPushButton#fileExplorerButton {
+color:black;
+background-color:lightgrey;
+border-radius: 4px;
+}
+
+QPushButton#fileExplorerButton:hover {
+    background-color: darkgrey;
+    color:white;
+}
+
+/* ---------------------- Vertical scrollbar settings -------------------------------------- */
 
 QScrollBar:vertical {
-background:#0D2A40;
+background:#F0F0F0;
 padding:0px;
 border-radius:5px;
 max-width:12px;
 }
 
 QScrollBar::handle:vertical{
-background:#2B516D;
+background:#CDCDCD;
 min-height:50px;
 border-radius:5px;
 }
 
 QScrollBar::handle:vertical:hover{
-background:#003C66;
+background:#A6A6A6;
 }
 
 QScrollBar::handle:vertical:pressed{
-background:#003C66;
+background:#606060;
 }
 
 QScrollBar::add-page:vertical{
@@ -163,27 +206,27 @@ QScrollArea{
 border:0px;
 }
 
-/* ---------------------- 水平滚动条设置 -------------------------------------- */
+/* ---------------------- Horizontal scrollbar settings -------------------------------------- */
 
 QScrollBar:horizontal{
-background:#0D2A40;
+background:#F0F0F0;
 padding:0px;
 border-radius:5px;
 max-height:12px;
 }
 
 QScrollBar::handle:horizontal{
-background:#2B516D;
+background:#CDCDCD;
 min-width:50px;
 border-radius:5px;
 }
 
 QScrollBar::handle:horizontal:hover{
-background:#003C66;
+background:#A6A6A6;
 }
 
 QScrollBar::handle:horizontal:pressed{
-background:#003C66;
+background:#606060;
 }
 
 QScrollBar::add-page:horizontal{
@@ -202,7 +245,7 @@ QScrollBar::sub-line:horizontal{
 background:none;
 }
 
-/*---------水平滑动条------------------------*/
+/*---------Horizontal sliding bar------------------------*/
 
 QSlider::groove:horizontal{
 background:rgba(158,158,158,76); /* #9E9E9E opacity: 0.3; */
@@ -230,7 +273,7 @@ border-radius:6px;
 background:#FFFFFF;
 }
 
-/*------------------- 垂直滑动条 -------------------*/
+/*------------------- Vertical sliding bar -------------------*/
 
 QSlider::groove:vertical{
 background:rgba(158,158,158,76); /* #9E9E9E opacity: 0.3; */
@@ -289,12 +332,13 @@ QComboBox {
 }
 
 QComboBox::drop-down {
-    border-style:none; /* 去掉下拉小箭头 */
+    border-style:none;
 }
 
 QComboBox QAbstractItemView::item {
-    color:white;
-    background-color:#113149;
+    color:black;
+    /*background-color:#113149;*/
+    background:white;
     min-height:26px;
 }
 

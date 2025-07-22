@@ -2,11 +2,150 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:background="#007AFF">
+    android:orientation="vertical">
 
     <include layout="@layout/title" />
 
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginStart="10dp"
+        android:layout_marginTop="5dp">
 
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="#8A000000"
+        android:textSize="20sp"
+        android:text="Software version:"></TextView>
 
+    <TextView
+        android:id="@+id/sw_version_view"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="#8A000000"
+        android:textSize="20sp"
+        android:text=""></TextView>
+
+    <Space
+        android:layout_width="0dp"
+        android:layout_height="20dp"
+        />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="#8A000000"
+        android:textSize="20sp"
+        android:text="My IP &amp; Device Name:"></TextView>
+
+    <TextView
+        android:id="@+id/my_connections_view"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="#8A000000"
+        android:textSize="20sp"
+        android:text=""></TextView>
+
+    <Space
+        android:layout_width="0dp"
+        android:layout_height="20dp"
+        />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="#8A000000"
+        android:textSize="20sp"
+        android:text="Connection:"></TextView>
+
+    <TextView
+        android:id="@+id/connections_view"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="#8A000000"
+        android:textSize="20sp"
+        android:text="NA"></TextView>
+
+    <Space
+        android:layout_width="0dp"
+        android:layout_height="20dp"
+        />
+
+    <TextView
+        android:id="@+id/dias_view_title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="#8A000000"
+        android:textSize="20sp"
+        android:text="Dias ID:"></TextView>
+
+    <TextView
+        android:id="@+id/dias_view"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="#8A000000"
+        android:textSize="20sp"
+        android:text="NA"></TextView>
+
+    <Space
+        android:layout_width="0dp"
+        android:layout_height="20dp"
+        />
+
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/linearlayout_qrcode"
+        android:layout_width="220dp"
+        android:layout_height="40dp"
+        android:layout_marginTop="200dp"
+        android:layout_marginStart="10dp"
+        android:background="@drawable/button_background"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:padding="5dp"
+            android:layout_marginStart="10dp"
+            android:src="@drawable/scan_qr_code" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:text="Scan QR Code"
+            android:layout_gravity="center"
+            android:layout_marginEnd="40dp"
+            android:textSize="15sp"
+            android:textColor="#007AFF" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/linearlayout_transport_history"
+        android:layout_width="220dp"
+        android:layout_height="40dp"
+        android:layout_marginTop="10dp"
+        android:layout_marginStart="10dp"
+        android:background="@drawable/button_background"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:padding="5dp"
+            android:layout_marginStart="10dp"
+            android:src="@drawable/transport_history" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:layout_gravity="center"
+            android:text="Transport History"
+            android:textSize="15sp"
+            android:textColor="#007AFF" />
+    </LinearLayout>
 </LinearLayout>

@@ -3,6 +3,8 @@
 #include <QDir>
 #include <QProcess>
 #include <QSettings>
+#include <QUuid>
+#include <QHostInfo>
 #ifdef Q_OS_WINDOWS
 #include <windows.h>
 #include <psapi.h>
@@ -13,6 +15,8 @@
 #endif
 #include <iostream>
 #include "common_signals.h"
+
+std::unique_ptr<QFile> g_logFile;
 
 QByteArray CommonUtils::getFileContent(const QString &filePath)
 {
@@ -68,8 +72,16 @@ void CommonUtils::commonMessageOutput(QtMsgType type, const QMessageLogContext &
 #endif
 
     str_stream.flush();
-    fprintf(stderr, "%s", msg_str.toLocal8Bit().constData());
-    fflush(stderr);
+
+    {
+        static std::mutex s_mutex;
+        std::lock_guard<std::mutex> locker(s_mutex);
+        std::cerr << msg_str.toLocal8Bit().constData();
+        if (g_logFile) {
+            g_logFile->write(msg_str.toLocal8Bit().constData());
+            g_logFile->flush();
+        }
+    }
 }
 
 QString CommonUtils::desktopDirectoryPath()
@@ -77,10 +89,24 @@ QString CommonUtils::desktopDirectoryPath()
     return QStandardPaths::writableLocation(QStandardPaths::StandardLocation::DesktopLocation);
 }
 
+QString CommonUtils::downloadDirectoryPath()
+{
+    return QStandardPaths::writableLocation(QStandardPaths::StandardLocation::DownloadLocation);
+}
 
 QString CommonUtils::homeDirectoryPath()
 {
     return QStandardPaths::writableLocation(QStandardPaths::StandardLocation::HomeLocation);
+}
+
+QString CommonUtils::localDataDirectory()
+{
+    auto path = QStandardPaths::writableLocation(QStandardPaths::StandardLocation::AppLocalDataLocation);
+    if (QFile::exists(path) == false) {
+        QDir().mkpath(path);
+    }
+    Q_ASSERT(QFile::exists(path));
+    return path;
 }
 
 void CommonUtils::runInThreadPool(const std::function<void()> &callback)
@@ -102,24 +128,20 @@ void CommonUtils::runInThreadPool(const std::function<void()> &callback)
     QThreadPool::globalInstance()->start(new RunnableEx(callback));
 }
 
-void CommonUtils::findAllFiles(const QString &directoryPath, std::vector<QString> &filesVec, const std::function<bool(const QFileInfo&)> &filterFunc)
+QString CommonUtils::createUuid()
 {
-    for (const auto &fileInfo : QDir(directoryPath).entryInfoList(QDir::Filter::Files | QDir::Filter::Dirs | QDir::Filter::NoDotAndDotDot)) {
-        if (fileInfo.isFile()) {
-            if (filterFunc(fileInfo)) {
-                filesVec.push_back(fileInfo.absoluteFilePath());
-            }
-        } else if (fileInfo.isDir()) {
-            findAllFiles(fileInfo.absoluteFilePath(), filesVec, filterFunc);
-        }
-    }
+    return QUuid::createUuid().toString();
 }
 
-std::vector<QString> CommonUtils::findAllFiles(const QString &directoryPath, const std::function<bool(const QFileInfo&)> &filterFunc)
+QString CommonUtils::localIpAddress()
 {
-    std::vector<QString> filesVec;
-    findAllFiles(directoryPath, filesVec, filterFunc);
-    return filesVec;
+    QHostInfo info = QHostInfo::fromName(QHostInfo::localHostName());
+    for (const auto &address : info.addresses()) {
+        if (address.protocol() == QAbstractSocket::IPv4Protocol) {
+            return address.toString();
+        }
+    }
+    return "127.0.0.1";
 }
 
 QByteArray CommonUtils::toUtf16LE(const QString &data)
@@ -190,6 +212,39 @@ bool CommonUtils::processIsRunning(const QString &exePath)
     return false;
 }
 
+int CommonUtils::processRunningCount(const QString &exePath)
+{
+    int runningCount = 0;
+    DWORD aProcesses[1024];
+    DWORD cbNeeded;
+    DWORD cProcesses;
+    if (!::EnumProcesses(aProcesses, sizeof(aProcesses), &cbNeeded)) {
+        return runningCount;
+    }
+    cProcesses = cbNeeded / sizeof(DWORD);
+    for (unsigned int index = 0; index < cProcesses; ++index) {
+        if (aProcesses[index] != 0) {
+            auto processID = aProcesses[index];
+            TCHAR szProcessName[MAX_PATH] { 0 };
+            HANDLE hProcess = ::OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, processID);
+            if (NULL != hProcess) {
+                HMODULE hMod;
+                DWORD cbNeeded;
+                if (::EnumProcessModules(hProcess, &hMod, sizeof(hMod), &cbNeeded)) {
+                    ::GetModuleBaseName(hProcess, hMod, szProcessName, sizeof(szProcessName)/sizeof(TCHAR));
+                    QString tmpName = QString::fromStdString(reinterpret_cast<const char*>(szProcessName));
+                    //qInfo() << tmpName.toUtf8().constData();
+                    if (exePath.endsWith(tmpName)) {
+                        ++runningCount;
+                    }
+                }
+            }
+            CloseHandle(hProcess);
+        }
+    }
+    return runningCount;
+}
+
 void CommonUtils::killServer()
 {
     {
@@ -224,6 +279,23 @@ QString CommonUtils::byteCountDisplay(int64_t bytesCount)
 void CommonUtils::setAutoRun(bool status)
 {
     setAutoRun(qApp->applicationFilePath(), status);
+}
+
+void CommonUtils::removeAutoRunByName(const QString &keyName)
+{
+    const char *auto_run = R"(HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run)";
+    QScopedPointer<QSettings> settings(new QSettings(auto_run, QSettings::NativeFormat));
+    if (settings->contains(keyName)) {
+        settings->remove(keyName);
+    }
+}
+
+QString CommonUtils::getValueByRegKeyName(const QString &keyName)
+{
+    const char *auto_run = R"(HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run)";
+    QScopedPointer<QSettings> settings(new QSettings(auto_run, QSettings::NativeFormat));
+    const QString path = settings->value(keyName).toString();
+    return path;
 }
 
 void CommonUtils::setAutoRun(const QString &appFilePath, bool status)

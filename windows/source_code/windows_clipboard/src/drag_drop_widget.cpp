@@ -49,7 +49,7 @@ void DragDropWidget::dragEnterEvent(QDragEnterEvent *event)
 
 void DragDropWidget::dragLeaveEvent(QDragLeaveEvent *event)
 {
-    qInfo() << "-------------- 拖拽放弃......";
+    qInfo() << "-------------- Drag and drop to abandon......";
     event->accept();
 
     {
@@ -68,7 +68,7 @@ void DragDropWidget::dropEvent(QDropEvent *event)
     }
 
     g_getGlobalData()->selectedFileName = event->mimeData()->urls().front().toLocalFile();
-    qInfo() << "决定拖拽:" << g_getGlobalData()->selectedFileName.toUtf8().constData();
+    qInfo() << "Decided to drag and drop:" << g_getGlobalData()->selectedFileName.toUtf8().constData();
     event->acceptProposedAction();
     {
         DeviceListDialog dialog;

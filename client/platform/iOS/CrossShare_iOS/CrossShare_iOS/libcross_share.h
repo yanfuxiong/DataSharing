@@ -31,12 +31,14 @@ typedef void (*EventCallback)(int event);
 typedef void (*CallbackMethodFileConfirm)(char* id, char* platform, char* fileName, long long fileSize);
 typedef void (*CallbackMethodFileDone)(char* name, long long fileSize);
 typedef void (*CallbackMethodFoundPeer)();
+typedef void (*CallbackMethodFileNotify)(char* ip, char* id, char* platform, char* fileName, unsigned long long fileSize,unsigned long long timestamp);
+typedef void (*CallbackMethodFileListNotify)(char* ip, char* id, char* platform,unsigned int fileCnt, unsigned long long totalSize,unsigned long long timestamp, char* firstFileName, unsigned long long firstFileSize);
 typedef void (*CallbackUpdateProgressBar)(char* id, char* fileName,unsigned long long recvSize,unsigned long long total,unsigned long long timestamp);
 typedef void (*CallbackUpdateMultipleProgressBar)(char* ip,char* id, char* deviceName, char* currentfileName,unsigned int recvFileCnt, unsigned int totalFileCnt,unsigned long long currentFileSize,unsigned long long totalSize,unsigned long long recvSize,unsigned long long timestamp);
-
 typedef void (*CallbackFileError)(char* id, char* fileName, char* err);
 typedef void (*CallbackMethodStartBrowseMdns)(char* instance, char* serviceType);
 typedef void (*CallbackMethodStopBrowseMdns)();
+typedef char* (*CallbackAuthData)();
 
 static CallbackMethodText gCallbackMethodText = 0;
 static CallbackMethodImage gCallbackMethodImage = 0;
@@ -45,11 +47,14 @@ static EventCallback gEventCallback = 0;
 static CallbackMethodFileConfirm gCallbackMethodFileConfirm = 0;
 static CallbackMethodFileDone gCallbackMethodFileDone = 0;
 static CallbackMethodFoundPeer gCallbackMethodFoundPeer = 0;
+static CallbackMethodFileNotify gCallbackMethodFileNotify = 0;
+static CallbackMethodFileListNotify gCallbackMethodFileListNotify = 0;
 static CallbackUpdateProgressBar gCallbackUpdateProgressBar = 0;
 static CallbackUpdateMultipleProgressBar gCallbackUpdateMultipleProgressBar = 0;
 static CallbackFileError gCallbackFileError = 0;
 static CallbackMethodStartBrowseMdns gCallbackMethodStartBrowseMdns = 0;
 static CallbackMethodStopBrowseMdns gCallbackMethodStopBrowseMdns = 0;
+static CallbackAuthData gCallbackAuthData = 0;
 
 static void setCallbackMethodText(CallbackMethodText cb) {gCallbackMethodText = cb;}
 static void invokeCallbackMethodText(char* str) {
@@ -79,6 +84,14 @@ static void setCallbackMethodFoundPeer(CallbackMethodFoundPeer cb) {gCallbackMet
 static void invokeCallbackMethodFoundPeer() {
 	if (gCallbackMethodFoundPeer) {gCallbackMethodFoundPeer();}
 }
+static void setCallbackMethodFileNotify(CallbackMethodFileNotify cb) {gCallbackMethodFileNotify = cb;}
+static void invokeCallbackMethodFileNotify(char* ip, char* id, char* platform, char* fileName, unsigned long long fileSize,unsigned long long timestamp) {
+	if (gCallbackMethodFileNotify) {gCallbackMethodFileNotify(ip, id, platform, fileName, fileSize, timestamp);}
+}
+static void setCallbackMethodFileListNotify(CallbackMethodFileListNotify cb) {gCallbackMethodFileListNotify = cb;}
+static void invokeCallbackMethodFileListNotify(char* ip, char* id, char* platform,unsigned int fileCnt, unsigned long long totalSize,unsigned long long timestamp, char* firstFileName, unsigned long long firstFileSize) {
+	if (gCallbackMethodFileListNotify) {gCallbackMethodFileListNotify(ip, id, platform, fileCnt, totalSize, timestamp, firstFileName, firstFileSize);}
+}
 static void setCallbackUpdateProgressBar(CallbackUpdateProgressBar cb) {gCallbackUpdateProgressBar = cb;}
 static void invokeCallbackUpdateProgressBar(char* id, char* fileName,unsigned long long recvSize,unsigned long long total,unsigned long long timestamp) {
 	if (gCallbackUpdateProgressBar) {gCallbackUpdateProgressBar(id, fileName, recvSize, total,timestamp);}
@@ -98,6 +111,11 @@ static void invokeCallbackMethodStartBrowseMdns(char* instance, char* serviceTyp
 static void setCallbackMethodStopBrowseMdns(CallbackMethodStopBrowseMdns cb) {gCallbackMethodStopBrowseMdns = cb;}
 static void invokeCallbackMethodStopBrowseMdns() {
 	if (gCallbackMethodStopBrowseMdns) {gCallbackMethodStopBrowseMdns();}
+}
+static void setCallbackGetAuthData(CallbackAuthData cb) {gCallbackAuthData = cb;}
+static char* invokeCallbackGetAuthData() {
+	if (gCallbackAuthData) { return gCallbackAuthData();}
+	return NULL;
 }
 
 #line 1 "cgo-generated-wrapper"
@@ -163,6 +181,8 @@ extern void SetEventCallback(EventCallback cb);
 extern void SetCallbackMethodFileConfirm(CallbackMethodFileConfirm cb);
 extern void SetCallbackMethodFileDone(CallbackMethodFileDone cb);
 extern void SetCallbackMethodFoundPeer(CallbackMethodFoundPeer cb);
+extern void SetCallbackMethodFileNotify(CallbackMethodFileNotify cb);
+extern void SetCallbackMethodFileListNotify(CallbackMethodFileListNotify cb);
 extern void SetCallbackUpdateProgressBar(CallbackUpdateProgressBar cb);
 extern void SetCallbackUpdateMultipleProgressBar(CallbackUpdateMultipleProgressBar cb);
 extern void SetCallbackFileError(CallbackFileError cb);
@@ -175,15 +195,19 @@ extern void SendImage(GoString content);
 extern void SendAddrsFromPlatform(GoString addrsList);
 extern void SendNetInterfaces(GoString name, GoString mac, GoInt mtu, GoInt index, GoUint flag);
 extern void SendFileDropRequest(GoString filePath, GoString id, GoInt64 fileSize);
+extern void SendMultiFilesDropRequest(GoString multiFilesData);
 extern void SetFileDropResponse(GoString fileName, GoString id, GoUint8 isReceive);
 extern void SetNetWorkConnected(GoUint8 isConnect);
 extern void SetHostListenAddr(GoString listenHost, GoInt listenPort);
 extern void SetDIASID(GoString DiasID);
+extern void SetDetectPluginEvent(GoUint8 isPlugin);
+extern void SetCallbackGetAuthData(CallbackAuthData cb);
 extern char* GetVersion();
 extern char* GetBuildDate();
 extern void SetupRootPath(GoString rootPath);
 extern void SetSrcAndPort(GoInt source, GoInt port);
 extern void SetBrowseMdnsResult(GoString instance, GoString ip, GoInt port);
+extern void SetConfirmDocumentsAccept(GoUint8 ifConfirm);
 extern void FreeCString(char* p);
 
 #ifdef __cplusplus

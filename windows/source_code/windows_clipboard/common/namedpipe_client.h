@@ -24,5 +24,10 @@ private Q_SLOTS:
     void onStateChanged(QLocalSocket::LocalSocketState socketState);
 
 private:
+    void processBufferData();
+
+private:
     QPointer<QLocalSocket> m_client;
+    Buffer m_outputBuffer;
+    std::atomic<bool> m_runningStatus { false };
 };

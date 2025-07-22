@@ -8,6 +8,12 @@
 import UIKit
 import SnapKit
 
+let SOURCE_HDMI1 = "HDMI1";
+let SOURCE_HDMI2 = "HDMI2";
+let SOURCE_USBC1 = "USBC1";
+let SOURCE_USBC2 = "USBC2";
+let SOURCE_MIRACAST = "Miracast";
+
 class DeviceSelectPopView: UIView, UICollectionViewDataSource, UICollectionViewDelegateFlowLayout {
     var fileNames: [String]
     var clients: [ClientInfo]
@@ -82,7 +88,8 @@ class DeviceSelectPopView: UIView, UICollectionViewDataSource, UICollectionViewD
             make.centerX.equalToSuperview()
         }
         
-        titleLabel.text = !fileNames.isEmpty ? fileNames.first : ""
+        titleLabel.text = fileNameShow()
+        titleLabel.numberOfLines = 0
         titleLabel.textAlignment = .center
         titleLabel.font = UIFont.systemFont(ofSize: 13)
         contentView.addSubview(titleLabel)
@@ -128,6 +135,19 @@ class DeviceSelectPopView: UIView, UICollectionViewDataSource, UICollectionViewD
         }
     }
     
+    private func fileNameShow() -> String {
+        var mclintString = ""
+        if fileNames.isEmpty
+        {
+            return ""
+        }
+        for fileName in fileNames {
+            mclintString.append(fileName)
+            mclintString.append("\n")
+        }
+        return mclintString
+    }
+    
     @objc func transportFiles() {
         onSure?()
     }
@@ -166,7 +186,7 @@ class DeviceCollectionCell: UICollectionViewCell {
     
     override init(frame: CGRect) {
         super.init(frame: frame)
-    
+        
         icoImgView.snp.makeConstraints { make in
             make.top.equalToSuperview().offset(10)
             make.size.equalTo(CGSize(width: 56, height: 56))
@@ -230,6 +250,22 @@ class DeviceCollectionCell: UICollectionViewCell {
     
     func configure(with model:ClientInfo) {
         self.fileNameLab.text = model.name
+        var imageName = ""
+        switch model.deviceType {
+        case SOURCE_HDMI1:
+            imageName = "hdmi"
+        case SOURCE_HDMI2:
+            imageName = "hdmi2"
+        case SOURCE_USBC1:
+            imageName = "usb_c1"
+        case SOURCE_USBC2:
+            imageName = "usb_c2"
+        case SOURCE_MIRACAST:
+            imageName = "miracast"
+        default:
+            imageName = "computer"
+        }
+        self.icoImgView.image = UIImage(named: imageName)
     }
     
     @objc func tapAction(_ sender:UIButton) {

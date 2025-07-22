@@ -29,7 +29,7 @@ class BonjourService: NSObject, NetServiceBrowserDelegate, NetServiceDelegate {
 
     func start(instanceName: String, serviceType: String) {
         syncQueue.async { [self] in
-            print("[Bonjour] Start search type: \(serviceType)")
+            Logger.info("[Bonjour] Start search type: \(serviceType)")
             if mIsSearching {
                 stop()
             } else {
@@ -44,7 +44,7 @@ class BonjourService: NSObject, NetServiceBrowserDelegate, NetServiceDelegate {
 
     func stop() {
         syncQueue.async { [self] in
-            print("[Bonjour] Stop search")
+            Logger.info("[Bonjour] Stop search")
             if !mIsSearching {
                 return
             }
@@ -59,7 +59,7 @@ class BonjourService: NSObject, NetServiceBrowserDelegate, NetServiceDelegate {
         }
 
         if mFilterInstance != "" && mFilterInstance != instanceName {
-            print("[Bonjour] Found: \(instanceName) and skip by \(mFilterInstance ?? "null")")
+            Logger.info("[Bonjour] Found: \(instanceName) and skip by \(mFilterInstance ?? "null")")
             return
         }
 
@@ -77,7 +77,7 @@ class BonjourService: NSObject, NetServiceBrowserDelegate, NetServiceDelegate {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd HH:mm:ss.SSS"
         let timestamp = formatter.string(from: Date())
-        print("[Bonjour][\(timestamp)] Found service: [Instance: \(service.name), Type: \(service.type), Domain: \(service.domain)]")
+        Logger.info("[Bonjour][\(timestamp)] Found service: [Instance: \(service.name), Type: \(service.type), Domain: \(service.domain)]")
         mDiscoveredService.append(service)
         service.resolve(withTimeout: 5)
     }
@@ -89,7 +89,7 @@ class BonjourService: NSObject, NetServiceBrowserDelegate, NetServiceDelegate {
 
         guard let ipData = NetService.dictionary(fromTXTRecord: txtData)["ip"],
               let ipFromTextData = String(data: ipData, encoding: .utf8) else {
-            print("[Bonjour][Err] Empty IP by textData in \(sender.name)")
+            Logger.info("[Bonjour][Err] Empty IP by textData in \(sender.name)")
             return
         }
 
@@ -106,23 +106,23 @@ class BonjourService: NSObject, NetServiceBrowserDelegate, NetServiceDelegate {
                     let ipStr = String(cString: ip)
 
                     if !(ipFromTextData.isEmpty) && ipStr != ipFromTextData {
-                        print("[Bonjour][Err] Skip IP:(\(ipStr)) by textRecord:(\(ipFromTextData))")
+                        Logger.info("[Bonjour][Err] Skip IP:(\(ipStr)) by textRecord:(\(ipFromTextData))")
                         return
                     }
                     let formatter = DateFormatter()
                     formatter.dateFormat = "yyyy-MM-dd HH:mm:ss.SSS"
                     let timestamp = formatter.string(from: Date())
-                    print("[Bonjour][\(timestamp)] Resolve instance: \(sender.name) address: \(ipStr), port: \(sender.port)")
+                    Logger.info("[Bonjour][\(timestamp)] Resolve instance: \(sender.name) address: \(ipStr), port: \(sender.port)")
                     foundServices(instanceName: sender.name, ip: ipStr, port: sender.port)
                 } else {
                     // DEBUG: for IPv6
-//                            print("[Bonjour][Error]: Unavailable IP address type. Only support IPv4 now")
+//                            Logger.info("[Bonjour][Error]: Unavailable IP address type. Only support IPv4 now")
                 }
             }
         }
     }
 
     func netService(_ sender: NetService, didNotResolve errorDict: [String : NSNumber]) {
-        print("[Bonjour][Error]: Service not resolve: \(errorDict)")
+        Logger.info("[Bonjour][Error]: Service not resolve: \(errorDict)")
     }
 }

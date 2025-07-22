@@ -10,7 +10,7 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.READ_CLIPBOARD" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.BIND_ACCESSIBILITY_SERVICE" />
     <uses-permission android:name="android.permission.READ_CLIPBOARD_IN_BACKGROUND"/>
@@ -18,9 +18,13 @@
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="ACCESS_FINE_LOCATION" />
     <uses-permission android:name="com.example.app.provider.READ_PERMISSION" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
 
     <queries>
-        <package android:name="com.rtk.myapplication" />
+        <package android:name="com.realtek.crossshare" />
     </queries>
 
     <application
@@ -29,20 +33,19 @@
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:name=".MyApplication"
+        android:name="com.realtek.crossshare.MyApplication"
         tools:targetApi="31">
 
         <!--<provider
             android:name=".UserContentProvider"
-            android:authorities="com.rtk.myapplication"
+            android:authorities="com.realtek.crossshare"
             android:exported="true"
             />-->
 
         <provider
             android:name="androidx.core.content.FileProvider"
-            android:authorities="com.rtk.myapplication"
+            android:authorities="com.realtek.crossshare"
             android:exported="false"
             android:grantUriPermissions="true">
             <meta-data
@@ -51,25 +54,33 @@
         </provider>
 
         <activity
-            android:name=".getFileActivity"
+            android:name="com.realtek.crossshare.getFileActivity"
             android:exported="true">
         </activity>
 
         <activity
-            android:name=".TestActivity"
+            android:name="com.realtek.crossshare.TestActivity"
             android:exported="true"
             android:label="@string/app_name"
             android:configChanges="orientation|screenSize|keyboardHidden"
             android:theme="@style/TransparentTheme"
-            android:launchMode="singleTop">
+            android:launchMode="standard">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
             <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="crossshare" android:host="scan" />
+            </intent-filter>
+
+            <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
                 <category android:name="android.intent.category.DEFAULT" />
 
 
@@ -92,56 +103,15 @@
 
         </activity>
         <service
-            android:name=".FloatClipboardService"
+            android:name="com.realtek.crossshare.FloatClipboardService"
             android:enabled="true"
             android:exported="true"
-            android:foregroundServiceType="specialUse"/>
+            android:foregroundServiceType="dataSync"/>
 
-        <!--<service
-            android:name=".TestService"
-            android:enabled="true"
-            android:exported="true"
-            android:foregroundServiceType="specialUse"/>
-        <service android:name=".TestService"
-            android:enabled="true"
-            android:exported="true"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE" >
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/accessibility_service_config" />
-        </service> -->
-        <!-- <service
-            android:name=".TestService"
-            android:enabled="true"
-            android:exported="true"
-            android:permission=
-                "android.permission.BIND_ACCESSIBILITY_SERVICE" >
-            <intent-filter>
-                <action android:name=
-                    "android.accessibilityservice.AccessibilityService" /></intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/accessibility_service_config" />
-        </service> -->
-
-
-        <!--<activity
-            android:name=".MyActivity"
-            android:exported="true"
-            android:launchMode="singleTop"
-            android:configChanges="orientation|screenSize|keyboardHidden"
-            >
-
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-
-            </intent-filter>
-        </activity>-->
-
+        <activity
+            android:name=".ScannerActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/TransparentTheme"/>
     </application>
 
 

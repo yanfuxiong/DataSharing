@@ -5,9 +5,16 @@ project(test)
 add_definitions(-DQT_WIDGETS_LIB)
 link_libraries(Qt5::Widgets Qt5::Core Qt5::Gui Qt5::Network Qt5::Test common)
 
+file(COPY
+    "${CMAKE_SOURCE_DIR}/src/resource/cross_share_client.sql.txt"
+    DESTINATION
+    ${CMAKE_CURRENT_BINARY_DIR}
+)
+
 set(TestTarget
 test_qstring
 test_message_parse
+test_sqlite_db
 )
 
 foreach(target ${TestTarget})

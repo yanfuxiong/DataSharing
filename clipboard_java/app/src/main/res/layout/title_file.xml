@@ -1,41 +1,51 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="wrap_content"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    android:background="#007AFF"
+    android:orientation="vertical"
     >
 
 
-        <View
-            android:id="@+id/view"
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="#FFFFFFFF" />
 
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+	android:orientation="horizontal">
+
+        <ImageView
+            android:id="@+id/file_page_back_icon"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:layout_centerVertical="true"
+            android:src="@drawable/left_arrow_icon"
+            android:layout_marginLeft="10dp" />
 
     <LinearLayout
-        android:layout_below="@+id/view"
         android:layout_width="match_parent"
         android:layout_height="50dp"
         android:gravity="center"
         android:orientation="horizontal">
 
         <TextView
-            android:layout_width="120dp"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textColor="@color/white"
             android:gravity="center"
-            android:text="Transmission Record"></TextView>
+            android:textSize="20dp"
+            android:text="Cross Share"
+            android:textColor="@color/white"></TextView>
 
     </LinearLayout>
 
     <TextView
-        android:layout_width="100dp"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_toLeftOf="@id/file_connection_count"
         android:layout_centerVertical="true"
         android:layout_gravity="right"
+        android:textSize="17dp"
         android:textColor="@color/white"
-        android:text="Online devices:"></TextView>
+        android:text="Online: "></TextView>
 
     <TextView
         android:id="@+id/file_connection_count"
@@ -44,7 +54,50 @@
         android:layout_alignParentRight="true"
         android:layout_marginRight="10dp"
         android:layout_centerVertical="true"
+        android:textSize="17dp"
         android:textColor="@color/white"
         android:text="0"></TextView>
 
-</RelativeLayout>
+    </RelativeLayout>
+
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@android:color/white"
+        android:visibility="gone">
+    <TextView
+        android:id="@+id/file_route"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="@color/black"
+        android:visibility="gone"
+        android:text="File Route:/storage/emulated/0/Download" />
+
+    </LinearLayout>
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="#F6F6F6">
+
+        <TextView
+            android:id="@+id/file_records"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Files records"
+            android:layout_marginStart="10dp"
+            android:textColor="@color/black"
+            android:textSize="20dp" />
+
+        <ImageView
+            android:id="@+id/file_allclose"
+            android:layout_width="30dp"
+            android:layout_marginLeft="20dp"
+            android:layout_height="30dp"
+            android:src="@drawable/clear_all_1"
+            android:layout_gravity="center_vertical"
+            android:visibility="visible" />
+
+    </LinearLayout>
+</LinearLayout>

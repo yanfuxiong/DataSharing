@@ -3,6 +3,8 @@
 #include "event_filter_process.h"
 #include <QWindowStateChangeEvent>
 #include <QMenu>
+#include <QScreen>
+#include <Windows.h>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -19,13 +21,7 @@ MainWindow::MainWindow(QWidget *parent)
         ui->status_content_label->clear();
     }
 
-    try {
-        nlohmann::json infoJson = g_notifyMessage.toString();
-        ui->status_title_label->setText(infoJson.at("title").get<std::string>().c_str());
-        ui->status_content_label->setText(infoJson.at("content").get<std::string>().c_str());
-    } catch (const std::exception &e) {
-        qWarning() << e.what();
-    }
+    updateStatusInfo();
 
     {
         connect(CommonSignals::getInstance(), &CommonSignals::dispatchMessage, this, &MainWindow::onDispatchMessage);
@@ -40,6 +36,19 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
+void MainWindow::setProcessIndex(int indexVal)
+{
+    m_processIndex = indexVal;
+}
+
+void MainWindow::updateWindowPos()
+{
+    int x_pos = qApp->primaryScreen()->availableSize().width() - width();
+    int y_pos = qApp->primaryScreen()->availableSize().height();
+    y_pos -= (height() + 4) * m_processIndex;
+    move(x_pos, y_pos);
+}
+
 void MainWindow::onLogMessage(const QString &message)
 {
     Q_UNUSED(message)
@@ -49,12 +58,6 @@ void MainWindow::onLogMessage(const QString &message)
 void MainWindow::onDispatchMessage(const QVariant &data)
 {
     if (data.canConvert<GetConnStatusResponseMsgPtr>() == true) {
-//        GetConnStatusResponseMsgPtr ptr_msg = data.value<GetConnStatusResponseMsgPtr>();
-//        if (ptr_msg->statusCode == 1) {
-//            Q_EMIT CommonSignals::getInstance()->showInfoMessageBox("connectionStatus", "connected to server.");
-//        } else {
-//            Q_EMIT CommonSignals::getInstance()->showWarningMessageBox("connectionStatus", "The server is in a disconnected state.");
-//        }
         return;
     }
 
@@ -84,7 +87,59 @@ void MainWindow::onDispatchMessage(const QVariant &data)
 
 void MainWindow::closeEvent(QCloseEvent *event)
 {
-    qInfo() << "------------------close";
-    QMainWindow::closeEvent(event);
+    Q_UNUSED(event)
     qApp->quit();
+}
+
+bool MainWindow::nativeEvent(const QByteArray &eventType, void *message, long *result)
+{
+    Q_UNUSED(eventType)
+    Q_UNUSED(result)
+    MSG *msg = reinterpret_cast<MSG*>(message);
+    if (msg->message == WM_COPYDATA) {
+        Q_ASSERT(msg->hwnd == reinterpret_cast<HWND>(winId()));
+        COPYDATASTRUCT *cds = reinterpret_cast<COPYDATASTRUCT*>(msg->lParam);
+        switch (cds->dwData) {
+        case UPDATE_WINDOW_POS_TAG: {
+            if (m_processIndex >= 2) {
+                --m_processIndex;
+                QTimer::singleShot(0, this, [this] {
+                    updateWindowPos();
+                });
+            }
+            break;
+        }
+        case UPDATE_STATUS_TIPS_MSG_TAG: {
+            QByteArray data(reinterpret_cast<const char*>(cds->lpData), cds->cbData);
+            NotifyMessage notifyMessage;
+            NotifyMessage::fromByteArray(QByteArray::fromHex(data), notifyMessage);
+            if (notifyMessage.timeStamp != g_notifyMessage.timeStamp) {
+                break;
+            }
+            g_notifyMessage = std::move(notifyMessage);
+            QTimer::singleShot(0, this, [this] {
+                updateStatusInfo();
+            });
+            break;
+        }
+        default: {
+            break;
+        }
+        }
+        return true;
+    }
+    return false;
+}
+
+void MainWindow::updateStatusInfo()
+{
+    try {
+        nlohmann::json infoJson = g_notifyMessage.toString();
+        ui->status_title_label->setText(infoJson.at("title").get<std::string>().c_str());
+        ui->status_content_label->setText(infoJson.at("content").get<std::string>().c_str());
+        repaint();
+    } catch (const std::exception &e) {
+        qWarning() << e.what();
+    }
+
 }

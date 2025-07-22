@@ -56,4 +56,6 @@ class DownloadItem: NSObject {
     var timestamp:TimeInterval?
     
     var isMutip:Bool = false
+    
+    var error:String?
 }

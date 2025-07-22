@@ -58,11 +58,11 @@ extension UIImage {
                 return sampleBuffer
 
             } else {
-                print("sampleBuffer is nil")
+                Logger.info("sampleBuffer is nil")
                 return nil
             }
         } catch {
-            print("error ugh ", error)
+            Logger.info("error ugh \(error.localizedDescription)")
             return nil
         }
     }

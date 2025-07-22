@@ -26,7 +26,7 @@ class ViewController: UIViewController {
     private var devicePopView: DeviceSelectPopView?
     private var selectedClient:ClientInfo?
     private var userManuallySwitchedFromFile = false
-    
+
     private var lastViewType: ViewType? = nil
     private var viewType:ViewType = ViewType.main {
         didSet {
@@ -35,11 +35,11 @@ class ViewController: UIViewController {
                     return
                 }
             }
-            
+
             lastViewType = viewType
             switch viewType {
             case .main:
-                debugPrint("switch main")
+                Logger.info("switch main")
                 DispatchQueue.main.async { [weak self] in
                     guard let self = self else { return  }
                     self.configContenView.removeFromSuperview()
@@ -53,26 +53,26 @@ class ViewController: UIViewController {
                     }
                     
                     self.deviceView.refreshUI()
-                    self.deviceView.dosomothingBlock = { [weak self] index in
-                        guard let self = self else { return  }
-                        switch index {
-                        case 1:
-                            self.aheadButton.isSelected = true
-                            self.viewType = .config
-                        case 2:
-                            self.pickDocument()
-                        case 3:
-                            self.aheadButton.isSelected = true
-                            self.viewType = .file
-                        default:
-                            print("do nothing but else")
-                        }
-                    }
+//                    self.deviceView.dosomothingBlock = { [weak self] index in
+//                        guard let self = self else { return  }
+//                        switch index {
+//                        case 1:
+//                            self.aheadButton.isSelected = true
+//                            self.viewType = .config
+//                        case 2:
+//                            self.pickDocument()
+//                        case 3:
+//                            self.aheadButton.isSelected = true
+//                            self.viewType = .file
+//                        default:
+//                            Logger.info("do nothing but else")
+//                        }
+//                    }
                     self.view.setNeedsLayout()
                     self.view.layoutIfNeeded()
                 }
             case .config:
-                debugPrint("switch config")
+                Logger.info("switch config")
                 DispatchQueue.main.async { [weak self] in
                     guard let self = self else { return  }
                     self.fileContennerView.removeFromSuperview()
@@ -108,12 +108,12 @@ class ViewController: UIViewController {
                             self.configContenView.refreshUI()
                         }
                     }
-                    
+        
                     self.view.setNeedsLayout()
                     self.view.layoutIfNeeded()
                 }
             case .file:
-                debugPrint("switch file")
+                Logger.info("switch file")
                 self.userManuallySwitchedFromFile = false
                 DispatchQueue.main.async { [weak self] in
                     guard let self = self else { return  }
@@ -135,12 +135,12 @@ class ViewController: UIViewController {
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        print("画中画初始化前：\(UIApplication.shared.windows)")
+        Logger.info("before PIP init：\(UIApplication.shared.windows)")
         if AVPictureInPictureController.isPictureInPictureSupported() {
             do {
                 try AVAudioSession.sharedInstance().setCategory(.playback, options: .mixWithOthers)
             } catch {
-                print(error)
+                Logger.info(error.localizedDescription)
             }
             setupUI()
             _pipContent.start()
@@ -151,61 +151,62 @@ class ViewController: UIViewController {
             NotificationCenter.default.addObserver(self, selector: #selector(handleEnterBackground), name: UIApplication.didEnterBackgroundNotification, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(receriveNewFiles(_:)), name: ReceiveFuleSuccessNotification, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(updateClientList), name: UpdateClientListSuccessNotification, object: nil)
-            //            NotificationCenter.default.addObserver(self, selector: #selector(receivedFile), name: ReceivedFilesSuccessNotification, object: nil)
+//            NotificationCenter.default.addObserver(self, selector: #selector(receivedFile), name: ReceivedFilesSuccessNotification, object: nil)
         } else {
-            print("不支持画中画")
+            Logger.info("not support PIP")
         }
         
         UIApplication.shared.beginBackgroundTask {
             UIApplication.shared.endBackgroundTask(UIBackgroundTaskIdentifier.invalid)
         }
     }
-    
+
     deinit {
         NotificationCenter.default.removeObserver(self)
     }
-    
+
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         super.touchesBegan(touches, with: event)
         
         self.view.endEditing(true)
     }
     
+    
     // 配置UI
-    func setupUI() {
+    private func setupUI() {
         self.title = "Cross Share"
         self.navigationItem.leftBarButtonItem = UIBarButtonItem(customView: self.aheadButton)
         self.navigationItem.rightBarButtonItem = UIBarButtonItem(customView: self.clientsLable)
-        
+
         let session = AVAudioSession.sharedInstance()
         try! session.setCategory(.playback, mode: .moviePlayback)
         try! session.setActive(true)
-        
+
         self.aheadButton.isSelected = true
         self.viewType = .file
         self.view.addSubview(videoContainerView)
         self.view.backgroundColor = UIColor.init(hex: 0xF6F6F6)
-        
+
         self.videoContainerView.snp.makeConstraints { make in
             make.left.right.equalToSuperview()
             make.top.equalTo(self.view.safeAreaLayoutGuide.snp.top).offset(10)
             make.height.equalTo(50)
         }
-        
+
         self.videoView.snp.makeConstraints { make in
             make.center.equalToSuperview()
             make.size.equalTo(CGSize(width: 200, height: 30))
         }
-        
+
         self.videoView.setNeedsLayout()
         self.videoView.layoutIfNeeded()
-        
+
         let bufferDisplayLayer = _pipContent.bufferDisplayLayer
         bufferDisplayLayer.frame = self.videoView.bounds
         bufferDisplayLayer.videoGravity = .resizeAspect
         self.videoView.layer.addSublayer(bufferDisplayLayer)
     }
-    
+
     lazy var videoView: UIView = {
         let view = UIView(frame: .zero)
         view.backgroundColor = UIColor.clear
@@ -240,7 +241,6 @@ class ViewController: UIViewController {
         videoContainerView.addSubview(button)
         return button
     }()
-    
     
     //main
     lazy var deviceView: DeviceMainView = {
@@ -279,7 +279,7 @@ class ViewController: UIViewController {
             do {
                 try AVAudioSession.sharedInstance().setCategory(.playback, options: .mixWithOthers)
             } catch {
-                print(error)
+                Logger.info(error.localizedDescription)
             }
             _pipController = AVPictureInPictureController(
                 contentSource: .init(
@@ -325,22 +325,22 @@ class ViewController: UIViewController {
             self.viewType = .main
         }
     }
-    
+
     // MARK: - 进入前后台
     @objc private func handleEnterForeground() {
-        print("进入前台");
+        Logger.info("handleEnterForeground");
     }
-    
+
     @objc private func handleEnterBackground() {
-        print("进入后台");
+        Logger.info("handleEnterBackground");
     }
-    
+
     @objc private func receriveNewFiles(_ ntf: Notification) {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             if let userInfo = ntf.userInfo as? [String: Any],
                let newItem = userInfo["download"] as? DownloadItem {
-                let isNewFile = !self.dataArray.contains(where: { $0.uuid == newItem.uuid })
+                var isNewFile = false
                 if let index = self.dataArray.firstIndex(where: { $0.uuid == newItem.uuid }) {
                     self.dataArray[index].receiveSize = newItem.receiveSize
                     self.dataArray[index].totalSize = newItem.totalSize
@@ -352,11 +352,13 @@ class ViewController: UIViewController {
                     }
                 } else {
                     self.dataArray.append(newItem)
+                    isNewFile = true
                 }
                 self.dataArray.sort { ($0.timestamp ?? 0) > ($1.timestamp ?? 0) }
                 self.fileContennerView.dataArray = self.dataArray
                 if isNewFile {
                     self.userManuallySwitchedFromFile = false
+
                     if let index = self.dataArray.firstIndex(where: { $0.uuid == newItem.uuid }) {
                         let fileCnt = (self.dataArray[index].totalFileCnt ?? 0)
                         let fileMsg = fileCnt > 1 ? "\(fileCnt) files" : "\(fileCnt) file"
@@ -367,11 +369,12 @@ class ViewController: UIViewController {
                 }
                 if !self.userManuallySwitchedFromFile {
                     self.viewType = .file
+                    self.aheadButton.isSelected = true
                 }
-            }
+           }
         }
     }
-    
+
     @objc private func updateClientList() {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else {
@@ -381,7 +384,7 @@ class ViewController: UIViewController {
             self.clientsLable.text = "Online: \(P2PManager.shared.clientList.count)"
         }
     }
-    
+
     @objc private func pickDocument() {
         let supportedTypes: [UTType] = [.data]
         let documentPicker = UIDocumentPickerViewController(forOpeningContentTypes: supportedTypes, asCopy: false)
@@ -389,7 +392,7 @@ class ViewController: UIViewController {
         documentPicker.allowsMultipleSelection = false
         present(documentPicker, animated: true)
     }
-    
+
     private func dismissDevicePopView() {
         guard let popView = self.devicePopView else { return }
         UIView.animate(withDuration: 0.3, animations: {
@@ -399,7 +402,7 @@ class ViewController: UIViewController {
             self.devicePopView = nil
         }
     }
-    
+
     func getFileSize(atPath path: String) -> Int64? {
         let fileManager = FileManager.default
         do {
@@ -408,7 +411,7 @@ class ViewController: UIViewController {
                 return fileSize.int64Value
             }
         } catch {
-            print("Error fetching file size: \(error)")
+            Logger.info("Error fetching file size: \(error)")
         }
         return nil
     }
@@ -420,13 +423,13 @@ class ViewController: UIViewController {
             let fileName = (url.path as NSString).lastPathComponent
             let clients = P2PManager.shared.clientList
             guard clients.isEmpty == false else {
-                print("not found clients")
+                Logger.info("not found clients")
                 MBProgressHUD.showTips(.error,"Please make sure your device is online", toView: self.view)
                 return
             }
-            print("Found \(clients.count) clients:")
+            Logger.info("Found \(clients.count) clients:")
             for client in clients {
-                print("Device: \(client.name), IP:Port: \(client.ip), ID: \(client.id)")
+                Logger.info("Device: \(client.name), IP:Port: \(client.ip), ID: \(client.id)")
             }
             if !clients.isEmpty {
                 let popView = DeviceSelectPopView(fileNames: [fileName], clients: clients)
@@ -434,7 +437,7 @@ class ViewController: UIViewController {
                 popView.alpha = 0
                 popView.onSelect = { [weak self] client in
                     guard let self = self else { return  }
-                    print("select device：\(client.name)")
+                    Logger.info("select device：\(client.name)")
                     self.selectedClient = client
                     MBProgressHUD.showTips(.error,"Choose device：\(client.name)", toView: self.view)
                 }
@@ -475,32 +478,32 @@ class ViewController: UIViewController {
                 }
             }
         } else {
-            print("Unable to obtain security permissions")
+            Logger.info("Unable to obtain security permissions")
         }
     }
 }
 
 extension ViewController: AVPictureInPictureControllerDelegate {
-    
+
     func pictureInPictureController(
         _ pictureInPictureController: AVPictureInPictureController,
         failedToStartPictureInPictureWithError error: Error
     ) {
-        print("\(#function)")
-        print("pip error: \(error)")
+        Logger.info("\(#function)")
+        Logger.info("pip error: \(error)")
     }
-    
+
     func pictureInPictureControllerWillStartPictureInPicture(
         _ pictureInPictureController: AVPictureInPictureController
     ) {
-        print("\(#function)")
+        Logger.info("\(#function)")
     }
-    
+
     func pictureInPictureControllerWillStopPictureInPicture(
         _ pictureInPictureController: AVPictureInPictureController
     ) {
-        print("\(#function)")
-        print("\(#function)")
+        Logger.info("\(#function)")
+        Logger.info("\(#function)")
         if !pictureInPictureController.isPictureInPictureActive {
             startButton.setTitle("Stop PiP", for: .normal)
         } else {
@@ -510,42 +513,41 @@ extension ViewController: AVPictureInPictureControllerDelegate {
 }
 
 extension ViewController: AVPictureInPictureSampleBufferPlaybackDelegate {
-    
     func pictureInPictureController(
         _ pictureInPictureController: AVPictureInPictureController,
         setPlaying playing: Bool
     ) {
-        print("\(#function)")
+        Logger.info("\(#function)")
     }
-    
+
     func pictureInPictureControllerTimeRangeForPlayback(
         _ pictureInPictureController: AVPictureInPictureController
     ) -> CMTimeRange {
-        print("\(#function)")
+        Logger.info("\(#function)")
         return CMTimeRange(start: .negativeInfinity, duration: .positiveInfinity)
     }
-    
+
     func pictureInPictureControllerIsPlaybackPaused(
         _ pictureInPictureController: AVPictureInPictureController
     ) -> Bool {
-        print("\(#function)")
+        Logger.info("\(#function)")
         return false
     }
-    
+
     func pictureInPictureController(
         _ pictureInPictureController: AVPictureInPictureController,
         didTransitionToRenderSize newRenderSize: CMVideoDimensions
     ) {
-        print("\(#function)")
-        print(newRenderSize)
+        Logger.info("\(#function)")
+        Logger.info("New render size: \(newRenderSize.width)x\(newRenderSize.height)")
     }
-    
+
     func pictureInPictureController(
         _ pictureInPictureController: AVPictureInPictureController,
         skipByInterval skipInterval: CMTime,
         completion completionHandler: @escaping () -> Void
     ) {
-        print("\(#function)")
+        Logger.info("\(#function)")
         completionHandler()
     }
 }
@@ -554,58 +556,58 @@ extension ViewController: UIDocumentPickerDelegate {
     public func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
         self.configClients(with: urls)
     }
-    
+
     public func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
-        print("使用者取消選擇")
+        Logger.info("[DocPicker] User cancel selection")
     }
-    
+
     private func copyDocumentToTemp(_ url: URL,_ timestamp: String) -> String? {
         guard url.startAccessingSecurityScopedResource() else {
-            print("[DocPicker][Err] Copy failed: Unauthorized")
+            Logger.info("[DocPicker][Err] Copy failed: Unauthorized")
             return nil
         }
         defer { url.stopAccessingSecurityScopedResource() }
-        
+
         let pathComponents = url.pathComponents
         guard let uuidIndex = pathComponents.firstIndex(where: { $0.range(of: #"^[A-F0-9\-]{36}$"#, options: .regularExpression) != nil }) else {
-            print("[DocPicker][Err] Invalid UUID rules")
+            Logger.info("[DocPicker][Err] Invalid UUID rules")
             return nil
         }
-        
+
         let uuid = pathComponents[uuidIndex]
         var subPath = pathComponents[(uuidIndex + 1)...].joined(separator: "/")
         if subPath.hasPrefix("/") {
             subPath.removeFirst()
         }
-        
+
         let destFolder = FileManager.default.temporaryDirectory
             .appendingPathComponent(timestamp)
             .appendingPathComponent(uuid)
-        
+
         let destFullPath = destFolder.appendingPathComponent(subPath)
-        
+
         do {
             try FileManager.default.createDirectory(at: destFullPath.deletingLastPathComponent(), withIntermediateDirectories: true)
             try FileManager.default.copyItem(at: url, to: destFullPath)
-            print("[DocPicker] Copy to : \(destFullPath.path)")
+            Logger.info("[DocPicker] Copy to : \(destFullPath.path)")
         } catch {
-            print("[DocPicker][Err] Copy filed: \(error)")
+            Logger.info("[DocPicker][Err] Copy filed: \(error)")
         }
-        
+
         return destFullPath.path
     }
-    
+
     private func removeTempFolderByTimestamp(_ timestamp: String) {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(timestamp)
         if FileManager.default.fileExists(atPath: root.path) {
             do {
                 try FileManager.default.removeItem(at: root)
-                print("[DocPicker] Clean files successfully: \(root.path)")
+                Logger.info("[DocPicker] Clean files successfully: \(root.path)")
             } catch {
-                print("[DocPicker][Err] Clean files failed: \(error)")
+                Logger.info("[DocPicker][Err] Clean files failed: \(error)")
             }
         } else {
-            print("[DocPicker][Err] Clean files failed: Path not exited: \(root.path)")
+            Logger.info("[DocPicker][Err] Clean files failed: Path not exited: \(root.path)")
         }
     }
 }

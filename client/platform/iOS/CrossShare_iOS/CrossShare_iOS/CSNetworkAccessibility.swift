@@ -17,6 +17,8 @@ public enum CSNetworkAccessibleState: Int {
     case unknown
     case accessible
     case restricted
+    case accessibleWiFi
+    case accessibleCellular
 }
 
 public typealias NetworkAccessibleStateNotifier = (CSNetworkAccessibleState) -> Void
@@ -118,7 +120,7 @@ public class CSNetworkAccessibility {
         switch CSNetworkAccessibility.sharedInstance().currentState() {
         case .checking :
             completion(false)
-        case .accessible:
+        case .accessible, .accessibleWiFi, .accessibleCellular:
             initializeSDKs { success in
                 if success {
                     self.isInitialized = true
@@ -201,19 +203,42 @@ public class CSNetworkAccessibility {
     }
     
     private func startReachabilityNotifier() {
-        var context = SCNetworkReachabilityContext(version: 0, info: UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()), retain: nil, release: nil, copyDescription: nil)
+        Logger.info("CSNetworkAccessibility - setting up reachability notifier")
         
-        SCNetworkReachabilitySetCallback(reachabilityRef!, { (_, flags, info) in
+        var context = SCNetworkReachabilityContext(
+            version: 0,
+            info: UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()),
+            retain: nil,
+            release: nil,
+            copyDescription: nil
+        )
+        
+        let callbackSet = SCNetworkReachabilitySetCallback(reachabilityRef!, { (_, flags, info) in
+            Logger.info("CSNetworkAccessibility - reachability callback triggered with flags: \(flags)")
             let networkAccessibility = Unmanaged<CSNetworkAccessibility>.fromOpaque(info!).takeUnretainedValue()
-            networkAccessibility.startCheck()
+            DispatchQueue.main.async {
+                networkAccessibility.startCheck()
+            }
         }, &context)
         
-        SCNetworkReachabilityScheduleWithRunLoop(reachabilityRef!, CFRunLoopGetCurrent(), CFRunLoopMode.defaultMode.rawValue)
+        if !callbackSet {
+            Logger.info("CSNetworkAccessibility - failed to set reachability callback")
+        }
+        
+        let scheduled = SCNetworkReachabilityScheduleWithRunLoop(reachabilityRef!, CFRunLoopGetCurrent(), CFRunLoopMode.defaultMode.rawValue)
+        if !scheduled {
+            Logger.info("CSNetworkAccessibility - failed to schedule reachability with run loop")
+        } else {
+            Logger.info("CSNetworkAccessibility - reachability scheduled successfully")
+        }
     }
     
     private func startCellularDataNotifier() {
+        Logger.info("CSNetworkAccessibility - setting up cellular data notifier")
+        
         cellularData = CTCellularData()
         cellularData?.cellularDataRestrictionDidUpdateNotifier = { [weak self] state in
+            Logger.info("CSNetworkAccessibility - cellular data restriction state: \(state.rawValue)")
             DispatchQueue.main.async {
                 self?.startCheck()
             }
@@ -221,11 +246,36 @@ public class CSNetworkAccessibility {
     }
     
     private func startCheck() {
+        Logger.info("CSNetworkAccessibility - startCheck called")
+        
         if currentReachable() {
-            notiWithAccessibleState(.accessible)
+            let networkType = getCurrentNetworkType()
+            Logger.info("Network reachable, type: \(networkType)")
+            
+            switch networkType {
+            case "WiFi":
+                notiWithAccessibleState(.accessibleWiFi)
+            case "Cellular":
+                notiWithAccessibleState(.accessibleCellular)
+            default:
+                notiWithAccessibleState(.accessible)
+            }
         } else {
+            Logger.info("Network not reachable")
             checkCellularDataAccess()
         }
+    }
+    
+    private func getCurrentNetworkType() -> String {
+        var flags: SCNetworkReachabilityFlags = []
+        if SCNetworkReachabilityGetFlags(reachabilityRef!, &flags) {
+            if flags.contains(.isWWAN) {
+                return "Cellular"
+            } else if flags.contains(.reachable) {
+                return "WiFi"
+            }
+        }
+        return "Unknown"
     }
     
     private func checkCellularDataAccess() {
@@ -248,12 +298,17 @@ public class CSNetworkAccessibility {
     private func currentReachable() -> Bool {
         var flags: SCNetworkReachabilityFlags = []
         if SCNetworkReachabilityGetFlags(reachabilityRef!, &flags) {
-            return (flags.contains(.reachable))
+            let isReachable = flags.contains(.reachable)
+            Logger.info("Network flags: \(flags), reachable: \(isReachable)")
+            return isReachable
         }
+        Logger.info("Failed to get network flags")
         return false
     }
     
     private func notiWithAccessibleState(_ state: CSNetworkAccessibleState) {
+        Logger.info("CSNetworkAccessibility - state change: \(previousState.rawValue) -> \(state.rawValue)")
+        
         if automaticallyAlert {
             if state == .restricted {
                 showNetworkRestrictedAlert()
@@ -262,29 +317,36 @@ public class CSNetworkAccessibility {
             }
         }
         
-        if state != previousState {
+        let shouldNotify = (state != previousState) ||
+        (state == .accessibleWiFi && previousState == .accessibleCellular) ||
+        (state == .accessibleCellular && previousState == .accessibleWiFi)
+        
+        if shouldNotify {
+            Logger.info("CSNetworkAccessibility - sending notification for state: \(state.rawValue)")
             previousState = state
             networkAccessibleStateDidUpdateNotifier?(state)
             NotificationCenter.default.post(name: CSNetworkAccessibilityChangedNotification, object: nil)
+        } else {
+            Logger.info("CSNetworkAccessibility - no notification sent, same state")
         }
     }
     
     private func showNetworkRestrictedAlert() {
         let alert = UIAlertController(
-            title: "网络权限未授权",
-            message: "应用需要网络权限才能正常运行，请前往设置开启网络权限。",
+            title: "Network permission not authorized",
+            message: "The app requires network permissions to run properly, please go to Settings to enable network permissions.",
             preferredStyle: .alert
         )
         
         alert.addAction(UIAlertAction(
-            title: "取消",
+            title: "Cancel",
             style: .cancel
         ) { _ in
             exit(0)
         })
         
         alert.addAction(UIAlertAction(
-            title: "去设置",
+            title: "Go to Settings",
             style: .default
         ) { _ in
             if let url = URL(string: UIApplication.openSettingsURLString) {

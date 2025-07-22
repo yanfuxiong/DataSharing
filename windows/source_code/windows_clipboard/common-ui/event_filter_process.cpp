@@ -27,42 +27,97 @@ EventFilterProcess *EventFilterProcess::getInstance()
 
 void EventFilterProcess::registerFilterEvent(const EventFilterData &filterData)
 {
-    Q_ASSERT(filterData.eventType == QEvent::Type::MouseButtonPress);
-    m_filterDataList.push_back(filterData);
+    const auto &objectIndex = m_filterDataList.get<tag_obj_pointer>();
+    auto exists = (objectIndex.find(filterData.objectPointer()) != objectIndex.end());
+    auto retVal = m_filterDataList.push_back(filterData);
+    if (retVal.second == false) {
+        Q_ASSERT(false);
+        qWarning() << "---------------------registerFilterEvent failed !!!";
+        return;
+    }
+
+    if (exists) {
+        return;
+    }
     filterData.monitoredObject->installEventFilter(this);
 
     // Remove data when destroying objects
     connect(filterData.monitoredObject, &QObject::destroyed, this, [this] (QObject *object) {
-        for (auto itr = m_filterDataList.begin(); itr != m_filterDataList.end(); ++itr) {
-            if (itr->monitoredObject == object) {
-                m_filterDataList.erase(itr);
-                qInfo() << "--------remove:" << object->objectName().toUtf8().constData();
-                break;
-            }
-        }
+        auto &objectIndex = m_filterDataList.get<tag_obj_pointer>();
+        const auto &itr_left = objectIndex.lower_bound(object);
+        const auto &itr_right = objectIndex.upper_bound(object);
+        objectIndex.erase(itr_left, itr_right);
     });
 }
 
+void EventFilterProcess::removeFilterEvent(QObject *object, const QList<QEvent::Type> &eventList)
+{
+    auto &eventIndex = m_filterDataList.get<tag_obj_composite>();
+    for (const auto &eventType : eventList) {
+        auto itr = eventIndex.find(std::make_tuple(object, eventType));
+        if (itr != eventIndex.end()) {
+            eventIndex.erase(itr);
+        }
+    }
+
+    const auto &objectIndex = m_filterDataList.get<tag_obj_pointer>();
+    if (objectIndex.find(object) == objectIndex.end()) {
+        object->removeEventFilter(this);
+        disconnect(object, &QObject::destroyed, this, nullptr);
+    }
+}
 
 bool EventFilterProcess::eventFilter(QObject *obj, QEvent *event)
 {
-    // FIXME: Simplify code processing
-    if (event->type() == QEvent::MouseButtonPress) {
-        QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
-        if (mouseEvent->button() == Qt::MouseButton::LeftButton) {
-            for (const auto &data : m_filterDataList) {
-                if (data.monitoredObject == obj) {
-                    data.callback();
-                    break;
-                }
+    auto processEvent = [event, obj, this] {
+        auto &eventIndex = m_filterDataList.get<tag_obj_composite>();
+        auto itr = eventIndex.find(std::make_tuple(obj, event->type()));
+        if (itr != eventIndex.end()) {
+            if (itr->callback.canConvert<EventCallback>()) {
+                const auto &callback = itr->callback.value<EventCallback>();
+                callback();
+            } else {
+                Q_ASSERT(itr->callback.canConvert<EventCallbackWithEvent>() == true);
+                const auto &callback = itr->callback.value<EventCallbackWithEvent>();
+                callback(event);
             }
             return true;
-        } else {
-            return QObject::eventFilter(obj, event);
         }
-    } else {
-        return QObject::eventFilter(obj, event);
+        return false;
+    };
+
+    switch (static_cast<int>(event->type())) {
+    case QEvent::MouseButtonPress: {
+        QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
+        if (mouseEvent->button() == Qt::MouseButton::LeftButton) {
+            if (processEvent()) {
+                return true;
+            }
+        }
+        break;
     }
+    case QEvent::MouseButtonRelease: {
+        QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
+        if (mouseEvent->button() == Qt::MouseButton::LeftButton) {
+            if (processEvent()) {
+                return true;
+            }
+        }
+        break;
+    }
+    case QEvent::MouseMove: {
+        QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
+        Q_ASSERT(mouseEvent->button() == Qt::MouseButton::NoButton);
+        if (processEvent()) {
+            return true;
+        }
+        break;
+    }
+    default: {
+        break;
+    }
+    }
+    return QObject::eventFilter(obj, event);
 }
 
 

@@ -4,7 +4,7 @@ NamedPipeClient::NamedPipeClient(QObject *parent)
     : QObject(parent)
 {
     m_client = new QLocalSocket;
-    m_client->setServerName("CrossSharePipe");
+    m_client->setServerName(g_namedPipeServerName);
 
     connect(m_client, &QLocalSocket::connected, this, &NamedPipeClient::onConnected);
     connect(m_client, &QLocalSocket::disconnected, this, &NamedPipeClient::onDisconnected);
@@ -31,19 +31,19 @@ void NamedPipeClient::onConnected()
 {
     g_getGlobalData()->namedPipeConnected = true;
     //Q_EMIT CommonSignals::getInstance()->showInfoMessageBox("提示", "成功连接服务器......");
-    qInfo() << "--------------------成功连接服务器";
+    qInfo() << "--------------------successfully connected to the server";
     Q_EMIT CommonSignals::getInstance()->logMessage("------------successfully connected to the server");
+    Q_EMIT CommonSignals::getInstance()->pipeConnected();
 }
 
 void NamedPipeClient::onDisconnected()
 {
     g_getGlobalData()->namedPipeConnected = false;
-    //Q_EMIT CommonSignals::getInstance()->showWarningMessageBox("警告", "与服务器断开连接......");
     Q_EMIT CommonSignals::getInstance()->logMessage("------------disconnected from the server");
-    // 清空设备列表信息
     g_getGlobalData()->m_clientVec.clear();
 
     Q_EMIT CommonSignals::getInstance()->pipeDisconnected();
+    Q_EMIT CommonSignals::getInstance()->updateClientList();
 }
 
 void NamedPipeClient::onReadyRead()
@@ -63,8 +63,13 @@ bool NamedPipeClient::connectdStatus() const
 void NamedPipeClient::sendData(const QByteArray &data)
 {
     if (connectdStatus()) {
-        m_client->write(data);
-        m_client->flush();
+        m_outputBuffer.append(data);
+        if (m_runningStatus.load() == false) {
+            m_runningStatus.store(true);
+            QTimer::singleShot(0, this, [this] {
+                processBufferData();
+            });
+        }
     }
 }
 
@@ -78,4 +83,23 @@ void NamedPipeClient::onStateChanged(QLocalSocket::LocalSocketState socketState)
 {
     Q_UNUSED(socketState)
     //qWarning() << socketState;
+}
+
+void NamedPipeClient::processBufferData()
+{
+    static const int s_blockSize = 1024;
+    if (m_outputBuffer.readableBytes() <= s_blockSize) {
+        m_client->write(m_outputBuffer.retrieveAllAsByteArray());
+    } else {
+        m_client->write(QByteArray(m_outputBuffer.peek(), s_blockSize));
+        m_outputBuffer.retrieve(s_blockSize);
+    }
+    m_client->flush();
+    if (m_outputBuffer.readableBytes() > 0) {
+        QTimer::singleShot(10, this, [this] {
+            processBufferData();
+        });
+    } else {
+        m_runningStatus.store(false);
+    }
 }

@@ -1,0 +1,77 @@
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="#FFFFFF"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center_horizontal">
+
+        <TextView
+            android:id="@+id/title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:textColor="#000000"
+            android:text="cancel file" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_horizontal">
+
+            <ImageView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:layout_marginTop="10dp"
+                android:visibility="gone"
+                android:src="@drawable/close"/>
+        <TextView
+            android:id="@+id/subtitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:layout_marginLeft="30dp"
+            android:layout_marginTop="20dp"
+            android:layout_marginRight="30dp"
+            android:layout_marginBottom="20dp"
+            android:textColor="#000000"
+            android:text="Are you sure you want to cancel all transfers？" />
+
+        </LinearLayout>
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_marginTop="20dp"
+        android:layout_marginBottom="20dp"
+        android:gravity="center"
+        android:orientation="vertical">
+        <Button
+            android:id="@+id/img_comf"
+            android:layout_width="260dp"
+            android:layout_height="44dp"
+            android:textAllCaps="false"
+            android:text="Confirm"
+            android:textColor="#FFFFFF"
+            android:background="#2574ED">
+        </Button>
+        <Button
+            android:id="@+id/img_canl"
+            android:layout_width="260dp"
+            android:layout_height="44dp"
+            android:layout_marginTop="8dp"
+            android:textAllCaps="false"
+            android:text="Cancel"
+            android:textColor="#000000"
+            android:background="#FFFFFF">
+        </Button>
+    </LinearLayout>
+</LinearLayout>

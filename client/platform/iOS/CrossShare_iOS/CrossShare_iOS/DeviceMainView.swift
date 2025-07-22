@@ -9,7 +9,7 @@ import UIKit
 
 class DeviceMainView: UIView {
     
-    var dosomothingBlock:((Int) -> ())?
+    var dosomothingBlock:(() -> ())?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -21,48 +21,48 @@ class DeviceMainView: UIView {
     }
     
     private func setupUI() {
-        addSubview(verTitleLable)
-        addSubview(versionLable)
         addSubview(ipTitleLable)
         addSubview(ipLable)
+        addSubview(verTitleLable)
+        addSubview(versionLable)
         addSubview(cliTitleLable)
         addSubview(clientsLable)
         addSubview(ddcTitleLable)
         addSubview(ddcciLable)
         
-        verTitleLable.snp.makeConstraints { make in
-            make.left.equalToSuperview().offset(16)
-            make.top.equalToSuperview().offset(5)
-        }
-        
-        versionLable.snp.makeConstraints { make in
-            make.left.equalTo(verTitleLable)
-            make.top.equalTo(verTitleLable.snp.bottom).offset(6)
-        }
-        
         ipTitleLable.snp.makeConstraints { make in
-            make.left.equalTo(verTitleLable)
-            make.top.equalTo(versionLable.snp.bottom).offset(24)
+            make.left.equalToSuperview().offset(16.adaptW)
+            make.top.equalToSuperview().offset(34.adaptH)
         }
         
         ipLable.snp.makeConstraints { make in
-            make.left.equalTo(verTitleLable)
-            make.top.equalTo(ipTitleLable.snp.bottom).offset(6)
+            make.left.equalTo(ipTitleLable)
+            make.top.equalTo(ipTitleLable.snp.bottom).offset(6.adaptH)
         }
         
         cliTitleLable.snp.makeConstraints { make in
-            make.left.equalTo(verTitleLable)
-            make.top.equalTo(ipLable.snp.bottom).offset(24)
+            make.left.equalTo(ipTitleLable)
+            make.top.equalTo(ipLable.snp.bottom).offset(24.adaptH)
         }
         
         clientsLable.snp.makeConstraints { make in
-            make.left.equalTo(verTitleLable)
+            make.left.equalTo(ipTitleLable)
             make.top.equalTo(cliTitleLable.snp.bottom).offset(6)
+        }
+        
+        verTitleLable.snp.makeConstraints { make in
+            make.left.equalTo(ipTitleLable)
+            make.top.equalTo(clientsLable.snp.bottom).offset(24)
+        }
+        
+        versionLable.snp.makeConstraints { make in
+            make.left.equalTo(ipTitleLable)
+            make.top.equalTo(verTitleLable.snp.bottom).offset(6)
         }
         
         ddcTitleLable.snp.makeConstraints { make in
             make.left.equalTo(verTitleLable)
-            make.top.equalTo(clientsLable.snp.bottom).offset(24)
+            make.top.equalTo(versionLable.snp.bottom).offset(24)
         }
         
         ddcciLable.snp.makeConstraints { make in
@@ -70,31 +70,17 @@ class DeviceMainView: UIView {
             make.top.equalTo(ddcTitleLable.snp.bottom).offset(6)
         }
         
-        settingButton.snp.makeConstraints { make in
-            make.left.equalTo(verTitleLable)
-            make.height.equalTo(40)
-            make.width.equalTo(200)
-            make.top.equalTo(ddcciLable.snp.bottom).offset(40)
-        }
-        
-        uploadButton.snp.makeConstraints { make in
-            make.left.equalTo(verTitleLable)
-            make.height.equalTo(40)
-            make.width.equalTo(200)
-            make.top.equalTo(settingButton.snp.bottom).offset(30)
-        }
-        
-        historyFileButton.snp.makeConstraints { make in
-            make.left.equalTo(verTitleLable)
-            make.height.equalTo(40)
-            make.width.equalTo(200)
-            make.top.equalTo(uploadButton.snp.bottom).offset(30)
+        licenseBtn.snp.makeConstraints { make in
+            make.right.equalToSuperview().offset(-20)
+            make.height.equalTo(17)
+            make.width.equalTo(17)
+            make.centerY.equalTo(ddcciLable)
         }
     }
     
     lazy var verTitleLable: UILabel = {
         let text = UILabel(frame: .zero)
-        text.textColor = UIColor.black
+        text.textColor = UIColor.init(hex: 0xC6BDBD)
         text.font = UIFont.systemFont(ofSize: 14)
         text.text = "Software version:"
         return text
@@ -110,9 +96,9 @@ class DeviceMainView: UIView {
     
     lazy var ipTitleLable: UILabel = {
         let text = UILabel(frame: .zero)
-        text.textColor = UIColor.black
+        text.textColor = UIColor.init(hex: 0xC6BDBD)
         text.font = UIFont.systemFont(ofSize: 14)
-        text.text = "My Ip & Device Name:"
+        text.text = "Current IP"
         return text
     }()
     
@@ -127,9 +113,9 @@ class DeviceMainView: UIView {
     
     lazy var cliTitleLable: UILabel = {
         let text = UILabel(frame: .zero)
-        text.textColor = UIColor.black
+        text.textColor = UIColor.init(hex: 0xC6BDBD)
         text.font = UIFont.systemFont(ofSize: 14)
-        text.text = "Connection:"
+        text.text = "Device Name"
         addSubview(text)
         return text
     }()
@@ -146,9 +132,9 @@ class DeviceMainView: UIView {
     
     lazy var ddcTitleLable: UILabel = {
         let text = UILabel(frame: .zero)
-        text.textColor = UIColor.black
+        text.textColor = UIColor.init(hex: 0xC6BDBD)
         text.font = UIFont.systemFont(ofSize: 14)
-        text.text = "Dias ID:"
+        text.text = "Application info"
         addSubview(text)
         return text
     }()
@@ -157,54 +143,15 @@ class DeviceMainView: UIView {
         let text = UILabel(frame: .zero)
         text.textColor = UIColor.black
         text.font = UIFont.systemFont(ofSize: 16)
-        text.text = "diasID"
+        text.text = "Licenses"
         addSubview(text)
         return text
     }()
     
-    lazy var settingButton: PaddingButton = {
-        let button = PaddingButton(type: .custom)
-        button.tag = 1
-        button.layerBorderColor = UIColor.systemBlue
-        button.layerCornerRadius = 5
-        button.layerBorderWidth = 1
-        button.titleLabel?.font = UIFont.systemFont(ofSize: 15)
-        button.setTitle("Settings", for: .normal)
-        button.setTitleColor(UIColor.systemBlue, for: .normal)
-        button.setImage(UIImage(named: "settings-fill"), for: .normal)
-        button.setImage(UIImage(named: "settings-fill"), for: .selected)
-        button.addTarget(self, action: #selector(dosomething(_:)), for: .touchUpInside)
-        addSubview(button)
-        return button
-    }()
-    
-    lazy var uploadButton: PaddingButton = {
-        let button = PaddingButton(type: .custom)
-        button.tag = 2
-        button.layerBorderColor = UIColor.systemBlue
-        button.layerCornerRadius = 5
-        button.layerBorderWidth = 1
-        button.titleLabel?.font = UIFont.systemFont(ofSize: 15)
-        button.setTitle("Transport Files", for: .normal)
-        button.setTitleColor(UIColor.systemBlue, for: .normal)
-        button.setImage(UIImage(named: "upload"), for: .normal)
-        button.setImage(UIImage(named: "upload"), for: .selected)
-        button.addTarget(self, action: #selector(dosomething(_:)), for: .touchUpInside)
-        addSubview(button)
-        return button
-    }()
-    
-    lazy var historyFileButton: PaddingButton = {
-        let button = PaddingButton(type: .custom)
-        button.tag = 3
-        button.layerBorderColor = UIColor.systemBlue
-        button.layerCornerRadius = 5
-        button.layerBorderWidth = 1
-        button.titleLabel?.font = UIFont.systemFont(ofSize: 15)
-        button.setTitle("Transport History", for: .normal)
-        button.setTitleColor(UIColor.systemBlue, for: .normal)
-        button.setImage(UIImage(named: "history"), for: .normal)
-        button.setImage(UIImage(named: "history"), for: .selected)
+    lazy var licenseBtn: UIButton = {
+        let button = UIButton(type: .custom)
+        button.setImage(UIImage(named: "license"), for: .normal)
+        button.setImage(UIImage(named: "license"), for: .selected)
         button.addTarget(self, action: #selector(dosomething(_:)), for: .touchUpInside)
         addSubview(button)
         return button
@@ -213,15 +160,15 @@ class DeviceMainView: UIView {
 
 extension DeviceMainView {
     
-    @objc func dosomething(_ sender:PaddingButton) {
+    @objc func dosomething(_ sender:UIButton) {
         if let dosomothingBlock = dosomothingBlock {
-            dosomothingBlock(sender.tag)
+            dosomothingBlock()
         }
     }
     
     public func refreshUI() {
         self.versionLable.text = P2PManager.shared.version
-        self.ipLable.text = "\(P2PManager.shared.ip)   \(P2PManager.shared.deviceName)"
+        self.ipLable.text = "\(P2PManager.shared.ip)"
         var mclintString = ""
         let clients = P2PManager.shared.clientList
         for client in clients {
@@ -231,17 +178,7 @@ extension DeviceMainView {
             mclintString.append("\n")
         }
         mclintString = clients.isEmpty ? "NA" : mclintString
-        self.clientsLable.text = mclintString
-        self.ddcciLable.text = "\(P2PManager.shared.deviceDiasId)"
-    }
-}
-
-class PaddingButton: UIButton {
-    override func titleRect(forContentRect contentRect: CGRect) -> CGRect {
-        return CGRectMake(50, 10, self.width - 30 - 30, 20)
-    }
-    
-    override func imageRect(forContentRect contentRect: CGRect) -> CGRect {
-        return CGRectMake(10, 5, 30, 30)
+        self.clientsLable.text = P2PManager.shared.deviceName
+//        self.ddcciLable.text = "\(P2PManager.shared.deviceDiasId)"
     }
 }

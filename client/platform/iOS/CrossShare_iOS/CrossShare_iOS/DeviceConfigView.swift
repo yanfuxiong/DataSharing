@@ -128,7 +128,7 @@ class DeviceConfigView: UIView {
     lazy var submitButton: UIButton = {
         let button = UIButton(type: .custom)
         button.setTitle("Set Device Config", for: .normal)
-        button.setTitleColor(UIColor.systemBlue, for: .normal)
+        button.setTitleColor(UIColor.blue, for: .normal)
         button.addTarget(self, action: #selector(submitConfig), for: .touchUpInside)
         addSubview(button)
         return button

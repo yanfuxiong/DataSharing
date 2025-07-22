@@ -26,7 +26,7 @@ class FileOpener: NSObject, QLPreviewControllerDataSource, QLPreviewControllerDe
             if fileManager.fileExists(atPath: fileURL.path) {
                 return (path: fileURL.path, url: fileURL)
             } else {
-                print("[FileOpener][Err] Invalid filepath: \(fileURL.path)")
+                Logger.info("[FileOpener][Err] Invalid filepath: \(fileURL.path)")
                 return nil
             }
         }
@@ -36,15 +36,15 @@ class FileOpener: NSObject, QLPreviewControllerDataSource, QLPreviewControllerDe
 
     func openFile(fileName: String) -> Bool {
         guard let (filePath, fileUrl) = getFilePathAndURL(fileName) else {
-            print("[FileOpener][Err] Invalid file")
+            Logger.info("[FileOpener][Err] Invalid file")
             return false
         }
-        print("Open file: [\(filePath)]")
+        Logger.info("Open file: [\(filePath)]")
         self.mFileURL = fileUrl
 
         guard FileManager.default.fileExists(atPath: fileUrl.path),
               FileManager.default.isReadableFile(atPath: fileUrl.path) else {
-            print("[FileOpener][Err] File not existed or unreadable: [\(fileUrl.path)]")
+            Logger.info("[FileOpener][Err] File not existed or unreadable: [\(fileUrl.path)]")
             return false
         }
 

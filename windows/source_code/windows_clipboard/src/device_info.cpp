@@ -19,6 +19,47 @@ DeviceInfo::~DeviceInfo()
     delete ui;
 }
 
+const std::map<QByteArray, QByteArray> &DeviceInfo::deviceIconMap()
+{
+    static std::map<QByteArray, QByteArray> s_deviceIconMap;
+    if (s_deviceIconMap.empty()) {
+        s_deviceIconMap.insert({"HDMI1", ":/resource/device_icon/Device_HDMI1.svg"});
+        s_deviceIconMap.insert({"HDMI2", ":/resource/device_icon/Device_HDMI2.svg"});
+        s_deviceIconMap.insert({"Miracast", ":/resource/device_icon/Device_Miracast.svg"});
+        s_deviceIconMap.insert({"USBC", ":/resource/device_icon/Device_USBC1.svg"});
+    }
+    return s_deviceIconMap;
+}
+
+QByteArray DeviceInfo::getIconPathByClientName(const QByteArray &clientName)
+{
+    for (const auto &val: deviceIconMap()) {
+        if (clientName.toLower().contains(val.first.toLower())) {
+            return val.second;
+        }
+    }
+    return ":/resource/icon/DeviceComputer.svg";
+}
+
+QByteArray DeviceInfo::getIconPathByDeviceType(const QByteArray &deviceType)
+{
+    static std::map<QByteArray, QByteArray> s_deviceIconMap;
+    if (s_deviceIconMap.empty()) {
+        s_deviceIconMap.insert({"HDMI1", ":/resource/device_icon/Device_HDMI1.svg"});
+        s_deviceIconMap.insert({"HDMI2", ":/resource/device_icon/Device_HDMI2.svg"});
+        s_deviceIconMap.insert({"USBC1", ":/resource/device_icon/Device_USBC1.svg"});
+        s_deviceIconMap.insert({"USBC2", ":/resource/device_icon/Device_USBC2.svg"});
+        s_deviceIconMap.insert({"Miracast", ":/resource/device_icon/Device_Miracast.svg"});
+    }
+
+    for (const auto &val: s_deviceIconMap) {
+        if (deviceType.toLower().contains(val.first.toLower())) {
+            return val.second;
+        }
+    }
+    return ":/resource/icon/DeviceComputer.svg";
+}
+
 void DeviceInfo::setClientName(const QString &name)
 {
     m_clientName = name;
@@ -28,16 +69,19 @@ void DeviceInfo::paintEvent(QPaintEvent *event)
 {
     Q_UNUSED(event)
     QPainter painter(this);
+    //painter.fillRect(event->rect(), Qt::red);
     painter.setRenderHint(QPainter::Antialiasing, true);
-    const QPixmap pixmap(":/resource/icon/DeviceComputer.svg");
-    const int marginDelta = 4;
+    QPixmap pixmap(getIconPath());
+    pixmap = pixmap.scaled(75, 75);
+    const int marginDelta = 8;
 
     const QRect pixRect((width() - pixmap.width() - marginDelta) / 2, marginDelta, pixmap.width(), pixmap.height());
 
     if (m_hoverStatus || m_selectedStatus) {
         painter.save();
         painter.setPen(QPen(QColor(0, 122, 255), 3, Qt::SolidLine));
-        painter.drawEllipse(pixRect.adjusted(-3, -3, 3, 3));
+        //painter.drawEllipse(pixRect.adjusted(-3, -3, 3, 3));
+        painter.drawRoundedRect(pixRect.adjusted(-3, -3, 3, 3), 18, 18);
         painter.restore();
     } else {
         //painter.fillRect(event->rect(), Qt::lightGray);
@@ -47,7 +91,7 @@ void DeviceInfo::paintEvent(QPaintEvent *event)
         painter.drawPixmap(pixRect, pixmap);
     }
 
-    // 绘制选中图标
+    // Draw the selected icon
     if (m_selectedStatus) {
         QPixmap checkPixmap(":/resource/icon/check_big.svg");
         double r_val = pixmap.width() / 2.0;
@@ -56,8 +100,8 @@ void DeviceInfo::paintEvent(QPaintEvent *event)
         QPointF centerPoint(pixRect.center().x() + delta_x, pixRect.center().y() + delta_y);
         QPoint newCenterPoint = centerPoint.toPoint();
         const int check_pix_width = 20;
-        QRect checkPixRect(newCenterPoint.x() - check_pix_width / 2 + 4,
-                           newCenterPoint.y() - check_pix_width / 2 + 4,
+        QRect checkPixRect(newCenterPoint.x() - check_pix_width / 2 + 8,
+                           newCenterPoint.y() - check_pix_width / 2 + 8,
                            check_pix_width,
                            check_pix_width);
         painter.drawPixmap(checkPixRect, checkPixmap);
@@ -149,25 +193,33 @@ UpdateClientStatusMsgPtr DeviceInfo::getClientStatusPtr() const
     return ptr_client;
 }
 
+QString DeviceInfo::getIconPath() const
+{
+    return getIconPathByClientName(m_clientName.toUtf8());
+}
+
 void DeviceInfo::sendData()
 {
     UpdateClientStatusMsgPtr ptr_client = getClientStatusPtr();
 
     Q_ASSERT(ptr_client != nullptr);
-    // FIXME: 有待完善
+    const auto timestamp_val = QDateTime::currentDateTime().toMSecsSinceEpoch();
+    // FIXME: Needs improvement
     {
         FileOperationRecord record;
         record.fileName = g_getGlobalData()->selectedFileName.toStdString();
         record.fileSize = QFileInfo(g_getGlobalData()->selectedFileName).size();
-        record.timeStamp = QDateTime::currentDateTime().toMSecsSinceEpoch();
+        record.timeStamp = timestamp_val;
         record.progressValue = 0;
         record.clientName = ptr_client->clientName.toStdString();
         record.clientID = ptr_client->clientID.toStdString();
         record.ip = ptr_client->ip;
         record.direction = 0;
 
+        record.uuid = CommonUtils::createUuid();
+
         g_getGlobalData()->cacheFileOptRecord.push_back(record);
-        Q_EMIT CommonSignals::getInstance()->updateFileOptInfoList();
+        //Q_EMIT CommonSignals::getInstance()->updateFileOptInfoList();
     }
 
     SendFileRequestMsg msg;
@@ -175,7 +227,7 @@ void DeviceInfo::sendData()
     msg.port = ptr_client->port;
     msg.clientID = ptr_client->clientID;
     msg.fileSize = QFileInfo(g_getGlobalData()->selectedFileName).size();
-    msg.timeStamp = QDateTime::currentDateTime().toUTC().toMSecsSinceEpoch();
+    msg.timeStamp = timestamp_val;
     msg.fileName = g_getGlobalData()->selectedFileName;
 
     QByteArray send_data = SendFileRequestMsg::toByteArray(msg);

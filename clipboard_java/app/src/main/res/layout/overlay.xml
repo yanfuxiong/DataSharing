@@ -6,6 +6,6 @@
         android:id="@+id/textView"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="剪贴板内容"
+        android:text="payload of clipboard"
         android:textColor="@android:color/white" />
 </RelativeLayout>

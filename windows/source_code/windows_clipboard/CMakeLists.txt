@@ -27,10 +27,11 @@ if (CMAKE_BUILD_TYPE STREQUAL "Release")
 endif()
 
 add_definitions(-DQT_MESSAGELOGCONTEXT -DQT_NO_FLOAT16_OPERATORS)
-find_package(Qt5 COMPONENTS LinguistTools Widgets Network Sql Xml PrintSupport Test REQUIRED)
+find_package(Qt5 COMPONENTS LinguistTools Widgets Network Sql Xml PrintSupport Test AxContainer REQUIRED)
 
+set(Boost_USE_STATIC_LIBS ON)
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    find_package(Boost 1.76.0 CONFIG COMPONENTS
+    find_package(Boost 1.87.0 CONFIG COMPONENTS
     system
     filesystem
     program_options
@@ -63,18 +64,20 @@ elseif (MSVC)
     REQUIRED)
 endif()
 
-
+add_definitions(-DBOOST_DATE_TIME_HAS_REENTRANT_STD_FUNCTIONS)
 include_directories(${CMAKE_SOURCE_DIR})
 include_directories(${CMAKE_SOURCE_DIR}/3rdparty)
 include_directories(${CMAKE_SOURCE_DIR}/common)
 include_directories(${CMAKE_SOURCE_DIR}/common-ui)
 
 enable_testing()
+add_subdirectory(3rdparty)
 add_subdirectory(src)
-add_subdirectory(image-paste-progress)
+#add_subdirectory(image-paste-progress)
 add_subdirectory(status-tips)
 add_subdirectory(helper-server)
-add_subdirectory(test-server)
 add_subdirectory(common)
 add_subdirectory(common-ui)
+add_subdirectory(monitor_info_tool)
 add_subdirectory(test)
+add_subdirectory(test-plugin)

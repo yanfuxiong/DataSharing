@@ -22,6 +22,9 @@ public:
     explicit FileOptInfoList(QWidget *parent = nullptr);
     ~FileOptInfoList();
 
+    static void updateCacheFileOptRecord(const QByteArray &hashID, UpdateProgressMsgPtr ptrMsg);
+    static void updateCacheFileOptRecord(const QByteArray &hashID, int optStatus);
+
 private Q_SLOTS:
     void onUpdateFileOptInfoList();
     void onUpdateProgressInfoWithID(int currentVal, const QByteArray &hashID);

@@ -6,16 +6,16 @@
 #include "common_utils.h"
 #include "common_proxy_style.h"
 #include "common_ui_process.h"
-#include "worker_thread.h"
-#include "process_message.h"
-#include "namedpipe-server.h"
+#include "namedpipe_server.h"
+#include "load_plugin.h"
+#include <windows.h>
 
 int main(int argc, char *argv[])
 {
     qInstallMessageHandler(CommonUtils::commonMessageOutput);
     QApplication a(argc, argv);
     {
-        static QSharedMemory s_sharedMemeory { "__cross_share_helper_server__" };
+        static QSharedMemory s_sharedMemeory { "__hyperdrop_helper_server__" };
         if (s_sharedMemeory.create(1) == false) {
             qApp->quit();
             qWarning() << "The process has started, please check the tray in the bottom right corner......";
@@ -23,29 +23,43 @@ int main(int argc, char *argv[])
         }
     }
 
+    SetCurrentDirectoryW(QDir::toNativeSeparators(qApp->applicationDirPath()).toStdWString().c_str());
     a.setStyleSheet(CommonUtils::getFileContent(":/resource/my.qss"));
     a.setStyle(new CustomProxyStyle);
 
+    if (0)
+    {
+        g_logFile.reset(new QFile(qApp->applicationDirPath() + "/cross_share_serv.log"));
+        if (g_logFile->open(QFile::WriteOnly | QFile::Append) == false) {
+            g_logFile.reset();
+        }
+    }
+
     {
         g_globalRegister();
+        g_loadLocalConfig();
+        qInfo() << g_getGlobalData()->localConfig.dump(4).c_str();
         CommonUiProcess::getInstance();
-        ProcessMessage::getInstance();
 
         QPointer<HelperServer> helperServer = new HelperServer;
         helperServer->startServer(g_helperServerName);
+
+        QTimer::singleShot(0, qApp, [] {
+            LoadPlugin::getInstance()->initPlugin();
+        });
     }
+
+    QTimer timer;
+    timer.setInterval(1000);
+    QObject::connect(&timer, &QTimer::timeout, qApp, [] {
+        QCoreApplication::processEvents();
+    });
+    timer.start();
 
     MainWindow w;
     w.setWindowTitle("helper server");
-#ifndef NDEBUG
-    w.show();
-#endif
+    w.hide();
     qInfo() << qApp->applicationFilePath().toUtf8().constData();
-
-    for (const auto &path : g_getPipeServerExePathList()) {
-        qInfo() << path;
-    }
-
     CommonUtils::setAutoRun(true);
 
     return a.exec();

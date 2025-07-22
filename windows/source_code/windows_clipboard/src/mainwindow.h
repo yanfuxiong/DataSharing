@@ -6,12 +6,7 @@
 #include <QFileDialog>
 #include <QTimer>
 #include <QCloseEvent>
-#include "common_utils.h"
-#include "device_list_dialog.h"
-#include "common_signals.h"
-#include "progress_bar_dialog.h"
-#include "accept_file_dialog.h"
-#include "file_opt_info_list.h"
+#include <QSystemTrayIcon>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -25,26 +20,25 @@ public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
-    void startTestTimer();
-
 private slots:
     void onLogMessage(const QString &message);
 
     void onDispatchMessage(const QVariant &data);
     void onSystemConfigChanged();
-    void on_settings_btn_clicked();
     void on_select_file_clicked();
     void onUpdateClientList();
+    void onSystemTrayIconActivated(QSystemTrayIcon::ActivationReason reason);
 
 private:
     void closeEvent(QCloseEvent *event) override;
+    void changeEvent(QEvent *event) override;
     void processTopTitleLeftClicked();
+    void clearAllUserOptRecord();
 
 private:
     Ui::MainWindow *ui;
     QPointer<QTimer> m_testTimer;
     int m_currentProgressVal;
-    //QPointer<ProgressBarDialog> m_progressDialog;
-    //QPointer<AcceptFileDialog> m_acceptFileDialog;
+    QPointer<QSystemTrayIcon> m_systemTrayIcon;
 };
 #endif // MAINWINDOW_H

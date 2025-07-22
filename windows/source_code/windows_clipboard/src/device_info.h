@@ -29,6 +29,9 @@ public:
     void resetStatus();
 
     void sendData();
+    static const std::map<QByteArray, QByteArray> &deviceIconMap();
+    static QByteArray getIconPathByClientName(const QByteArray &clientName);
+    static QByteArray getIconPathByDeviceType(const QByteArray &deviceType);
 
 protected:
     void paintEvent(QPaintEvent *event) override;
@@ -37,6 +40,7 @@ protected:
     void leaveEvent(QEvent *event) override;
 
     UpdateClientStatusMsgPtr getClientStatusPtr() const;
+    QString getIconPath() const;
 
 private:
     Ui::DeviceInfo *ui;

@@ -1,3 +1,25 @@
+# notes in TSTAT-128
+build steps
+- step1: set window build enviroment to fix build fail
+  - replace "data_sharing/third-party/github.com/grandcat/zeroconf\@v1.0.0/client.go"
+    to "C:\Users\nutnq\go\pkg\mod\github.com\grandcat\zeroconf@v1.0.0/client.go"
+  - ./build_android.sh
+  - result: client/platform/libp2p_clipboard/libp2p_clipboard-sources.jar and
+     client/platform/libp2p_clipboard/libp2p_clipboard.aar
+- step2: build apk
+  - copy above 2 files to clipboard_java/app/libs/
+  - build android apk in android studio
+  - result: app\build\outputs\apk\debug\app-debug.apk
+
+test steps
+- step0: if your phone use USB-C1 in viewmanager,put
+  - /storage/emulated/0/Android/data/com.rtk.crossshare/files/ID.SrcAndPort
+  - payload is "13,0"
+  - note: USB-C2 is "13, 1" and Miracast is "12,9"
+- step1: open viewmanager>"X">"Device ID", qr code is showed
+- step2: open phone camera to scan above qr code
+- result: you will see other connection
+
 # test in  [TSTAS-12][CrossShare][Fix]: Support cross-platform APP: selinux problem
 - Build steps for APK:
 - Put thirty-party/github.com/ files to overlay your local codes* ex.

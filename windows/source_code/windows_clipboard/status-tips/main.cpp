@@ -4,7 +4,6 @@
 #include <QProcess>
 #include <QSharedMemory>
 #include <QMessageBox>
-#include <QScreen>
 #include <iostream>
 #include "common_utils.h"
 #include "common_proxy_style.h"
@@ -16,11 +15,12 @@ NotifyMessage g_notifyMessage{};
 
 int main(int argc, char *argv[])
 {
-    if (argc <= 1) {
+    if (argc <= 2) {
         std::cerr << "----------------param error !!!" << std::endl;
         return 1;
     }
     NotifyMessage::fromByteArray(QByteArray::fromHex(argv[1]), g_notifyMessage);
+    const int processIndex = QString(argv[2]).toInt();
 
     qInstallMessageHandler(CommonUtils::commonMessageOutput);
     QApplication a(argc, argv);
@@ -38,20 +38,10 @@ int main(int argc, char *argv[])
     MainWindow w;
     w.setWindowFlags(w.windowFlags() | (Qt::WindowStaysOnTopHint | Qt::FramelessWindowHint | Qt::Tool));
     w.setWindowTitle("StatusTips");
+    w.setProcessIndex(processIndex);
     w.show();
     qInfo() << qApp->applicationFilePath().toUtf8().constData();
-    qInfo() << qApp->primaryScreen()->availableGeometry();
-    qInfo() << CommonUtils::processRunningCount(qApp->applicationFilePath());
+    w.updateWindowPos();
 
-    {
-        int x_pos = qApp->primaryScreen()->availableSize().width() - w.width();
-        int y_pos = qApp->primaryScreen()->availableSize().height();
-        y_pos -= (w.height() + 4) * CommonUtils::processRunningCount(qApp->applicationFilePath());
-        w.move(x_pos, y_pos);
-    }
-
-    QTimer::singleShot(3000, Qt::TimerType::PreciseTimer, qApp, [] {
-        qApp->quit();
-    });
     return a.exec();
 }

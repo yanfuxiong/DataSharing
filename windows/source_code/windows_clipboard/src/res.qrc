@@ -3,7 +3,6 @@
         <file>resource/my.qss</file>
         <file>resource/file.svg</file>
         <file>resource/image.svg</file>
-        <file>resource/background.jpg</file>
         <file>resource/icon/bk_1.png</file>
         <file>resource/icon/bk_2.svg</file>
         <file>resource/icon/check_small.png</file>
@@ -19,6 +18,28 @@
         <file>resource/icon/Group_3.png</file>
         <file>resource/icon/Group_3.svg</file>
         <file>resource/icon/garbage.svg</file>
+        <file>resource/icon/garbage_h.svg</file>
         <file>resource/icon/check_big.svg</file>
+        <file>resource/device_icon/Device_HDMI1.png</file>
+        <file>resource/device_icon/Device_HDMI1.svg</file>
+        <file>resource/device_icon/Device_HDMI2.png</file>
+        <file>resource/device_icon/Device_HDMI2.svg</file>
+        <file>resource/device_icon/Device_Miracast.png</file>
+        <file>resource/device_icon/Device_Miracast.svg</file>
+        <file>resource/device_icon/Device_USBC1.png</file>
+        <file>resource/device_icon/Device_USBC1.svg</file>
+        <file>resource/cross_share_client.sql.txt</file>
+        <file>resource/application.ico</file>
+        <file>resource/clear_all.svg</file>
+        <file>resource/clear_all_h.svg</file>
+        <file>resource/app_name.svg</file>
+        <file>resource/back.svg</file>
+        <file>resource/back_h.svg</file>
+        <file>resource/icon/cancel.svg</file>
+        <file>resource/icon/cancel_h.svg</file>
+        <file>resource/icon/transfer_cancel.svg</file>
+        <file>resource/device_icon/Device_USBC2.svg</file>
+        <file>resource/icon/open.svg</file>
+        <file>resource/icon/open_h.svg</file>
     </qresource>
 </RCC>
