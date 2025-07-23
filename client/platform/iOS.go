@@ -133,9 +133,7 @@ var (
 	callbackMonitorName                CallbackMonitorNameFunc            = nil
 )
 
-func SetGoNetworkSwitchCallback(cb CallbackNetworkSwitchFunc) {
-	callbackNetworkSwitch = cb
-}
+/*======================================= Used by main.go, set Callback =======================================*/
 
 func SetCallbackMethodText(cb CallbackMethodText) {
 	callbackMethodText = cb
@@ -189,6 +187,24 @@ func SetCallbackMethodStopBrowseMdns(cb CallbackMethodStopBrowseMdns) {
 	callbackMethodStopBrowseMdns = cb
 }
 
+func SetCallbackGetAuthData(cb CallbackGetAuthDataFunc) {
+	callbackGetAuthData = cb
+}
+
+func SetCallbackDIASStatus(cb CallbackDIASStatusFunc) {
+	callbackDIASStatus = cb
+}
+
+func SetCallbackMonitorName(cb CallbackMonitorNameFunc) {
+	callbackMonitorName = cb
+}
+
+/*======================================= Used  by GO set Callback =======================================*/
+
+func SetGoNetworkSwitchCallback(cb CallbackNetworkSwitchFunc) {
+	callbackNetworkSwitch = cb
+}
+
 // Notify to Clipboard/FileDrop
 func SetCopyImageCallback(cb CallbackCopyImageFunc) {
 	callbackInstanceCopyImage = cb
@@ -234,18 +250,6 @@ func SetDetectPluginEventCallback(cb CallbackDetectPluginEventFunc) {
 	callbackDetectPluginEvent = cb
 }
 
-func SetGetAuthDataCallback(cb CallbackGetAuthDataFunc) {
-	callbackGetAuthData = cb
-}
-
-func SetDIASStatusCallback(cb CallbackDIASStatusFunc) {
-	callbackDIASStatus = cb
-}
-
-func SetMonitorNameCallback(cb CallbackMonitorNameFunc) {
-	callbackMonitorName = cb
-}
-
 func GoReqSourceAndPort() {
 }
 
@@ -265,7 +269,7 @@ func SetGoBrowseMdnsResultCallback(cb CallbackMethodBrowseMdnsResultFunc) {
 	callbackMethodBrowseMdnsResult = cb
 }
 
-/***************** Used  by ios *****************/
+/*======================================= Used  by ios API =======================================*/
 
 func SetupRootPath(path string) {
 	if path == "" {
@@ -393,7 +397,7 @@ func GoDragFileRequest(fileInfo rtkCommon.FileInfo, timestamp uint64) {
 	callbackInstanceFileDragCB(fileInfo, timestamp)
 }
 
-/***************** Used  by GO business *****************/
+/*======================================= Used  by GO business =======================================*/
 
 func WatchClipboardText(ctx context.Context, resultChan chan<- string) {
 	for {
@@ -601,7 +605,7 @@ func GetHostIDPath() string {
 }
 
 func GetPlatform() string {
-	return rtkGlobal.PlatformiOS
+	return rtkMisc.PlatformiOS
 }
 
 func LockFile(file *os.File) error {

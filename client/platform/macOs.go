@@ -5,7 +5,6 @@ package platform
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -589,7 +588,7 @@ func GetHostIDPath() string {
 }
 
 func GetPlatform() string {
-	return rtkGlobal.PlatformMac
+	return rtkMisc.PlatformMac
 }
 
 func LockFile(file *os.File) error {
@@ -628,25 +627,6 @@ func GetConfirmDocumentsAccept() bool {
 
 func GoDIASStatusNotify(diasStatus uint32) {
 
-}
-
-func GetAuthData() (rtkMisc.CrossShareErr, rtkMisc.AuthDataInfo) {
-	if callbackGetAuthData == nil {
-		log.Println("callbackGetAuthData is null !")
-		return rtkMisc.ERR_BIZ_GET_CALLBACK_INSTANCE_NULL, rtkMisc.AuthDataInfo{}
-	}
-	authDataJsonInfo := callbackGetAuthData()
-	log.Printf("[%s] get json data:[%s]", rtkMisc.GetFuncInfo(), authDataJsonInfo)
-
-	var authData rtkMisc.AuthDataInfo
-	err := json.Unmarshal([]byte(authDataJsonInfo), &authData)
-	if err != nil {
-		log.Printf("[%s] Unmarshal[%s] err:%+v", rtkMisc.GetFuncInfo(), authDataJsonInfo, err)
-		return rtkMisc.ERR_BIZ_JSON_UNMARSHAL, rtkMisc.AuthDataInfo{}
-	}
-
-	log.Printf("[%s] width:[%d] height:[%d] Framerate:[%d] type:[%d] DisplayName:[%s]", rtkMisc.GetFuncInfo(), authData.Width, authData.Height, authData.Framerate, authData.Type, authData.DisplayName)
-	return rtkMisc.SUCCESS, authData
 }
 
 func GoGetSrcAndPortFromIni() rtkMisc.SourcePort {

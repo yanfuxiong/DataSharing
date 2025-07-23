@@ -150,7 +150,7 @@ func handleReadMessageFromServer(buffer []byte) rtkMisc.CrossShareErr {
 		log.Printf("Requst Init Client success, get Client Index:[%d]", initClientRsp.ClientIndex)
 
 		rtkPlatform.GoMonitorNameNotify(monitorName)
-		if rtkGlobal.NodeInfo.Platform == rtkGlobal.PlatformAndroid || rtkGlobal.NodeInfo.Platform == rtkGlobal.PlatformiOS {
+		if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformAndroid || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformiOS {
 			errCode, authData := rtkPlatform.GetAuthData()
 			if errCode != rtkMisc.SUCCESS {
 				log.Printf("[%s] GetAuthData errCode:[%d]", rtkMisc.GetFuncInfo(), errCode)

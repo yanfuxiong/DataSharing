@@ -72,7 +72,7 @@ func InitPlatform(rootPath, downLoadPath, deviceName string) {
 		rtkMisc.SetupLogFile()
 	}
 
-	log.Printf("[%s] init rootPath:[%s] downLoadPath:[%s], deviceName:[%s]", rtkMisc.GetFuncInfo(), rootPath, downLoadPath, strDeviceName)
+	log.Printf("[%s] init rootPath:[%s] downLoadPath:[%s], deviceName:[%s] success!", rtkMisc.GetFuncInfo(), rootPath, downLoadPath, strDeviceName)
 }
 
 type (
@@ -379,16 +379,15 @@ func GoReqSourceAndPort() {
 	callbackReqSourceAndPort()
 }
 
+func GoMonitorNameNotify(name string) {
+}
+
 func GoDIASStatusNotify(diasStatus uint32) {
 	callbackDIASStatus(diasStatus)
 }
 
 func GetAuthData() (rtkMisc.CrossShareErr, rtkMisc.AuthDataInfo) {
 	return rtkMisc.ERR_BIZ_GET_CALLBACK_INSTANCE_NULL, rtkMisc.AuthDataInfo{}
-}
-
-func GoMonitorNameNotify(name string) {
-
 }
 
 func GoSetupDstPasteFile(desc, fileName, platform string, fileSizeHigh uint32, fileSizeLow uint32) {
@@ -523,7 +522,7 @@ func GetHostIDPath() string {
 }
 
 func GetPlatform() string {
-	return rtkGlobal.PlatformWindows
+	return rtkMisc.PlatformWindows
 }
 
 // Deprecated: unused

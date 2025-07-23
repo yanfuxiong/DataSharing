@@ -22,6 +22,7 @@ import (
 )
 
 var cancelServer = make(chan struct{})
+var acceptErrFlag = make(chan struct{})
 
 var (
 	supInterfaces = []string{"wlan0", "eth0"} // e.g., "en0", "wlan0", "lo0", "eth0.100"
@@ -97,11 +98,19 @@ func MainInit() {
 	rtkMisc.GoSafe(func() { Run() })
 
 	for {
-		<-rtkNetwork.GetNetworkSwitchFlag()
-		rtkdbManager.UpdateAllClientOffline()
-		cancelServer <- struct{}{}
-		time.Sleep(5 * time.Second)
-		log.Printf("==============================================================================\n\n")
+		select {
+		case <-ctx.Done():
+			return
+		case <-rtkNetwork.GetNetworkSwitchFlag():
+			rtkdbManager.UpdateAllClientOffline()
+			cancelServer <- struct{}{}
+			time.Sleep(5 * time.Second)
+			log.Printf("==============================================================================")
+		case <-acceptErrFlag:
+			time.Sleep(5 * time.Second)
+		}
+
+		log.Printf("registerMdns Server restart...\n\n")
 		rtkMisc.GoSafe(func() { Run() })
 	}
 }
@@ -310,7 +319,6 @@ func Run() {
 
 	rtkMisc.GoSafe(func() { rtkClientManager.ReconnClientListHandler(ctx) })
 
-	var printNetworkErr = true
 	for {
 		select {
 		case <-ctx.Done():
@@ -321,14 +329,12 @@ func Run() {
 		default:
 			conn, err := listener.Accept()
 			if err != nil {
-				if printNetworkErr {
-					log.Println("Error accepting connection:", err.Error())
-					printNetworkErr = false
-				}
-				continue
+				log.Printf("Server %s:%d accepting connection Error:%+v", rtkGlobal.ServerIPAddr, rtkGlobal.ServerPort, err.Error())
+				acceptErrFlag <- struct{}{}
+				log.Printf("%s  %s:%d listening is cancel!\n\n", rtkBuildConfig.ServerName, rtkGlobal.ServerIPAddr, rtkGlobal.ServerPort)
+				return
 			}
 			timestamp := time.Now().UnixMicro()
-			printNetworkErr = true
 			log.Printf("%s Accept a connect, RemoteAddr: %s \n", rtkBuildConfig.ServerName, conn.RemoteAddr().String())
 			rtkMisc.GoSafe(func() { rtkClientManager.HandleClient(ctx, conn, timestamp) })
 		}

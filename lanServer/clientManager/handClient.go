@@ -80,6 +80,7 @@ func handleReadFromClientMsg(buffer []byte, IPAddr string, MsgRsp *rtkMisc.C2SMe
 			} else {
 				initClientRsp.ClientIndex = uint32(pkIndex)
 				MsgRsp.ClientIndex = uint32(pkIndex)
+				initClientRsp.MonitorName = "cross_share_lan_serv" // MonitorName is temporarily write the dead data for debug
 			}
 		}
 		MsgRsp.ExtData = initClientRsp
@@ -178,6 +179,12 @@ func getMobileTimingSrcPort(clientIndex int, authData rtkMisc.AuthDataInfo) (int
 	source := 0
 	port := 0
 
+	clientInfo, err := rtkdbManager.QueryClientInfoByIndex(clientIndex)
+	if err != rtkMisc.SUCCESS {
+		log.Printf("[%s] Err(%d): Get Client info failed:(%d)", rtkMisc.GetFuncInfo(), err, clientIndex)
+		return 0, 0
+	}
+
 	for idx, timingData := range timingDataList {
 		log.Printf("[%s] Timing from DIAS: [%d](%dx%d@%d), Mode:%d",
 			rtkMisc.GetFuncInfo(), idx, timingData.Width, timingData.Height, timingData.Framerate, timingData.DisplayMode)
@@ -195,19 +202,23 @@ func getMobileTimingSrcPort(clientIndex int, authData rtkMisc.AuthDataInfo) (int
 				continue
 			}
 
-			// Check DeviceName in MiraCast
-			clientInfo, err := rtkdbManager.QueryClientInfoByIndex(clientIndex)
-			if err != rtkMisc.SUCCESS {
-				log.Printf("[%s] Err(%d): Get device name failed from MiraCast", rtkMisc.GetFuncInfo(), err)
-				continue
+			// TODO: It doesn't match deviceName between phone and DIAS Miracast. Need to fix
+			// // Check DeviceName in MiraCast
+			// if timingData.DeviceName != clientInfo.DeviceName {
+			// 	// DEBUG
+			// 	log.Printf("[%s] Different MiraCast deviceName: DIAS(%s), Mobile(%s)",
+			// 		rtkMisc.GetFuncInfo(), timingData.DeviceName, clientInfo.DeviceName)
+			// 	continue
+			// }
+		} else if timingData.DisplayMode == rtkMisc.DisplayModeUsbC {
+			// FIXME: Always allow timing in iOS platform. We cannot get correct timing in iOS platform now.
+			if clientInfo.Platform == rtkMisc.PlatformiOS {
+				if timingData.Source == 13 && timingData.Port == 0 && timingData.Width > 0 && timingData.Height > 0 && timingData.Framerate > 0 {
+					log.Printf("[%s] iOS special case: Always allow if USB-C timing existed. (%dx%d@%d)(Source,Port)=(%d,%d)",
+						rtkMisc.GetFuncInfo(), timingData.Width, timingData.Height, timingData.Framerate, timingData.Source, timingData.Port)
+					return timingData.Source, timingData.Port
+				}
 			}
-			if timingData.DeviceName != clientInfo.DeviceName {
-				// DEBUG
-				log.Printf("[%s] Different MiraCast deviceName: DIAS(%s), Mobile(%s)",
-					rtkMisc.GetFuncInfo(), timingData.DeviceName, clientInfo.DeviceName)
-				continue
-			}
-		} else {
 			// Check Framerate in USBC
 			if math.Abs(float64(timingData.Framerate-authData.Framerate)) > 1 {
 				log.Printf("[%s] Different framerate: DIAS framerate(%d hz), Mobile framerate(%d hz)",

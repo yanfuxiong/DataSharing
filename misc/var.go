@@ -12,4 +12,9 @@ const (
 
 	TextRecordKeyIp          = "ip"
 	TextRecordKeyProductName = "productName"
+
+	PlatformAndroid = "android"
+	PlatformWindows = "windows"
+	PlatformMac     = "macOs"
+	PlatformiOS     = "iOS"
 )

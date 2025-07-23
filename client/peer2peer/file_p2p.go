@@ -4,8 +4,6 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"github.com/libp2p/go-libp2p/core/network"
-	"github.com/schollz/progressbar/v3"
 	"io"
 	"log"
 	"net"
@@ -17,8 +15,12 @@ import (
 	rtkPlatform "rtk-cross-share/client/platform"
 	rtkUtils "rtk-cross-share/client/utils"
 	rtkMisc "rtk-cross-share/misc"
+	"strings"
 	"sync"
 	"time"
+
+	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/schollz/progressbar/v3"
 )
 
 var (
@@ -53,6 +55,34 @@ func (cWrite *cancelableWriter) Write(p []byte) (int, error) {
 		return 0, cWrite.ctx.Err()
 	default:
 		return cWrite.realWriter.Write(p)
+	}
+}
+
+func addSuffixBeforeExt(path, suffix string) string {
+	ext := filepath.Ext(path)
+	name := strings.TrimSuffix(path, ext)
+	return fmt.Sprintf("%s%s%s", name, suffix, ext)
+}
+
+func getTargetDstPathName(dstFullPath, dstFileName string) (string, string) {
+	index := uint(0)
+	var dstPath string
+
+	for {
+		if index == 0 {
+			dstPath = dstFullPath
+		} else {
+			dstPath = addSuffixBeforeExt(dstFullPath, fmt.Sprintf(" (%d)", index))
+		}
+		if !rtkMisc.FileExists(dstPath) {
+			if index == 0 {
+				return dstPath, dstFileName
+			} else {
+				return dstPath, addSuffixBeforeExt(dstFileName, fmt.Sprintf(" (%d)", index))
+			}
+
+		}
+		index++
 	}
 }
 
@@ -317,7 +347,7 @@ func handleFileDataFromSocket(id, ipAddr, deviceName string) (string, rtkMisc.Cr
 	for i, fileInfo := range fileDropData.SrcFileList {
 		currentFileSize = uint64(fileInfo.FileSize_.SizeHigh)<<32 | uint64(fileInfo.FileSize_.SizeLow)
 		fileName := rtkMisc.AdaptationPath(fileInfo.FileName)
-		dstFileName = filepath.Join(fileDropData.DstFilePath, fileName)
+		dstFileName, fileName = getTargetDstPathName(filepath.Join(fileDropData.DstFilePath, fileName), fileName)
 
 		dstTransResult := handleFileFromSocket(ipAddr, id, &cancelableRead, currentFileSize, fileName, dstFileName, &progressBar)
 		if dstTransResult != rtkMisc.SUCCESS {

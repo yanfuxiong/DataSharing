@@ -138,6 +138,12 @@ func (mgr *InterfaceMgr) UpdateMousePos(source, port, horzSize, vertSize, posX, 
 		return
 	}
 
+	if (clientInfoTb.Online == false) || (clientInfoTb.AuthStatus == false) {
+		log.Printf("[%s][%s] Error: not valid client (source,port):(%d,%d) online:%t, authStatus:%t",
+			tag, rtkMisc.GetFuncInfo(), source, port, clientInfoTb.Online, clientInfoTb.AuthStatus)
+		return
+	}
+
 	if mgr.TriggerDragFileStart(source, port, horzSize, vertSize, posX, posY) {
 		mgr.mDragFileSrcInfo = DragFileSrcInfo{clientInfoTb.Index, clientInfoTb.ClientId}
 	}
@@ -147,6 +153,12 @@ func (mgr *InterfaceMgr) DragFileEnd(source, port int) {
 	clientInfoTb, err := rtkdbManager.QueryClientInfoBySrcPort(source, port)
 	if err != rtkMisc.SUCCESS {
 		log.Printf("[%s][%s] Error: get client by (source,port):(%d,%d) failed: %d", tag, rtkMisc.GetFuncInfo(), source, port, err)
+		return
+	}
+
+	if (clientInfoTb.Online == false) || (clientInfoTb.AuthStatus == false) {
+		log.Printf("[%s][%s] Error: not valid client (source,port):(%d,%d) online:%t, authStatus:%t",
+			tag, rtkMisc.GetFuncInfo(), source, port, clientInfoTb.Online, clientInfoTb.AuthStatus)
 		return
 	}
 
@@ -181,7 +193,7 @@ func (mgr *InterfaceMgr) UpdateMiracastInfo(ip string, macAddr []byte, name stri
 
 func (mgr *InterfaceMgr) GetClientInfodData(source, port int) rtkCommon.ClientInfoTb {
 	clientInfoTb, err := rtkdbManager.QueryClientInfoBySrcPort(source, port)
-	if err != rtkMisc.SUCCESS {
+	if err != rtkMisc.SUCCESS && err != rtkMisc.ERR_DB_SQLITE_EMPTY_RESULT {
 		log.Printf("[%s][%s] Error: query clientInfo data failed: %d", tag, rtkMisc.GetFuncInfo(), err)
 		return rtkCommon.ClientInfoTb{}
 	}

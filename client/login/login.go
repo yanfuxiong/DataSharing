@@ -77,7 +77,7 @@ func ConnectLanServerRun(ctx context.Context) {
 	}
 
 RunFlag:
-	if rtkGlobal.NodeInfo.Platform == rtkGlobal.PlatformWindows {
+	if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformWindows {
 		NotifyDIASStatus(DIAS_Status_Checking_Authorization)
 	} else {
 		NotifyDIASStatus(DIAS_Status_Wait_screenCasting)
@@ -198,9 +198,9 @@ func BrowseInstance() rtkMisc.CrossShareErr {
 	resultChan := make(chan browseParam)
 
 	var err rtkMisc.CrossShareErr
-	if rtkGlobal.NodeInfo.Platform == rtkGlobal.PlatformiOS {
+	if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformiOS {
 		err = browseLanServeriOS(ctx, rtkMisc.LanServiceType, resultChan)
-	} else if rtkGlobal.NodeInfo.Platform == rtkGlobal.PlatformAndroid {
+	} else if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformAndroid {
 		err = browseLanServerAndroid(ctx, rtkMisc.LanServiceType, rtkMisc.LanServerDomain, resultChan)
 	} else {
 		err = browseLanServer(ctx, rtkMisc.LanServiceType, rtkMisc.LanServerDomain, resultChan)
@@ -230,7 +230,7 @@ func getLanServerAddr() (string, rtkMisc.CrossShareErr) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 
-	if rtkGlobal.NodeInfo.Platform == rtkGlobal.PlatformWindows || rtkGlobal.NodeInfo.Platform == rtkGlobal.PlatformMac {
+	if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformWindows || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformMac {
 		if lanServerName == "" {
 			log.Printf("[%s] lanServerName is not set!", rtkMisc.GetFuncInfo())
 			return "", rtkMisc.ERR_BIZ_C2S_GET_NO_SERVER_NAME
@@ -259,7 +259,7 @@ func getLanServerAddr() (string, rtkMisc.CrossShareErr) {
 
 		resultChan := make(chan browseParam)
 		var errCode rtkMisc.CrossShareErr
-		if rtkGlobal.NodeInfo.Platform == rtkGlobal.PlatformiOS {
+		if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformiOS {
 			errCode = browseLanServeriOS(ctx, rtkMisc.LanServiceType, resultChan)
 		} else {
 			errCode = browseLanServerAndroid(ctx, rtkMisc.LanServiceType, rtkMisc.LanServerDomain, resultChan)

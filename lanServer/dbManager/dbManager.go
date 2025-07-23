@@ -259,7 +259,7 @@ func QueryClientInfoBySrcPort(source, port int) (rtkCommon.ClientInfoTb, rtkMisc
 	clientInfoList := make([]rtkCommon.ClientInfoTb, 0)
 	err := queryClientInfo(
 		&clientInfoList,
-		[]SqlCond{SqlCondOnline, SqlCondAuthStatusIsTrue, SqlCondSource, SqlCondPort},
+		[]SqlCond{SqlCondSource, SqlCondPort},
 		source, port,
 	)
 	if err != rtkMisc.SUCCESS {
@@ -267,7 +267,7 @@ func QueryClientInfoBySrcPort(source, port int) (rtkCommon.ClientInfoTb, rtkMisc
 	}
 
 	if len(clientInfoList) == 0 {
-		return rtkCommon.ClientInfoTb{}, rtkMisc.ERR_DB_SQLITE_EMPTY_RESULT
+		return rtkCommon.ClientInfoTb{Source: source, Port: port}, rtkMisc.ERR_DB_SQLITE_EMPTY_RESULT
 	}
 
 	if len(clientInfoList) > 1 {

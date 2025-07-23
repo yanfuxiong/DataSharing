@@ -9,8 +9,4 @@ const (
 	ProtocolImageTransmission = "/ipfs/protocol/cross_share/1.0.0"
 	ProtocolFileTransmission  = "/ipfs/protocol/cross_share/1.0.1"
 	DefaultPort               = 0
-	PlatformAndroid           = "android"
-	PlatformWindows           = "windows"
-	PlatformMac               = "macOs"
-	PlatformiOS               = "iOS"
 )

@@ -135,9 +135,9 @@ func init() {
 	rtkPlatform.SetCallbackFileError(GoTriggerCallbackFileError)
 	rtkPlatform.SetCallbackMethodStartBrowseMdns(GoTriggerCallbackMethodStartBrowseMdns)
 	rtkPlatform.SetCallbackMethodStopBrowseMdns(GoTriggerCallbackMethodStopBrowseMdns)
-	rtkPlatform.SetGetAuthDataCallback(GoTriggerCallbackGetAuthData)
-	rtkPlatform.SetDIASStatusCallback(GoTriggerCallbackSetDIASStatus)
-	rtkPlatform.SetMonitorNameCallback(GoTriggerCallbackSetMonitorName)
+	rtkPlatform.SetCallbackGetAuthData(GoTriggerCallbackGetAuthData)
+	rtkPlatform.SetCallbackDIASStatus(GoTriggerCallbackSetDIASStatus)
+	rtkPlatform.SetCallbackMonitorName(GoTriggerCallbackSetMonitorName)
 
 	rtkPlatform.SetConfirmDocumentsAccept(false)
 }
@@ -292,7 +292,7 @@ func GoTriggerCallbackSetMonitorName(name string) {
 	cMonitorName := C.CString(name)
 	defer C.free(unsafe.Pointer(cMonitorName))
 	C.invokeCallbackSetMonitorName(cMonitorName)
-	log.Printf("[%s] MonitorName:%s", rtkMisc.GetFuncInfo(), name)
+	log.Printf("[%s] MonitorName:[%s]", rtkMisc.GetFuncInfo(), name)
 }
 
 //export SetCallbackMethodText
@@ -363,15 +363,15 @@ func SetCallbackGetAuthData(cb C.CallbackAuthData) {
 	C.setCallbackGetAuthData(cb)
 }
 
-//export SetSetDIASStatusCallback
-func SetSetDIASStatusCallback(cb C.CallbackSetDIASStatus) {
-	log.Printf("[%s] SetSetDIASStatusCallback", rtkMisc.GetFuncInfo())
+//export SetCallbackDIASStatus
+func SetCallbackDIASStatus(cb C.CallbackSetDIASStatus) {
+	log.Printf("[%s] SetCallbackDIASStatus", rtkMisc.GetFuncInfo())
 	C.setCallbackSetDIASStatus(cb)
 }
 
-//export SetSetMonitorNameCallback
-func SetSetMonitorNameCallback(cb C.CallbackSetMonitorName) {
-	log.Printf("[%s] SetSetMonitorNameCallback", rtkMisc.GetFuncInfo())
+//export SetCallbackMonitorName
+func SetCallbackMonitorName(cb C.CallbackSetMonitorName) {
+	log.Printf("[%s] SetCallbackMonitorName", rtkMisc.GetFuncInfo())
 	C.setCallbackSetMonitorName(cb)
 }
 

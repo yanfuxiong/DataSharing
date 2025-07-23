@@ -90,7 +90,7 @@ func Run(ctx context.Context) {
 	defer cancelHostNode()
 	defer CancelStreamPool()
 
-	if rtkGlobal.NodeInfo.Platform == rtkGlobal.PlatformWindows { // only windows need watch network info
+	if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformWindows { // only windows need watch network info
 		rtkMisc.GoSafe(func() { WatchNetworkInfo(ctx) })
 	}
 
@@ -271,7 +271,7 @@ func buildTalker(ctxMain context.Context, client rtkMisc.ClientInfo) rtkMisc.Cro
 
 	if IsStreamExisted(peer.ID.String()) {
 		// DEBUG
-		//log.Printf("[%s] ID:[%s] a Stream is already existed, skip NewStream.", rtkMisc.GetFuncInfo(), peer.ID.String())
+		// log.Printf("[%s] ID:[%s] a Stream is already existed, skip NewStream.", rtkMisc.GetFuncInfo(), peer.ID.String())
 		return rtkMisc.SUCCESS
 	}
 

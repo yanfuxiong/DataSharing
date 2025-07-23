@@ -57,7 +57,7 @@ type Callback interface {
 	CallbackFileError(id, filename, err string)
 	CallbackUpdateDiasStatus(status int)
 	CallbackGetAuthData() string
-	CallbackSetMonitorName(monitorName string)
+	CallbackUpdateMonitorName(monitorName string)
 }
 
 var CallbackInstance Callback = nil
@@ -510,7 +510,7 @@ func GetHostIDPath() string {
 }
 
 func GetPlatform() string {
-	return rtkGlobal.PlatformAndroid
+	return rtkMisc.PlatformAndroid
 }
 
 func LockFile(file *os.File) error {
@@ -565,7 +565,7 @@ func GoMonitorNameNotify(name string) {
 		return
 	}
 	log.Printf("[%s] monitor name: [%s]", rtkMisc.GetFuncInfo(), name)
-	CallbackInstance.CallbackSetMonitorName(name)
+	CallbackInstance.CallbackUpdateMonitorName(name)
 }
 
 func GoDIASStatusNotify(diasStatus uint32) {

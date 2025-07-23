@@ -1,7 +1,7 @@
 #!/bin/sh
 
 mainFile="./main"
-version="2.1.6"
+version="2.1.8"
 buildDate=$(date "+%Y-%m-%dT%H:%M:%S")
 serverName="cross_share_lan_serv"
 libName="librtk_cross_share_lan_serv.so"

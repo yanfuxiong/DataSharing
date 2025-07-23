@@ -1,7 +1,7 @@
 #!/bin/sh
 
 mainFile="main.go"
-version="2.2.21"
+version="2.2.22"
 buildDate=$(date "+%Y-%m-%dT%H:%M:%S")
 targetDLL_release="client_windows_release.dll"
 targetDLL_debug="client_windows_debug.dll"
