@@ -75,7 +75,7 @@ func upsertClientInfo(pkIndex *int, clientId, host, ipAddr, deviceName, platform
 	}
 
 	sqlData := SqlDataUpsertClientInfo
-	param := []any{clientId, host, ipAddr, deviceName, platform}
+	param := []any{clientId, host, ipAddr, deviceName, platform, ipAddr}
 	if sqlData.checkArgsCount(param) == false {
 		return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
 	}
@@ -84,6 +84,61 @@ func upsertClientInfo(pkIndex *int, clientId, host, ipAddr, deviceName, platform
 	if err := row.Scan(pkIndex); err != nil {
 		log.Printf("[%s] Err: %s", rtkMisc.GetFuncInfo(), err.Error())
 		return rtkMisc.ERR_DB_SQLITE_SCAN
+	}
+	
+	if *pkIndex > 255 {
+		sqlData = SqlDataQueryEarliestClient
+		var OldIndex int
+		var OldUpdate string
+		rowIndex := g_SqlInstance.QueryRow(sqlData.toString())
+		if err := rowIndex.Scan(&OldIndex, &OldUpdate); err != nil {
+			log.Printf("[%s] Err: %s", rtkMisc.GetFuncInfo(), err.Error())
+			return rtkMisc.ERR_DB_SQLITE_SCAN
+		}
+
+		log.Printf("[%s] get index:%d, is over range, get earliest client PkIndex:%d updatetime:%s, bein to replace it", rtkMisc.GetFuncInfo(), *pkIndex, OldIndex, OldUpdate)
+
+		tx, err := g_SqlInstance.Begin()
+		if err != nil {
+			log.Printf("[%s] Err: %s", rtkMisc.GetFuncInfo(), err.Error())
+			return rtkMisc.ERR_DB_SQLITE_BEGIN
+		}
+
+		sqlData = SqlDataDeleteClientInfo.withCond_WHERE(SqlCondPkIndex)
+		_, err = tx.Exec(sqlData.toString(), *pkIndex)
+		if err != nil {
+			tx.Rollback()
+			log.Printf("[%s] Err: %s", rtkMisc.GetFuncInfo(), err.Error())
+			return rtkMisc.ERR_DB_SQLITE_EXEC
+		}
+
+		args := []any{clientId, ipAddr, deviceName, platform, OldIndex}
+		sqlData = SqlDataUpdateClientInfo.withCond_SET(SqlCondClientId, SqlCondIPAddr, SqlCondDeviceName, SqlCondPlatform, SqlCondOnline).withCond_WHERE(SqlCondPkIndex)
+		if !sqlData.checkArgsCount(args) {
+			return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
+		}
+		rowIndex = tx.QueryRow(sqlData.toString(), args...)
+		if err = rowIndex.Scan(pkIndex); err != nil {
+			tx.Rollback()
+			log.Printf("[%s] Err: %s", rtkMisc.GetFuncInfo(), err.Error())
+			return rtkMisc.ERR_DB_SQLITE_SCAN
+		}
+
+		sqlData = SqlDataDeleteAuthInfo.withCond_WHERE(SqlCondClientIndex)
+		_, err = tx.Exec(sqlData.toString(), OldIndex)
+		if err != nil {
+			tx.Rollback()
+			log.Printf("[%s] Err: %s", rtkMisc.GetFuncInfo(), err.Error())
+			return rtkMisc.ERR_DB_SQLITE_EXEC
+		}
+
+		err = tx.Commit()
+		if err != nil {
+			log.Printf("[%s] Err: %s", rtkMisc.GetFuncInfo(), err.Error())
+			return rtkMisc.ERR_DB_SQLITE_COMMIT
+		}
+
+		log.Printf("[%s] the earliest client info PkIndex:%d updatetime:%s, is replace by clientId:[%s] success!", rtkMisc.GetFuncInfo(), OldIndex, OldUpdate, clientId)
 	}
 
 	return rtkMisc.SUCCESS

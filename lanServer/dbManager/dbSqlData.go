@@ -11,7 +11,7 @@ type SqlCond string
 const (
 	SqlDataCreateTable SqlData = `
 		CREATE TABLE IF NOT EXISTS t_client_info (
-			PkIndex			INTEGER PRIMARY KEY AUTOINCREMENT,
+			PkIndex			INTEGER PRIMARY KEY,
 			ClientId		TEXT UNIQUE,
 			Host 			TEXT,
 			IPAddr   		TEXT NOT NULL ,
@@ -24,7 +24,7 @@ const (
 			CreateTime 		DATETIME NOT NULL DEFAULT (datetime('now','localtime'))
 		);
 		CREATE TABLE IF NOT EXISTS t_auth_info (
-			PkIndex 		INTEGER PRIMARY KEY AUTOINCREMENT,
+			PkIndex 		INTEGER PRIMARY KEY,
 			ClientIndex		INTEGER UNIQUE,
 			AuthStatus 		BOOLEAN NOT NULL DEFAULT TRUE,
 			UpdateTime  	DATETIME NOT NULL DEFAULT (datetime('now','localtime')),
@@ -37,10 +37,10 @@ const (
 		ON CONFLICT (ClientId)
 		DO UPDATE SET
 			Host=excluded.Host,
-			IPAddr=excluded.IPAddr,
+			IPAddr=?,
 			DeviceName=excluded.DeviceName,
 			Platform=excluded.Platform,
-			UpdateTime=excluded.UpdateTime,
+			UpdateTime=(datetime('now','localtime')),
 			Online=1
 		RETURNING t_client_info.PkIndex;`
 
@@ -48,7 +48,7 @@ const (
 		INSERT INTO t_auth_info (ClientIndex, UpdateTime)
 		VALUES (?, (datetime('now','localtime')))
 		ON CONFLICT (ClientIndex)
-		DO UPDATE SET AuthStatus=?, UpdateTime=excluded.UpdateTime
+		DO UPDATE SET AuthStatus=?, UpdateTime=(datetime('now','localtime'))
 		RETURNING t_auth_info.PkIndex;`
 
 	SqlDataUpdateClientInfo SqlData = `
@@ -65,14 +65,23 @@ const (
 		LEFT JOIN t_auth_info ON t_auth_info.ClientIndex=t_client_info.PkIndex
 		WHERE %s
 		ORDER BY t_client_info.UpdateTime DESC;`
+		
+	SqlDataQueryEarliestClient SqlData = `SELECT PkIndex,UpdateTime from t_client_info ORDER BY  UpdateTime ASC LIMIT 1;`
+	SqlDataDeleteClientInfo    SqlData = `DELETE FROM t_client_info WHERE %s;`
+	SqlDataDeleteAuthInfo      SqlData = `DELETE FROM t_auth_info WHERE %s;`
+
 
 	SqlCondOnline           SqlCond = "Online=1"
 	SqlCondOffline          SqlCond = "Online=0"
 	SqlCondAuthStatusIsTrue SqlCond = "AuthStatus=1"
 	SqlCondPkIndex          SqlCond = "t_client_info.PkIndex=?"
 	SqlCondClientId         SqlCond = "ClientId=?"
+	SqlCondClientIndex      SqlCond = "ClientIndex=?"
 	SqlCondSource           SqlCond = "Source=?"
 	SqlCondPort             SqlCond = "Port=?"
+	SqlCondIPAddr           SqlCond = "IPAddr=?"
+	SqlCondDeviceName       SqlCond = "DeviceName=?"
+	SqlCondPlatform         SqlCond = "Platform=?"
 	SqlCondLastUpdateTime   SqlCond = "(strftime('%s', 'now') - strftime('%s', t_client_info.UpdateTime)) > ?"
 )
 
