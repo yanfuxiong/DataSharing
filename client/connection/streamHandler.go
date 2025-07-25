@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	rtkCommon "rtk-cross-share/client/common"
+	rtkPlatform "rtk-cross-share/client/platform"
 	rtkUtils "rtk-cross-share/client/utils"
 	rtkMisc "rtk-cross-share/misc"
 	"sync"
@@ -36,6 +37,10 @@ var (
 	streamPoolMap   = make(map[string](streamInfo))
 	streamPoolMutex sync.RWMutex
 )
+
+func init() {
+	rtkPlatform.SetGetFilesTransCodeCallback(GetFileTransErrCode)
+}
 
 func CheckAllStreamAlive(ctx context.Context) {
 	pingFailFunc := func(key string, sInfo streamInfo) {
@@ -203,6 +208,20 @@ func GetFmtTypeStream(id string, fmtType rtkCommon.TransFmtType) (network.Stream
 
 	}
 	return nil, false
+}
+
+func GetFileTransErrCode(id string) rtkCommon.SendFilesRequestErrCode {
+	streamPoolMutex.RLock()
+	defer streamPoolMutex.RUnlock()
+	if sInfo, ok := streamPoolMap[id]; ok {
+		if sInfo.transFileState == TRANS_FILE_IN_PROGRESS_SRC {
+			return rtkCommon.SendFilesRequestInProgressBySrc
+		} else if sInfo.transFileState == TRANS_FILE_IN_PROGRESS_DST {
+			return rtkCommon.SendFilesRequestInProgressByDst
+		}
+	}
+
+	return rtkCommon.SendFilesRequestSuccess
 }
 
 func noticeFmtTypeStreamReady(id string, fmtType rtkCommon.TransFmtType) {

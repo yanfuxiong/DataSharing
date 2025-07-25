@@ -52,27 +52,25 @@ func ConnectLanServerRun(ctx context.Context) {
 	defer cancelLanServerBusiness()
 	stopBrowseInstance()
 
-	nCount := 0
 	time.Sleep(50 * time.Millisecond) // Delay 50ms between "stop browse server" and "start lookup server"
-	if initLanServer() != rtkMisc.SUCCESS {
-		ticker := time.NewTicker(5 * time.Second)
-		defer ticker.Stop()
-		for {
-			nCount++
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				if initLanServer() == rtkMisc.SUCCESS {
-					ticker.Stop()
-					goto RunFlag
-				}
-				if nCount == 3 {
-					log.Printf("initLanServer %d times failed!  try to lookup Service over again!", nCount)
-					lanServerAddr = ""
-					serverInstanceMap.Delete(lanServerName)
-				}
-			}
+
+	retryCnt := 0
+	for {
+		retryCnt++
+
+		if initLanServer() == rtkMisc.SUCCESS {
+			goto RunFlag
+		}
+		if retryCnt == g_retryServerMaxCnt {
+			log.Printf("initLanServer %d times failed!  try to lookup Service over again!", retryCnt)
+			lanServerAddr = ""
+			serverInstanceMap.Delete(lanServerName)
+			retryCnt = 0
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(g_retryServerInterval):
 		}
 	}
 
@@ -246,15 +244,16 @@ func getLanServerAddr() (string, rtkMisc.CrossShareErr) {
 		}
 		return lookupLanServer(ctx, lanServerName, rtkMisc.LanServiceType, rtkMisc.LanServerDomain)
 	} else {
-		if lanServerName != "" {
-			mapValue, ok := serverInstanceMap.Load(lanServerName)
-			if ok {
-				lanServerIp := mapValue.(string)
-				if len(lanServerIp) > 0 {
-					log.Printf("get LanServer addr from browse serverInstanceMap!")
-					return lanServerIp, rtkMisc.SUCCESS
-				}
-			}
+		lanServerIp := ""
+		// find the first service from map
+		serverInstanceMap.Range(func(key, value any) bool {
+			lanServerName = key.(string)
+			lanServerIp = value.(string)
+			return false
+		})
+		if lanServerName != "" && lanServerIp != "" {
+			log.Printf("[%s][Mobile] get service name=(%s), ip=(%s) from map", rtkMisc.GetFuncInfo(), lanServerName, lanServerIp)
+			return lanServerIp, rtkMisc.SUCCESS
 		}
 
 		resultChan := make(chan browseParam)
@@ -343,23 +342,23 @@ func ReConnectLanServer() {
 	ctx, cancecl := context.WithCancel(context.Background())
 	reconnectCancelFunc = cancecl
 
-	nCount := 0
-	reTryTicker := time.NewTicker(time.Duration(1) * time.Second)
-	defer reTryTicker.Stop()
+	retryCnt := 0
 	for {
-		nCount++
+		retryCnt++
+
+		if connectToLanServer() == rtkMisc.SUCCESS {
+			goto ReConnectSuccessFlag
+		}
+		if retryCnt == g_retryServerMaxCnt {
+			log.Printf("connect To LanServerAddr:[%s] %d times failed!  try to lookup Service over again!", lanServerAddr, retryCnt)
+			lanServerAddr = ""
+			serverInstanceMap.Delete(lanServerName)
+			retryCnt = 0
+		}
 		select {
 		case <-ctx.Done():
 			return
-		case <-reTryTicker.C:
-			if connectToLanServer() == rtkMisc.SUCCESS {
-				goto ReConnectSuccessFlag
-			}
-			if nCount == 3 {
-				log.Printf("connect To LanServerAddr:[%s] %d times failed!  try to lookup Service over again!", lanServerAddr, nCount)
-				lanServerAddr = ""
-				serverInstanceMap.Delete(lanServerName)
-			}
+		case <-time.After(g_retryServerInterval):
 		}
 	}
 

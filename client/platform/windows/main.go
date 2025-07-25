@@ -129,7 +129,7 @@ static const wchar_t* GetDownloadPathCallbackFunc(GetDownloadPathCallback cb) {
     if (cb) {
 		return cb();
 	} else {
-	 	return NULL;
+		return NULL;
 	}
 }
 
@@ -654,7 +654,7 @@ func SetCancelFileTransfer(ipPort *C.char, clientID *C.char, timeStamp C.uint64_
 }
 
 //export SetMultiFilesDropRequest
-func SetMultiFilesDropRequest(ipPort *C.char, clientID *C.char, timeStamp C.uint64_t, filePathArry **C.wchar_t, arryLength C.uint32_t) {
+func SetMultiFilesDropRequest(ipPort *C.char, clientID *C.char, timeStamp C.uint64_t, filePathArry **C.wchar_t, arryLength C.uint32_t) C.uint {
 	//(cIp *C.char, cId *C.char, cTimestamp C.ulonglong, cFileList **C.wchar_t, cFileCount C.uint)
 	id := C.GoString(clientID)
 	ip := C.GoString(ipPort)
@@ -699,7 +699,7 @@ func SetMultiFilesDropRequest(ipPort *C.char, clientID *C.char, timeStamp C.uint
 	totalDesc := rtkMisc.FileSizeDesc(totalSize)
 
 	log.Printf("[%s] ID[%s] IP:[%s] get file count:[%d] folder count:[%d], totalSize:[%d] totalDesc:[%s] timestamp:[%d]", rtkMisc.GetFuncInfo(), id, ip, len(fileList), len(folderList), totalSize, totalDesc, timestamp)
-	rtkPlatform.GoMultiFilesDropRequest(id, &fileList, &folderList, totalSize, timestamp, totalDesc)
+	return C.uint(rtkPlatform.GoMultiFilesDropRequest(id, &fileList, &folderList, totalSize, timestamp, totalDesc))
 }
 
 //export RequestUpdateDownloadPath
@@ -794,7 +794,7 @@ func SetUpdateSystemInfoCallback(callback C.UpdateSystemInfoCallback) {
 
 //export SetNotiMessageCallback
 func SetNotiMessageCallback(callback C.NotiMessageCallback) {
-	fmt.Println("SetNotiMessageCallback")
+	log.Println("SetNotiMessageCallback")
 	g_NotiMessageCallback = callback
 }
 

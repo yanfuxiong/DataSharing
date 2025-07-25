@@ -65,11 +65,10 @@ const (
 		LEFT JOIN t_auth_info ON t_auth_info.ClientIndex=t_client_info.PkIndex
 		WHERE %s
 		ORDER BY t_client_info.UpdateTime DESC;`
-		
-	SqlDataQueryEarliestClient SqlData = `SELECT PkIndex,UpdateTime from t_client_info ORDER BY  UpdateTime ASC LIMIT 1;`
+
+	SqlDataQueryEarliestClient SqlData = `SELECT PkIndex,UpdateTime FROM t_client_info WHERE Online=0 ORDER BY  UpdateTime ASC LIMIT 1;`
 	SqlDataDeleteClientInfo    SqlData = `DELETE FROM t_client_info WHERE %s;`
 	SqlDataDeleteAuthInfo      SqlData = `DELETE FROM t_auth_info WHERE %s;`
-
 
 	SqlCondOnline           SqlCond = "Online=1"
 	SqlCondOffline          SqlCond = "Online=0"

@@ -115,6 +115,7 @@ func upsertClientInfo(pkIndex *int, clientId, host, ipAddr, deviceName, platform
 		args := []any{clientId, ipAddr, deviceName, platform, OldIndex}
 		sqlData = SqlDataUpdateClientInfo.withCond_SET(SqlCondClientId, SqlCondIPAddr, SqlCondDeviceName, SqlCondPlatform, SqlCondOnline).withCond_WHERE(SqlCondPkIndex)
 		if !sqlData.checkArgsCount(args) {
+			tx.Rollback()
 			return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
 		}
 		rowIndex = tx.QueryRow(sqlData.toString(), args...)

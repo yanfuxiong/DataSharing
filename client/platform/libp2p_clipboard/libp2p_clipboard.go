@@ -121,12 +121,12 @@ func SendCopyFile(filePath, id string, fileSize int64) {
 	log.Printf("(SRC)Send file:[%s] to [%s], fileSize:%d", filePath, id, fileSize)
 }
 
-func SendMultiFilesDropRequest(multiFilesData string) {
+func SendMultiFilesDropRequest(multiFilesData string) int {
 	var multiFileInfo MultiFilesDropRequestInfo
 	err := json.Unmarshal([]byte(multiFilesData), &multiFileInfo)
 	if err != nil {
 		log.Printf("[%s] Unmarshal[%s] err:%+v", rtkMisc.GetFuncInfo(), multiFilesData, err)
-		return
+		return int(rtkCommon.SendFilesRequestParameterErr)
 	}
 	log.Printf("id:[%s] ip:[%s] len:[%d]", multiFileInfo.Id, multiFileInfo.Ip, len(multiFileInfo.PathList))
 
@@ -159,7 +159,7 @@ func SendMultiFilesDropRequest(multiFilesData string) {
 	totalDesc := rtkMisc.FileSizeDesc(totalSize)
 	timestamp := uint64(time.Now().UnixMilli())
 	log.Printf("[%s] ID[%s] IP:[%s] get file count:[%d] folder count:[%d], totalSize:[%d] totalDesc:[%s] timestamp:[%d]", rtkMisc.GetFuncInfo(), multiFileInfo.Id, multiFileInfo.Ip, len(fileList), len(folderList), totalSize, totalDesc, timestamp)
-	rtkPlatform.GoMultiFilesDropRequest(multiFileInfo.Id, &fileList, &folderList, totalSize, timestamp, totalDesc)
+	return int(rtkPlatform.GoMultiFilesDropRequest(multiFileInfo.Id, &fileList, &folderList, totalSize, timestamp, totalDesc))
 }
 
 func IfClipboardPasteFile(fileName, id string, isReceive bool) {

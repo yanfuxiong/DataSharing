@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+const (
+	g_retryServerMaxCnt   = 2
+	g_retryServerInterval = 200 * time.Millisecond
+)
+
 type CrossShareDiasStatus int
 
 const (

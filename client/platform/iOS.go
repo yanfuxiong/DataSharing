@@ -97,6 +97,7 @@ type (
 	CallbackGetAuthDataFunc            func() string
 	CallbackDIASStatusFunc             func(uint32)
 	CallbackMonitorNameFunc            func(string)
+	CallbackGetFilesTransCodeFunc      func(id string) rtkCommon.SendFilesRequestErrCode
 )
 
 var (
@@ -131,6 +132,7 @@ var (
 	callbackGetAuthData                CallbackGetAuthDataFunc            = nil
 	callbackDIASStatus                 CallbackDIASStatusFunc             = nil
 	callbackMonitorName                CallbackMonitorNameFunc            = nil
+	callbackGetFilesTransCode          CallbackGetFilesTransCodeFunc      = nil
 )
 
 /*======================================= Used by main.go, set Callback =======================================*/
@@ -269,6 +271,10 @@ func SetGoBrowseMdnsResultCallback(cb CallbackMethodBrowseMdnsResultFunc) {
 	callbackMethodBrowseMdnsResult = cb
 }
 
+func SetGetFilesTransCodeCallback(cb CallbackGetFilesTransCodeFunc) {
+	callbackGetFilesTransCode = cb
+}
+
 /*======================================= Used  by ios API =======================================*/
 
 func SetupRootPath(path string) {
@@ -359,12 +365,23 @@ func GoFileDropResponse(id string, fileCmd rtkCommon.FileDropCmd, fileName strin
 	callbackInstanceFileDropResponseCB(id, fileCmd, fileName)
 }
 
-func GoMultiFilesDropRequest(id string, fileList *[]rtkCommon.FileInfo, folderList *[]string, totalSize, timestamp uint64, totalDesc string) {
+func GoMultiFilesDropRequest(id string, fileList *[]rtkCommon.FileInfo, folderList *[]string, totalSize, timestamp uint64, totalDesc string) rtkCommon.SendFilesRequestErrCode {
 	if callbackFileListDropRequest == nil {
 		log.Println("CallbackFileListDropRequest is null!")
-		return
+		return rtkCommon.SendFilesRequestCallbackNotSet
+	}
+
+	if callbackGetFilesTransCode == nil {
+		log.Println("callbackGetFilesTransCode is null!")
+		return rtkCommon.SendFilesRequestCallbackNotSet
+	}
+
+	filesTransCode := callbackGetFilesTransCode(id)
+	if filesTransCode != rtkCommon.SendFilesRequestSuccess {
+		return filesTransCode
 	}
 	callbackFileListDropRequest(id, *fileList, *folderList, totalSize, timestamp, totalDesc)
+	return filesTransCode
 }
 
 func GoCancelFileTrans(ip, id string, timestamp uint64) {

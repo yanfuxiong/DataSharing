@@ -118,6 +118,7 @@ type (
 	CallbackAuthStatusCodeFunc         func(uint8)
 	CallbackExtractDIASFunc            func()
 	CallbackMethodBrowseMdnsResultFunc func(string, string, int)
+	CallbackGetFilesTransCodeFunc      func(id string) rtkCommon.SendFilesRequestErrCode
 )
 
 var (
@@ -136,6 +137,7 @@ var (
 	callbackAuthStatusCodeCB           CallbackAuthStatusCodeFunc         = nil
 	callbackExtractDIASCB              CallbackExtractDIASFunc            = nil
 	callbackMethodBrowseMdnsResult     CallbackMethodBrowseMdnsResultFunc = nil
+	callbackGetFilesTransCode          CallbackGetFilesTransCodeFunc      = nil
 )
 
 func SetGoNetworkSwitchCallback(cb CallbackNetworkSwitchFunc) {
@@ -197,6 +199,10 @@ func SetGoBrowseMdnsResultCallback(cb CallbackMethodBrowseMdnsResultFunc) {
 
 func SetGoCancelFileTransCallback(cb CallbackCancelFileTransFunc) {
 	callbackCancelFileTransDragCB = cb
+}
+
+func SetGetFilesTransCodeCallback(cb CallbackGetFilesTransCodeFunc) {
+	callbackGetFilesTransCode = cb
 }
 
 /***************** Used  by android *****************/
@@ -278,12 +284,23 @@ func GoFileDropResponse(id string, fileCmd rtkCommon.FileDropCmd, fileName strin
 	callbackInstanceFileDropResponseCB(id, fileCmd, fileName)
 }
 
-func GoMultiFilesDropRequest(id string, fileList *[]rtkCommon.FileInfo, folderList *[]string, totalSize, timestamp uint64, totalDesc string) {
+func GoMultiFilesDropRequest(id string, fileList *[]rtkCommon.FileInfo, folderList *[]string, totalSize, timestamp uint64, totalDesc string) rtkCommon.SendFilesRequestErrCode {
 	if callbackFileListDropRequestCB == nil {
 		log.Println("CallbackFileListDropRequestCB is null!")
-		return
+		return rtkCommon.SendFilesRequestCallbackNotSet
 	}
+	if callbackGetFilesTransCode == nil {
+		log.Println("callbackGetFilesTransCode is null!")
+		return rtkCommon.SendFilesRequestCallbackNotSet
+	}
+
+	filesTransCode := callbackGetFilesTransCode(id)
+	if filesTransCode != rtkCommon.SendFilesRequestSuccess {
+		return filesTransCode
+	}
+
 	callbackFileListDropRequestCB(id, *fileList, *folderList, totalSize, timestamp, totalDesc)
+	return filesTransCode
 }
 
 func GoGetMacAddress(mac string) {

@@ -105,6 +105,7 @@ type (
 	CallbackUpdateSystemInfoFunc       func(ipAddr string, verInfo string)
 	CallbackUpdateClientStatusFunc     func(status uint32, ip, id, deviceName, deviceType string)
 	CallbackDetectPluginEventFunc      func(isPlugin bool, productName string)
+	CallbackGetFilesTransCodeFunc      func(id string) rtkCommon.SendFilesRequestErrCode
 )
 
 var (
@@ -139,6 +140,7 @@ var (
 	callbackSetupDstImageCB    CallbackSetupDstImageFunc        = nil
 	callbackDataTransferCB     CallbackDataTransferFunc         = nil
 	callbackCleanClipboard     CallbackCleanClipboardFunc       = nil
+	callbackGetFilesTransCode  CallbackGetFilesTransCodeFunc    = nil
 )
 
 func getDeviceName() string {
@@ -223,6 +225,10 @@ func SetGoBrowseMdnsResultCallback(cb CallbackMethodBrowseMdnsResultFunc) {
 	callbackMethodBrowseMdnsResult = cb
 }
 
+func SetGetFilesTransCodeCallback(cb CallbackGetFilesTransCodeFunc) {
+	callbackGetFilesTransCode = cb
+}
+
 /*======================================= Used by main.go, set Callback =======================================*/
 
 func SetAuthViaIndexCallback(cb CallbackAuthViaIndexCallbackFunc) {
@@ -304,12 +310,24 @@ func GoSetMacAddress(macAddr string) {
 	callbackGetMacAddressCB(macAddr)
 }
 
-func GoMultiFilesDropRequest(id string, fileList *[]rtkCommon.FileInfo, folderList *[]string, totalSize, timestamp uint64, totalDesc string) {
+func GoMultiFilesDropRequest(id string, fileList *[]rtkCommon.FileInfo, folderList *[]string, totalSize, timestamp uint64, totalDesc string) rtkCommon.SendFilesRequestErrCode {
 	if callbackFileListDropRequestCB == nil {
-		log.Println("CallbackFileListDropRequestCB is null!")
-		return
+		log.Println("callbackFileListDropRequestCB is null!")
+		return rtkCommon.SendFilesRequestCallbackNotSet
 	}
+
+	if callbackGetFilesTransCode == nil {
+		log.Println("callbackGetFilesTransCode is null!")
+		return rtkCommon.SendFilesRequestCallbackNotSet
+	}
+
+	filesTransCode := callbackGetFilesTransCode(id)
+	if filesTransCode != rtkCommon.SendFilesRequestSuccess {
+		return filesTransCode
+	}
+
 	callbackFileListDropRequestCB(id, *fileList, *folderList, totalSize, timestamp, totalDesc)
+	return filesTransCode
 }
 
 func GoDragFileListRequest(fileList *[]rtkCommon.FileInfo, folderList *[]string, totalSize, timestamp uint64, totalDesc string) {
