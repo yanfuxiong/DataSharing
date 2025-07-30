@@ -270,7 +270,10 @@ func getLanServerAddr() (string, rtkMisc.CrossShareErr) {
 		select {
 		case <-ctx.Done():
 			return "", rtkMisc.ERR_NETWORK_C2S_BROWSER_TIMEOUT
-		case param := <-resultChan:
+		case param, ok := <-resultChan:
+			if !ok {
+				break
+			}
 			if len(param.instance) > 0 && len(param.ip) > 0 {
 				serverInstanceMap.Store(param.instance, param.ip)
 				return param.ip, rtkMisc.SUCCESS
@@ -543,16 +546,20 @@ func lookupLanServer(ctx context.Context, instance, serviceType, domain string) 
 	case <-ctx.Done():
 		log.Printf("Lookup Timeout, get no entries")
 		return "", rtkMisc.ERR_NETWORK_C2S_LOOKUP_TIMEOUT
-	case entry := <-lanServerEntry:
+	case entry, ok := <-lanServerEntry:
+		if !ok {
+			break
+		}
+		
 		log.Printf("Lookup get Service success, use [%d] ms", time.Now().UnixMilli()-startTime)
 		if len(entry.AddrIPv4) > 0 {
 			lanServerIp := fmt.Sprintf("%s:%d", entry.AddrIPv4[0].String(), entry.Port)
 			return lanServerIp, rtkMisc.SUCCESS
 		} else {
 			log.Printf("ServiceInstanceName [%s] get AddrIPv4 is null", entry.ServiceInstanceName())
-			return "", rtkMisc.ERR_NETWORK_C2S_LOOKUP_INVALID
 		}
 	}
+	return "", rtkMisc.ERR_NETWORK_C2S_LOOKUP_INVALID
 }
 
 func lookupLanServeriOS(ctx context.Context, instance, serviceType string) (string, rtkMisc.CrossShareErr) {
