@@ -39,8 +39,8 @@ var (
 	isReconnectRunning      atomic.Bool
 	reconnectCancelFunc     func()
 	disconnectAllClientFunc callbackDisconnectAllClientFunc
-
-	mobileAuthData rtkMisc.AuthDataInfo
+	mobileAuthData          rtkMisc.AuthDataInfo
+	authStatus              bool
 
 	// Used by connection package
 	GetClientListFlag = make(chan []rtkMisc.ClientInfo)

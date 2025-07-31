@@ -190,6 +190,7 @@ func handleReadMessageFromServer(buffer []byte) rtkMisc.CrossShareErr {
 			return authIndexMobileRsp.Code
 		}
 
+		authStatus = authIndexMobileRsp.AuthStatus
 		if authIndexMobileRsp.AuthStatus != true {
 			log.Printf("[%s] clientID:[%s] Index[%d] Err: Unauthorized", rtkMisc.GetFuncInfo(), rspMsg.ClientID, rspMsg.ClientIndex)
 			return rtkMisc.ERR_BIZ_S2C_UNAUTH
@@ -244,6 +245,11 @@ func handleReadMessageFromServer(buffer []byte) rtkMisc.CrossShareErr {
 		if err != nil {
 			log.Printf("clientID:[%s] Index:[%d] Err: decode ExtDataText:%+v", rspMsg.ClientID, rspMsg.ClientIndex, err)
 			return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
+		}
+
+		if !authStatus {
+			log.Printf("Received a %s msg from Server, but Index:[%d] clientID:[%s] is Unauthorized!", rtkMisc.CS2Msg_RECONN_CLIENT_LIST, rspMsg.ClientIndex, rspMsg.ClientID)
+			return rtkMisc.ERR_BIZ_S2C_UNAUTH
 		}
 
 		clientList := reconnListHandler(reconnListReq.ClientList, reconnListReq.ConnDirect)

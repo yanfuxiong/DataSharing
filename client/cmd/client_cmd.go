@@ -72,6 +72,7 @@ func init() {
 		log.Printf("Get auth status: %d", status)
 		if status == 1 {
 			rtkPlatform.GoReqSourceAndPort()
+			rtkLogin.SetAuthStatus(true)
 		} else {
 			rtkLogin.NotifyDIASStatus(rtkLogin.DIAS_Status_Authorization_Failed)
 			log.Printf("Warning: UNAUTHORIZED Client!")
