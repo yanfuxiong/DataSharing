@@ -48,9 +48,9 @@ func (cRead *cancelableReader) Read(p []byte) (int, error) {
 }
 
 func (cWrite *cancelableWriter) Write(p []byte) (int, error) {
-	time.Sleep(time.Microsecond * 1)
+	
 	select {
-	case <-cWrite.ctx.Done(): //Unable to trigger, reason to be investigated
+	case <-cWrite.ctx.Done():
 		log.Printf("[%s] cancel by cancelableWriter!", rtkMisc.GetFuncInfo())
 		return 0, cWrite.ctx.Err()
 	default:
@@ -379,8 +379,6 @@ func handleFileFromSocket(ipAddr, id string, read *cancelableReader, fileSize ui
 	defer CloseFile(&dstFile)
 
 	log.Printf("(DST) IP[%s] Start to copy file:[%s], size:[%d] ...", ipAddr, filename, fileSize)
-	//status := totalBar.State()
-	//log.Printf("totalBar:[%f][%d] Max:[%d][%d][%d]", status.CurrentBytes, status.CurrentNum, status.Max, totalBar.GetMax64(), totalBar.GetMax())
 	nDstWrite := int64(0)
 	if fileSize > 0 {
 		nDstWrite, err = io.CopyN(io.MultiWriter(dstFile, *totalBar), read, int64(fileSize))
@@ -398,9 +396,6 @@ func handleFileFromSocket(ipAddr, id string, read *cancelableReader, fileSize ui
 				log.Printf("(DST) IP[%s] Copy operation was canceled!", ipAddr)
 				return rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL
 			} else {
-				//status = totalBar.State()
-				//config := totalBar.NewOptions64()
-				//log.Printf("totalBar:[%f][%d] Max:[%d][%d][%d]", status.CurrentBytes, status.CurrentNum, status.Max, totalBar.GetMax64(), totalBar.GetMax())
 				log.Printf("[%s] IP:[%s] Copy file Error:%+v", rtkMisc.GetFuncInfo(), ipAddr, err)
 				return rtkMisc.ERR_BIZ_FD_DST_COPY_FILE
 			}
