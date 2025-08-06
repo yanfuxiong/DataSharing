@@ -87,8 +87,8 @@ type (
 	CallbackDragFileListRequestFunc    func([]rtkCommon.FileInfo, []string, uint64, uint64, string)
 	CallbackDragFileListNotifyFunc     func(ip, id, platform string, fileCnt uint32, totalSize, timestamp uint64, firstFileName string, firstFileSize uint64)
 	CallbackMultiFilesDropNotifyFunc   func(ip, id, platform string, fileCnt uint32, totalSize, timestamp uint64, firstFileName string, firstFileSize uint64)
-	CallbacMultipleProgressBarFunc     func(ip, id, deviceName, currentFileName string, sentFileCnt, totalFileCnt uint32, currentFileSize, totalSize, sentSize, timestamp uint64)
-	CallbacNotiMessageFileTransFunc    func(fileName, clientName, platform string, timestamp uint64, isSender bool)
+	CallbackMultipleProgressBarFunc    func(ip, id, deviceName, currentFileName string, sentFileCnt, totalFileCnt uint32, currentFileSize, totalSize, sentSize, timestamp uint64)
+	CallbackNotiMessageFileTransFunc   func(fileName, clientName, platform string, timestamp uint64, isSender bool)
 	CallbackFileDropResponseFunc       func(string, rtkCommon.FileDropCmd, string)
 	CallbackFileDragInfoFunc           func(rtkCommon.FileInfo, uint64)
 	CallbackCancelFileTransFunc        func(string, string, uint64)
@@ -118,8 +118,8 @@ var (
 	callbackDragFileListRequestCB      CallbackDragFileListRequestFunc    = nil
 	callbackDragFileListNotifyCB       CallbackDragFileListNotifyFunc     = nil
 	callbackMultiFilesDropNotifyCB     CallbackMultiFilesDropNotifyFunc   = nil
-	callbacMultipleProgressBarCB       CallbacMultipleProgressBarFunc     = nil
-	callbacNotiMessageFileTransCB      CallbacNotiMessageFileTransFunc    = nil
+	callbackMultipleProgressBarCB      CallbackMultipleProgressBarFunc    = nil
+	callbackNotiMessageFileTransCB     CallbackNotiMessageFileTransFunc   = nil
 	callbackInstanceFileDropResponseCB CallbackFileDropResponseFunc       = nil
 	callbackInstanceFileDragCB         CallbackFileDragInfoFunc           = nil
 	callbackCancelFileTransDragCB      CallbackCancelFileTransFunc        = nil
@@ -267,8 +267,8 @@ func SetCleanClipboardCallback(cb CallbackCleanClipboardFunc) {
 	callbackCleanClipboard = cb
 }
 
-func SetMultipleProgressBarCallback(cb CallbacMultipleProgressBarFunc) {
-	callbacMultipleProgressBarCB = cb
+func SetMultipleProgressBarCallback(cb CallbackMultipleProgressBarFunc) {
+	callbackMultipleProgressBarCB = cb
 }
 
 func SetDragFileListNotifyCallback(cb CallbackDragFileListNotifyFunc) {
@@ -279,8 +279,8 @@ func SetMultiFilesDropNotifyCallback(cb CallbackMultiFilesDropNotifyFunc) {
 	callbackMultiFilesDropNotifyCB = cb
 }
 
-func SetNotiMessageFileTransCallback(cb CallbacNotiMessageFileTransFunc) {
-	callbacNotiMessageFileTransCB = cb
+func SetNotiMessageFileTransCallback(cb CallbackNotiMessageFileTransFunc) {
+	callbackNotiMessageFileTransCB = cb
 }
 
 /*======================================= Used by main.go, Called by C++ =======================================*/
@@ -467,7 +467,7 @@ func GoUpdateProgressBar(ip, id string, fileSize, sentSize, timestamp uint64, fi
 }
 
 func GoUpdateMultipleProgressBar(ip, id, deviceName, currentFileName string, sentFileCnt, totalFileCnt uint32, currentFileSize, totalSize, sentSize, timestamp uint64) {
-	callbacMultipleProgressBarCB(ip, id, deviceName, currentFileName, sentFileCnt, totalFileCnt, currentFileSize, totalSize, sentSize, timestamp)
+	callbackMultipleProgressBarCB(ip, id, deviceName, currentFileName, sentFileCnt, totalFileCnt, currentFileSize, totalSize, sentSize, timestamp)
 }
 
 func GoUpdateSystemInfo(ipAddr, serviceVer string) {
@@ -480,10 +480,10 @@ func GoUpdateClientStatus(status uint32, ip, id, name, deviceType string) {
 }
 
 func GoNotiMessageFileTransfer(fileName, clientName, platform string, timestamp uint64, isSender bool) {
-	callbacNotiMessageFileTransCB(fileName, clientName, platform, timestamp, isSender)
+	callbackNotiMessageFileTransCB(fileName, clientName, platform, timestamp, isSender)
 }
 
-func GoEventHandle(eventType rtkCommon.EventType, ipAddr, fileName string) {
+func GoEventHandle(eventType rtkCommon.EventType, ipAddr, fileName string, timestamp uint64) {
 
 }
 

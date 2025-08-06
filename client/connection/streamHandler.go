@@ -215,8 +215,10 @@ func GetFileTransErrCode(id string) rtkCommon.SendFilesRequestErrCode {
 	defer streamPoolMutex.RUnlock()
 	if sInfo, ok := streamPoolMap[id]; ok {
 		if sInfo.transFileState == TRANS_FILE_IN_PROGRESS_SRC {
+			log.Printf("[%s] ID:[%s] Currently sending documents to this users", rtkMisc.GetFuncInfo(), id)
 			return rtkCommon.SendFilesRequestInProgressBySrc
 		} else if sInfo.transFileState == TRANS_FILE_IN_PROGRESS_DST {
+			log.Printf("[%s] ID:[%s] Currently receiving documents from this users", rtkMisc.GetFuncInfo(), id)
 			return rtkCommon.SendFilesRequestInProgressByDst
 		}
 	}

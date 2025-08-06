@@ -534,7 +534,7 @@ func GoNotiMessageFileTransfer(fileName, clientName, platform string, timestamp 
 
 }
 
-func GoEventHandle(eventType rtkCommon.EventType, id, fileName string) {
+func GoEventHandle(eventType rtkCommon.EventType, id, fileName string, timestamp uint64) {
 	if callbackFileError == nil {
 		log.Println("GoEventHandle CallbackInstance is null !")
 		return

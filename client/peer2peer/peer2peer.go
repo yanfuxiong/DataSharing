@@ -246,7 +246,7 @@ func HandleReadInbandFromSocket(ctxMain context.Context, resultChan chan<- Event
 			} else if msg.Command == COMM_FILE_TRANSFER_SRC_INTERRUPT {
 				fileDropData, ok := rtkFileDrop.GetFileDropData(id)
 				if ok {
-					HandleDataTransferError(COMM_CANCEL_SRC, id, fileDropData.DstFilePath)
+					HandleDataTransferError(COMM_CANCEL_SRC, id, fileDropData.DstFilePath, fileDropData.TimeStamp)
 				}
 				// TODO: check if necessary to notice GUI the SRC interrupt file transfer
 				CancelDstFileTransfer(id) // Dst: Copy need cancel
@@ -465,12 +465,12 @@ func writeToSocket(msg *Peer2PeerMessage, id string) rtkMisc.CrossShareErr {
 	return errCode
 }
 
-func HandleDataTransferError(inbandCmd CommandType, id, fileName string) {
+func HandleDataTransferError(inbandCmd CommandType, id, fileName string, timestamp uint64) {
 	switch inbandCmd {
 	case COMM_CANCEL_SRC:
-		rtkPlatform.GoEventHandle(rtkCommon.EVENT_TYPE_OPEN_FILE_ERR, id, fileName)
+		rtkPlatform.GoEventHandle(rtkCommon.EVENT_TYPE_OPEN_FILE_ERR, id, fileName, timestamp)
 	case COMM_CANCEL_DST:
-		rtkPlatform.GoEventHandle(rtkCommon.EVENT_TYPE_RECV_TIMEOUT, id, fileName)
+		rtkPlatform.GoEventHandle(rtkCommon.EVENT_TYPE_RECV_TIMEOUT, id, fileName, timestamp)
 	default:
 		log.Println("[DataTransferError]: Unhandled type")
 	}
@@ -498,10 +498,11 @@ func IsTransferError(buffer []byte) bool {
 func processIoWrite(id, ipAddr string, fmtType rtkCommon.TransFmtType) {
 	resultCode := rtkMisc.SUCCESS
 	if fmtType == rtkCommon.FILE_DROP {
+		defer rtkFileDrop.ResetFileDropData(id)
 		resultCode = writeFileDataToSocket(id, ipAddr)
 		if resultCode != rtkMisc.SUCCESS {
 			log.Printf("(SRC) ID[%s] IP[%s] Copy file list To Socket failed, ERR code:[%d]", id, ipAddr, resultCode)
-			if resultCode != rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_CANCEL {
+			if resultCode != rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_CANCEL && resultCode != rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_TIMEOUT {
 				sendCmdMsgToPeer(id, COMM_FILE_TRANSFER_SRC_INTERRUPT, fmtType, resultCode)
 			}
 		}
@@ -517,11 +518,19 @@ func processIoWrite(id, ipAddr string, fmtType rtkCommon.TransFmtType) {
 func processIoRead(id, ipAddr, deviceName string, fmtType rtkCommon.TransFmtType) {
 	if fmtType == rtkCommon.FILE_DROP {
 		dstFileName, resultCode := handleFileDataFromSocket(id, ipAddr, deviceName)
+		defer rtkFileDrop.ResetFileDropData(id)
 		if resultCode != rtkMisc.SUCCESS {
 			log.Printf("(DST) ID[%s] IP[%s] Copy file [%s] From Socket failed, ERR code:[%d]", id, ipAddr, dstFileName, resultCode)
-			// Both user cancellations and exceptions require notification to the other end
-			HandleDataTransferError(COMM_CANCEL_DST, id, dstFileName)
-			if resultCode != rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL {
+			fileDropData, ok := rtkFileDrop.GetFileDropData(id)
+			if !ok {
+				log.Printf("[%s] Not found fileDrop data", rtkMisc.GetFuncInfo())
+				return
+			}
+
+			// any exceptions and user cancellation need to Notify to platfrom
+			HandleDataTransferError(COMM_CANCEL_DST, id, dstFileName, fileDropData.TimeStamp)
+
+			if resultCode != rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL && resultCode != rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_TIMEOUT {
 				sendCmdMsgToPeer(id, COMM_FILE_TRANSFER_DST_INTERRUPT, fmtType, resultCode)
 			}
 		}
@@ -530,7 +539,7 @@ func processIoRead(id, ipAddr, deviceName string, fmtType rtkCommon.TransFmtType
 		if resultCode != rtkMisc.SUCCESS {
 			log.Printf("(DST) ID[%s] IP[%s] Copy image From Socket failed, ERR code:[%d] ...", id, ipAddr, resultCode)
 			sendCmdMsgToPeer(id, COMM_CB_TRANSFER_DST_INTERRUPT, fmtType, resultCode)
-			HandleDataTransferError(COMM_CANCEL_DST, id, "")
+			HandleDataTransferError(COMM_CANCEL_DST, id, "", 0)
 		}
 	}
 }

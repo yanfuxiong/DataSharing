@@ -54,7 +54,7 @@ type Callback interface {
 	CallbackMethodFoundPeer()
 	CallbackUpdateProgressBar(ip, id, filename string, recvSize, total int64, timestamp int64)
 	CallbackUpdateMultipleProgressBar(ip, id, deviceName, currentFileName string, sentFileCnt, totalFileCnt int, currentFileSize, totalSize, sentSize, timestamp int64)
-	CallbackFileError(id, filename, err string)
+	CallbackFileError(id, filename, err string, timestamp int64)
 	CallbackUpdateDiasStatus(status int)
 	CallbackGetAuthData() string
 	CallbackUpdateMonitorName(monitorName string)
@@ -454,9 +454,6 @@ func GoUpdateClientStatus(status uint32, ip, id, name, deviceType string) {
 }
 
 func GoNotiMessageFileTransfer(fileInfo, clientName, platform string, timestamp uint64, isSender bool) {
-	if !isSender {
-		return
-	}
 	log.Printf("[%s]: fileInfo:[%s], clientName:%s, timestamp:%d ", rtkMisc.GetFuncInfo(), fileInfo, clientName, timestamp)
 	if CallbackInstance == nil {
 		log.Println(" CallbackInstance is null !")
@@ -465,17 +462,17 @@ func GoNotiMessageFileTransfer(fileInfo, clientName, platform string, timestamp 
 	CallbackInstance.CallbackFilesTransferDone(fileInfo, platform, clientName, int64(timestamp))
 }
 
-func GoEventHandle(eventType rtkCommon.EventType, id, fileName string) {
+func GoEventHandle(eventType rtkCommon.EventType, id, fileName string, timestamp uint64) {
 	if CallbackInstance == nil {
 		log.Println("GoEventHandle CallbackInstance is null !")
 		return
 	}
 	if eventType == rtkCommon.EVENT_TYPE_OPEN_FILE_ERR {
 		strErr := "file datatransfer sender error"
-		CallbackInstance.CallbackFileError(id, fileName, strErr)
+		CallbackInstance.CallbackFileError(id, fileName, strErr, int64(timestamp))
 	} else if eventType == rtkCommon.EVENT_TYPE_RECV_TIMEOUT {
 		strErr := "file datatransfer receiving end error"
-		CallbackInstance.CallbackFileError(id, fileName, strErr)
+		CallbackInstance.CallbackFileError(id, fileName, strErr, int64(timestamp))
 	}
 	log.Printf("[%s %d]: id:%s, name:%s, error:%d", rtkMisc.GetFuncName(), rtkMisc.GetLine(), id, fileName, eventType)
 }

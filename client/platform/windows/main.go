@@ -148,32 +148,37 @@ import (
 	rtkPlatform "rtk-cross-share/client/platform"
 	rtkUtils "rtk-cross-share/client/utils"
 	rtkMisc "rtk-cross-share/misc"
+	"unicode/utf16"
 	"unsafe"
 )
 
-func WCharToGoString(wstr *C.wchar_t) string {
-	var goStr string
-	for ptr := wstr; *ptr != 0; ptr = (*C.wchar_t)(unsafe.Pointer(uintptr(unsafe.Pointer(ptr)) + unsafe.Sizeof(*ptr))) {
-		goStr += string(rune(*ptr))
+func WCharToGoString(wchar *C.wchar_t) string {
+	if wchar == nil {
+		return ""
 	}
-	return goStr
+	var nLen int
+	for *(*C.wchar_t)(unsafe.Pointer(uintptr(unsafe.Pointer(wchar)) + uintptr(nLen)*unsafe.Sizeof(*wchar))) != 0 {
+		nLen++
+	}
+
+	utf16Slice := make([]uint16, nLen)
+	for i := 0; i < nLen; i++ {
+		utf16Slice[i] = uint16(*(*C.wchar_t)(unsafe.Pointer(uintptr(unsafe.Pointer(wchar)) + uintptr(i)*unsafe.Sizeof(*wchar))))
+	}
+
+	return string(utf16.Decode(utf16Slice))
 }
 
 func GoStringToWChar(str string) *C.wchar_t {
-	utf16Str := make([]uint16, len(str)+1)
-	for i, r := range str {
-		utf16Str[i] = uint16(r)
-	}
-	utf16Str[len(str)] = 0
-
-	size := len(utf16Str) * int(unsafe.Sizeof(utf16Str[0]))
-	cStr := C.malloc(C.size_t(size))
-	if cStr == nil {
-		panic("C.malloc failed")
+	utf16 := utf16.Encode([]rune(str))
+	cStr := (*C.wchar_t)(C.malloc(C.size_t(len(utf16)+1) * 2)) // +1 for null terminator
+	for i, v := range utf16 {
+		*(*C.wchar_t)(unsafe.Pointer(uintptr(unsafe.Pointer(cStr)) + uintptr(i)*2)) = C.wchar_t(v)
 	}
 
-	C.memcpy(cStr, unsafe.Pointer(&utf16Str[0]), C.size_t(size))
-	return (*C.wchar_t)(cStr)
+	//Add null terminator
+	*(*C.wchar_t)(unsafe.Pointer(uintptr(unsafe.Pointer(cStr)) + uintptr(len(utf16))*2)) = 0
+	return cStr
 }
 
 type WCharArray struct {

@@ -275,9 +275,9 @@ func SetupDstFileListDrop(id, ip, platform, totalDesc string, fileList []rtkComm
 		firstFileName := string("")
 		if nFileCount > 0 {
 			firstFileSize = uint64(fileList[0].FileSize_.SizeHigh)<<32 | uint64(fileList[0].FileSize_.SizeLow)
-			firstFileName = rtkMisc.AdaptationPath(fileList[0].FileName)
+			firstFileName = filepath.Join(rtkPlatform.GetDownloadPath(), rtkMisc.AdaptationPath(fileList[0].FileName))
 		} else {
-			firstFileName = folderList[0]
+			firstFileName = filepath.Join(rtkMisc.AdaptationPath(folderList[0]))
 		}
 
 		rtkPlatform.GoMultiFilesDropNotify(ip, id, platform, nFileCount, totalSize, timestamp, firstFileName, firstFileSize) //No need to confirm
