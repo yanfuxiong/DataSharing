@@ -46,7 +46,6 @@ func init() {
 	cancelBrowse = nil
 
 	disconnectAllClientFunc = nil
-	authStatus = false
 }
 
 func ConnectLanServerRun(ctx context.Context) {
@@ -60,7 +59,7 @@ func ConnectLanServerRun(ctx context.Context) {
 		retryCnt++
 
 		if initLanServer() == rtkMisc.SUCCESS {
-			goto RunFlag
+			break
 		}
 		if retryCnt == g_retryServerMaxCnt {
 			log.Printf("initLanServer %d times failed!  try to lookup Service over again!", retryCnt)
@@ -75,7 +74,6 @@ func ConnectLanServerRun(ctx context.Context) {
 		}
 	}
 
-RunFlag:
 	if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformWindows {
 		NotifyDIASStatus(DIAS_Status_Checking_Authorization)
 	} else {
@@ -165,7 +163,7 @@ func heartBeatFunc() {
 	nCount := 0
 	for {
 		nCount++
-		if sendReqMsgToLanServer(rtkMisc.C2SMsg_CLIENT_HEARTBEAT) == rtkMisc.SUCCESS {
+		if sendReqHeartbeatToLanServer() == rtkMisc.SUCCESS {
 			break
 		}
 		if isNeedReconnectProcess() {
@@ -318,7 +316,7 @@ func initLanServer() rtkMisc.CrossShareErr {
 		return resultCode
 	}
 
-	return sendReqMsgToLanServer(rtkMisc.C2SMsg_INIT_CLIENT)
+	return sendReqInitClientToLanServer()
 }
 
 func isNeedReconnectProcess() bool {
@@ -350,8 +348,10 @@ func ReConnectLanServer() {
 	for {
 		retryCnt++
 
-		if connectToLanServer() == rtkMisc.SUCCESS {
-			goto ReConnectSuccessFlag
+		if initLanServer() == rtkMisc.SUCCESS {
+			heartBeatFlag <- struct{}{}
+			log.Printf("ReConnectLanServer success!")
+			break
 		}
 		if retryCnt == g_retryServerMaxCnt {
 			log.Printf("connect To LanServerAddr:[%s] %d times failed!  try to lookup Service over again!", lanServerAddr, retryCnt)
@@ -364,12 +364,6 @@ func ReConnectLanServer() {
 			return
 		case <-time.After(g_retryServerInterval):
 		}
-	}
-
-ReConnectSuccessFlag:
-	if sendReqMsgToLanServer(rtkMisc.C2SMsg_RESET_CLIENT) == rtkMisc.SUCCESS {
-		heartBeatFlag <- struct{}{}
-		log.Printf("ReConnectLanServer success!")
 	}
 }
 
@@ -386,7 +380,6 @@ func stopLanServerBusiness() {
 	log.Printf("connect lanServer business is all stop!")
 	NotifyDIASStatus(DIAS_Status_Wait_DiasMonitor)
 	rtkPlatform.GoMonitorNameNotify("")
-	authStatus = false
 	pSafeConnect.Close()
 	heartBeatTicker.Reset(time.Duration(999 * time.Hour))
 	if disconnectAllClientFunc == nil {
@@ -400,7 +393,6 @@ func cancelLanServerBusiness() {
 	log.Printf("connect lanServer business is all cancel!")
 	NotifyDIASStatus(DIAS_Status_Wait_DiasMonitor)
 	rtkPlatform.GoMonitorNameNotify("")
-	authStatus = false
 	pSafeConnect.Close()
 	lanServerAddr = ""
 	stopBrowseInstance()
@@ -415,10 +407,6 @@ func cancelLanServerBusiness() {
 func NotifyDIASStatus(status CrossShareDiasStatus) {
 	CurrentDiasStatus = status
 	rtkPlatform.GoDIASStatusNotify(uint32(status))
-}
-
-func SetAuthStatus(status bool) {
-	authStatus = status
 }
 
 func browseLanServer(ctx context.Context, serviceType, domain string, resultChan chan<- browseParam) rtkMisc.CrossShareErr {

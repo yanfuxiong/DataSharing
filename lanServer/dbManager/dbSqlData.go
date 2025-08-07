@@ -37,18 +37,18 @@ const (
 		ON CONFLICT (ClientId)
 		DO UPDATE SET
 			Host=excluded.Host,
-			IPAddr=?,
+			IPAddr=excluded.IPAddr,
 			DeviceName=excluded.DeviceName,
 			Platform=excluded.Platform,
-			UpdateTime=(datetime('now','localtime')),
+			UpdateTime=excluded.UpdateTime,
 			Online=1
 		RETURNING t_client_info.PkIndex;`
 
 	SqlDataUpsertAuthInfo SqlData = `
-		INSERT INTO t_auth_info (ClientIndex, UpdateTime)
-		VALUES (?, (datetime('now','localtime')))
+		INSERT INTO t_auth_info (ClientIndex,AuthStatus, UpdateTime)
+		VALUES (?,? (datetime('now','localtime')))
 		ON CONFLICT (ClientIndex)
-		DO UPDATE SET AuthStatus=?, UpdateTime=(datetime('now','localtime'))
+		DO UPDATE SET AuthStatus=excluded.AuthStatus, UpdateTime=excluded.UpdateTime
 		RETURNING t_auth_info.PkIndex;`
 
 	SqlDataUpdateClientInfo SqlData = `
@@ -66,9 +66,9 @@ const (
 		WHERE %s
 		ORDER BY t_client_info.UpdateTime DESC;`
 
-	SqlDataQueryEarliestClient SqlData = `SELECT PkIndex,UpdateTime FROM t_client_info WHERE Online=0 ORDER BY  UpdateTime ASC LIMIT 1;`
-	SqlDataDeleteClientInfo    SqlData = `DELETE FROM t_client_info WHERE %s;`
-	SqlDataDeleteAuthInfo      SqlData = `DELETE FROM t_auth_info WHERE %s;`
+	SqlDataQueryeClientMaxIndex SqlData = `SELECT PkIndex FROM t_client_info ORDER BY PkIndex DESC limit 1;`
+	SqlDataQueryEarliestClient  SqlData = `SELECT PkIndex,UpdateTime FROM t_client_info WHERE Online=0 ORDER BY  UpdateTime ASC LIMIT 1;`
+	SqlDataDeleteAuthInfo       SqlData = `DELETE FROM t_auth_info WHERE %s;`
 
 	SqlCondOnline           SqlCond = "Online=1"
 	SqlCondOffline          SqlCond = "Online=0"
