@@ -68,7 +68,7 @@ func InitSqlite(ctx context.Context) {
 
 }
 
-func upsertClientInfo(pkIndex *int, clientId, host, ipAddr, deviceName, platform string) rtkMisc.CrossShareErr {
+func upsertClientInfo(pkIndex *int, clientId, host, ipAddr, deviceName, platform, version string) rtkMisc.CrossShareErr {
 	if pkIndex == nil {
 		log.Printf("[%s] pkIndex is null", rtkMisc.GetFuncInfo())
 		return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
@@ -95,7 +95,7 @@ func upsertClientInfo(pkIndex *int, clientId, host, ipAddr, deviceName, platform
 
 	if maxIndex < 255 {
 		sqlData = SqlDataUpsertClientInfo
-		param := []any{clientId, host, ipAddr, deviceName, platform}
+		param := []any{clientId, host, ipAddr, deviceName, platform, version}
 		if sqlData.checkArgsCount(param) == false {
 			tx.Rollback()
 			return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
@@ -120,8 +120,8 @@ func upsertClientInfo(pkIndex *int, clientId, host, ipAddr, deviceName, platform
 
 		log.Printf("[%s] get index:%d, is over range, and earliest client PkIndex:%d updatetime:%s, bein to replace it", rtkMisc.GetFuncInfo(), maxIndex+1, OldIndex, OldUpdate)
 
-		args := []any{clientId, ipAddr, deviceName, platform, OldIndex}
-		sqlData = SqlDataUpdateClientInfo.withCond_SET(SqlCondClientId, SqlCondIPAddr, SqlCondDeviceName, SqlCondPlatform, SqlCondOnline).withCond_WHERE(SqlCondPkIndex)
+		args := []any{clientId, ipAddr, deviceName, platform, version, OldIndex}
+		sqlData = SqlDataUpdateClientInfo.withCond_SET(SqlCondClientId, SqlCondIPAddr, SqlCondDeviceName, SqlCondPlatform, SqlCondVersion, SqlCondOnline).withCond_WHERE(SqlCondPkIndex)
 		if !sqlData.checkArgsCount(args) {
 			tx.Rollback()
 			return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
@@ -233,7 +233,7 @@ func queryClientInfo(clientInfoList *[]rtkCommon.ClientInfoTb, conds []SqlCond, 
 	for rows.Next() {
 		var client rtkCommon.ClientInfoTb
 		if err = rows.Scan(&client.Index, &client.ClientId, &client.Host, &client.IpAddr,
-			&client.Source, &client.Port, &client.DeviceName, &client.Platform,
+			&client.Source, &client.Port, &client.DeviceName, &client.Platform, &client.Version,
 			&client.Online, &client.AuthStatus, &client.UpdateTime, &client.CreateTime); err != nil {
 			log.Printf("[%s] Err: %s", rtkMisc.GetFuncInfo(), err.Error())
 			continue
@@ -349,19 +349,45 @@ func QueryReconnList(clientInfoList *[]rtkCommon.ClientInfoTb) rtkMisc.CrossShar
 		[]SqlCond{SqlCondOnline, SqlCondAuthStatusIsTrue, SqlCondLastUpdateTime},
 		g_ReconnListInterval,
 	)
-	if err != rtkMisc.SUCCESS {
-		return err
+
+	return err
+}
+
+func QueryNotifyClientVerList(clientInfoList *[]rtkCommon.ClientInfoTb) rtkMisc.CrossShareErr {
+	err := queryClientInfo(
+		clientInfoList,
+		[]SqlCond{SqlCondOnline, SqlCondAuthStatusIsTrue},
+	)
+
+	return err
+}
+
+func QueryMaxVersion() (string, rtkMisc.CrossShareErr) {
+	clientInfoList := make([]rtkCommon.ClientInfoTb, 0)
+	err := queryClientInfo(
+		&clientInfoList,
+		[]SqlCond{SqlCondOnline, SqlCondAuthStatusIsTrue},
+	)
+
+	maxVer := string("")
+	nMaxVerVal := int(0)
+	for _, client := range clientInfoList {
+		verVal := rtkMisc.GetVersionValue(client.Version)
+		if nMaxVerVal < verVal {
+			nMaxVerVal = verVal
+			maxVer = rtkMisc.GetShortVersion(client.Version)
+		}
 	}
 
-	return rtkMisc.SUCCESS
+	return maxVer, err
 }
 
 // =============================
 // Update/Insert
 // =============================
-func UpsertClientInfo(clientId, host, ipAddr, deviceName, platform string) (int, rtkMisc.CrossShareErr) {
+func UpsertClientInfo(clientId, host, ipAddr, deviceName, platform, version string) (int, rtkMisc.CrossShareErr) {
 	pkIndex := 0
-	err := upsertClientInfo(&pkIndex, clientId, host, ipAddr, deviceName, platform)
+	err := upsertClientInfo(&pkIndex, clientId, host, ipAddr, deviceName, platform, version)
 	if err != rtkMisc.SUCCESS {
 		return 0, err
 	}

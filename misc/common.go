@@ -11,6 +11,7 @@ const (
 	C2SMsg_CLIENT_HEARTBEAT       C2SMsgType = "CLIENT_HEARTBEAT"
 	C2SMsg_REQ_CLIENT_DRAG_FILE   C2SMsgType = "REQ_CLIENT_DRAG_FILE"
 	CS2Msg_RECONN_CLIENT_LIST     C2SMsgType = "RECONN_CLIENT_LIST"
+	CS2Msg_NOTIFY_CLIENT_VERSION  C2SMsgType = "NOTIFY_CLIENT_VERSION"
 )
 
 type ClientInfo struct {
@@ -22,17 +23,19 @@ type ClientInfo struct {
 }
 
 type InitClientMessageReq struct {
-	HOST       string
-	ClientID   string
-	Platform   string
-	DeviceName string
-	IPAddr     string
+	HOST          string
+	ClientID      string
+	Platform      string
+	DeviceName    string
+	IPAddr        string
+	ClientVersion string
 }
 
 type InitClientMessageResponse struct {
 	Response
-	ClientIndex uint32
-	MonitorName string
+	ClientIndex   uint32
+	MonitorName   string
+	ClientVersion string
 }
 
 type ResetClientResponse struct {
@@ -62,6 +65,10 @@ type AuthIndexMobileResponse struct {
 	AuthStatus bool
 }
 
+type NotifyClientVersionReq struct {
+	ClientVersion string
+}
+
 type ReconnDirection int
 
 const (
@@ -70,8 +77,9 @@ const (
 )
 
 type ReconnClientListReq struct {
-	ClientList []ClientInfo
-	ConnDirect ReconnDirection
+	ClientList    []ClientInfo
+	ConnDirect    ReconnDirection
+	ClientVersion string
 }
 
 type C2SMessage struct {
@@ -79,7 +87,7 @@ type C2SMessage struct {
 	ClientIndex uint32
 	MsgType     C2SMsgType
 	TimeStamp   int64
-	ExtData     interface{} //InitClientMessageReq  InitClientMessageResponse  GetClientListResponse  ResetClientResponse  ReconnClientListReq AuthDataIndexMobileReq
+	ExtData     interface{} //InitClientMessageReq InitClientMessageResponse GetClientListResponse ResetClientResponse ReconnClientListReq AuthDataIndexMobileReq NotifyClientVersionReq
 }
 
 type SourcePort struct {

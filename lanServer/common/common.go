@@ -16,6 +16,7 @@ type ClientInfoTb struct {
 	Port       int
 	DeviceName string
 	Platform   string
+	Version    string
 	Online     bool
 	AuthStatus bool
 	UpdateTime string
@@ -24,7 +25,7 @@ type ClientInfoTb struct {
 
 func (c *ClientInfoTb) Dump() {
 	log.Printf("[ClientInfoTb] Index:%d, ClientId:%s, Host:%s, IpAddr:%s", c.Index, c.ClientId, c.Host, c.IpAddr)
-	log.Printf("[ClientInfoTb] Source:%d, Port:%d, DeviceName:%s, Platform:%s", c.Source, c.Port, c.DeviceName, c.Platform)
+	log.Printf("[ClientInfoTb] Source:%d, Port:%d, DeviceName:%s, Platform:%s, Version:%s", c.Source, c.Port, c.DeviceName, c.Platform, c.Version)
 	log.Printf("[ClientInfoTb] Online:%t, AuthStatus:%t, UpdateTime:%s, CreateTime:%s", c.Online, c.AuthStatus, c.UpdateTime, c.CreateTime)
 	log.Println()
 }

@@ -100,6 +100,7 @@ const ( // public business error code
 	ERR_BIZ_JSON_EXTDATA_UNMARSHAL
 	ERR_BIZ_GET_STREAM_RESET
 	ERR_BIZ_GET_CALLBACK_INSTANCE_NULL
+	ERR_BIZ_VERSION_INVALID
 )
 
 // client to lan server business error code

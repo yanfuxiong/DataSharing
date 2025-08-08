@@ -20,6 +20,7 @@ const (
 			Online 			BOOLEAN NOT NULL DEFAULT TRUE,
 			DeviceName 		TEXT,
 			Platform  		TEXT,
+			Version  		TEXT  NOT NULL,
 			UpdateTime  	DATETIME NOT NULL DEFAULT (datetime('now','localtime')),
 			CreateTime 		DATETIME NOT NULL DEFAULT (datetime('now','localtime'))
 		);
@@ -32,16 +33,17 @@ const (
 		);`
 
 	SqlDataUpsertClientInfo SqlData = `
-		INSERT INTO t_client_info (ClientId, Host, IPAddr, DeviceName, Platform, UpdateTime)
-		VALUES (?, ?, ?, ?, ?, (datetime('now','localtime')))
+		INSERT INTO t_client_info (ClientId, Host, IPAddr, DeviceName, Platform, Version, UpdateTime)
+		VALUES (?, ?, ?, ?, ?, ?, (datetime('now','localtime')))
 		ON CONFLICT (ClientId)
 		DO UPDATE SET
-			Host=excluded.Host,
-			IPAddr=excluded.IPAddr,
-			DeviceName=excluded.DeviceName,
-			Platform=excluded.Platform,
-			UpdateTime=excluded.UpdateTime,
-			Online=1
+			Host		= excluded.Host,
+			IPAddr		= excluded.IPAddr,
+			DeviceName	= excluded.DeviceName,
+			Platform	= excluded.Platform,
+			Version		= excluded.Version,
+			UpdateTime	= excluded.UpdateTime,
+			Online		= 1
 		RETURNING t_client_info.PkIndex;`
 
 	SqlDataUpsertAuthInfo SqlData = `
@@ -59,7 +61,7 @@ const (
 
 	SqlDataQueryClientInfo SqlData = `
 		SELECT t_client_info.PkIndex, ClientId, Host, IPAddr,
-		Source, Port, DeviceName, Platform,
+		Source, Port, DeviceName, Platform, Version,
 		Online, COALESCE(t_auth_info.AuthStatus, 0) AS AuthStatus, t_client_info.UpdateTime, t_client_info.CreateTime
 		FROM t_client_info
 		LEFT JOIN t_auth_info ON t_auth_info.ClientIndex=t_client_info.PkIndex
@@ -81,6 +83,7 @@ const (
 	SqlCondIPAddr           SqlCond = "IPAddr=?"
 	SqlCondDeviceName       SqlCond = "DeviceName=?"
 	SqlCondPlatform         SqlCond = "Platform=?"
+	SqlCondVersion          SqlCond = "Version=?"
 	SqlCondLastUpdateTime   SqlCond = "(strftime('%s', 'now') - strftime('%s', t_client_info.UpdateTime)) > ?"
 )
 

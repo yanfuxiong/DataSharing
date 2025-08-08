@@ -1,6 +1,8 @@
 package global
 
 const (
+	LanServerVersion = "2.2.13"
+	
 	LOG_PATH         = "/data/vendor/realtek/cross_share/"
 	SOCKET_PATH_ROOT = "/mnt/vendor/tvdata/database/cross_share/"
 	DB_PATH          = "/mnt/vendor/tvdata/database/cross_share/"

@@ -10,6 +10,7 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"gopkg.in/natefinch/lumberjack.v2"
 )
@@ -237,4 +238,75 @@ func CreateDir(dir string, dirModeOpt ...os.FileMode) error {
 
 func GetCurrentDir() (string, error) {
 	return os.Getwd()
+}
+
+func VerifyDigitVaild(data string) error {
+	//  must in '0' ... '9'
+	for idx, v := range data {
+		if !unicode.IsDigit(v) {
+			log.Printf("v[%d]:[%c]", idx, v)
+			return errors.New("invaild character data:" + data)
+		}
+	}
+
+	return nil
+}
+
+// The legal range of version numbers: 0.0.0  ~ 999.999.9999999
+func CheckFullVersionVaild(fullVersion string) bool {
+	verIdList := strings.Split(fullVersion, ".")
+	if len(verIdList) != 3 {
+		return false
+	}
+
+	if VerifyDigitVaild(verIdList[0]) != nil || VerifyDigitVaild(verIdList[1]) != nil || VerifyDigitVaild(verIdList[2]) != nil {
+		return false
+	}
+
+	if len(verIdList[0]) > 3 || len(verIdList[1]) > 3 {
+		return false
+	}
+
+	return true
+}
+
+func VerifyVersionVaild(ver string) bool {
+	verIdList := strings.Split(ver, ".")
+	if len(verIdList) < 2 {
+		return false
+	}
+
+	if VerifyDigitVaild(verIdList[0]) != nil || VerifyDigitVaild(verIdList[1]) != nil {
+		return false
+	}
+
+	if len(verIdList[0]) > 3 || len(verIdList[1]) > 3 {
+		return false
+	}
+
+	return true
+}
+
+// Take the intermediate version number
+func GetVersionValue(ver string) int {
+	if !VerifyVersionVaild(ver) {
+		return -1
+	}
+
+	verIdList := strings.Split(ver, ".")
+	verVal, err := strconv.Atoi(verIdList[1])
+	if err != nil {
+		return -1
+	} else {
+		return verVal
+	}
+}
+
+func GetShortVersion(fullVersion string) string {
+	verIdList := strings.Split(fullVersion, ".")
+	if len(verIdList) > 2 {
+		return fmt.Sprintf("%s.%s", verIdList[0], verIdList[1])
+	}
+
+	return fullVersion
 }
