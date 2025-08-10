@@ -1,6 +1,6 @@
 package buildConfig
 
-var Version string
+var Version string // Deprecated: unused
 var BuildDate string
-var Debug string
+var Debug string // Deprecated: unused
 var CmdDebug string

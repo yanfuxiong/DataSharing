@@ -21,6 +21,7 @@ typedef void (*CallbackMethodStopBrowseMdns)();
 typedef char* (*CallbackAuthData)();
 typedef void (*CallbackSetDIASStatus)(unsigned int status);
 typedef void (*CallbackSetMonitorName)(char* monitorName);
+typedef void (*CallbackRequestUpdateClientVersion)(char* clientVer, char* extendArg);
 
 static CallbackMethodText gCallbackMethodText = 0;
 static CallbackMethodImage gCallbackMethodImage = 0;
@@ -37,6 +38,7 @@ static CallbackMethodStopBrowseMdns gCallbackMethodStopBrowseMdns = 0;
 static CallbackAuthData gCallbackAuthData = 0;
 static CallbackSetDIASStatus gCallbackSetDIASStatus = 0;
 static CallbackSetMonitorName gCallbackSetMonitorName = 0;
+static CallbackRequestUpdateClientVersion gCallbackRequestUpdateClientVersion = 0;
 
 static void setCallbackMethodText(CallbackMethodText cb) {gCallbackMethodText = cb;}
 static void invokeCallbackMethodText(char* str) {
@@ -99,6 +101,11 @@ static void setCallbackSetMonitorName(CallbackSetMonitorName cb) {gCallbackSetMo
 static void invokeCallbackSetMonitorName(char* monitorName) {
 	if (gCallbackSetMonitorName) { gCallbackSetMonitorName(monitorName);}
 }
+
+static void setCallbackRequestUpdateClientVersion(CallbackRequestUpdateClientVersion cb) {gCallbackRequestUpdateClientVersion = cb;}
+static void invokeCallbackRequestUpdateClientVersion(char* clientVer, char* extendArg) {
+	if (gCallbackRequestUpdateClientVersion) { gCallbackRequestUpdateClientVersion(clientVer, extendArg);}
+}
 */
 import "C"
 
@@ -138,6 +145,8 @@ func init() {
 	rtkPlatform.SetCallbackGetAuthData(GoTriggerCallbackGetAuthData)
 	rtkPlatform.SetCallbackDIASStatus(GoTriggerCallbackSetDIASStatus)
 	rtkPlatform.SetCallbackMonitorName(GoTriggerCallbackSetMonitorName)
+	rtkPlatform.SetCallbackNotiMessageFileTrans(GoTriggerCallbackNotiMessage)
+	rtkPlatform.SetCallbackRequestUpdateClientVersion()
 
 	rtkPlatform.SetConfirmDocumentsAccept(false)
 }
@@ -295,6 +304,10 @@ func GoTriggerCallbackSetMonitorName(name string) {
 	log.Printf("[%s] MonitorName:[%s]", rtkMisc.GetFuncInfo(), name)
 }
 
+func GoTriggerCallbackNotiMessage(fileName, clientName, platform string, timestamp uint64, isSender bool) {
+	log.Printf("[%s] MonitorName:[%s]", rtkMisc.GetFuncInfo(), name)
+}
+
 //export SetCallbackMethodText
 func SetCallbackMethodText(cb C.CallbackMethodText) {
 	log.Printf("[%s] SetCallbackMethodText", rtkMisc.GetFuncInfo())
@@ -373,6 +386,12 @@ func SetCallbackDIASStatus(cb C.CallbackSetDIASStatus) {
 func SetCallbackMonitorName(cb C.CallbackSetMonitorName) {
 	log.Printf("[%s] SetCallbackMonitorName", rtkMisc.GetFuncInfo())
 	C.setCallbackSetMonitorName(cb)
+}
+
+//export SetCallbackRequestUpdateClientVersion
+func SetCallbackRequestUpdateClientVersion(cb C.CallbackRequestUpdateClientVersion) {
+	log.Printf("[%s] SetCallbackRequestUpdateClientVersion", rtkMisc.GetFuncInfo())
+	C.setCallbackRequestUpdateClientVersion(cb)
 }
 
 //export MainInit
@@ -574,7 +593,7 @@ func SetDetectPluginEvent(isPlugin bool) {
 
 //export GetVersion
 func GetVersion() *C.char {
-	return C.CString(rtkBuildConfig.Version)
+	return C.CString(rtkGlobal.ClientVersion)
 }
 
 //export GetBuildDate

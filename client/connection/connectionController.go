@@ -193,7 +193,7 @@ func setupNode(ip string, port int) error {
 	log.Println("=======================================================\n\n")
 
 	ipAddr := rtkMisc.ConcatIP(rtkGlobal.NodeInfo.IPAddr.PublicIP, rtkGlobal.NodeInfo.IPAddr.PublicPort)
-	serviceVer := "v" + rtkBuildConfig.Version + " (" + rtkBuildConfig.BuildDate + ")"
+	serviceVer := "v" + rtkGlobal.ClientVersion + " (" + rtkBuildConfig.BuildDate + ")"
 	rtkPlatform.GoUpdateSystemInfo(ipAddr, serviceVer)
 
 	nodeMutex.Lock()

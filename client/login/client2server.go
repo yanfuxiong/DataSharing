@@ -67,11 +67,12 @@ func buildMessageReq(msg *rtkMisc.C2SMessage) rtkMisc.CrossShareErr {
 		msg.ClientIndex = rtkGlobal.NodeInfo.ClientIndex
 	case rtkMisc.C2SMsg_INIT_CLIENT:
 		reqData := rtkMisc.InitClientMessageReq{
-			HOST:       rtkGlobal.HOST_ID,
-			ClientID:   rtkGlobal.NodeInfo.ID,
-			Platform:   rtkGlobal.NodeInfo.Platform,
-			DeviceName: rtkGlobal.NodeInfo.DeviceName,
-			IPAddr:     rtkMisc.ConcatIP(rtkGlobal.NodeInfo.IPAddr.PublicIP, rtkGlobal.NodeInfo.IPAddr.PublicPort),
+			HOST:          rtkGlobal.HOST_ID,
+			ClientID:      rtkGlobal.NodeInfo.ID,
+			Platform:      rtkGlobal.NodeInfo.Platform,
+			DeviceName:    rtkGlobal.NodeInfo.DeviceName,
+			IPAddr:        rtkMisc.ConcatIP(rtkGlobal.NodeInfo.IPAddr.PublicIP, rtkGlobal.NodeInfo.IPAddr.PublicPort),
+			ClientVersion: rtkGlobal.ClientVersion,
 		}
 		msg.ExtData = reqData
 
@@ -141,34 +142,7 @@ func handleReadMessageFromServer(buffer []byte) rtkMisc.CrossShareErr {
 			log.Printf("[%s] Err: Send REQ_CLIENT_LIST failed: [%d]", rtkMisc.GetFuncInfo(), errCode)
 		}
 	case rtkMisc.C2SMsg_INIT_CLIENT:
-		var initClientRsp rtkMisc.InitClientMessageResponse
-		err = json.Unmarshal(rspMsg.ExtData, &initClientRsp)
-		if err != nil {
-			log.Printf("clientID:[%s]decode ExtDataText  Err: %+v", rspMsg.ClientID, err)
-			return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
-		} else {
-			if initClientRsp.Code != rtkMisc.SUCCESS {
-				log.Printf("Requst Init Client failed,  code:[%d] errMsg:[%s]", initClientRsp.Code, initClientRsp.Msg)
-				return initClientRsp.Code
-			}
-		}
-		rtkGlobal.NodeInfo.ClientIndex = initClientRsp.ClientIndex
-		monitorName = initClientRsp.MonitorName
-		heartBeatFlag <- struct{}{}
-		log.Printf("Requst Init Client success, get Client Index:[%d]", initClientRsp.ClientIndex)
-
-		rtkPlatform.GoMonitorNameNotify(monitorName)
-		if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformAndroid || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformiOS {
-			errCode, authData := rtkPlatform.GetAuthData()
-			if errCode != rtkMisc.SUCCESS {
-				log.Printf("[%s] GetAuthData errCode:[%d]", rtkMisc.GetFuncInfo(), errCode)
-				return errCode
-			}
-			mobileAuthData = authData
-			return sendReqAuthDataAndIndexMobileToLanServer()
-		} else {
-			rtkPlatform.GoAuthViaIndex(rtkGlobal.NodeInfo.ClientIndex)
-		}
+		return dealS2CMsgInitClient(rspMsg.ClientID, rspMsg.ExtData)
 	case rtkMisc.C2SMsg_AUTH_INDEX_MOBILE: //TODO: To remove it  and be replaced by C2SMsg_AUTH_DATA_INDEX_MOBILE
 		var authIndexMobileRsp rtkMisc.AuthIndexMobileResponse
 		err = json.Unmarshal(rspMsg.ExtData, &authIndexMobileRsp)
@@ -187,80 +161,173 @@ func handleReadMessageFromServer(buffer []byte) rtkMisc.CrossShareErr {
 		}
 		SendReqClientListToLanServer()
 	case rtkMisc.C2SMsg_AUTH_DATA_INDEX_MOBILE:
-		var authIndexMobileRsp rtkMisc.AuthDataIndexMobileResponse
-		err = json.Unmarshal(rspMsg.ExtData, &authIndexMobileRsp)
-		if err != nil {
-			log.Printf("clientID:[%s] Index:[%d] Err: decode ExtDataText:%+v", rspMsg.ClientID, rspMsg.ClientIndex, err)
-			return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
-		}
-
-		if authIndexMobileRsp.Code != rtkMisc.SUCCESS {
-			return authIndexMobileRsp.Code
-		}
-
-		if authIndexMobileRsp.AuthStatus != true {
-			log.Printf("[%s] clientID:[%s] Index[%d] Err: Unauthorized", rtkMisc.GetFuncInfo(), rspMsg.ClientID, rspMsg.ClientIndex)
-			return rtkMisc.ERR_BIZ_S2C_UNAUTH
-		}
-		return SendReqClientListToLanServer()
+		return dealS2CMsgMobileAuthDataResp(rspMsg.ClientID, rspMsg.ClientIndex, rspMsg.ExtData)
 	case rtkMisc.C2SMsg_REQ_CLIENT_LIST:
-		var getClientListRsp rtkMisc.GetClientListResponse
-		err = json.Unmarshal(rspMsg.ExtData, &getClientListRsp)
-		if err != nil {
-			log.Printf("clientID:[%s] Index:[%d] Err: decode ExtDataText:%+v", rspMsg.ClientID, rspMsg.ClientIndex, err)
-			return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
-		}
-
-		if getClientListRsp.Code != rtkMisc.SUCCESS {
-			return getClientListRsp.Code
-		}
-		clientList := make([]rtkMisc.ClientInfo, 0)
-		for _, client := range getClientListRsp.ClientList {
-			if client.ID != rtkGlobal.NodeInfo.ID {
-				clientList = append(clientList, rtkMisc.ClientInfo{
-					ID:             client.ID,
-					IpAddr:         client.IpAddr,
-					Platform:       client.Platform,
-					DeviceName:     client.DeviceName,
-					SourcePortType: client.SourcePortType,
-				})
-			} else {
-				rtkGlobal.NodeInfo.SourcePortType = client.SourcePortType
-			}
-		}
-		nClientCount := len(clientList)
-		if nClientCount == 0 {
-			NotifyDIASStatus(DIAS_Status_Wait_Other_Clients)
-		} else {
-			NotifyDIASStatus(DIAS_Status_Get_Clients_Success)
-		}
-
-		GetClientListFlag <- clientList
-		log.Printf("Request Client List success, get online ClienList len [%d], self SourcePortType:[%s]", nClientCount, rtkGlobal.NodeInfo.SourcePortType)
+		return dealS2CMsgRespClientList(rspMsg.ClientID, rspMsg.ExtData)
 	case rtkMisc.C2SMsg_REQ_CLIENT_DRAG_FILE:
-		var targetID string
-		err = json.Unmarshal(rspMsg.ExtData, &targetID)
-		if err != nil {
-			log.Printf("clientID:[%s] Index:[%d] Err: decode ExtDataText:%+v", rspMsg.ClientID, rspMsg.ClientIndex, err)
-			return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
-		}
-		log.Printf("Call Client Drag file by LanServer success, get target Client id:[%s]", targetID)
-		rtkFileDrop.UpdateDragFileReqDataFromLocal(targetID)
+		return dealS2CMsgReqClientDragFiles(rspMsg.ClientID, rspMsg.ExtData)
 	case rtkMisc.CS2Msg_RECONN_CLIENT_LIST:
-		var reconnListReq rtkMisc.ReconnClientListReq
-		err = json.Unmarshal(rspMsg.ExtData, &reconnListReq)
-		if err != nil {
-			log.Printf("clientID:[%s] Index:[%d] Err: decode ExtDataText:%+v", rspMsg.ClientID, rspMsg.ClientIndex, err)
-			return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
-		}
-
-		clientList := reconnListHandler(reconnListReq.ClientList, reconnListReq.ConnDirect)
-		GetClientListFlag <- clientList
+		return dealS2CMsgReconnClientList(rspMsg.ClientID, rspMsg.ExtData)
+	case rtkMisc.CS2Msg_NOTIFY_CLIENT_VERSION:
+		return dealS2CMsgNotifyClientVersion(rspMsg.ClientID, rspMsg.ExtData)
 	default:
 		log.Printf("[%s]Unknown MsgType:[%s]", rtkMisc.GetFuncInfo(), rspMsg.MsgType)
 		return rtkMisc.ERR_BIZ_C2S_UNKNOWN_MSG_TYPE
 	}
 
+	return rtkMisc.SUCCESS
+}
+
+func dealS2CMsgInitClient(id string, extData json.RawMessage) rtkMisc.CrossShareErr {
+	var initClientRsp rtkMisc.InitClientMessageResponse
+	err := json.Unmarshal(extData, &initClientRsp)
+	if err != nil {
+		log.Printf("clientID:[%s]decode ExtDataText  Err: %+v", id, err)
+		return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
+	}
+
+	if initClientRsp.Code != rtkMisc.SUCCESS {
+		log.Printf("Request Init Client failed,  code:[%d] errMsg:[%s]", initClientRsp.Code, initClientRsp.Msg)
+		return initClientRsp.Code
+	}
+
+	if initClientRsp.ClientVersion != "" {
+		log.Printf("Request Init Client, response version:[%s]", initClientRsp.ClientVersion)
+		notifyVerValue := rtkMisc.GetVersionValue(initClientRsp.ClientVersion)
+		if notifyVerValue < 0 {
+			log.Printf("[%s] ClientVersion:[%s]  GetVersionValue failed!", rtkMisc.GetFuncInfo(), initClientRsp.ClientVersion)
+			return rtkMisc.ERR_BIZ_VERSION_INVALID
+		}
+
+		if checkClientVersionInvalid(initClientRsp.ClientVersion) {
+			return rtkMisc.SUCCESS
+		}
+	}
+
+	rtkGlobal.NodeInfo.ClientIndex = initClientRsp.ClientIndex
+	monitorName = initClientRsp.MonitorName
+	heartBeatFlag <- struct{}{}
+	log.Printf("Requst Init Client success, get Client Index:[%d]", initClientRsp.ClientIndex)
+
+	rtkPlatform.GoMonitorNameNotify(monitorName)
+	if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformAndroid || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformiOS {
+		errCode, authData := rtkPlatform.GetAuthData()
+		if errCode != rtkMisc.SUCCESS {
+			log.Printf("[%s] GetAuthData errCode:[%d]", rtkMisc.GetFuncInfo(), errCode)
+			return errCode
+		}
+		mobileAuthData = authData
+		return sendReqAuthDataAndIndexMobileToLanServer()
+	} else {
+		rtkPlatform.GoAuthViaIndex(rtkGlobal.NodeInfo.ClientIndex)
+	}
+	return rtkMisc.SUCCESS
+}
+
+func dealS2CMsgMobileAuthDataResp(id string, index uint32, extData json.RawMessage) rtkMisc.CrossShareErr {
+	var authIndexMobileRsp rtkMisc.AuthDataIndexMobileResponse
+	err := json.Unmarshal(extData, &authIndexMobileRsp)
+	if err != nil {
+		log.Printf("clientID:[%s] Index:[%d] Err: decode ExtDataText:%+v", id, index, err)
+		return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
+	}
+
+	if authIndexMobileRsp.Code != rtkMisc.SUCCESS {
+		return authIndexMobileRsp.Code
+	}
+
+	if authIndexMobileRsp.AuthStatus != true {
+		log.Printf("[%s] clientID:[%s] Index[%d] Err: Unauthorized", rtkMisc.GetFuncInfo(), id, index)
+		return rtkMisc.ERR_BIZ_S2C_UNAUTH
+	}
+	return SendReqClientListToLanServer()
+}
+
+func dealS2CMsgRespClientList(id string, extData json.RawMessage) rtkMisc.CrossShareErr {
+	var getClientListRsp rtkMisc.GetClientListResponse
+	err := json.Unmarshal(extData, &getClientListRsp)
+	if err != nil {
+		log.Printf("clientID:[%s] Err: decode ExtDataText:%+v", id, err)
+		return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
+	}
+
+	if getClientListRsp.Code != rtkMisc.SUCCESS {
+		return getClientListRsp.Code
+	}
+	clientList := make([]rtkMisc.ClientInfo, 0)
+	for _, client := range getClientListRsp.ClientList {
+		if client.ID != rtkGlobal.NodeInfo.ID {
+			clientList = append(clientList, rtkMisc.ClientInfo{
+				ID:             client.ID,
+				IpAddr:         client.IpAddr,
+				Platform:       client.Platform,
+				DeviceName:     client.DeviceName,
+				SourcePortType: client.SourcePortType,
+			})
+		} else {
+			rtkGlobal.NodeInfo.SourcePortType = client.SourcePortType
+		}
+	}
+	nClientCount := len(clientList)
+	if nClientCount == 0 {
+		NotifyDIASStatus(DIAS_Status_Wait_Other_Clients)
+	} else {
+		NotifyDIASStatus(DIAS_Status_Get_Clients_Success)
+	}
+
+	GetClientListFlag <- clientList
+	log.Printf("Request Client List success, get online ClienList len [%d], self SourcePortType:[%s]", nClientCount, rtkGlobal.NodeInfo.SourcePortType)
+	return rtkMisc.SUCCESS
+}
+
+func dealS2CMsgReqClientDragFiles(id string, extData json.RawMessage) rtkMisc.CrossShareErr {
+	var targetID string
+	err := json.Unmarshal(extData, &targetID)
+	if err != nil {
+		log.Printf("clientID:[%s]  Err: decode ExtDataText:%+v", id, err)
+		return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
+	}
+	log.Printf("Call Client Drag file by LanServer success, get target Client id:[%s]", targetID)
+	rtkFileDrop.UpdateDragFileReqDataFromLocal(targetID)
+	return rtkMisc.SUCCESS
+}
+
+func dealS2CMsgReconnClientList(id string, extData json.RawMessage) rtkMisc.CrossShareErr {
+	var reconnListReq rtkMisc.ReconnClientListReq
+	err := json.Unmarshal(extData, &reconnListReq)
+	if err != nil {
+		log.Printf("clientID:[%s] Err: decode ExtDataText:%+v", id, err)
+		return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
+	}
+
+	notifyVerValue := rtkMisc.GetVersionValue(reconnListReq.ClientVersion)
+	if notifyVerValue < 0 {
+		log.Printf("[%s] ClientVersion:[%s]  GetVersionValue failed!", rtkMisc.GetFuncInfo(), reconnListReq.ClientVersion)
+		return rtkMisc.ERR_BIZ_VERSION_INVALID
+	}
+
+	if checkClientVersionInvalid(reconnListReq.ClientVersion) {
+		return rtkMisc.SUCCESS
+	}
+
+	clientList := reconnListHandler(reconnListReq.ClientList, reconnListReq.ConnDirect)
+	GetClientListFlag <- clientList
+	return rtkMisc.SUCCESS
+}
+
+func dealS2CMsgNotifyClientVersion(id string, extData json.RawMessage) rtkMisc.CrossShareErr {
+	var notifyVersion rtkMisc.NotifyClientVersionReq
+	err := json.Unmarshal(extData, &notifyVersion)
+	if err != nil {
+		log.Printf("[%s] clientID:[%s]  Err: decode ExtDataText:%+v", rtkMisc.GetFuncInfo(), id, err)
+		return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
+	}
+	notifyVerValue := rtkMisc.GetVersionValue(notifyVersion.ClientVersion)
+	if notifyVerValue < 0 {
+		log.Printf("[%s] ClientVersion:[%s]  GetVersionValue failed!", rtkMisc.GetFuncInfo(), notifyVersion.ClientVersion)
+		return rtkMisc.ERR_BIZ_VERSION_INVALID
+	}
+	checkClientVersionInvalid(notifyVersion.ClientVersion)
 	return rtkMisc.SUCCESS
 }
 
@@ -290,4 +357,25 @@ func reconnListHandler(reconnList []rtkMisc.ClientInfo, connDirection rtkMisc.Re
 		})
 	}
 	return clientList
+}
+
+func checkClientVersionInvalid(reqVer string) bool {
+	curVerValue := rtkMisc.GetVersionValue(rtkGlobal.ClientVersion)
+	if curVerValue < 0 {
+		return false
+	}
+
+	reqVerValue := rtkMisc.GetVersionValue(reqVer)
+	if curVerValue < reqVerValue {
+		log.Printf("[%s] Current Client Version:[%s], request Client Version:[%s], need update!", rtkMisc.GetFuncInfo(), rtkGlobal.ClientVersion, reqVer)
+		rtkPlatform.GoRequestUpdateClientVersion(rtkMisc.GetShortVersion(reqVer))
+		if cancelAllBusinessFunc != nil {
+			cancelAllBusinessFunc()
+		} else {
+			log.Printf("cancelAllBusinessFunc is nil, not cancel all business!")
+		}
+		return true
+	}
+
+	return false
 }

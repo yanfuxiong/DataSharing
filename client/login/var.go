@@ -25,6 +25,7 @@ const (
 )
 
 type callbackDisconnectAllClientFunc func()
+type callbackCancelAllBusinessFunc func()
 
 var (
 	serverInstanceMap       sync.Map //KEY: instance
@@ -39,8 +40,8 @@ var (
 	isReconnectRunning      atomic.Bool
 	reconnectCancelFunc     func()
 	disconnectAllClientFunc callbackDisconnectAllClientFunc
-
-	mobileAuthData rtkMisc.AuthDataInfo
+	cancelAllBusinessFunc   callbackCancelAllBusinessFunc
+	mobileAuthData          rtkMisc.AuthDataInfo
 
 	// Used by connection package
 	GetClientListFlag = make(chan []rtkMisc.ClientInfo)
@@ -51,4 +52,8 @@ var (
 
 func SetDisconnectAllClientCallback(cb callbackDisconnectAllClientFunc) {
 	disconnectAllClientFunc = cb
+}
+
+func SetCancelAllBusinessCallback(cb callbackCancelAllBusinessFunc) {
+	cancelAllBusinessFunc = cb
 }

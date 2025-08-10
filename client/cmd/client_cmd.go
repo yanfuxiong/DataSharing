@@ -22,6 +22,7 @@ var (
 	cablePlugInFlagChan      = make(chan struct{}, 1)
 	cablePlugOutFlagChan     = make(chan struct{})
 	networkSwitchFlagChan    = make(chan struct{})
+	clientVerInvalidFlagChan = make(chan struct{})
 	getLanServerMacTimeStamp int64
 )
 
@@ -35,7 +36,10 @@ func init() {
 	rtkConnection.SetStartProcessForPeerCallback(rtkPeer2Peer.StartProcessForPeer)
 	rtkConnection.SetSendDisconnectMsgToPeerCallback(rtkPeer2Peer.SendDisconnectMsgToPeer)
 	rtkLogin.SetDisconnectAllClientCallback(rtkConnection.CancelStreamPool)
-	
+	rtkLogin.SetCancelAllBusinessCallback(func() {
+		clientVerInvalidFlagChan <- struct{}{}
+	})
+
 	rtkPlatform.SetGoNetworkSwitchCallback(func() {
 		networkSwitchFlagChan <- struct{}{}
 	})
@@ -44,7 +48,6 @@ func init() {
 		if isPlugin {
 			log.Printf("Detect cable plug-in")
 			rtkLogin.SetProductName(productName)
-
 			cablePlugInFlagChan <- struct{}{}
 		} else {
 			log.Printf("Detect cable plug-out")
@@ -102,7 +105,7 @@ func listen_addrs(port int) []string {
 
 func Run() {
 	log.Println("=======================================================")
-	log.Println("Version: ", rtkBuildConfig.Version)
+	log.Println("Version: ", rtkGlobal.ClientVersion)
 	log.Println("Build Date: ", rtkBuildConfig.BuildDate)
 	log.Println("=======================================================\n\n")
 
@@ -133,7 +136,7 @@ func Run() {
 
 func MainInit(serverId, serverIpInfo, listenHost string, listentPort int) {
 	log.Println("=======================================================")
-	log.Println("Version: ", rtkBuildConfig.Version)
+	log.Println("Version: ", rtkGlobal.ClientVersion)
 	log.Println("Build Date: ", rtkBuildConfig.BuildDate)
 	log.Println("=======================================================\n\n")
 
@@ -224,6 +227,17 @@ func businessProcess() {
 				time.Sleep(100 * time.Millisecond) // wait for print all cancel log
 			} else {
 				log.Printf("******** DIAS is extract, business is not start! ******** ")
+			}
+			log.Println("===========================================================================\n\n")
+		case <-clientVerInvalidFlagChan:
+			log.Println("===========================================================================")
+			log.Printf("******** Client Version is too old, and must be forcibly updated, cancel all business! ******** ")
+			if cancelFunc != nil {
+				cancelFunc()
+				cancelFunc = nil
+				time.Sleep(100 * time.Millisecond) // wait for print all cancel log
+			} else {
+				log.Printf("******** business is not start! ******** ")
 			}
 			log.Println("===========================================================================\n\n")
 		}

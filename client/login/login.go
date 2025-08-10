@@ -46,6 +46,7 @@ func init() {
 	cancelBrowse = nil
 
 	disconnectAllClientFunc = nil
+	cancelAllBusinessFunc = nil
 }
 
 func ConnectLanServerRun(ctx context.Context) {

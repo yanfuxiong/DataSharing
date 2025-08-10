@@ -137,6 +137,11 @@ typedef void (*SetupDstPasteImageCallback)(const wchar_t* desc, IMAGE_HEADER img
 static void SetupDstPasteImageCallbackFunc(SetupDstPasteImageCallback cb, const wchar_t* desc, IMAGE_HEADER imgHeader, uint32_t dataSize) {
     if (cb) cb(desc, imgHeader, dataSize);
 }
+
+typedef void (*RequestUpdateClientVersionCallback)(const char *clienVersion);
+static void RequestUpdateClientVersionCallbackFunc(RequestUpdateClientVersionCallback cb, const char *clienVersion) {
+    if (cb) cb(clienVersion);
+}
 */
 import "C"
 import (
@@ -237,6 +242,8 @@ var (
 	g_RequestSourceAndPortCallback      C.RequestSourceAndPortCallback      = nil
 	g_GetDownloadPathCallback           C.GetDownloadPathCallback           = nil
 	g_SetupDstPasteImageCallback        C.SetupDstPasteImageCallback        = nil
+
+	g_RequestUpdateClientVersionCallback C.RequestUpdateClientVersionCallback = nil
 )
 
 func main() {}
@@ -256,6 +263,7 @@ func init() {
 	rtkPlatform.SetMultiFilesDropNotifyCallback(GoTriggerCallbackMultiFilesDropNotify)
 	rtkPlatform.SetMultipleProgressBarCallback(GoTriggerCallbackMultipleProgressBar)
 	rtkPlatform.SetNotiMessageFileTransCallback(GoTriggerCallbackNotiMessage)
+	rtkPlatform.SetReqClientUpdateVerCallback(GoTriggerCallbackReqClientUpdateVer)
 
 	rtkPlatform.SetConfirmDocumentsAccept(false)
 }
@@ -482,6 +490,19 @@ func GoTriggerCallbackNotiMessage(fileName, clientName, platform string, timesta
 	C.NotiMessageCallbackFunc(g_NotiMessageCallback, cTimestamp, cCode, cParamArray.Array, cParamCnt)
 }
 
+func GoTriggerCallbackReqClientUpdateVer(ver string) {
+	if g_RequestUpdateClientVersionCallback == nil {
+		log.Printf("[%s] g_RequestUpdateClientVersionCallback is not set!", rtkMisc.GetFuncInfo())
+		return
+	}
+
+	cVer := C.CString(ver)
+	defer C.free(unsafe.Pointer(cVer))
+
+	log.Printf("[%s] version:%s", rtkMisc.GetFuncInfo(), ver)
+	C.RequestUpdateClientVersionCallbackFunc(g_RequestUpdateClientVersionCallback, cVer)
+}
+
 //export InitGoServer
 func InitGoServer(cRootPath, cDownloadPath, cDeviceName *C.wchar_t) {
 	rootPath := WCharToGoString(cRootPath)
@@ -520,12 +541,6 @@ func SetClipboardCopyImg(cHeader C.IMAGE_HEADER, bitmapData *C.uchar, cDataSize 
 
 	rtkPlatform.GoCopyImage(filesize, imgHeader, data)
 	log.Printf("Clipboard image content, width[%d] height[%d] data size[%d] \n", imgHeader.Width, imgHeader.Height, dataSize)
-}
-
-//export SetSetupDstPasteImageCallback
-func SetSetupDstPasteImageCallback(cb C.SetupDstPasteImageCallback) {
-	fmt.Println("SetSetupDstPasteImageCallback")
-	g_SetupDstPasteImageCallback = cb
 }
 
 //export SetFileDropRequest
@@ -837,4 +852,16 @@ func SetRequestSourceAndPortCallback(callback C.RequestSourceAndPortCallback) {
 func SetGetDownloadPathCallback(callback C.GetDownloadPathCallback) {
 	log.Println("SetGetDownloadPathCallback")
 	g_GetDownloadPathCallback = callback
+}
+
+//export SetSetupDstPasteImageCallback
+func SetSetupDstPasteImageCallback(cb C.SetupDstPasteImageCallback) {
+	log.Println("SetSetupDstPasteImageCallback")
+	g_SetupDstPasteImageCallback = cb
+}
+
+//export SetRequestUpdateClientVersionCallback
+func SetRequestUpdateClientVersionCallback(cb C.RequestUpdateClientVersionCallback) {
+	log.Println("SetRequestUpdateClientVersionCallback")
+	g_RequestUpdateClientVersionCallback = cb
 }

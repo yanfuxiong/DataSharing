@@ -58,6 +58,7 @@ type Callback interface {
 	CallbackUpdateDiasStatus(status int)
 	CallbackGetAuthData() string
 	CallbackUpdateMonitorName(monitorName string)
+	CallbackRequestUpdateClientVersion(clienVersion string)
 }
 
 var CallbackInstance Callback = nil
@@ -475,6 +476,16 @@ func GoEventHandle(eventType rtkCommon.EventType, id, fileName string, timestamp
 		CallbackInstance.CallbackFileError(id, fileName, strErr, int64(timestamp))
 	}
 	log.Printf("[%s %d]: id:%s, name:%s, error:%d", rtkMisc.GetFuncName(), rtkMisc.GetLine(), id, fileName, eventType)
+}
+
+func GoRequestUpdateClientVersion(ver string) {
+	if CallbackInstance == nil {
+		log.Println("GoRequestUpdateClientVersion CallbackInstance is null !")
+		return
+	}
+
+	log.Printf("[%s] client version:%s \n\n", rtkMisc.GetFuncInfo(), ver)
+	CallbackInstance.CallbackRequestUpdateClientVersion(ver)
 }
 
 func GoCleanClipboard() {

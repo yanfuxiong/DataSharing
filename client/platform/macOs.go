@@ -588,7 +588,7 @@ func GetHostIDPath() string {
 }
 
 func GetPlatform() string {
-	return rtkMisc.PlatformMac
+	return rtkGlobal.PlatformMac
 }
 
 func LockFile(file *os.File) error {

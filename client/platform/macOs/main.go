@@ -507,11 +507,9 @@ func SetDetectPluginEvent(isPlugin bool) {
 	rtkPlatform.GoTriggerDetectPluginEvent(isPlugin)
 }
 
-
-
 //export GetVersion
 func GetVersion() *C.char {
-	return C.CString(rtkBuildConfig.Version)
+	return C.CString(rtkGlobal.ClientVersion)
 }
 
 //export GetBuildDate

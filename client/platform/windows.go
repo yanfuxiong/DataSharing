@@ -106,6 +106,7 @@ type (
 	CallbackUpdateClientStatusFunc     func(status uint32, ip, id, deviceName, deviceType string)
 	CallbackDetectPluginEventFunc      func(isPlugin bool, productName string)
 	CallbackGetFilesTransCodeFunc      func(id string) rtkCommon.SendFilesRequestErrCode
+	CallbackReqClientUpdateVerFunc     func(clientVer string)
 )
 
 var (
@@ -128,6 +129,7 @@ var (
 	callbackAuthStatusCodeCB           CallbackAuthStatusCodeFunc         = nil
 	callbackDIASSourceAndPortCB        CallbackDIASSourceAndPortFunc      = nil
 	callbackMethodBrowseMdnsResult     CallbackMethodBrowseMdnsResultFunc = nil
+	callbackReqClientUpdateVer         CallbackReqClientUpdateVerFunc     = nil
 
 	// main.go Callback
 	callbackAuthViaIndex       CallbackAuthViaIndexCallbackFunc = nil
@@ -281,6 +283,10 @@ func SetMultiFilesDropNotifyCallback(cb CallbackMultiFilesDropNotifyFunc) {
 
 func SetNotiMessageFileTransCallback(cb CallbackNotiMessageFileTransFunc) {
 	callbackNotiMessageFileTransCB = cb
+}
+
+func SetReqClientUpdateVerCallback(cb CallbackReqClientUpdateVerFunc) {
+	callbackReqClientUpdateVer = cb
 }
 
 /*======================================= Used by main.go, Called by C++ =======================================*/
@@ -485,6 +491,15 @@ func GoNotiMessageFileTransfer(fileName, clientName, platform string, timestamp 
 
 func GoEventHandle(eventType rtkCommon.EventType, ipAddr, fileName string, timestamp uint64) {
 
+}
+
+func GoRequestUpdateClientVersion(ver string) {
+	if callbackReqClientUpdateVer == nil {
+		log.Printf("callbackReqClientUpdateVer is null!\n")
+		return
+	}
+
+	callbackReqClientUpdateVer(ver)
 }
 
 func GoCleanClipboard() {

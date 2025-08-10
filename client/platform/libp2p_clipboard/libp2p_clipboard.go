@@ -222,7 +222,7 @@ func SetConfirmDocumentsAccept(ifConfirm bool) {
 }
 
 func GetVersion() string {
-	return rtkBuildConfig.Version
+	return rtkGlobal.ClientVersion
 }
 
 func GetBuildDate() string {
