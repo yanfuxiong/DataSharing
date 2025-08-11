@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"log"
-	"math"
 	"net"
 	rtkCommon "rtk-cross-share/lanServer/common"
 	rtkdbManager "rtk-cross-share/lanServer/dbManager"
@@ -67,47 +66,7 @@ func handleReadFromClientMsg(buffer []byte, IPAddr string, MsgRsp *rtkMisc.C2SMe
 		}
 		MsgRsp.ExtData = resetRsp
 	case rtkMisc.C2SMsg_INIT_CLIENT:
-		var extData rtkMisc.InitClientMessageReq
-		initClientRsp := rtkMisc.InitClientMessageResponse{Response: rtkMisc.GetResponse(rtkMisc.SUCCESS), ClientIndex: 0, MonitorName: "", ClientVersion: ""}
-		err = json.Unmarshal(msg.ExtData, &extData)
-		if err != nil {
-			log.Printf("clientID:[%s] decode ExtDataText Err: %s", msg.ClientID, err.Error())
-			initClientRsp.Response = rtkMisc.GetResponse(rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL)
-		} else {
-			if !rtkMisc.CheckFullVersionVaild(extData.ClientVersion) {
-				initClientRsp.Response = rtkMisc.GetResponse(rtkMisc.ERR_BIZ_VERSION_INVALID)
-				MsgRsp.ExtData = initClientRsp
-				log.Printf("clientID:[%s] get invalid version:[%s]", msg.ClientID, extData.ClientVersion)
-				break
-			}
-
-			reqVerValue := rtkMisc.GetVersionValue(extData.ClientVersion)
-			curMaxVersion, errCode := rtkdbManager.QueryMaxVersion()
-			if errCode != rtkMisc.SUCCESS {
-				initClientRsp.Response = rtkMisc.GetResponse(errCode)
-				MsgRsp.ExtData = initClientRsp
-				break
-			}
-			log.Printf("[%s] online clients list max version:%s, and req client version:%s", rtkMisc.GetFuncInfo(), rtkMisc.GetShortVersion(curMaxVersion), extData.ClientVersion)
-
-			curVerValue := rtkMisc.GetVersionValue(curMaxVersion)
-			if curVerValue > reqVerValue { // client need to update version
-				initClientRsp.ClientVersion = rtkMisc.GetShortVersion(curMaxVersion)
-			} else if curVerValue < reqVerValue { // other client list need update version
-				log.Printf("[%s] clientID:[%s] Version:[%s] is newer than current:%s, notify other client list to update!", rtkMisc.GetFuncInfo(), extData.ClientID, extData.ClientVersion, curMaxVersion)
-				buildNotifyClientVersion(extData.ClientID, rtkMisc.GetShortVersion(extData.ClientVersion))
-			}
-
-			pkIndex, errCode := rtkdbManager.UpsertClientInfo(extData.ClientID, extData.HOST, extData.IPAddr, extData.DeviceName, extData.Platform, extData.ClientVersion)
-			if errCode != rtkMisc.SUCCESS {
-				initClientRsp.Response = rtkMisc.GetResponse(errCode)
-			} else {
-				initClientRsp.ClientIndex = uint32(pkIndex)
-				MsgRsp.ClientIndex = uint32(pkIndex)
-				initClientRsp.MonitorName = "cross_share_lan_serv" // MonitorName is temporarily write the dead data for debug
-			}
-		}
-		MsgRsp.ExtData = initClientRsp
+		MsgRsp.ClientIndex, MsgRsp.ExtData = dealC2SMsgInitClient(&msg.ExtData)
 	case rtkMisc.C2SMsg_AUTH_INDEX_MOBILE: //TODO: To remove it  and be replaced by C2SMsg_AUTH_DATA_INDEX_MOBILE
 		var extData rtkMisc.AuthIndexMobileReq
 		authIndexMobileRsp := rtkMisc.AuthIndexMobileResponse{Response: rtkMisc.GetResponse(rtkMisc.SUCCESS), AuthStatus: false}
@@ -127,47 +86,9 @@ func handleReadFromClientMsg(buffer []byte, IPAddr string, MsgRsp *rtkMisc.C2SMe
 		}
 		MsgRsp.ExtData = authIndexMobileRsp
 	case rtkMisc.C2SMsg_AUTH_DATA_INDEX_MOBILE:
-		authDataIndexMobileRsp := rtkMisc.AuthDataIndexMobileResponse{Response: rtkMisc.GetResponse(rtkMisc.SUCCESS), AuthStatus: false}
-		var extData rtkMisc.AuthDataIndexMobileReq
-		err = json.Unmarshal(msg.ExtData, &extData)
-		if err != nil {
-			log.Printf("[%s] clientID:[%s] decode ExtDataText Err: %s", rtkMisc.GetFuncInfo(), msg.ClientID, err.Error())
-			authDataIndexMobileRsp.Response = rtkMisc.GetResponse(rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL)
-		} else {
-			// Compare timing with TimingData & AuthData
-			log.Printf("[%s] Width[%d] Height[%d] Type[%d] Framerate[%d]  DisplayName:[%s]", rtkMisc.GetFuncInfo(), extData.AuthData.Width, extData.AuthData.Height, extData.AuthData.Type, extData.AuthData.Framerate, extData.AuthData.DisplayName)
-			authStatus, source, port := checkMobileTiming(int(msg.ClientIndex), extData.AuthData)
-			errCode := rtkdbManager.UpdateAuthAndSrcPort(int(msg.ClientIndex), authStatus, source, port)
-			if errCode != rtkMisc.SUCCESS {
-				authDataIndexMobileRsp.Response = rtkMisc.GetResponse(errCode)
-			} else {
-				authDataIndexMobileRsp.AuthStatus = authStatus
-			}
-
-			if !authStatus {
-				log.Printf("[%s] WARNING: Authorize failed", rtkMisc.GetFuncInfo())
-			}
-		}
-		MsgRsp.ExtData = authDataIndexMobileRsp
+		MsgRsp.ExtData = dealC2SMsgMobileAuthDataIndex(msg.ClientID, msg.ClientIndex, &msg.ExtData)
 	case rtkMisc.C2SMsg_REQ_CLIENT_LIST:
-		getClientListRsp := rtkMisc.GetClientListResponse{Response: rtkMisc.GetResponse(rtkMisc.SUCCESS), ClientList: make([]rtkMisc.ClientInfo, 0)}
-		clientInfoList := make([]rtkCommon.ClientInfoTb, 0)
-		errCode := rtkdbManager.QueryOnlineClientList(&clientInfoList)
-		if errCode != rtkMisc.SUCCESS {
-			getClientListRsp.Response = rtkMisc.GetResponse(errCode)
-		}
-
-		for _, client := range clientInfoList {
-			getClientListRsp.ClientList = append(getClientListRsp.ClientList, rtkMisc.ClientInfo{
-				ID:             client.ClientId,
-				IpAddr:         client.IpAddr,
-				Platform:       client.Platform,
-				DeviceName:     client.DeviceName,
-				SourcePortType: rtkCommon.GetClientSourcePortType(client.Source, client.Port),
-			})
-		}
-
-		MsgRsp.ExtData = getClientListRsp
+		MsgRsp.ExtData = dealC2SMsgReqClientList()
 	default:
 		log.Printf("[%s]Unknown MsgType:[%s]", rtkMisc.GetFuncInfo(), msg.MsgType)
 		return rtkMisc.ERR_BIZ_S2C_UNKNOWN_MSG_TYPE
@@ -243,16 +164,10 @@ func getMobileTimingSrcPort(clientIndex int, authData rtkMisc.AuthDataInfo) (int
 					return timingData.Source, timingData.Port
 				}
 			}
-			// Check Framerate in USBC
-			if math.Abs(float64(timingData.Framerate-authData.Framerate)) > 1 {
-				log.Printf("[%s] Different framerate: DIAS framerate(%d hz), Mobile framerate(%d hz)",
-					rtkMisc.GetFuncInfo(), timingData.Framerate, authData.Framerate)
-				continue
-			}
 		}
 
 		// Check Timing(width, height)
-		// DO NOT check framerate in MiraCast, due to Application layer cannot get correct framerate from SurfaceFlinger
+		// DO NOT check framerate in MiraCast and USBC, due to Application layer cannot get correct framerate from SurfaceFlinger
 		if timingData.Width != authData.Width ||
 			timingData.Height != authData.Height {
 			log.Printf("[%s] Different resolution: DIAS resolution(%dx%d), Mobile resolution(%dx%d)",
@@ -337,121 +252,4 @@ func writeMsg(msg *rtkMisc.C2SMessage, timestamp int64) rtkMisc.CrossShareErr {
 		log.Printf("Write a msg to clientID:[%s] ClientIndex:[%d] MsgType:[%s]", msg.ClientID, msg.ClientIndex, msg.MsgType)
 	}
 	return write(encodedData, msg.ClientID, timestamp)
-}
-
-// TODO: call by via InterfaceMgr
-func SendDragFileEvent(srcId, targetId string, srcClientIndex uint32) rtkMisc.CrossShareErr {
-	msg := rtkMisc.C2SMessage{
-		ClientID:    srcId,
-		ClientIndex: srcClientIndex,
-		MsgType:     rtkMisc.C2SMsg_REQ_CLIENT_DRAG_FILE,
-		TimeStamp:   time.Now().UnixMilli(),
-		ExtData:     targetId,
-	}
-
-	return writeMsg(&msg, 0)
-}
-
-func ReconnClientListHandler(ctx context.Context) {
-	ticker := time.NewTicker(reconnListInternal)
-	defer ticker.Stop()
-
-	connDirectoin := rtkMisc.RECONN_GREATER
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			errCode := buildReconnClientList(connDirectoin)
-			if errCode != rtkMisc.SUCCESS {
-				log.Printf("[%s] Build ReconnClientListReq failed: errCode[%d]", rtkMisc.GetFuncInfo(), errCode)
-			}
-
-			if connDirectoin == rtkMisc.RECONN_GREATER {
-				connDirectoin = rtkMisc.RECONN_LESS
-			} else {
-				connDirectoin = rtkMisc.RECONN_GREATER
-			}
-		}
-	}
-}
-
-func buildReconnClientList(reconnDirection rtkMisc.ReconnDirection) rtkMisc.CrossShareErr {
-	reconnListReq := rtkMisc.ReconnClientListReq{ClientList: make([]rtkMisc.ClientInfo, 0), ConnDirect: reconnDirection, ClientVersion: ""}
-	clientInfoList := make([]rtkCommon.ClientInfoTb, 0)
-	errCode := rtkdbManager.QueryReconnList(&clientInfoList)
-	if errCode != rtkMisc.SUCCESS {
-		return errCode
-	}
-
-	nMaxVerValue := int(0)
-	for _, client := range clientInfoList {
-		reconnListReq.ClientList = append(reconnListReq.ClientList, rtkMisc.ClientInfo{
-			ID:             client.ClientId,
-			IpAddr:         client.IpAddr,
-			Platform:       client.Platform,
-			DeviceName:     client.DeviceName,
-			SourcePortType: rtkCommon.GetClientSourcePortType(client.Source, client.Port),
-		})
-
-		clientVerVal := rtkMisc.GetVersionValue(client.Version)
-		if nMaxVerValue < clientVerVal { // get max version
-			reconnListReq.ClientVersion = rtkMisc.GetShortVersion(client.Version)
-			nMaxVerValue = clientVerVal
-		}
-	}
-
-	retErrCode := rtkMisc.SUCCESS
-	for _, client := range reconnListReq.ClientList {
-		err := sendReconnClientList(client.ID, reconnListReq)
-		if err != rtkMisc.SUCCESS {
-			retErrCode = err
-		}
-	}
-	return retErrCode
-}
-
-func sendReconnClientList(id string, extData rtkMisc.ReconnClientListReq) rtkMisc.CrossShareErr {
-	msg := rtkMisc.C2SMessage{
-		ClientID:    id,
-		ClientIndex: 0,
-		MsgType:     rtkMisc.CS2Msg_RECONN_CLIENT_LIST,
-		TimeStamp:   time.Now().UnixMilli(),
-		ExtData:     extData,
-	}
-
-	return writeMsg(&msg, 0)
-}
-
-func buildNotifyClientVersion(id, version string) rtkMisc.CrossShareErr {
-	clientInfoList := make([]rtkCommon.ClientInfoTb, 0)
-	errCode := rtkdbManager.QueryNotifyClientVerList(&clientInfoList)
-	if errCode != rtkMisc.SUCCESS {
-		return errCode
-	}
-
-	reqClientVer := rtkMisc.NotifyClientVersionReq{ClientVersion: version}
-	retErrCode := rtkMisc.SUCCESS
-	for _, client := range clientInfoList {
-		if id == client.ClientId {
-			continue
-		}
-		err := sendNotifyClientVersion(client.ClientId, reqClientVer)
-		if err != rtkMisc.SUCCESS {
-			retErrCode = err
-		}
-	}
-	return retErrCode
-}
-
-func sendNotifyClientVersion(id string, extData rtkMisc.NotifyClientVersionReq) rtkMisc.CrossShareErr {
-	msg := rtkMisc.C2SMessage{
-		ClientID:    id,
-		ClientIndex: 0,
-		MsgType:     rtkMisc.CS2Msg_NOTIFY_CLIENT_VERSION,
-		TimeStamp:   time.Now().UnixMilli(),
-		ExtData:     extData,
-	}
-
-	return writeMsg(&msg, 0)
 }

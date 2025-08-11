@@ -85,7 +85,6 @@ type (
 	CallbackUpdateProgressBar              func(string, string, uint64, uint64, uint64)
 	CallbackUpdateMultipleProgressBar      func(string, string, string, string, uint32, uint32, uint64, uint64, uint64, uint64)
 	CallbackCancelFileTransFunc            func(string, string, uint64)
-	CallbackNotiMessageFileTransFunc       func(fileName, clientName, platform string, timestamp uint64, isSender bool)
 	CallbackFileError                      func(string, string, string)
 	CallbackGetMacAddressFunc              func(string)
 	CallbackAuthStatusCodeFunc             func(uint8)
@@ -99,7 +98,7 @@ type (
 	CallbackDIASStatusFunc                 func(uint32)
 	CallbackMonitorNameFunc                func(string)
 	CallbackGetFilesTransCodeFunc          func(id string) rtkCommon.SendFilesRequestErrCode
-	CallbackRequestUpdateClientVersionFunc func(string, string)
+	CallbackRequestUpdateClientVersionFunc func(string)
 )
 
 var (
@@ -122,7 +121,6 @@ var (
 	callbackUpdateProgressBar          CallbackUpdateProgressBar              = nil
 	callbackUpdateMultipleProgressBar  CallbackUpdateMultipleProgressBar      = nil
 	callbackCancelFileTrans            CallbackCancelFileTransFunc            = nil
-	callbackNotiMessageFileTrans       CallbackNotiMessageFileTransFunc       = nil
 	callbackFileError                  CallbackFileError                      = nil
 	callbackGetMacAddress              CallbackGetMacAddressFunc              = nil
 	callbackAuthStatusCodeCB           CallbackAuthStatusCodeFunc             = nil
@@ -203,10 +201,6 @@ func SetCallbackDIASStatus(cb CallbackDIASStatusFunc) {
 
 func SetCallbackMonitorName(cb CallbackMonitorNameFunc) {
 	callbackMonitorName = cb
-}
-
-func SetCallbackNotiMessageFileTrans(cb CallbackNotiMessageFileTransFunc) {
-	callbackNotiMessageFileTrans = cb
 }
 
 func SetCallbackRequestUpdateClientVersion(cb CallbackRequestUpdateClientVersionFunc) {
@@ -577,12 +571,7 @@ func GoUpdateClientStatus(status uint32, ip, id, name, deviceType string) {
 }
 
 func GoNotiMessageFileTransfer(fileName, clientName, platform string, timestamp uint64, isSender bool) {
-	if callbackNotiMessageFileTrans == nil {
-		log.Println("callbackNotiMessageFileTrans CallbackInstance is null !")
-		return
-	}
-
-	callbackNotiMessageFileTrans(fileName, clientName, platform, timestamp, isSender)
+	
 }
 
 func GoEventHandle(eventType rtkCommon.EventType, id, fileName string, timestamp uint64) {
@@ -606,7 +595,7 @@ func GoRequestUpdateClientVersion(ver string) {
 		return
 	}
 
-	callbackRequestUpdateClientVersion(ver, "")
+	callbackRequestUpdateClientVersion(ver)
 }
 
 func GoCleanClipboard() {

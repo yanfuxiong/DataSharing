@@ -1,0 +1,225 @@
+package clientManager
+
+import (
+	"context"
+	"encoding/json"
+	"log"
+	rtkCommon "rtk-cross-share/lanServer/common"
+	rtkdbManager "rtk-cross-share/lanServer/dbManager"
+	rtkGlobal "rtk-cross-share/lanServer/global"
+	rtkMisc "rtk-cross-share/misc"
+	"time"
+)
+
+// TODO: call by via InterfaceMgr
+func SendDragFileEvent(srcId, targetId string, srcClientIndex uint32) rtkMisc.CrossShareErr {
+	msg := rtkMisc.C2SMessage{
+		ClientID:    srcId,
+		ClientIndex: srcClientIndex,
+		MsgType:     rtkMisc.C2SMsg_REQ_CLIENT_DRAG_FILE,
+		TimeStamp:   time.Now().UnixMilli(),
+		ExtData:     targetId,
+	}
+
+	return writeMsg(&msg, 0)
+}
+
+func ReconnClientListHandler(ctx context.Context) {
+	ticker := time.NewTicker(reconnListInternal)
+	defer ticker.Stop()
+
+	connDirectoin := rtkMisc.RECONN_GREATER
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			errCode := buildReconnClientList(connDirectoin)
+			if errCode != rtkMisc.SUCCESS {
+				log.Printf("[%s] Build ReconnClientListReq failed: errCode[%d]", rtkMisc.GetFuncInfo(), errCode)
+			}
+
+			if connDirectoin == rtkMisc.RECONN_GREATER {
+				connDirectoin = rtkMisc.RECONN_LESS
+			} else {
+				connDirectoin = rtkMisc.RECONN_GREATER
+			}
+		}
+	}
+}
+
+func buildReconnClientList(reconnDirection rtkMisc.ReconnDirection) rtkMisc.CrossShareErr {
+	reconnListReq := rtkMisc.ReconnClientListReq{ClientList: make([]rtkMisc.ClientInfo, 0), ConnDirect: reconnDirection, ClientVersion: ""}
+	clientInfoList := make([]rtkCommon.ClientInfoTb, 0)
+	errCode := rtkdbManager.QueryReconnList(&clientInfoList)
+	if errCode != rtkMisc.SUCCESS {
+		return errCode
+	}
+
+	nMaxVerValue := int(0)
+	for _, client := range clientInfoList {
+		reconnListReq.ClientList = append(reconnListReq.ClientList, rtkMisc.ClientInfo{
+			ID:             client.ClientId,
+			IpAddr:         client.IpAddr,
+			Platform:       client.Platform,
+			DeviceName:     client.DeviceName,
+			SourcePortType: rtkCommon.GetClientSourcePortType(client.Source, client.Port),
+		})
+
+		clientVerVal := rtkMisc.GetVersionValue(client.Version)
+		if nMaxVerValue < clientVerVal { // get max version
+			reconnListReq.ClientVersion = rtkMisc.GetShortVersion(client.Version)
+			nMaxVerValue = clientVerVal
+		}
+	}
+
+	retErrCode := rtkMisc.SUCCESS
+	for _, client := range reconnListReq.ClientList {
+		err := sendReconnClientList(client.ID, reconnListReq)
+		if err != rtkMisc.SUCCESS {
+			retErrCode = err
+		}
+	}
+	return retErrCode
+}
+
+func sendReconnClientList(id string, extData rtkMisc.ReconnClientListReq) rtkMisc.CrossShareErr {
+	msg := rtkMisc.C2SMessage{
+		ClientID:    id,
+		ClientIndex: 0,
+		MsgType:     rtkMisc.CS2Msg_RECONN_CLIENT_LIST,
+		TimeStamp:   time.Now().UnixMilli(),
+		ExtData:     extData,
+	}
+
+	return writeMsg(&msg, 0)
+}
+
+func dealC2SMsgInitClient(ext *json.RawMessage) (uint32, interface{}) {
+	var extData rtkMisc.InitClientMessageReq
+	initClientRsp := rtkMisc.InitClientMessageResponse{Response: rtkMisc.GetResponse(rtkMisc.SUCCESS), ClientIndex: 0, MonitorName: "", ClientVersion: ""}
+	err := json.Unmarshal(*ext, &extData)
+	if err != nil {
+		log.Printf("clientID:[%s] decode ExtDataText Err: %s", extData.ClientID, err.Error())
+		initClientRsp.Response = rtkMisc.GetResponse(rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL)
+		return 0, initClientRsp
+	}
+	if !rtkMisc.CheckFullVersionVaild(extData.ClientVersion) {
+		initClientRsp.Response = rtkMisc.GetResponse(rtkMisc.ERR_BIZ_VERSION_INVALID)
+		log.Printf("clientID:[%s] get invalid version:[%s]", extData.ClientID, extData.ClientVersion)
+		return 0, initClientRsp
+	}
+
+	reqVerValue := rtkMisc.GetVersionValue(extData.ClientVersion)
+	curMaxVersion, errCode := rtkdbManager.QueryMaxVersion()
+	if errCode != rtkMisc.SUCCESS {
+		initClientRsp.Response = rtkMisc.GetResponse(errCode)
+		return 0, initClientRsp
+	}
+
+	if curMaxVersion == "" {
+		log.Printf("[%s] get online clients list max version is null, client base version:%s and req client version:%s", rtkMisc.GetFuncInfo(), rtkGlobal.ClientBaseVersion, extData.ClientVersion)
+		curMaxVersion = rtkGlobal.ClientBaseVersion
+	} else {
+		log.Printf("[%s] online clients list get max version:%s, and req client version:%s", rtkMisc.GetFuncInfo(), rtkMisc.GetShortVersion(curMaxVersion), extData.ClientVersion)
+	}
+
+	curVerValue := rtkMisc.GetVersionValue(curMaxVersion)
+	if curVerValue > reqVerValue { // client need to update version
+		initClientRsp.ClientVersion = rtkMisc.GetShortVersion(curMaxVersion)
+		return 0, initClientRsp
+	} else if curVerValue < reqVerValue { // other client list need update version
+		log.Printf("[%s] clientID:[%s] Version:[%s] is newer than current:%s, notify other client list to update!", rtkMisc.GetFuncInfo(), extData.ClientID, extData.ClientVersion, curMaxVersion)
+		buildNotifyClientVersion(extData.ClientID, rtkMisc.GetShortVersion(extData.ClientVersion))
+	}
+
+	pkIndex, errCode := rtkdbManager.UpsertClientInfo(extData.ClientID, extData.HOST, extData.IPAddr, extData.DeviceName, extData.Platform, extData.ClientVersion)
+	if errCode != rtkMisc.SUCCESS {
+		initClientRsp.Response = rtkMisc.GetResponse(errCode)
+		return 0, initClientRsp
+	}
+
+	initClientRsp.ClientIndex = uint32(pkIndex)
+	initClientRsp.MonitorName = "cross_share_lan_serv" // MonitorName is temporarily write the dead data for debug
+	return initClientRsp.ClientIndex, initClientRsp
+}
+
+func dealC2SMsgMobileAuthDataIndex(id string, clientIndex uint32, ext *json.RawMessage) interface{} {
+	authDataIndexMobileRsp := rtkMisc.AuthDataIndexMobileResponse{Response: rtkMisc.GetResponse(rtkMisc.SUCCESS), AuthStatus: false}
+	var extData rtkMisc.AuthDataIndexMobileReq
+	err := json.Unmarshal(*ext, &extData)
+	if err != nil {
+		log.Printf("[%s] clientID:[%s] decode ExtDataText Err: %s", rtkMisc.GetFuncInfo(), id, err.Error())
+		authDataIndexMobileRsp.Response = rtkMisc.GetResponse(rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL)
+	} else {
+		// Compare timing with TimingData & AuthData
+		log.Printf("[%s] Width[%d] Height[%d] Type[%d] Framerate[%d]  DisplayName:[%s]", rtkMisc.GetFuncInfo(), extData.AuthData.Width, extData.AuthData.Height, extData.AuthData.Type, extData.AuthData.Framerate, extData.AuthData.DisplayName)
+		authStatus, source, port := checkMobileTiming(int(clientIndex), extData.AuthData)
+		errCode := rtkdbManager.UpdateAuthAndSrcPort(int(clientIndex), authStatus, source, port)
+		if errCode != rtkMisc.SUCCESS {
+			authDataIndexMobileRsp.Response = rtkMisc.GetResponse(errCode)
+		} else {
+			authDataIndexMobileRsp.AuthStatus = authStatus
+		}
+
+		if !authStatus {
+			log.Printf("[%s] clientID:[%s] WARNING: Authorize failed", id, rtkMisc.GetFuncInfo())
+		}
+	}
+
+	return authDataIndexMobileRsp
+}
+
+func dealC2SMsgReqClientList() interface{} {
+	getClientListRsp := rtkMisc.GetClientListResponse{Response: rtkMisc.GetResponse(rtkMisc.SUCCESS), ClientList: make([]rtkMisc.ClientInfo, 0)}
+	clientInfoList := make([]rtkCommon.ClientInfoTb, 0)
+	errCode := rtkdbManager.QueryOnlineClientList(&clientInfoList)
+	if errCode != rtkMisc.SUCCESS {
+		getClientListRsp.Response = rtkMisc.GetResponse(errCode)
+	}
+
+	for _, client := range clientInfoList {
+		getClientListRsp.ClientList = append(getClientListRsp.ClientList, rtkMisc.ClientInfo{
+			ID:             client.ClientId,
+			IpAddr:         client.IpAddr,
+			Platform:       client.Platform,
+			DeviceName:     client.DeviceName,
+			SourcePortType: rtkCommon.GetClientSourcePortType(client.Source, client.Port),
+		})
+	}
+
+	return getClientListRsp
+}
+
+func buildNotifyClientVersion(id, version string) rtkMisc.CrossShareErr {
+	clientInfoList := make([]rtkCommon.ClientInfoTb, 0)
+	errCode := rtkdbManager.QueryNotifyClientVerList(&clientInfoList)
+	if errCode != rtkMisc.SUCCESS {
+		return errCode
+	}
+
+	reqClientVer := rtkMisc.NotifyClientVersionReq{ClientVersion: version}
+	retErrCode := rtkMisc.SUCCESS
+	for _, client := range clientInfoList {
+		if id == client.ClientId {
+			continue
+		}
+		err := sendNotifyClientVersion(client.ClientId, reqClientVer)
+		if err != rtkMisc.SUCCESS {
+			retErrCode = err
+		}
+	}
+	return retErrCode
+}
+
+func sendNotifyClientVersion(id string, extData rtkMisc.NotifyClientVersionReq) rtkMisc.CrossShareErr {
+	msg := rtkMisc.C2SMessage{
+		ClientID:    id,
+		ClientIndex: 0,
+		MsgType:     rtkMisc.CS2Msg_NOTIFY_CLIENT_VERSION,
+		TimeStamp:   time.Now().UnixMilli(),
+		ExtData:     extData,
+	}
+
+	return writeMsg(&msg, 0)
+}

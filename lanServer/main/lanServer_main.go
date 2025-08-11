@@ -75,7 +75,7 @@ func MainInit() {
 	rtkMisc.CreateDir(rtkGlobal.SOCKET_PATH_ROOT, os.ModePerm)
 
 	log.Println("=====================================================")
-	log.Printf("%s Version: %s", rtkBuildConfig.ServerName, rtkBuildConfig.Version)
+	log.Printf("%s LanServer Version: %s , Client Base Version: %s", rtkBuildConfig.ServerName, rtkGlobal.LanServerVersion, rtkGlobal.ClientBaseVersion)
 	log.Printf("%s Build Date: %s", rtkBuildConfig.ServerName, rtkBuildConfig.BuildDate)
 	log.Printf("=====================================================\n\n")
 

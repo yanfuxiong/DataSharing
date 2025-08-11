@@ -21,7 +21,7 @@ typedef void (*CallbackMethodStopBrowseMdns)();
 typedef char* (*CallbackAuthData)();
 typedef void (*CallbackSetDIASStatus)(unsigned int status);
 typedef void (*CallbackSetMonitorName)(char* monitorName);
-typedef void (*CallbackRequestUpdateClientVersion)(char* clientVer, char* extendArg);
+typedef void (*CallbackRequestUpdateClientVersion)(char* clientVer);
 
 static CallbackMethodText gCallbackMethodText = 0;
 static CallbackMethodImage gCallbackMethodImage = 0;
@@ -103,8 +103,8 @@ static void invokeCallbackSetMonitorName(char* monitorName) {
 }
 
 static void setCallbackRequestUpdateClientVersion(CallbackRequestUpdateClientVersion cb) {gCallbackRequestUpdateClientVersion = cb;}
-static void invokeCallbackRequestUpdateClientVersion(char* clientVer, char* extendArg) {
-	if (gCallbackRequestUpdateClientVersion) { gCallbackRequestUpdateClientVersion(clientVer, extendArg);}
+static void invokeCallbackRequestUpdateClientVersion(char* clientVer) {
+	if (gCallbackRequestUpdateClientVersion) { gCallbackRequestUpdateClientVersion(clientVer);}
 }
 */
 import "C"
@@ -145,8 +145,7 @@ func init() {
 	rtkPlatform.SetCallbackGetAuthData(GoTriggerCallbackGetAuthData)
 	rtkPlatform.SetCallbackDIASStatus(GoTriggerCallbackSetDIASStatus)
 	rtkPlatform.SetCallbackMonitorName(GoTriggerCallbackSetMonitorName)
-	rtkPlatform.SetCallbackNotiMessageFileTrans(GoTriggerCallbackNotiMessage)
-	rtkPlatform.SetCallbackRequestUpdateClientVersion()
+	rtkPlatform.SetCallbackRequestUpdateClientVersion(GoTriggerCallbackReqClientUpdateVer)
 
 	rtkPlatform.SetConfirmDocumentsAccept(false)
 }
@@ -304,8 +303,12 @@ func GoTriggerCallbackSetMonitorName(name string) {
 	log.Printf("[%s] MonitorName:[%s]", rtkMisc.GetFuncInfo(), name)
 }
 
-func GoTriggerCallbackNotiMessage(fileName, clientName, platform string, timestamp uint64, isSender bool) {
-	log.Printf("[%s] MonitorName:[%s]", rtkMisc.GetFuncInfo(), name)
+func GoTriggerCallbackReqClientUpdateVer(ver string) {
+	cVer := C.CString(ver)
+	defer C.free(unsafe.Pointer(cVer))
+
+	log.Printf("[%s] version:%s", rtkMisc.GetFuncInfo(), ver)
+	C.invokeCallbackRequestUpdateClientVersion(cVer)
 }
 
 //export SetCallbackMethodText

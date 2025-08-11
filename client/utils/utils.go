@@ -81,7 +81,7 @@ func ReadMdnsPort(filename string) string {
 }
 
 func WriteErrJson(name string, strContent []byte) {
-	fileName := fmt.Sprintf("/storage/emulated/0/Android/data/com.rtk.crossshare/files/%s.log", name)
+	fileName := fmt.Sprintf("/storage/emulated/0/Android/data/com.realtek.crossshare/files/%s.log", name)
 	file, err := os.OpenFile(fileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
 		log.Fatal(err)
