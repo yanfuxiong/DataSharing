@@ -38,7 +38,6 @@ func InitLog(logPath, crashLogPath string, maxsize int) {
 
 func SetupLogFile() {
 	log.Printf("set log written to the file:[%s] !\n", LogPath)
-
 	LoggerWriteFile.Close()
 	LoggerWriteFile = lumberjack.Logger{
 		Filename:   LogPath,
@@ -46,7 +45,9 @@ func SetupLogFile() {
 		MaxBackups: maxBackups,
 		MaxAge:     maxAge,
 		Compress:   true,
+		LocalTime:  true,
 	}
+
 	log.SetOutput(&LoggerWriteFile)
 	log.Println("begin to write log to file!")
 	os.Chmod(LogPath, 0644)
@@ -73,6 +74,7 @@ func SetupLogConsoleFile() {
 		MaxBackups: maxBackups,
 		MaxAge:     maxAge,
 		Compress:   true,
+		LocalTime:  true,
 	}
 
 	log.SetOutput(io.MultiWriter(os.Stdout, &LoggerWriteFile))

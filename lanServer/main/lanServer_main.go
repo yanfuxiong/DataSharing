@@ -232,12 +232,17 @@ func registerMdns(server *zeroconf.Server) []net.Addr {
 					}
 				}
 			}
+			rtkGlobal.ServerPort, _ = getAvailablePort()
+			if rtkGlobal.ServerPort == 0 {
+				rtkGlobal.ServerPort = *port
+			}
+
 			// It's necessary be a contentText.
 			// If the contentText is null or empty, that iOS cannot discover service
 			// iOS use the IP in textRecord to skip the different IP from bonjour service
 			textRecordIp := rtkMisc.TextRecordKeyIp + "=" + ipAddr
 			// TODO: ProductName from DIAS
-			server, err = zeroconf.Register(*name, *service, *domain, *port, []string{textRecordIp}, []net.Interface{*iface})
+			server, err = zeroconf.Register(*name, *service, *domain, rtkGlobal.ServerPort, []string{textRecordIp}, []net.Interface{*iface})
 
 			if err != nil {
 				if printErrMdns {
@@ -275,7 +280,7 @@ func Run() {
 		log.Println("- Name:", *name)
 		log.Println("- Type:", *service)
 		log.Println("- Domain:", *domain)
-		log.Println("- Port:", *port)
+		log.Println("- Port:", rtkGlobal.ServerPort)
 
 		serverAddr := ""
 		for _, addr := range addrs {
@@ -291,9 +296,7 @@ func Run() {
 		}
 
 		rtkGlobal.ServerIPAddr = serverAddr
-		rtkGlobal.ServerPort = *port
-
-		serverAddr = fmt.Sprintf("%s:%d", serverAddr, *port)
+		serverAddr = fmt.Sprintf("%s:%d", serverAddr, rtkGlobal.ServerPort)
 		listener, err := net.Listen("tcp", serverAddr)
 		if err != nil {
 			log.Printf("Error listening:%+v", err)
@@ -339,4 +342,23 @@ func Run() {
 			rtkMisc.GoSafe(func() { rtkClientManager.HandleClient(ctx, conn, timestamp) })
 		}
 	}
+}
+
+func getAvailablePort() (int, error) {
+	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
+	if err != nil {
+		log.Printf("[%s] error:%+v ", rtkMisc.GetFuncInfo(), err)
+		return 0, err
+	}
+
+	l, err := net.ListenTCP("tcp", addr)
+	if err != nil {
+		log.Printf("[%s]  error:%+v", rtkMisc.GetFuncInfo(), err)
+		return 0, err
+	}
+	defer l.Close()
+
+	nPort := l.Addr().(*net.TCPAddr).Port
+	log.Printf("[%s] get port:%d\n", rtkMisc.GetFuncInfo(), nPort)
+	return nPort, nil
 }
