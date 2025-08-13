@@ -48,7 +48,7 @@ const (
 
 	SqlDataUpsertAuthInfo SqlData = `
 		INSERT INTO t_auth_info (ClientIndex,AuthStatus, UpdateTime)
-		VALUES (?,? (datetime('now','localtime')))
+		VALUES (?, ?, (datetime('now','localtime')))
 		ON CONFLICT (ClientIndex)
 		DO UPDATE SET AuthStatus=excluded.AuthStatus, UpdateTime=excluded.UpdateTime
 		RETURNING t_auth_info.PkIndex;`

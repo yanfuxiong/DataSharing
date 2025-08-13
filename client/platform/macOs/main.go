@@ -18,6 +18,10 @@ typedef void (*CallbackUpdateMultipleProgressBar)(char* ip,char* id, char* devic
 typedef void (*CallbackFileError)(char* id, char* fileName, char* err);
 typedef void (*CallbackMethodStartBrowseMdns)(char* instance, char* serviceType);
 typedef void (*CallbackMethodStopBrowseMdns)();
+typedef void (*CallbackSetDIASStatus)(unsigned int status);
+typedef void (*CallbackSetMonitorName)(char* monitorName);
+typedef void (*CallbackRequestUpdateClientVersion)(char* clientVer);
+typedef void (*CallbackNotifyErrEvent)(char* id, unsigned int errCode, char* arg1, char* arg2, char* arg3, char* arg4);
 
 static CallbackMethodText gCallbackMethodText = 0;
 static CallbackMethodImage gCallbackMethodImage = 0;
@@ -31,6 +35,10 @@ static CallbackUpdateMultipleProgressBar gCallbackUpdateMultipleProgressBar = 0;
 static CallbackFileError gCallbackFileError = 0;
 static CallbackMethodStartBrowseMdns gCallbackMethodStartBrowseMdns = 0;
 static CallbackMethodStopBrowseMdns gCallbackMethodStopBrowseMdns = 0;
+static CallbackSetDIASStatus gCallbackSetDIASStatus = 0;
+static CallbackSetMonitorName gCallbackSetMonitorName = 0;
+static CallbackRequestUpdateClientVersion gCallbackRequestUpdateClientVersion = 0;
+static CallbackNotifyErrEvent gCallbackNotifyErrEvent = 0;
 
 static void setCallbackMethodText(CallbackMethodText cb) {gCallbackMethodText = cb;}
 static void invokeCallbackMethodText(char* str) {
@@ -80,6 +88,23 @@ static void setCallbackMethodStopBrowseMdns(CallbackMethodStopBrowseMdns cb) {gC
 static void invokeCallbackMethodStopBrowseMdns() {
 	if (gCallbackMethodStopBrowseMdns) {gCallbackMethodStopBrowseMdns();}
 }
+static void setCallbackSetDIASStatus(CallbackSetDIASStatus cb) {gCallbackSetDIASStatus = cb;}
+static void invokeCallbackSetDIASStatus(unsigned int status) {
+	if (gCallbackSetDIASStatus) { gCallbackSetDIASStatus(status);}
+}
+static void setCallbackSetMonitorName(CallbackSetMonitorName cb) {gCallbackSetMonitorName = cb;}
+static void invokeCallbackSetMonitorName(char* monitorName) {
+	if (gCallbackSetMonitorName) { gCallbackSetMonitorName(monitorName);}
+}
+
+static void setCallbackRequestUpdateClientVersion(CallbackRequestUpdateClientVersion cb) {gCallbackRequestUpdateClientVersion = cb;}
+static void invokeCallbackRequestUpdateClientVersion(char* clientVer) {
+	if (gCallbackRequestUpdateClientVersion) { gCallbackRequestUpdateClientVersion(clientVer);}
+}
+static void setCallbackNotifyErrEvent(CallbackNotifyErrEvent cb) {gCallbackNotifyErrEvent = cb;}
+static void invokeCallbackNotifyErrEvent(char* id, unsigned int errCode, char* arg1, char* arg2, char* arg3, char* arg4) {
+	if (gCallbackNotifyErrEvent) { gCallbackNotifyErrEvent(id,errCode,arg1,arg2,arg3,arg4);}
+}
 */
 import "C"
 
@@ -116,6 +141,11 @@ func init() {
 	rtkPlatform.SetCallbackFileError(GoTriggerCallbackFileError)
 	rtkPlatform.SetCallbackMethodStartBrowseMdns(GoTriggerCallbackMethodStartBrowseMdns)
 	rtkPlatform.SetCallbackMethodStopBrowseMdns(GoTriggerCallbackMethodStopBrowseMdns)
+	rtkPlatform.SetCallbackDIASStatus(GoTriggerCallbackSetDIASStatus)
+	rtkPlatform.SetCallbackMonitorName(GoTriggerCallbackSetMonitorName)
+	rtkPlatform.SetCallbackRequestUpdateClientVersion(GoTriggerCallbackReqClientUpdateVer)
+	rtkPlatform.SetCallbackNotifyErrEvent(GoTriggerCallbackNotifyErrEvent)
+
 	rtkPlatform.SetConfirmDocumentsAccept(false)
 }
 
@@ -154,7 +184,6 @@ func GoTriggerCallbackMethodFileConfirm(id, platform, fileName string, fileSize 
 }
 
 func GoTriggerCallbackMethodFoundPeer() {
-	log.Printf("[%s] FoundPeer Trigger!", rtkMisc.GetFuncInfo())
 	C.invokeCallbackMethodFoundPeer()
 }
 
@@ -249,6 +278,46 @@ func GoTriggerCallbackMethodStopBrowseMdns() {
 	C.invokeCallbackMethodStopBrowseMdns()
 }
 
+func GoTriggerCallbackSetDIASStatus(status uint32) {
+	cStatus := C.uint(status)
+	C.invokeCallbackSetDIASStatus(cStatus)
+	log.Printf("[%s] status:%d", rtkMisc.GetFuncInfo(), status)
+}
+
+func GoTriggerCallbackSetMonitorName(name string) {
+	cMonitorName := C.CString(name)
+	defer C.free(unsafe.Pointer(cMonitorName))
+	C.invokeCallbackSetMonitorName(cMonitorName)
+	log.Printf("[%s] MonitorName:[%s]", rtkMisc.GetFuncInfo(), name)
+}
+
+func GoTriggerCallbackReqClientUpdateVer(ver string) {
+	cVer := C.CString(ver)
+	defer C.free(unsafe.Pointer(cVer))
+
+	log.Printf("[%s] version:%s", rtkMisc.GetFuncInfo(), ver)
+	C.invokeCallbackRequestUpdateClientVersion(cVer)
+}
+
+func GoTriggerCallbackNotifyErrEvent(id string, errCode uint32, arg1, arg2, arg3, arg4 string) {
+	cId := C.CString(id)
+	cErrCode := C.uint(errCode)
+	cArg1 := C.CString(arg1)
+	cArg2 := C.CString(arg2)
+	cArg3 := C.CString(arg3)
+	cArg4 := C.CString(arg4)
+	defer func() {
+		C.free(unsafe.Pointer(cId))
+		C.free(unsafe.Pointer(cArg1))
+		C.free(unsafe.Pointer(cArg2))
+		C.free(unsafe.Pointer(cArg3))
+		C.free(unsafe.Pointer(cArg4))
+	}()
+
+	log.Printf("[%s] id:[%s] errCode:%d arg1:%s, arg2:%s, arg3:%s, arg4:%s", rtkMisc.GetFuncInfo(), id, errCode, arg1, arg2, arg3, arg4)
+	C.invokeCallbackNotifyErrEvent(cId, cErrCode, cArg1, cArg2, cArg3, cArg4)
+}
+
 //export SetCallbackMethodText
 func SetCallbackMethodText(cb C.CallbackMethodText) {
 	log.Printf("[%s] SetCallbackMethodText", rtkMisc.GetFuncInfo())
@@ -308,6 +377,30 @@ func SetCallbackMethodStartBrowseMdns(cb C.CallbackMethodStartBrowseMdns) {
 //export SetCallbackMethodStopBrowseMdns
 func SetCallbackMethodStopBrowseMdns(cb C.CallbackMethodStopBrowseMdns) {
 	C.setCallbackMethodStopBrowseMdns(cb)
+}
+
+//export SetCallbackDIASStatus
+func SetCallbackDIASStatus(cb C.CallbackSetDIASStatus) {
+	log.Printf("[%s] SetCallbackDIASStatus", rtkMisc.GetFuncInfo())
+	C.setCallbackSetDIASStatus(cb)
+}
+
+//export SetCallbackMonitorName
+func SetCallbackMonitorName(cb C.CallbackSetMonitorName) {
+	log.Printf("[%s] SetCallbackMonitorName", rtkMisc.GetFuncInfo())
+	C.setCallbackSetMonitorName(cb)
+}
+
+//export SetCallbackRequestUpdateClientVersion
+func SetCallbackRequestUpdateClientVersion(cb C.CallbackRequestUpdateClientVersion) {
+	log.Printf("[%s] SetCallbackRequestUpdateClientVersion", rtkMisc.GetFuncInfo())
+	C.setCallbackRequestUpdateClientVersion(cb)
+}
+
+//export SetCallbackNotifyErrEvent
+func SetCallbackNotifyErrEvent(cb C.CallbackNotifyErrEvent) {
+	log.Printf("[%s] SetCallbackNotifyErrEvent", rtkMisc.GetFuncInfo())
+	C.setCallbackNotifyErrEvent(cb)
 }
 
 //export MainInit
@@ -405,12 +498,12 @@ func SendFileDropRequest(filePath, id string, fileSize int64) {
 }
 
 //export SendMultiFilesDropRequest
-func SendMultiFilesDropRequest(multiFilesData string) {
+func SendMultiFilesDropRequest(multiFilesData string) int {
 	var multiFileInfo MultiFilesDropRequestInfo
 	err := json.Unmarshal([]byte(multiFilesData), &multiFileInfo)
 	if err != nil {
 		log.Printf("[%s] Unmarshal[%s] err:%+v", rtkMisc.GetFuncInfo(), multiFilesData, err)
-		return
+		return int(rtkCommon.SendFilesRequestParameterErr)
 	}
 	log.Printf("id:[%s] ip:[%s] len:[%d] json:[%s]", multiFileInfo.Id, multiFileInfo.Ip, len(multiFileInfo.PathList), multiFilesData)
 
@@ -443,7 +536,7 @@ func SendMultiFilesDropRequest(multiFilesData string) {
 	totalDesc := rtkMisc.FileSizeDesc(totalSize)
 	timestamp := uint64(time.Now().UnixMilli())
 	log.Printf("[%s] ID[%s] IP:[%s] get file count:[%d] folder count:[%d], totalSize:[%d] totalDesc:[%s] timestamp:[%d]", rtkMisc.GetFuncInfo(), multiFileInfo.Id, multiFileInfo.Ip, len(fileList), len(folderList), totalSize, totalDesc, timestamp)
-	rtkPlatform.GoMultiFilesDropRequest(multiFileInfo.Id, &fileList, &folderList, totalSize, timestamp, totalDesc)
+	return int(rtkPlatform.GoMultiFilesDropRequest(multiFileInfo.Id, &fileList, &folderList, totalSize, timestamp, totalDesc))
 }
 
 //export SetFileDropResponse

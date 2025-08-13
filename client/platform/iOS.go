@@ -86,6 +86,7 @@ type (
 	CallbackUpdateMultipleProgressBar      func(string, string, string, string, uint32, uint32, uint64, uint64, uint64, uint64)
 	CallbackCancelFileTransFunc            func(string, string, uint64)
 	CallbackFileError                      func(string, string, string)
+	CallbackNotifyErrEventFunc             func(id string, errCode uint32, arg1, arg2, arg3, arg4 string)
 	CallbackGetMacAddressFunc              func(string)
 	CallbackAuthStatusCodeFunc             func(uint8)
 	CallbackExtractDIASFunc                func()
@@ -99,6 +100,9 @@ type (
 	CallbackMonitorNameFunc                func(string)
 	CallbackGetFilesTransCodeFunc          func(id string) rtkCommon.SendFilesRequestErrCode
 	CallbackRequestUpdateClientVersionFunc func(string)
+	CallbackNotifyBrowseResultFunc         func(monitorName, instance, ipAddr, version string, timestamp int64)
+	CallbackConfirmLanServerFunc           func(monitorName, instance, ipAddr string)
+	CallbackConnectMonitorErrFunc          func(monitorName, ipAddr, err string)
 )
 
 var (
@@ -122,6 +126,7 @@ var (
 	callbackUpdateMultipleProgressBar  CallbackUpdateMultipleProgressBar      = nil
 	callbackCancelFileTrans            CallbackCancelFileTransFunc            = nil
 	callbackFileError                  CallbackFileError                      = nil
+	callbackNotifyErrEvent             CallbackNotifyErrEventFunc             = nil
 	callbackGetMacAddress              CallbackGetMacAddressFunc              = nil
 	callbackAuthStatusCodeCB           CallbackAuthStatusCodeFunc             = nil
 	callbackExtractDIAS                CallbackExtractDIASFunc                = nil
@@ -135,6 +140,9 @@ var (
 	callbackMonitorName                CallbackMonitorNameFunc                = nil
 	callbackGetFilesTransCode          CallbackGetFilesTransCodeFunc          = nil
 	callbackRequestUpdateClientVersion CallbackRequestUpdateClientVersionFunc = nil
+	callbackNotifyBrowseResult         CallbackNotifyBrowseResultFunc         = nil
+	callbackConfirmLanServer           CallbackConfirmLanServerFunc           = nil
+	callbackConnectMonitorErr          CallbackConnectMonitorErrFunc          = nil
 )
 
 /*======================================= Used by main.go, set Callback =======================================*/
@@ -205,6 +213,18 @@ func SetCallbackMonitorName(cb CallbackMonitorNameFunc) {
 
 func SetCallbackRequestUpdateClientVersion(cb CallbackRequestUpdateClientVersionFunc) {
 	callbackRequestUpdateClientVersion = cb
+}
+
+func SetCallbackNotifyErrEvent(cb CallbackNotifyErrEventFunc) {
+	callbackNotifyErrEvent = cb
+}
+
+func SetCallbackNotifyBrowseResult(cb CallbackNotifyBrowseResultFunc) {
+	callbackNotifyBrowseResult = cb
+}
+
+func SetCallbackConnectMonitorErr(cb CallbackConnectMonitorErrFunc) {
+	callbackConnectMonitorErr = cb
 }
 
 /*======================================= Used  by GO set Callback =======================================*/
@@ -281,6 +301,10 @@ func SetGetFilesTransCodeCallback(cb CallbackGetFilesTransCodeFunc) {
 	callbackGetFilesTransCode = cb
 }
 
+func SetGoConfirmLanServerCallback(cb CallbackConfirmLanServerFunc) {
+	callbackConfirmLanServer = cb
+}
+
 /*======================================= Used  by ios API =======================================*/
 
 func SetupRootPath(path string) {
@@ -355,6 +379,19 @@ func SetConfirmDocumentsAccept(ifConfirm bool) {
 	ifConfirmDocumentsAccept = ifConfirm
 }
 
+func GoConfirmLanServer(monitorName, instance, ipAddr string) {
+	if callbackConfirmLanServer == nil {
+		log.Println("callbackConfirmLanServer is null!")
+		return
+	}
+
+	callbackConfirmLanServer(monitorName, instance, ipAddr)
+}
+
+func GoBrowseLanServer() {
+
+}
+
 func GoCopyImage(fileSize rtkCommon.FileSize, imgHeader rtkCommon.ImgHeader, data []byte) {
 	callbackInstanceCopyImage(fileSize, imgHeader, data)
 }
@@ -386,6 +423,22 @@ func GoMultiFilesDropRequest(id string, fileList *[]rtkCommon.FileInfo, folderLi
 	if filesTransCode != rtkCommon.SendFilesRequestSuccess {
 		return filesTransCode
 	}
+
+	nMsgLength := int(370) //p2p null msg length
+
+	for _, file := range *fileList {
+		nMsgLength = nMsgLength + len(file.FilePath) + len(file.FileName) + 80
+	}
+
+	for _, folder := range *folderList {
+		nMsgLength = nMsgLength + len(folder) + 5
+	}
+
+	if nMsgLength >= 32768 {
+		log.Printf("[%s] ID[%s] get file count:[%d] folder count:[%d], the p2p message is too long and over range!", rtkMisc.GetFuncInfo(), id, len(*fileList), len(*folderList))
+		return rtkCommon.SendFilesRequestOverRange
+	}
+
 	callbackFileListDropRequest(id, *fileList, *folderList, totalSize, timestamp, totalDesc)
 	return filesTransCode
 }
@@ -571,7 +624,7 @@ func GoUpdateClientStatus(status uint32, ip, id, name, deviceType string) {
 }
 
 func GoNotiMessageFileTransfer(fileName, clientName, platform string, timestamp uint64, isSender bool) {
-	
+
 }
 
 func GoEventHandle(eventType rtkCommon.EventType, id, fileName string, timestamp uint64) {
@@ -587,6 +640,15 @@ func GoEventHandle(eventType rtkCommon.EventType, id, fileName string, timestamp
 		callbackFileError(id, fileName, strErr)
 	}
 	log.Printf("[%s %d]: id:%s, name:%s, error:%d", rtkMisc.GetFuncName(), rtkMisc.GetLine(), id, fileName, eventType)
+}
+
+func GoNotifyErrEvent(id string, errCode rtkMisc.CrossShareErr, arg1, arg2, arg3, arg4 string) {
+	if callbackNotifyErrEvent == nil {
+		log.Printf("callbackNotifyErrEvent is null!\n")
+		return
+	}
+
+	callbackNotifyErrEvent(id, uint32(errCode), arg1, arg2, arg3, arg4)
 }
 
 func GoRequestUpdateClientVersion(ver string) {
@@ -672,6 +734,24 @@ func GoGetDeviceName() string {
 
 func GetConfirmDocumentsAccept() bool {
 	return ifConfirmDocumentsAccept
+}
+
+func GoConnectMonitorErr(monitorName, ipAddr, err string) {
+	if callbackConnectMonitorErr == nil {
+		log.Println("[%s] failed, callbackConnectMonitorErr is nil", rtkMisc.GetFuncInfo())
+		return
+	}
+	log.Printf("[%s] monitorName:%s, ipAddr:%s, err:%+v", rtkMisc.GetFuncInfo(), monitorName, ipAddr, err)
+	callbackConnectMonitorErr(monitorName, ipAddr, err)
+}
+
+func GoNotifyBrowseResult(monitorName, instance, ipAddr, version string, timestamp int64) {
+	if callbackNotifyBrowseResult == nil {
+		log.Println("[%s] failed, callbackNotifyBrowseResult is nil", rtkMisc.GetFuncInfo())
+		return
+	}
+
+	callbackNotifyBrowseResult(monitorName, instance, ipAddr, version, timestamp)
 }
 
 func GoMonitorNameNotify(name string) {

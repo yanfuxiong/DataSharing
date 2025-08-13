@@ -142,6 +142,11 @@ typedef void (*RequestUpdateClientVersionCallback)(const char *clienVersion);
 static void RequestUpdateClientVersionCallbackFunc(RequestUpdateClientVersionCallback cb, const char *clienVersion) {
     if (cb) cb(clienVersion);
 }
+
+typedef void (*NotifyErrEventCallback)(const char *clientID, uint32_t errCode, const char *arg1, const char *arg2, const char *arg3, const char *arg4);
+static void NotifyErrEventCallbackFunc(NotifyErrEventCallback cb, const char *clienID, uint32_t errCode, const char *arg1, const char *arg2, const char *arg3, const char *arg4) {
+    if (cb) cb(clienID, errCode, arg1, arg2, arg3, arg4);
+}
 */
 import "C"
 import (
@@ -223,27 +228,27 @@ func (w *WCharArray) Free() {
 }
 
 var (
-	g_StartClipboardMonitorCallback     C.StartClipboardMonitorCallback     = nil
-	g_StopClipboardMonitorCallback      C.StopClipboardMonitorCallback      = nil
-	g_DragFileNotifyCallback            C.DragFileNotifyCallback            = nil
-	g_DragFileListNotifyCallback        C.DragFileListNotifyCallback        = nil
-	g_MultiFilesDropNotifyCallback      C.MultiFilesDropNotifyCallback      = nil
-	g_UpdateMultipleProgressBarCallback C.UpdateMultipleProgressBarCallback = nil
-	g_DataTransferCallback              C.DataTransferCallback              = nil
-	g_UpdateProgressBarCallback         C.UpdateProgressBarCallback         = nil
-	g_UpdateImageProgressBarCallback    C.UpdateImageProgressBarCallback    = nil
-	g_UpdateClientStatusCallback        C.UpdateClientStatusCallback        = nil
-	g_UpdateSystemInfoCallback          C.UpdateSystemInfoCallback          = nil
-	g_NotiMessageCallback               C.NotiMessageCallback               = nil
-	g_CleanClipboardCallback            C.CleanClipboardCallback            = nil
-	g_GetDeviceNameCallback             C.GetDeviceNameCallback             = nil
-	g_AuthViaIndexCallback              C.AuthViaIndexCallback              = nil
-	g_DIASStatusCallback                C.DIASStatusCallback                = nil
-	g_RequestSourceAndPortCallback      C.RequestSourceAndPortCallback      = nil
-	g_GetDownloadPathCallback           C.GetDownloadPathCallback           = nil
-	g_SetupDstPasteImageCallback        C.SetupDstPasteImageCallback        = nil
-
+	g_StartClipboardMonitorCallback      C.StartClipboardMonitorCallback      = nil
+	g_StopClipboardMonitorCallback       C.StopClipboardMonitorCallback       = nil
+	g_DragFileNotifyCallback             C.DragFileNotifyCallback             = nil
+	g_DragFileListNotifyCallback         C.DragFileListNotifyCallback         = nil
+	g_MultiFilesDropNotifyCallback       C.MultiFilesDropNotifyCallback       = nil
+	g_UpdateMultipleProgressBarCallback  C.UpdateMultipleProgressBarCallback  = nil
+	g_DataTransferCallback               C.DataTransferCallback               = nil
+	g_UpdateProgressBarCallback          C.UpdateProgressBarCallback          = nil
+	g_UpdateImageProgressBarCallback     C.UpdateImageProgressBarCallback     = nil
+	g_UpdateClientStatusCallback         C.UpdateClientStatusCallback         = nil
+	g_UpdateSystemInfoCallback           C.UpdateSystemInfoCallback           = nil
+	g_NotiMessageCallback                C.NotiMessageCallback                = nil
+	g_CleanClipboardCallback             C.CleanClipboardCallback             = nil
+	g_GetDeviceNameCallback              C.GetDeviceNameCallback              = nil
+	g_AuthViaIndexCallback               C.AuthViaIndexCallback               = nil
+	g_DIASStatusCallback                 C.DIASStatusCallback                 = nil
+	g_RequestSourceAndPortCallback       C.RequestSourceAndPortCallback       = nil
+	g_GetDownloadPathCallback            C.GetDownloadPathCallback            = nil
+	g_SetupDstPasteImageCallback         C.SetupDstPasteImageCallback         = nil
 	g_RequestUpdateClientVersionCallback C.RequestUpdateClientVersionCallback = nil
+	g_NotifyErrEventCallback             C.NotifyErrEventCallback             = nil
 )
 
 func main() {}
@@ -264,6 +269,7 @@ func init() {
 	rtkPlatform.SetMultipleProgressBarCallback(GoTriggerCallbackMultipleProgressBar)
 	rtkPlatform.SetNotiMessageFileTransCallback(GoTriggerCallbackNotiMessage)
 	rtkPlatform.SetReqClientUpdateVerCallback(GoTriggerCallbackReqClientUpdateVer)
+	rtkPlatform.SetNotifyErrEventCallback(GoTriggerCallbackNotifyErrEvent)
 
 	rtkPlatform.SetConfirmDocumentsAccept(false)
 }
@@ -501,6 +507,30 @@ func GoTriggerCallbackReqClientUpdateVer(ver string) {
 
 	log.Printf("[%s] version:%s", rtkMisc.GetFuncInfo(), ver)
 	C.RequestUpdateClientVersionCallbackFunc(g_RequestUpdateClientVersionCallback, cVer)
+}
+
+func GoTriggerCallbackNotifyErrEvent(id string, errCode uint32, arg1, arg2, arg3, arg4 string) {
+	if g_NotifyErrEventCallback == nil {
+		log.Printf("[%s] g_NotifyErrEventCallback is not set!", rtkMisc.GetFuncInfo())
+		return
+	}
+
+	cId := C.CString(id)
+	cErrCode := C.uint(errCode)
+	cArg1 := C.CString(arg1)
+	cArg2 := C.CString(arg2)
+	cArg3 := C.CString(arg3)
+	cArg4 := C.CString(arg4)
+	defer func() {
+		C.free(unsafe.Pointer(cId))
+		C.free(unsafe.Pointer(cArg1))
+		C.free(unsafe.Pointer(cArg2))
+		C.free(unsafe.Pointer(cArg3))
+		C.free(unsafe.Pointer(cArg4))
+	}()
+
+	log.Printf("[%s] id:[%s] errCode:%d arg1:%s, arg2:%s, arg3:%s, arg4:%s", rtkMisc.GetFuncInfo(), id, errCode, arg1, arg2, arg3, arg4)
+	C.NotifyErrEventCallbackFunc(g_NotifyErrEventCallback, cId, cErrCode, cArg1, cArg2, cArg3, cArg4)
 }
 
 //export InitGoServer
@@ -864,4 +894,10 @@ func SetSetupDstPasteImageCallback(cb C.SetupDstPasteImageCallback) {
 func SetRequestUpdateClientVersionCallback(cb C.RequestUpdateClientVersionCallback) {
 	log.Println("SetRequestUpdateClientVersionCallback")
 	g_RequestUpdateClientVersionCallback = cb
+}
+
+//export SetNotifyErrEventCallback
+func SetNotifyErrEventCallback(cb C.NotifyErrEventCallback) {
+	log.Println("SetNotifyErrEventCallback")
+	g_NotifyErrEventCallback = cb
 }

@@ -67,7 +67,7 @@ func init() {
 			return
 		}
 		getLanServerMacTimeStamp = time.Now().UnixMilli()
-		rtkLogin.SetLanServerName(mac)
+		rtkLogin.SetLanServerInstance(mac)
 		cablePlugInFlagChan <- struct{}{}
 	})
 

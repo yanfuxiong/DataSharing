@@ -78,12 +78,6 @@ func buildMessageReq(msg *rtkMisc.C2SMessage) rtkMisc.CrossShareErr {
 
 	case rtkMisc.C2SMsg_RESET_CLIENT:
 		msg.ClientIndex = rtkGlobal.NodeInfo.ClientIndex
-	case rtkMisc.C2SMsg_AUTH_INDEX_MOBILE:
-		msg.ClientIndex = rtkGlobal.NodeInfo.ClientIndex
-		reqData := rtkMisc.AuthIndexMobileReq{
-			SourceAndPort: rtkPlatform.GoGetSrcAndPortFromIni(),
-		}
-		msg.ExtData = reqData
 	case rtkMisc.C2SMsg_AUTH_DATA_INDEX_MOBILE:
 		msg.ClientIndex = rtkGlobal.NodeInfo.ClientIndex
 		msg.ExtData = rtkMisc.AuthDataIndexMobileReq{mobileAuthData}
@@ -135,7 +129,7 @@ func handleReadMessageFromServer(buffer []byte) rtkMisc.CrossShareErr {
 				return resetClientRsp.Code
 			}
 		}
-		rtkPlatform.GoMonitorNameNotify(monitorName)
+		rtkPlatform.GoMonitorNameNotify(g_monitorName)
 		log.Printf("Requst Reset Client Response success, request client list!")
 		errCode := sendReqMsgToLanServer(rtkMisc.C2SMsg_REQ_CLIENT_LIST)
 		if errCode != rtkMisc.SUCCESS {
@@ -143,23 +137,6 @@ func handleReadMessageFromServer(buffer []byte) rtkMisc.CrossShareErr {
 		}
 	case rtkMisc.C2SMsg_INIT_CLIENT:
 		return dealS2CMsgInitClient(rspMsg.ClientID, rspMsg.ExtData)
-	case rtkMisc.C2SMsg_AUTH_INDEX_MOBILE: //TODO: To remove it  and be replaced by C2SMsg_AUTH_DATA_INDEX_MOBILE
-		var authIndexMobileRsp rtkMisc.AuthIndexMobileResponse
-		err = json.Unmarshal(rspMsg.ExtData, &authIndexMobileRsp)
-		if err != nil {
-			log.Printf("clientID:[%s] Index:[%d] Err: decode ExtDataText:%+v", rspMsg.ClientID, rspMsg.ClientIndex, err)
-			return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
-		}
-
-		if authIndexMobileRsp.Code != rtkMisc.SUCCESS {
-			return authIndexMobileRsp.Code
-		}
-
-		if authIndexMobileRsp.AuthStatus != true {
-			log.Printf("clientID:[%s] Index[%d] Err: Unauthorized", rspMsg.ClientID, rspMsg.ClientIndex)
-			return rtkMisc.ERR_BIZ_S2C_UNAUTH
-		}
-		SendReqClientListToLanServer()
 	case rtkMisc.C2SMsg_AUTH_DATA_INDEX_MOBILE:
 		return dealS2CMsgMobileAuthDataResp(rspMsg.ClientID, rspMsg.ClientIndex, rspMsg.ExtData)
 	case rtkMisc.C2SMsg_REQ_CLIENT_LIST:
@@ -205,11 +182,11 @@ func dealS2CMsgInitClient(id string, extData json.RawMessage) rtkMisc.CrossShare
 	}
 
 	rtkGlobal.NodeInfo.ClientIndex = initClientRsp.ClientIndex
-	monitorName = initClientRsp.MonitorName
+	g_monitorName = initClientRsp.MonitorName
 	heartBeatFlag <- struct{}{}
 	log.Printf("Requst Init Client success, get Client Index:[%d]", initClientRsp.ClientIndex)
 
-	rtkPlatform.GoMonitorNameNotify(monitorName)
+	rtkPlatform.GoMonitorNameNotify(g_monitorName)
 	if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformAndroid || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformiOS {
 		errCode, authData := rtkPlatform.GetAuthData()
 		if errCode != rtkMisc.SUCCESS {

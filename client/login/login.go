@@ -19,11 +19,8 @@ import (
 	"github.com/grandcat/zeroconf"
 )
 
-func SetLanServerName(name string) {
-	if lanServerName != "" && lanServerName != name {
-		lanServerAddr = ""
-	}
-	lanServerName = name
+func SetLanServerInstance(name string) {
+	lanServerInstance = name
 }
 
 func SetProductName(name string) {
@@ -31,9 +28,10 @@ func SetProductName(name string) {
 }
 
 func init() {
-	lanServerName = ""
+	lanServerInstance = ""
 	lanServerAddr = ""
 	g_ProductName = ""
+	g_monitorName = ""
 	isReconnectRunning.Store(false)
 	reconnectCancelFunc = nil
 
@@ -47,11 +45,21 @@ func init() {
 
 	disconnectAllClientFunc = nil
 	cancelAllBusinessFunc = nil
+
+	rtkPlatform.SetGoConfirmLanServerCallback(func(monitorName, instance, ipAddr string) {
+		log.Printf("mobile confirm LanServer monitor name:%s Instance:%s, IpAddr:%d", monitorName, instance, ipAddr)
+		serverInstanceMap.Store(instance, ipAddr)
+		lanServerInstance = instance
+		g_monitorName = monitorName
+	})
 }
 
 func ConnectLanServerRun(ctx context.Context) {
 	defer cancelLanServerBusiness()
-	stopBrowseInstance()
+
+	if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformWindows || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformMac {
+		stopBrowseInstance()
+	}
 
 	time.Sleep(50 * time.Millisecond) // Delay 50ms between "stop browse server" and "start lookup server"
 
@@ -62,11 +70,10 @@ func ConnectLanServerRun(ctx context.Context) {
 		if initLanServer() == rtkMisc.SUCCESS {
 			break
 		}
-		if retryCnt == g_retryServerMaxCnt {
+		if retryCnt == g_retryServerMaxCnt && (rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformWindows || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformMac) {
 			log.Printf("initLanServer %d times failed!  try to lookup Service over again!", retryCnt)
 			lanServerAddr = ""
-			serverInstanceMap.Delete(lanServerName)
-			retryCnt = 0
+			serverInstanceMap.Delete(lanServerInstance)
 		}
 		select {
 		case <-ctx.Done():
@@ -208,9 +215,15 @@ func BrowseInstance() rtkMisc.CrossShareErr {
 		select {
 		case <-ctx.Done():
 			return
-		case param := <-resultChan:
+		case param, ok := <-resultChan:
+			if !ok {
+				break
+			}
 			if len(param.instance) > 0 && len(param.ip) > 0 {
-				serverInstanceMap.Store(param.instance, param.ip)
+				// mobile dias must confirm by apk, so cannot store to serverInstanceMap
+				if rtkGlobal.NodeInfo.Platform != rtkMisc.PlatformAndroid && rtkGlobal.NodeInfo.Platform != rtkMisc.PlatformiOS {
+					serverInstanceMap.Store(param.instance, param.ip)
+				}
 			}
 		}
 	})
@@ -229,12 +242,12 @@ func getLanServerAddr() (string, rtkMisc.CrossShareErr) {
 	defer cancel()
 
 	if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformWindows || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformMac {
-		if lanServerName == "" {
-			log.Printf("[%s] lanServerName is not set!", rtkMisc.GetFuncInfo())
+		if lanServerInstance == "" {
+			log.Printf("[%s] lanServerInstance is not set!", rtkMisc.GetFuncInfo())
 			return "", rtkMisc.ERR_BIZ_C2S_GET_NO_SERVER_NAME
 		}
 
-		mapValue, ok := serverInstanceMap.Load(lanServerName)
+		mapValue, ok := serverInstanceMap.Load(lanServerInstance)
 		if ok {
 			lanServerIp := mapValue.(string)
 			if len(lanServerIp) > 0 {
@@ -242,41 +255,20 @@ func getLanServerAddr() (string, rtkMisc.CrossShareErr) {
 				return lanServerIp, rtkMisc.SUCCESS
 			}
 		}
-		return lookupLanServer(ctx, lanServerName, rtkMisc.LanServiceType, rtkMisc.LanServerDomain)
+		return lookupLanServer(ctx, lanServerInstance, rtkMisc.LanServiceType, rtkMisc.LanServerDomain)
 	} else {
-		lanServerIp := ""
-		// find the first service from map
+		/*// find the first service from map
 		serverInstanceMap.Range(func(key, value any) bool {
-			lanServerName = key.(string)
+			lanServerInstance = key.(string)
 			lanServerIp = value.(string)
 			return false
-		})
-		if lanServerName != "" && lanServerIp != "" {
-			log.Printf("[%s][Mobile] get service name=(%s), ip=(%s) from map", rtkMisc.GetFuncInfo(), lanServerName, lanServerIp)
-			return lanServerIp, rtkMisc.SUCCESS
-		}
+		})*/
 
-		resultChan := make(chan browseParam)
-		var errCode rtkMisc.CrossShareErr
-		if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformiOS {
-			errCode = browseLanServeriOS(ctx, rtkMisc.LanServiceType, resultChan)
-		} else {
-			errCode = browseLanServerAndroid(ctx, rtkMisc.LanServiceType, rtkMisc.LanServerDomain, resultChan)
-		}
-		if errCode != rtkMisc.SUCCESS {
-			return "", errCode
-		}
-
-		select {
-		case <-ctx.Done():
-			return "", rtkMisc.ERR_NETWORK_C2S_BROWSER_TIMEOUT
-		case param, ok := <-resultChan:
-			if !ok {
-				break
-			}
-			if len(param.instance) > 0 && len(param.ip) > 0 {
-				serverInstanceMap.Store(param.instance, param.ip)
-				return param.ip, rtkMisc.SUCCESS
+		if lanServerInstance != "" {
+			lanServerIp, ok := serverInstanceMap.Load(lanServerInstance)
+			if ok && lanServerIp != "" {
+				log.Printf("[%s][Mobile] get service Instance=(%s), ip=(%s) from map", rtkMisc.GetFuncInfo(), lanServerInstance, lanServerIp)
+				return lanServerIp.(string), rtkMisc.SUCCESS
 			}
 		}
 	}
@@ -288,16 +280,17 @@ func connectToLanServer() rtkMisc.CrossShareErr {
 		if lanServerAddr == "" {
 			serverAddr, errCode := getLanServerAddr()
 			if errCode != rtkMisc.SUCCESS {
-				log.Println("get  lanServerAddr error!\n\n")
+				//log.Println("get  lanServerAddr error!\n\n")
 				return errCode
 			}
 			lanServerAddr = serverAddr
-			log.Printf("get LanServer addr:%s  by serverName:[%s], try to Dial it!", lanServerAddr, lanServerName)
+			log.Printf("get LanServer addr:%s  by serverInstance:[%s], try to Dial it!", lanServerAddr, lanServerInstance)
 		}
 
 		pConnectLanServer, err := net.DialTimeout("tcp", lanServerAddr, time.Duration(5*time.Second))
 		if err != nil {
 			log.Printf("connecting to lanServerAddr[%s] Error:%+v ", lanServerAddr, err.Error())
+			rtkPlatform.GoConnectMonitorErr(g_monitorName, lanServerAddr, err.Error())
 			if netErr, ok := err.(net.Error); ok {
 				if netErr.Timeout() {
 					return rtkMisc.ERR_NETWORK_C2S_DIAL_TIMEOUT
@@ -307,6 +300,9 @@ func connectToLanServer() rtkMisc.CrossShareErr {
 		}
 		pSafeConnect.Reset(pConnectLanServer)
 		log.Printf("Connect LanServerAddr:[%s] success!", lanServerAddr)
+		if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformAndroid || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformiOS {
+			stopBrowseInstance()
+		}
 	}
 	return rtkMisc.SUCCESS
 }
@@ -357,7 +353,7 @@ func ReConnectLanServer() {
 		if retryCnt == g_retryServerMaxCnt {
 			log.Printf("connect To LanServerAddr:[%s] %d times failed!  try to lookup Service over again!", lanServerAddr, retryCnt)
 			lanServerAddr = ""
-			serverInstanceMap.Delete(lanServerName)
+			serverInstanceMap.Delete(lanServerInstance)
 			retryCnt = 0
 		}
 		select {
@@ -397,6 +393,7 @@ func cancelLanServerBusiness() {
 	pSafeConnect.Close()
 	lanServerAddr = ""
 	stopBrowseInstance()
+	serverInstanceMap.Clear()
 	if isReconnectRunning.Load() {
 		if reconnectCancelFunc != nil {
 			reconnectCancelFunc()
@@ -484,7 +481,11 @@ func browseLanServerAndroid(ctx context.Context, serviceType, domain string, res
 				}
 
 				log.Printf("Found target! Service:[%s] IP:[%s], use [%d] ms", entry.Instance, lanServerIp, time.Now().UnixMilli()-startTime)
-				SetLanServerName(entry.Instance)
+				// hack code
+				//SetLanServerInstance(entry.Instance)
+				rtkPlatform.GoNotifyBrowseResult("cross_share_lan_serv", entry.Instance, lanServerIp, "2.2.13", time.Now().UnixMilli())
+				rtkPlatform.GoNotifyBrowseResult("monitorName22_test", "entry.Instance", "127.0.0.1:8080", "2.2.10", time.Now().UnixMilli())
+
 				resultChan <- browseParam{entry.Instance, lanServerIp}
 			}
 		}
@@ -546,7 +547,7 @@ func lookupLanServer(ctx context.Context, instance, serviceType, domain string) 
 		if !ok {
 			break
 		}
-		
+
 		log.Printf("Lookup get Service success, use [%d] ms", time.Now().UnixMilli()-startTime)
 		if len(entry.AddrIPv4) > 0 {
 			lanServerIp := fmt.Sprintf("%s:%d", entry.AddrIPv4[0].String(), entry.Port)

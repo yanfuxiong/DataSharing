@@ -67,24 +67,6 @@ func handleReadFromClientMsg(buffer []byte, IPAddr string, MsgRsp *rtkMisc.C2SMe
 		MsgRsp.ExtData = resetRsp
 	case rtkMisc.C2SMsg_INIT_CLIENT:
 		MsgRsp.ClientIndex, MsgRsp.ExtData = dealC2SMsgInitClient(&msg.ExtData)
-	case rtkMisc.C2SMsg_AUTH_INDEX_MOBILE: //TODO: To remove it  and be replaced by C2SMsg_AUTH_DATA_INDEX_MOBILE
-		var extData rtkMisc.AuthIndexMobileReq
-		authIndexMobileRsp := rtkMisc.AuthIndexMobileResponse{Response: rtkMisc.GetResponse(rtkMisc.SUCCESS), AuthStatus: false}
-		err = json.Unmarshal(msg.ExtData, &extData)
-		if err != nil {
-			log.Printf("clientID:[%s] decode ExtDataText Err: %s", msg.ClientID, err.Error())
-			authIndexMobileRsp.Response = rtkMisc.GetResponse(rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL)
-		} else {
-			// TODO: Miracast case: Both of Miracast and CrossShare connected to server, then setup authStatus=true and response it
-			authStatus := true
-			errCode := rtkdbManager.UpdateAuthAndSrcPort(int(msg.ClientIndex), authStatus, extData.SourceAndPort.Source, extData.SourceAndPort.Port)
-			if errCode != rtkMisc.SUCCESS {
-				authIndexMobileRsp.Response = rtkMisc.GetResponse(errCode)
-			} else {
-				authIndexMobileRsp.AuthStatus = authStatus
-			}
-		}
-		MsgRsp.ExtData = authIndexMobileRsp
 	case rtkMisc.C2SMsg_AUTH_DATA_INDEX_MOBILE:
 		MsgRsp.ExtData = dealC2SMsgMobileAuthDataIndex(msg.ClientID, msg.ClientIndex, &msg.ExtData)
 	case rtkMisc.C2SMsg_REQ_CLIENT_LIST:

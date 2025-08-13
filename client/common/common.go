@@ -53,4 +53,5 @@ const (
 	SendFilesRequestInProgressBySrc
 	SendFilesRequestInProgressByDst
 	SendFilesRequestCallbackNotSet
+	SendFilesRequestOverRange
 )

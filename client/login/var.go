@@ -31,9 +31,9 @@ var (
 	serverInstanceMap       sync.Map //KEY: instance
 	cancelBrowse            func()
 	lanServerAddr           string
-	lanServerName           string
+	lanServerInstance       string
 	g_ProductName           string
-	monitorName             string
+	g_monitorName           string
 	pSafeConnect            *safeConnect
 	heartBeatTicker         *time.Ticker
 	heartBeatFlag           = make(chan struct{}, 1)

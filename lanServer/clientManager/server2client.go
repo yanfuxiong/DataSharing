@@ -129,7 +129,7 @@ func dealC2SMsgInitClient(ext *json.RawMessage) (uint32, interface{}) {
 		initClientRsp.ClientVersion = rtkMisc.GetShortVersion(curMaxVersion)
 		return 0, initClientRsp
 	} else if curVerValue < reqVerValue { // other client list need update version
-		log.Printf("[%s] clientID:[%s] Version:[%s] is newer than current:%s, notify other client list to update!", rtkMisc.GetFuncInfo(), extData.ClientID, extData.ClientVersion, curMaxVersion)
+		log.Printf("[%s] clientID:[%s] Version:[%s] is newer than current:[%s], notify other client list to update!", rtkMisc.GetFuncInfo(), extData.ClientID, extData.ClientVersion, curMaxVersion)
 		buildNotifyClientVersion(extData.ClientID, rtkMisc.GetShortVersion(extData.ClientVersion))
 	}
 

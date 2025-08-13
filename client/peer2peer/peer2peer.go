@@ -14,6 +14,7 @@ import (
 	rtkPlatform "rtk-cross-share/client/platform"
 	rtkUtils "rtk-cross-share/client/utils"
 	rtkMisc "rtk-cross-share/misc"
+	"strconv"
 	"time"
 )
 
@@ -209,7 +210,7 @@ func processInbandRead(buffer []byte, len int, msg *Peer2PeerMessage) rtkMisc.Cr
 	return rtkMisc.SUCCESS
 }
 
-func HandleReadInbandFromSocket(ctxMain context.Context, resultChan chan<- EventResult, id string) {
+func HandleReadInbandFromSocket(ctxMain context.Context, resultChan chan<- EventResult, id, ipAddr string) {
 	defer close(resultChan)
 	for {
 		select {
@@ -244,21 +245,33 @@ func HandleReadInbandFromSocket(ctxMain context.Context, resultChan chan<- Event
 				rtkConnection.OfflineEvent(id)
 				continue
 			} else if msg.Command == COMM_FILE_TRANSFER_SRC_INTERRUPT {
+				fileTransferId := int(0)
 				fileDropData, ok := rtkFileDrop.GetFileDropData(id)
 				if ok {
 					HandleDataTransferError(COMM_CANCEL_SRC, id, fileDropData.DstFilePath, fileDropData.TimeStamp)
+					fileTransferId = int(fileDropData.TimeStamp)
 				}
-				// TODO: check if necessary to notice GUI the SRC interrupt file transfer
+
 				CancelDstFileTransfer(id) // Dst: Copy need cancel
 				if fileTransCode, ok := msg.ExtData.(rtkMisc.CrossShareErr); ok {
 					log.Printf("[%s] (DST) Copy operation was canceled by src errCode:%d!", rtkMisc.GetFuncInfo(), fileTransCode)
+					// notice  errCode to platform
+					rtkPlatform.GoNotifyErrEvent(id, fileTransCode, ipAddr, strconv.Itoa(fileTransferId), "", "")
 				}
 				continue
 			} else if msg.Command == COMM_FILE_TRANSFER_DST_INTERRUPT {
+				fileTransferId := int(0)
+				fileDropData, ok := rtkFileDrop.GetFileDropData(id)
+				if ok {
+					HandleDataTransferError(COMM_CANCEL_SRC, id, fileDropData.DstFilePath, fileDropData.TimeStamp)
+					fileTransferId = int(fileDropData.TimeStamp)
+				}
+
 				CancelSrcFileTransfer(id) // Src: Copy need cancel
 				if fileTransCode, ok := msg.ExtData.(rtkMisc.CrossShareErr); ok {
+					// notice  errCode to platform
+					rtkPlatform.GoNotifyErrEvent(id, fileTransCode, ipAddr, strconv.Itoa(fileTransferId), "", "")
 					if fileTransCode == rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL_GUI {
-						// TODO: check if necessary to notice GUI the DST interrupt file transfer
 						log.Printf("[%s](SRC) ID:[%s] Copy file operation was canceled by dst GUI !", rtkMisc.GetFuncInfo(), id)
 					} else {
 						log.Printf("[%s](SRC) ID:[%s] Copy file operation was canceled by dst errCode:%d!", rtkMisc.GetFuncInfo(), id, fileTransCode)
@@ -498,12 +511,18 @@ func IsTransferError(buffer []byte) bool {
 func processIoWrite(id, ipAddr string, fmtType rtkCommon.TransFmtType) {
 	resultCode := rtkMisc.SUCCESS
 	if fmtType == rtkCommon.FILE_DROP {
+		fileTransferId := int(0)
+		if fileDropReqData, ok := rtkFileDrop.GetFileDropData(id); ok {
+			log.Printf("[%s] Err: Not found fileDrop data", rtkMisc.GetFuncInfo())
+			fileTransferId = int(fileDropReqData.TimeStamp)
+		}
 		defer rtkFileDrop.ResetFileDropData(id)
 		resultCode = writeFileDataToSocket(id, ipAddr)
 		if resultCode != rtkMisc.SUCCESS {
 			log.Printf("(SRC) ID[%s] IP[%s] Copy file list To Socket failed, ERR code:[%d]", id, ipAddr, resultCode)
 			if resultCode != rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_CANCEL && resultCode != rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_TIMEOUT {
 				sendCmdMsgToPeer(id, COMM_FILE_TRANSFER_SRC_INTERRUPT, fmtType, resultCode)
+				rtkPlatform.GoNotifyErrEvent(id, resultCode, ipAddr, strconv.Itoa(fileTransferId), "", "")
 			}
 		}
 	} else if fmtType == rtkCommon.IMAGE_CB {
@@ -517,21 +536,23 @@ func processIoWrite(id, ipAddr string, fmtType rtkCommon.TransFmtType) {
 
 func processIoRead(id, ipAddr, deviceName string, fmtType rtkCommon.TransFmtType) {
 	if fmtType == rtkCommon.FILE_DROP {
-		dstFileName, resultCode := handleFileDataFromSocket(id, ipAddr, deviceName)
+		fileTransferId := int(0)
+		fileDropData, ok := rtkFileDrop.GetFileDropData(id)
+		if ok {
+			fileTransferId = int(fileDropData.TimeStamp)
+		}
 		defer rtkFileDrop.ResetFileDropData(id)
+		dstFileName, resultCode := handleFileDataFromSocket(id, ipAddr, deviceName)
+
 		if resultCode != rtkMisc.SUCCESS {
 			log.Printf("(DST) ID[%s] IP[%s] Copy file [%s] From Socket failed, ERR code:[%d]", id, ipAddr, dstFileName, resultCode)
-			fileDropData, ok := rtkFileDrop.GetFileDropData(id)
-			if !ok {
-				log.Printf("[%s] Not found fileDrop data", rtkMisc.GetFuncInfo())
-				return
-			}
 
 			// any exceptions and user cancellation need to Notify to platfrom
 			HandleDataTransferError(COMM_CANCEL_DST, id, dstFileName, fileDropData.TimeStamp)
 
 			if resultCode != rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL && resultCode != rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_TIMEOUT {
 				sendCmdMsgToPeer(id, COMM_FILE_TRANSFER_DST_INTERRUPT, fmtType, resultCode)
+				rtkPlatform.GoNotifyErrEvent(id, resultCode, ipAddr, strconv.Itoa(fileTransferId), "", "")
 			}
 		}
 	} else if fmtType == rtkCommon.IMAGE_CB {
@@ -791,7 +812,7 @@ func ProcessEventsForPeer(id, ipAddr string, ctx context.Context) {
 	eventResultSocket := make(chan EventResult)
 	rtkMisc.GoSafe(func() { HandleClipboardEvent(ctx, eventResultClipboard, id) })
 	rtkMisc.GoSafe(func() { HandleFileDropEvent(ctx, eventResultFileDrop, id) })
-	rtkMisc.GoSafe(func() { HandleReadInbandFromSocket(ctx, eventResultSocket, id) })
+	rtkMisc.GoSafe(func() { HandleReadInbandFromSocket(ctx, eventResultSocket, id, ipAddr) })
 
 	handleEvent := func(event EventResult) {
 		buildState := curState
@@ -813,20 +834,20 @@ func ProcessEventsForPeer(id, ipAddr string, ctx context.Context) {
 				rtkClipboard.ResetLastClipboardData()
 			}
 			return
-		case event := <-eventResultClipboard:
-			if event.Cmd.State == "" || event.Cmd.Command == "" {
+		case event, ok := <-eventResultClipboard:
+			if !ok {
 				continue
 			}
 			log.Printf("[ProcessEvent Clipboard][%s] EventResult fmt=%s, state=%s, cmd=%s", ipAddr, event.Cmd.FmtType, event.Cmd.State, event.Cmd.Command)
 			handleEvent(event)
-		case event := <-eventResultFileDrop:
-			if event.Cmd.State == "" || event.Cmd.Command == "" {
+		case event, ok := <-eventResultFileDrop:
+			if !ok {
 				continue
 			}
 			log.Printf("[ProcessEvent FileDrop][%s] EventResult fmt=%s, state=%s, cmd=%s", ipAddr, event.Cmd.FmtType, event.Cmd.State, event.Cmd.Command)
 			handleEvent(event)
-		case event := <-eventResultSocket:
-			if event.Cmd.State == "" || event.Cmd.Command == "" {
+		case event, ok := <-eventResultSocket:
+			if !ok {
 				continue
 			}
 			log.Printf("[ProcessEvent Socket][%s] EventResult fmt=%s, state=%s, cmd=%s", ipAddr, event.Cmd.FmtType, event.Cmd.State, event.Cmd.Command)

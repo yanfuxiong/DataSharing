@@ -22,6 +22,8 @@ typedef char* (*CallbackAuthData)();
 typedef void (*CallbackSetDIASStatus)(unsigned int status);
 typedef void (*CallbackSetMonitorName)(char* monitorName);
 typedef void (*CallbackRequestUpdateClientVersion)(char* clientVer);
+typedef void (*CallbackNotifyErrEvent)(char* id, unsigned int errCode, char* arg1, char* arg2, char* arg3, char* arg4);
+typedef void (*CallbackNotifyBrowseResult)(char* monitorName, char* instance, char* ip, char* version, unsigned long long timestamp);
 
 static CallbackMethodText gCallbackMethodText = 0;
 static CallbackMethodImage gCallbackMethodImage = 0;
@@ -39,6 +41,8 @@ static CallbackAuthData gCallbackAuthData = 0;
 static CallbackSetDIASStatus gCallbackSetDIASStatus = 0;
 static CallbackSetMonitorName gCallbackSetMonitorName = 0;
 static CallbackRequestUpdateClientVersion gCallbackRequestUpdateClientVersion = 0;
+static CallbackNotifyErrEvent gCallbackNotifyErrEvent = 0;
+static CallbackNotifyBrowseResult gCallbackNotifyBrowseResult = 0;
 
 static void setCallbackMethodText(CallbackMethodText cb) {gCallbackMethodText = cb;}
 static void invokeCallbackMethodText(char* str) {
@@ -101,10 +105,17 @@ static void setCallbackSetMonitorName(CallbackSetMonitorName cb) {gCallbackSetMo
 static void invokeCallbackSetMonitorName(char* monitorName) {
 	if (gCallbackSetMonitorName) { gCallbackSetMonitorName(monitorName);}
 }
-
 static void setCallbackRequestUpdateClientVersion(CallbackRequestUpdateClientVersion cb) {gCallbackRequestUpdateClientVersion = cb;}
 static void invokeCallbackRequestUpdateClientVersion(char* clientVer) {
 	if (gCallbackRequestUpdateClientVersion) { gCallbackRequestUpdateClientVersion(clientVer);}
+}
+static void setCallbackNotifyErrEvent(CallbackNotifyErrEvent cb) {gCallbackNotifyErrEvent = cb;}
+static void invokeCallbackNotifyErrEvent(char* id, unsigned int errCode, char* arg1, char* arg2, char* arg3, char* arg4) {
+	if (gCallbackNotifyErrEvent) { gCallbackNotifyErrEvent(id,errCode,arg1,arg2,arg3,arg4);}
+}
+static void setCallbackNotifyBrowseResult(CallbackNotifyBrowseResult cb) {gCallbackNotifyBrowseResult = cb;}
+static void invokeCallbackNotifyBrowseResult(char* monitorName, char* instance, char* ip, char* version, unsigned long long timestamp) {
+	if (gCallbackNotifyBrowseResult) { gCallbackNotifyBrowseResult(monitorName, instance, ip, version, timestamp);}
 }
 */
 import "C"
@@ -146,6 +157,8 @@ func init() {
 	rtkPlatform.SetCallbackDIASStatus(GoTriggerCallbackSetDIASStatus)
 	rtkPlatform.SetCallbackMonitorName(GoTriggerCallbackSetMonitorName)
 	rtkPlatform.SetCallbackRequestUpdateClientVersion(GoTriggerCallbackReqClientUpdateVer)
+	rtkPlatform.SetCallbackNotifyErrEvent(GoTriggerCallbackNotifyErrEvent)
+	rtkPlatform.SetCallbackNotifyBrowseResult(GoTriggerCallbackNotifyBrowseResult)
 
 	rtkPlatform.SetConfirmDocumentsAccept(false)
 }
@@ -311,6 +324,43 @@ func GoTriggerCallbackReqClientUpdateVer(ver string) {
 	C.invokeCallbackRequestUpdateClientVersion(cVer)
 }
 
+func GoTriggerCallbackNotifyErrEvent(id string, errCode uint32, arg1, arg2, arg3, arg4 string) {
+	cId := C.CString(id)
+	cErrCode := C.uint(errCode)
+	cArg1 := C.CString(arg1)
+	cArg2 := C.CString(arg2)
+	cArg3 := C.CString(arg3)
+	cArg4 := C.CString(arg4)
+	defer func() {
+		C.free(unsafe.Pointer(cId))
+		C.free(unsafe.Pointer(cArg1))
+		C.free(unsafe.Pointer(cArg2))
+		C.free(unsafe.Pointer(cArg3))
+		C.free(unsafe.Pointer(cArg4))
+	}()
+
+	log.Printf("[%s] id:[%s] errCode:%d arg1:%s, arg2:%s, arg3:%s, arg4:%s", rtkMisc.GetFuncInfo(), id, errCode, arg1, arg2, arg3, arg4)
+	C.invokeCallbackNotifyErrEvent(cId, cErrCode, cArg1, cArg2, cArg3, cArg4)
+}
+
+func GoTriggerCallbackNotifyBrowseResult(monitorName, instance, ipAddr, version string, timestamp int64) {
+	cMonitorName := C.CString(monitorName)
+	cInstance := C.CString(instance)
+	cIpAddr := C.CString(ipAddr)
+	cVersion := C.CString(version)
+	cTimeStamp := C.ulonglong(timestamp)
+
+	defer func() {
+		C.free(unsafe.Pointer(cMonitorName))
+		C.free(unsafe.Pointer(cInstance))
+		C.free(unsafe.Pointer(cIpAddr))
+		C.free(unsafe.Pointer(cVersion))
+	}()
+
+	log.Printf("[%s] name:%s, instance:%s, ip:%s, version:%s, timestamp:%d", rtkMisc.GetFuncInfo(), monitorName, instance, ipAddr, version, timestamp)
+	C.invokeCallbackNotifyBrowseResult(cMonitorName, cInstance, cIpAddr, cVersion, cTimeStamp)
+}
+
 //export SetCallbackMethodText
 func SetCallbackMethodText(cb C.CallbackMethodText) {
 	log.Printf("[%s] SetCallbackMethodText", rtkMisc.GetFuncInfo())
@@ -395,6 +445,18 @@ func SetCallbackMonitorName(cb C.CallbackSetMonitorName) {
 func SetCallbackRequestUpdateClientVersion(cb C.CallbackRequestUpdateClientVersion) {
 	log.Printf("[%s] SetCallbackRequestUpdateClientVersion", rtkMisc.GetFuncInfo())
 	C.setCallbackRequestUpdateClientVersion(cb)
+}
+
+//export SetCallbackNotifyErrEvent
+func SetCallbackNotifyErrEvent(cb C.CallbackNotifyErrEvent) {
+	log.Printf("[%s] SetCallbackNotifyErrEvent", rtkMisc.GetFuncInfo())
+	C.setCallbackNotifyErrEvent(cb)
+}
+
+//export SetCallbackNotifyBrowseResult
+func SetCallbackNotifyBrowseResult(cb C.CallbackNotifyBrowseResult) {
+	log.Printf("[%s] SetCallbackNotifyBrowseResult", rtkMisc.GetFuncInfo())
+	C.setCallbackNotifyBrowseResult(cb)
 }
 
 //export MainInit
@@ -631,4 +693,16 @@ func SetConfirmDocumentsAccept(ifConfirm bool) {
 //export FreeCString
 func FreeCString(p *C.char) {
 	C.free(unsafe.Pointer(p))
+}
+
+//export BrowseLanServer
+func BrowseLanServer() {
+	log.Printf("[%s] trrigger!", rtkMisc.GetFuncInfo())
+	rtkPlatform.GoBrowseLanServer()
+}
+
+//export ConfirmLanServer
+func ConfirmLanServer(monitorName, instance, ipAddr string) {
+	log.Printf("[%s] monitorName:[%s], instance:[%s], ipAddr:[%s]", rtkMisc.GetFuncInfo(), monitorName, instance, ipAddr)
+	rtkPlatform.GoConfirmLanServer(monitorName, instance, ipAddr)
 }

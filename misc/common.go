@@ -4,8 +4,8 @@ type C2SMsgType string
 
 const (
 	C2SMsg_INIT_CLIENT            C2SMsgType = "INIT_CLIENT"
-	C2SMsg_RESET_CLIENT           C2SMsgType = "RESET_CLIENT"
-	C2SMsg_AUTH_INDEX_MOBILE      C2SMsgType = "AUTH_VIA_INDEX"
+	C2SMsg_RESET_CLIENT           C2SMsgType = "RESET_CLIENT"   // Deprecated: unused
+	C2SMsg_AUTH_INDEX_MOBILE      C2SMsgType = "AUTH_VIA_INDEX" // Deprecated: unused
 	C2SMsg_AUTH_DATA_INDEX_MOBILE C2SMsgType = "AUTH_VIA_DATA_INDEX"
 	C2SMsg_REQ_CLIENT_LIST        C2SMsgType = "REQ_CLIENT_LIST"
 	C2SMsg_CLIENT_HEARTBEAT       C2SMsgType = "CLIENT_HEARTBEAT"

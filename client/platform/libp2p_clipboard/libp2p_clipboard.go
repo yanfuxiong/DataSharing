@@ -33,6 +33,16 @@ func SetupRootPath(rootPath string) {
 	log.Printf("[%s] rootPath:[%s]", rtkMisc.GetFuncInfo(), rootPath)
 }
 
+func ConfirmLanServer(monitorName, instance, ipAddr string) {
+	log.Printf("[%s] monitorName:[%s], instance:[%s], ipAddr:[%s]", rtkMisc.GetFuncInfo(), monitorName, instance, ipAddr)
+	rtkPlatform.GoConfirmLanServer(monitorName, instance, ipAddr)
+}
+
+func BrowseLanServer() {
+	log.Printf("[%s]", rtkMisc.GetFuncInfo())
+	rtkPlatform.GoBrowseLanServer()
+}
+
 func MainInit(cb Callback, deviceName, serverId, serverIpInfo, listentHost string, listentPort int) {
 	rtkPlatform.SetCallback(cb)
 	rtkPlatform.SetDeviceName(deviceName)

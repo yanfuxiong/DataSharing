@@ -107,6 +107,8 @@ type (
 	CallbackDetectPluginEventFunc      func(isPlugin bool, productName string)
 	CallbackGetFilesTransCodeFunc      func(id string) rtkCommon.SendFilesRequestErrCode
 	CallbackReqClientUpdateVerFunc     func(clientVer string)
+	CallbackNotifyErrEventFunc         func(id string, errCode uint32, arg1, arg2, arg3, arg4 string)
+	CallbackConfirmLanServerFunc       func(monitorName, instance, ipAddr string)
 )
 
 var (
@@ -130,6 +132,7 @@ var (
 	callbackDIASSourceAndPortCB        CallbackDIASSourceAndPortFunc      = nil
 	callbackMethodBrowseMdnsResult     CallbackMethodBrowseMdnsResultFunc = nil
 	callbackReqClientUpdateVer         CallbackReqClientUpdateVerFunc     = nil
+	callbackNotifyErrEvent             CallbackNotifyErrEventFunc         = nil
 
 	// main.go Callback
 	callbackAuthViaIndex       CallbackAuthViaIndexCallbackFunc = nil
@@ -231,6 +234,9 @@ func SetGetFilesTransCodeCallback(cb CallbackGetFilesTransCodeFunc) {
 	callbackGetFilesTransCode = cb
 }
 
+func SetGoConfirmLanServerCallback(cb CallbackConfirmLanServerFunc) {
+}
+
 /*======================================= Used by main.go, set Callback =======================================*/
 
 func SetAuthViaIndexCallback(cb CallbackAuthViaIndexCallbackFunc) {
@@ -289,6 +295,10 @@ func SetReqClientUpdateVerCallback(cb CallbackReqClientUpdateVerFunc) {
 	callbackReqClientUpdateVer = cb
 }
 
+func SetNotifyErrEventCallback(cb CallbackNotifyErrEventFunc) {
+	callbackNotifyErrEvent = cb
+}
+
 /*======================================= Used by main.go, Called by C++ =======================================*/
 
 func GoCopyImage(fileSize rtkCommon.FileSize, imgHeader rtkCommon.ImgHeader, data []byte) {
@@ -330,6 +340,21 @@ func GoMultiFilesDropRequest(id string, fileList *[]rtkCommon.FileInfo, folderLi
 	filesTransCode := callbackGetFilesTransCode(id)
 	if filesTransCode != rtkCommon.SendFilesRequestSuccess {
 		return filesTransCode
+	}
+
+	nMsgLength := int(370) //p2p null msg length
+
+	for _, file := range *fileList {
+		nMsgLength = nMsgLength + len(file.FilePath) + len(file.FileName) + 80
+	}
+
+	for _, folder := range *folderList {
+		nMsgLength = nMsgLength + len(folder) + 5
+	}
+
+	if nMsgLength >= 32768 {
+		log.Printf("[%s] ID[%s] get file count:[%d] folder count:[%d], the p2p message is too long and over range!", rtkMisc.GetFuncInfo(), id, len(*fileList), len(*folderList))
+		return rtkCommon.SendFilesRequestOverRange
 	}
 
 	callbackFileListDropRequestCB(id, *fileList, *folderList, totalSize, timestamp, totalDesc)
@@ -493,6 +518,15 @@ func GoEventHandle(eventType rtkCommon.EventType, ipAddr, fileName string, times
 
 }
 
+func GoNotifyErrEvent(id string, errCode rtkMisc.CrossShareErr, arg1, arg2, arg3, arg4 string) {
+	if callbackNotifyErrEvent == nil {
+		log.Printf("callbackNotifyErrEvent is null!\n")
+		return
+	}
+
+	callbackNotifyErrEvent(id, uint32(errCode), arg1, arg2, arg3, arg4)
+}
+
 func GoRequestUpdateClientVersion(ver string) {
 	if callbackReqClientUpdateVer == nil {
 		log.Printf("callbackReqClientUpdateVer is null!\n")
@@ -617,6 +651,14 @@ func SetConfirmDocumentsAccept(ifConfirm bool) {
 
 func GetConfirmDocumentsAccept() bool {
 	return ifConfirmDocumentsAccept
+}
+
+func GoConnectMonitorErr(monitorName, ipAddr, err string) {
+
+}
+
+func GoNotifyBrowseResult(monitorName, instance, ipAddr, version string, timestamp int64) {
+
 }
 
 // Specific Platform: iOS. Browse and lookup MDNS from iOS
