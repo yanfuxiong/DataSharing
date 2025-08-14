@@ -33,9 +33,9 @@ func SetupRootPath(rootPath string) {
 	log.Printf("[%s] rootPath:[%s]", rtkMisc.GetFuncInfo(), rootPath)
 }
 
-func ConfirmLanServer(monitorName, instance, ipAddr string) {
+func ConnectLanServer(monitorName, instance, ipAddr string) {
 	log.Printf("[%s] monitorName:[%s], instance:[%s], ipAddr:[%s]", rtkMisc.GetFuncInfo(), monitorName, instance, ipAddr)
-	rtkPlatform.GoConfirmLanServer(monitorName, instance, ipAddr)
+	rtkPlatform.GoConnectLanServer(monitorName, instance, ipAddr)
 }
 
 func BrowseLanServer() {

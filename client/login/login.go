@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net"
+	rtkCommon "rtk-cross-share/client/common"
 	rtkGlobal "rtk-cross-share/client/global"
 	rtkPlatform "rtk-cross-share/client/platform"
 	rtkUtils "rtk-cross-share/client/utils"
@@ -46,16 +47,35 @@ func init() {
 	disconnectAllClientFunc = nil
 	cancelAllBusinessFunc = nil
 
-	rtkPlatform.SetGoConfirmLanServerCallback(func(monitorName, instance, ipAddr string) {
+	rtkPlatform.SetGoConnectLanServerCallback(func(monitorName, instance, ipAddr string) {
 		log.Printf("mobile confirm LanServer monitor name:%s Instance:%s, IpAddr:%d", monitorName, instance, ipAddr)
 		serverInstanceMap.Store(instance, ipAddr)
 		lanServerInstance = instance
 		g_monitorName = monitorName
 	})
+
+	rtkPlatform.SetGoBrowseLanServerCallback(func() {
+		lanServerInstance = ""
+		lanServerAddr = ""
+		log.Printf("mobile Browse LanServer monitor triggered!")
+		stopLanServerBusiness()
+		time.Sleep(50 * time.Millisecond)
+		BrowseInstance()
+	})
 }
 
 func ConnectLanServerRun(ctx context.Context) {
-	defer cancelLanServerBusiness()
+	defer func() {
+		cancelLanServerBusiness()
+		if source, ok := rtkUtils.GetCancelSource(ctx); ok {
+			if source == rtkCommon.SourceNetworkSwitch || source == rtkCommon.SourceVerInvalid || source == rtkCommon.SourceCablePlugIn {
+				NotifyDIASStatus(DIAS_Status_Connectting_DiasService)
+			} else if source == rtkCommon.SourceCablePlugOut {
+				NotifyDIASStatus(DIAS_Status_Wait_DiasMonitor)
+			}
+			log.Printf("[%s] source:%d", rtkMisc.GetFuncInfo(), source)
+		}
+	}()
 
 	if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformWindows || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformMac {
 		stopBrowseInstance()
@@ -67,11 +87,13 @@ func ConnectLanServerRun(ctx context.Context) {
 	for {
 		retryCnt++
 
-		if initLanServer() == rtkMisc.SUCCESS {
+		errCode := initLanServer()
+		if errCode == rtkMisc.SUCCESS {
 			break
 		}
+
 		if retryCnt == g_retryServerMaxCnt && (rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformWindows || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformMac) {
-			log.Printf("initLanServer %d times failed!  try to lookup Service over again!", retryCnt)
+			log.Printf("initLanServer %d times failed, errCode:%d !  try to lookup Service over again!", retryCnt, errCode)
 			lanServerAddr = ""
 			serverInstanceMap.Delete(lanServerInstance)
 		}
@@ -80,12 +102,6 @@ func ConnectLanServerRun(ctx context.Context) {
 			return
 		case <-time.After(g_retryServerInterval):
 		}
-	}
-
-	if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformWindows {
-		NotifyDIASStatus(DIAS_Status_Checking_Authorization)
-	} else {
-		NotifyDIASStatus(DIAS_Status_Wait_screenCasting)
 	}
 
 	readResult := make(chan struct {
@@ -140,8 +156,6 @@ func ConnectLanServerRun(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-heartBeatFlag:
-			lanServerHeartbeatStart()
 		case <-heartBeatTicker.C:
 			heartBeatFunc()
 		case readData, ok := <-readResult:
@@ -194,8 +208,9 @@ type browseParam struct {
 func BrowseInstance() rtkMisc.CrossShareErr {
 	if cancelBrowse != nil {
 		cancelBrowse()
+		cancelBrowse = nil
+		time.Sleep(50 * time.Millisecond)
 	}
-	cancelBrowse = nil
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancelBrowse = cancel
@@ -220,10 +235,7 @@ func BrowseInstance() rtkMisc.CrossShareErr {
 				break
 			}
 			if len(param.instance) > 0 && len(param.ip) > 0 {
-				// mobile dias must confirm by apk, so cannot store to serverInstanceMap
-				if rtkGlobal.NodeInfo.Platform != rtkMisc.PlatformAndroid && rtkGlobal.NodeInfo.Platform != rtkMisc.PlatformiOS {
-					serverInstanceMap.Store(param.instance, param.ip)
-				}
+				serverInstanceMap.Store(param.instance, param.ip)
 			}
 		}
 	})
@@ -257,19 +269,13 @@ func getLanServerAddr() (string, rtkMisc.CrossShareErr) {
 		}
 		return lookupLanServer(ctx, lanServerInstance, rtkMisc.LanServiceType, rtkMisc.LanServerDomain)
 	} else {
-		/*// find the first service from map
-		serverInstanceMap.Range(func(key, value any) bool {
-			lanServerInstance = key.(string)
-			lanServerIp = value.(string)
-			return false
-		})*/
-
 		if lanServerInstance != "" {
 			lanServerIp, ok := serverInstanceMap.Load(lanServerInstance)
 			if ok && lanServerIp != "" {
 				log.Printf("[%s][Mobile] get service Instance=(%s), ip=(%s) from map", rtkMisc.GetFuncInfo(), lanServerInstance, lanServerIp)
 				return lanServerIp.(string), rtkMisc.SUCCESS
 			}
+
 		}
 	}
 	return "", rtkMisc.ERR_NETWORK_C2S_BROWSER_INVALID
@@ -280,17 +286,17 @@ func connectToLanServer() rtkMisc.CrossShareErr {
 		if lanServerAddr == "" {
 			serverAddr, errCode := getLanServerAddr()
 			if errCode != rtkMisc.SUCCESS {
-				//log.Println("get  lanServerAddr error!\n\n")
+				//log.Printf("get lanServerAddr error, err code:%d \n\n", errCode)
 				return errCode
 			}
 			lanServerAddr = serverAddr
-			log.Printf("get LanServer addr:%s  by serverInstance:[%s], try to Dial it!", lanServerAddr, lanServerInstance)
 		}
 
+		log.Printf("get LanServer addr:%s  by serverInstance:[%s], try to Dial it!", lanServerAddr, lanServerInstance)
 		pConnectLanServer, err := net.DialTimeout("tcp", lanServerAddr, time.Duration(5*time.Second))
 		if err != nil {
 			log.Printf("connecting to lanServerAddr[%s] Error:%+v ", lanServerAddr, err.Error())
-			rtkPlatform.GoConnectMonitorErr(g_monitorName, lanServerAddr, err.Error())
+			NotifyDIASStatus(DIAS_Status_Connected_LAN_Server_Failed)
 			if netErr, ok := err.(net.Error); ok {
 				if netErr.Timeout() {
 					return rtkMisc.ERR_NETWORK_C2S_DIAL_TIMEOUT
@@ -300,9 +306,8 @@ func connectToLanServer() rtkMisc.CrossShareErr {
 		}
 		pSafeConnect.Reset(pConnectLanServer)
 		log.Printf("Connect LanServerAddr:[%s] success!", lanServerAddr)
-		if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformAndroid || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformiOS {
-			stopBrowseInstance()
-		}
+
+		stopBrowseInstance() // mobile need stop Browse
 	}
 	return rtkMisc.SUCCESS
 }
@@ -311,6 +316,12 @@ func initLanServer() rtkMisc.CrossShareErr {
 	resultCode := connectToLanServer()
 	if resultCode != rtkMisc.SUCCESS {
 		return resultCode
+	}
+
+	if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformWindows || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformMac {
+		NotifyDIASStatus(DIAS_Status_Checking_Authorization)
+	} else {
+		NotifyDIASStatus(DIAS_Status_Wait_screenCasting)
 	}
 
 	return sendReqInitClientToLanServer()
@@ -323,6 +334,7 @@ func isNeedReconnectProcess() bool {
 
 	if !pSafeConnect.IsAlive() && !isReconnectRunning.Load() {
 		stopLanServerBusiness()
+		heartBeatTicker.Reset(time.Duration(999 * time.Hour))
 		rtkMisc.GoSafe(func() { ReConnectLanServer() })
 		return true
 	}
@@ -346,15 +358,20 @@ func ReConnectLanServer() {
 		retryCnt++
 
 		if initLanServer() == rtkMisc.SUCCESS {
-			heartBeatFlag <- struct{}{}
 			log.Printf("ReConnectLanServer success!")
+			lanServerHeartbeatStart()
 			break
 		}
 		if retryCnt == g_retryServerMaxCnt {
+			NotifyDIASStatus(DIAS_Status_Connectting_DiasService)
+			rtkPlatform.GoMonitorNameNotify("")
 			log.Printf("connect To LanServerAddr:[%s] %d times failed!  try to lookup Service over again!", lanServerAddr, retryCnt)
 			lanServerAddr = ""
 			serverInstanceMap.Delete(lanServerInstance)
-			retryCnt = 0
+			lanServerInstance = ""
+			if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformAndroid || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformiOS {
+				BrowseInstance()
+			}
 		}
 		select {
 		case <-ctx.Done():
@@ -375,10 +392,7 @@ func StopLanServerRun() {
 
 func stopLanServerBusiness() {
 	log.Printf("connect lanServer business is all stop!")
-	NotifyDIASStatus(DIAS_Status_Wait_DiasMonitor)
-	rtkPlatform.GoMonitorNameNotify("")
 	pSafeConnect.Close()
-	heartBeatTicker.Reset(time.Duration(999 * time.Hour))
 	if disconnectAllClientFunc == nil {
 		log.Printf("disconnectAllClientFunc is nil, not cancel all client stream and business!")
 		return
@@ -388,12 +402,11 @@ func stopLanServerBusiness() {
 
 func cancelLanServerBusiness() {
 	log.Printf("connect lanServer business is all cancel!")
-	NotifyDIASStatus(DIAS_Status_Wait_DiasMonitor)
 	rtkPlatform.GoMonitorNameNotify("")
 	pSafeConnect.Close()
 	lanServerAddr = ""
 	stopBrowseInstance()
-	serverInstanceMap.Clear()
+	serverInstanceMap.Clear() // check if need clear
 	if isReconnectRunning.Load() {
 		if reconnectCancelFunc != nil {
 			reconnectCancelFunc()
@@ -509,6 +522,9 @@ func browseLanServeriOS(ctx context.Context, serviceType string, resultChan chan
 	rtkPlatform.SetGoBrowseMdnsResultCallback(func(instance, ip string, port int) {
 		lanServerIp := fmt.Sprintf("%s:%d", ip, port)
 		log.Printf("Browse get a Service:[%s] IP:[%s],use [%d] ms", instance, lanServerIp, time.Now().UnixMilli()-startTime)
+
+		rtkPlatform.GoNotifyBrowseResult("cross_share_lan_serv", instance, lanServerIp, "2.2.13", time.Now().UnixMilli())
+		rtkPlatform.GoNotifyBrowseResult("cross_share_lan_test11", "macmacmacmac", "127.0.0.1:8080", "2.2.13", time.Now().UnixMilli())
 		resultChan <- browseParam{instance, lanServerIp}
 	})
 	rtkPlatform.GoStartBrowseMdns("", serviceType)

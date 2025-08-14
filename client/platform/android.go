@@ -61,7 +61,6 @@ type Callback interface {
 	CallbackUpdateMonitorName(monitorName string)
 	CallbackRequestUpdateClientVersion(clienVersion string)
 	CallbackNotifyBrowseResult(monitorName, instance, ipAddr, version string, timestamp int64)
-	CallbackConnectMonitorErr(monitorName, ipAddr, err string)
 }
 
 var CallbackInstance Callback = nil
@@ -123,7 +122,8 @@ type (
 	CallbackExtractDIASFunc            func()
 	CallbackMethodBrowseMdnsResultFunc func(string, string, int)
 	CallbackGetFilesTransCodeFunc      func(id string) rtkCommon.SendFilesRequestErrCode
-	CallbackConfirmLanServerFunc       func(monitorName, instance, ipAddr string)
+	CallbackConnectLanServerFunc       func(monitorName, instance, ipAddr string)
+	CallbackBrowseLanServerFunc        func()
 )
 
 var (
@@ -143,7 +143,8 @@ var (
 	callbackExtractDIASCB              CallbackExtractDIASFunc            = nil
 	callbackMethodBrowseMdnsResult     CallbackMethodBrowseMdnsResultFunc = nil
 	callbackGetFilesTransCode          CallbackGetFilesTransCodeFunc      = nil
-	callbackConfirmLanServer           CallbackConfirmLanServerFunc       = nil
+	callbackConnectLanServer           CallbackConnectLanServerFunc       = nil
+	callbackBrowseLanServer            CallbackBrowseLanServerFunc        = nil
 )
 
 func SetGoNetworkSwitchCallback(cb CallbackNetworkSwitchFunc) {
@@ -211,8 +212,12 @@ func SetGetFilesTransCodeCallback(cb CallbackGetFilesTransCodeFunc) {
 	callbackGetFilesTransCode = cb
 }
 
-func SetGoConfirmLanServerCallback(cb CallbackConfirmLanServerFunc) {
-	callbackConfirmLanServer = cb
+func SetGoConnectLanServerCallback(cb CallbackConnectLanServerFunc) {
+	callbackConnectLanServer = cb
+}
+
+func SetGoBrowseLanServerCallback(cb CallbackBrowseLanServerFunc) {
+	callbackBrowseLanServer = cb
 }
 
 /***************** Used  by android *****************/
@@ -353,17 +358,22 @@ func SetConfirmDocumentsAccept(ifConfirm bool) {
 	ifConfirmDocumentsAccept = ifConfirm
 }
 
-func GoConfirmLanServer(monitorName, instance, ipAddr string) {
-	if callbackConfirmLanServer == nil {
-		log.Println("callbackConfirmLanServer is null!")
+func GoConnectLanServer(monitorName, instance, ipAddr string) {
+	if callbackConnectLanServer == nil {
+		log.Println("callbackConnectLanServer is null!")
 		return
 	}
 
-	callbackConfirmLanServer(monitorName, instance, ipAddr)
+	callbackConnectLanServer(monitorName, instance, ipAddr)
 }
 
 func GoBrowseLanServer() {
+	if callbackBrowseLanServer == nil {
+		log.Println("callbackBrowseLanServer is null!")
+		return
+	}
 
+	callbackBrowseLanServer()
 }
 
 /***************** Used  by GO business *****************/
@@ -629,15 +639,6 @@ func GoReqSourceAndPort() {
 
 func GoGetSrcAndPortFromIni() rtkMisc.SourcePort {
 	return rtkUtils.GetDeviceSrcPort()
-}
-
-func GoConnectMonitorErr(monitorName, ipAddr, err string) {
-	if CallbackInstance == nil {
-		log.Println("[%s] failed, callbackInstance is nil", rtkMisc.GetFuncInfo())
-		return
-	}
-	log.Printf("[%s] monitorName:%s, ipAddr:%s, err:%+v", rtkMisc.GetFuncInfo(), monitorName, ipAddr, err)
-	CallbackInstance.CallbackConnectMonitorErr(monitorName, ipAddr, err)
 }
 
 func GoNotifyBrowseResult(monitorName, instance, ipAddr, version string, timestamp int64) {

@@ -183,8 +183,8 @@ func dealS2CMsgInitClient(id string, extData json.RawMessage) rtkMisc.CrossShare
 
 	rtkGlobal.NodeInfo.ClientIndex = initClientRsp.ClientIndex
 	g_monitorName = initClientRsp.MonitorName
-	heartBeatFlag <- struct{}{}
 	log.Printf("Requst Init Client success, get Client Index:[%d]", initClientRsp.ClientIndex)
+	lanServerHeartbeatStart()
 
 	rtkPlatform.GoMonitorNameNotify(g_monitorName)
 	if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformAndroid || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformiOS {
@@ -215,6 +215,7 @@ func dealS2CMsgMobileAuthDataResp(id string, index uint32, extData json.RawMessa
 
 	if authIndexMobileRsp.AuthStatus != true {
 		log.Printf("[%s] clientID:[%s] Index[%d] Err: Unauthorized", rtkMisc.GetFuncInfo(), id, index)
+		NotifyDIASStatus(DIAS_Status_Authorization_Failed)
 		return rtkMisc.ERR_BIZ_S2C_UNAUTH
 	}
 	return SendReqClientListToLanServer()

@@ -1,5 +1,10 @@
 package common
 
+import (
+	"context"
+	"sync"
+)
+
 type FileDropCmd string
 
 const (
@@ -55,3 +60,18 @@ const (
 	SendFilesRequestCallbackNotSet
 	SendFilesRequestOverRange
 )
+
+type CancelBusinessSource int
+
+const (
+	SourceCablePlugIn CancelBusinessSource = iota + 1000
+	SourceCablePlugOut
+	SourceNetworkSwitch
+	SourceVerInvalid
+)
+
+type CustomContext struct {
+	context.Context
+	Mutex  *sync.Mutex
+	Source CancelBusinessSource
+}

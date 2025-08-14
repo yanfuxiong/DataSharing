@@ -697,12 +697,12 @@ func FreeCString(p *C.char) {
 
 //export BrowseLanServer
 func BrowseLanServer() {
-	log.Printf("[%s] trrigger!", rtkMisc.GetFuncInfo())
+	log.Printf("[%s] triggered!", rtkMisc.GetFuncInfo())
 	rtkPlatform.GoBrowseLanServer()
 }
 
-//export ConfirmLanServer
-func ConfirmLanServer(monitorName, instance, ipAddr string) {
+//export ConnectLanServer
+func ConnectLanServer(monitorName, instance, ipAddr string) {
 	log.Printf("[%s] monitorName:[%s], instance:[%s], ipAddr:[%s]", rtkMisc.GetFuncInfo(), monitorName, instance, ipAddr)
-	rtkPlatform.GoConfirmLanServer(monitorName, instance, ipAddr)
+	rtkPlatform.GoConnectLanServer(monitorName, instance, ipAddr)
 }

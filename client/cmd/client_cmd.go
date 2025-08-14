@@ -6,12 +6,14 @@ import (
 	"log"
 	"os"
 	rtkBuildConfig "rtk-cross-share/client/buildConfig"
+	rtkCommon "rtk-cross-share/client/common"
 	rtkConnection "rtk-cross-share/client/connection"
 	rtkDebug "rtk-cross-share/client/debug"
 	rtkGlobal "rtk-cross-share/client/global"
 	rtkLogin "rtk-cross-share/client/login"
 	rtkPeer2Peer "rtk-cross-share/client/peer2peer"
 	rtkPlatform "rtk-cross-share/client/platform"
+	rtkUtils "rtk-cross-share/client/utils"
 	rtkMisc "rtk-cross-share/misc"
 
 	"strconv"
@@ -129,7 +131,7 @@ func Run() {
 		rtkMisc.GoSafe(func() { rtkDebug.DebugCmdLine() })
 	}
 
-	rtkMisc.GoSafe(func() { businessProcess() })
+	rtkMisc.GoSafe(func() { businessProcess(context.Background()) })
 
 	select {}
 }
@@ -176,55 +178,56 @@ func MainInit(serverId, serverIpInfo, listenHost string, listentPort int) {
 	}
 	defer rtkPlatform.UnlockFile(file)*/
 
-	rtkMisc.GoSafe(func() { businessProcess() })
+	rtkMisc.GoSafe(func() { businessProcess(context.Background()) })
 
 	select {}
 }
 
-func businessProcess() {
+func businessProcess(ctx context.Context) {
 	rtkLogin.BrowseInstance()
 
-	var cancelFunc func()
-	cancelFunc = nil
+	var cancelBusinessFunc func(source rtkCommon.CancelBusinessSource)
+	cancelBusinessFunc = nil
+	var sonCtx context.Context
 	for {
 		select {
 		case <-cablePlugInFlagChan:
 			log.Println("===========================================================================")
 			log.Println("******** DIAS is access, business start! ********")
-			if cancelFunc != nil {
+			if cancelBusinessFunc != nil {
 				log.Printf("******** Cancel the old business first! ********")
-				cancelFunc()
+				cancelBusinessFunc(rtkCommon.SourceCablePlugIn)
 				time.Sleep(100 * time.Millisecond) // wait for print cancel log
-				cancelFunc = nil
+				cancelBusinessFunc = nil
 			}
 			log.Println("===========================================================================\n\n")
-			ctx, cancel := context.WithCancel(context.Background())
-			cancelFunc = cancel
+
 			rtkLogin.NotifyDIASStatus(rtkLogin.DIAS_Status_Connectting_DiasService)
-			businessStart(ctx)
+			sonCtx, cancelBusinessFunc = rtkUtils.WithCancelSource(ctx)
+			businessStart(sonCtx)
 		case <-networkSwitchFlagChan:
 			log.Println("===========================================================================")
-			if cancelFunc != nil {
+			if cancelBusinessFunc != nil {
 				log.Printf("******** Client Network is Switch, cancel old business! ******** ")
-				cancelFunc()
+				cancelBusinessFunc(rtkCommon.SourceNetworkSwitch)
 				time.Sleep(5 * time.Second)
 				log.Println("===========================================================================\n\n")
 				log.Printf("[%s] business is restart!", rtkMisc.GetFuncInfo())
-				ctx, cancel := context.WithCancel(context.Background())
-				cancelFunc = cancel
-				businessStart(ctx)
+
+				sonCtx, cancelBusinessFunc = rtkUtils.WithCancelSource(ctx)
+				businessStart(sonCtx)
 			} else {
 				log.Printf("******** Client Network is Switch, business is not start! ******** ")
 				log.Println("===========================================================================\n\n")
 			}
 		case <-cablePlugOutFlagChan:
 			log.Println("===========================================================================")
-			if cancelFunc != nil {
+			if cancelBusinessFunc != nil {
 				log.Printf("******** DIAS is extract, cancel all business! ******** ")
-				cancelFunc()
-				cancelFunc = nil
-				rtkLogin.BrowseInstance()
+				cancelBusinessFunc(rtkCommon.SourceCablePlugOut)
+				cancelBusinessFunc = nil
 				time.Sleep(100 * time.Millisecond) // wait for print all cancel log
+				rtkLogin.BrowseInstance()
 			} else {
 				log.Printf("******** DIAS is extract, business is not start! ******** ")
 			}
@@ -232,9 +235,9 @@ func businessProcess() {
 		case <-clientVerInvalidFlagChan:
 			log.Println("===========================================================================")
 			log.Printf("******** Client Version is too old, and must be forcibly updated, cancel all business! ******** ")
-			if cancelFunc != nil {
-				cancelFunc()
-				cancelFunc = nil
+			if cancelBusinessFunc != nil {
+				cancelBusinessFunc(rtkCommon.SourceVerInvalid)
+				cancelBusinessFunc = nil
 				time.Sleep(100 * time.Millisecond) // wait for print all cancel log
 			} else {
 				log.Printf("******** business is not start! ******** ")

@@ -101,8 +101,8 @@ type (
 	CallbackGetFilesTransCodeFunc          func(id string) rtkCommon.SendFilesRequestErrCode
 	CallbackRequestUpdateClientVersionFunc func(string)
 	CallbackNotifyBrowseResultFunc         func(monitorName, instance, ipAddr, version string, timestamp int64)
-	CallbackConfirmLanServerFunc           func(monitorName, instance, ipAddr string)
-	CallbackConnectMonitorErrFunc          func(monitorName, ipAddr, err string)
+	CallbackConnectLanServerFunc           func(monitorName, instance, ipAddr string)
+	CallbackBrowseLanServerFunc            func()
 )
 
 var (
@@ -141,8 +141,8 @@ var (
 	callbackGetFilesTransCode          CallbackGetFilesTransCodeFunc          = nil
 	callbackRequestUpdateClientVersion CallbackRequestUpdateClientVersionFunc = nil
 	callbackNotifyBrowseResult         CallbackNotifyBrowseResultFunc         = nil
-	callbackConfirmLanServer           CallbackConfirmLanServerFunc           = nil
-	callbackConnectMonitorErr          CallbackConnectMonitorErrFunc          = nil
+	callbackConnectLanServer           CallbackConnectLanServerFunc           = nil
+	callbackBrowseLanServer            CallbackBrowseLanServerFunc            = nil
 )
 
 /*======================================= Used by main.go, set Callback =======================================*/
@@ -223,10 +223,6 @@ func SetCallbackNotifyBrowseResult(cb CallbackNotifyBrowseResultFunc) {
 	callbackNotifyBrowseResult = cb
 }
 
-func SetCallbackConnectMonitorErr(cb CallbackConnectMonitorErrFunc) {
-	callbackConnectMonitorErr = cb
-}
-
 /*======================================= Used  by GO set Callback =======================================*/
 
 func SetGoNetworkSwitchCallback(cb CallbackNetworkSwitchFunc) {
@@ -301,8 +297,12 @@ func SetGetFilesTransCodeCallback(cb CallbackGetFilesTransCodeFunc) {
 	callbackGetFilesTransCode = cb
 }
 
-func SetGoConfirmLanServerCallback(cb CallbackConfirmLanServerFunc) {
-	callbackConfirmLanServer = cb
+func SetGoConnectLanServerCallback(cb CallbackConnectLanServerFunc) {
+	callbackConnectLanServer = cb
+}
+
+func SetGoBrowseLanServerCallback(cb CallbackBrowseLanServerFunc) {
+	callbackBrowseLanServer = cb
 }
 
 /*======================================= Used  by ios API =======================================*/
@@ -379,17 +379,21 @@ func SetConfirmDocumentsAccept(ifConfirm bool) {
 	ifConfirmDocumentsAccept = ifConfirm
 }
 
-func GoConfirmLanServer(monitorName, instance, ipAddr string) {
-	if callbackConfirmLanServer == nil {
-		log.Println("callbackConfirmLanServer is null!")
+func GoConnectLanServer(monitorName, instance, ipAddr string) {
+	if callbackConnectLanServer == nil {
+		log.Println("callbackConnectLanServer is null!")
 		return
 	}
 
-	callbackConfirmLanServer(monitorName, instance, ipAddr)
+	callbackConnectLanServer(monitorName, instance, ipAddr)
 }
 
 func GoBrowseLanServer() {
+	if callbackBrowseLanServer == nil {
+		return
+	}
 
+	callbackBrowseLanServer()
 }
 
 func GoCopyImage(fileSize rtkCommon.FileSize, imgHeader rtkCommon.ImgHeader, data []byte) {
@@ -734,15 +738,6 @@ func GoGetDeviceName() string {
 
 func GetConfirmDocumentsAccept() bool {
 	return ifConfirmDocumentsAccept
-}
-
-func GoConnectMonitorErr(monitorName, ipAddr, err string) {
-	if callbackConnectMonitorErr == nil {
-		log.Println("[%s] failed, callbackConnectMonitorErr is nil", rtkMisc.GetFuncInfo())
-		return
-	}
-	log.Printf("[%s] monitorName:%s, ipAddr:%s, err:%+v", rtkMisc.GetFuncInfo(), monitorName, ipAddr, err)
-	callbackConnectMonitorErr(monitorName, ipAddr, err)
 }
 
 func GoNotifyBrowseResult(monitorName, instance, ipAddr, version string, timestamp int64) {
