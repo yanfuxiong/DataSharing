@@ -20,8 +20,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/libp2p/go-libp2p/core/network"
 )
 
 var (
@@ -186,18 +184,11 @@ func IsInterruptByPeer(id string) bool {
 	return false
 }
 
-func writeFileDataToSocket(id, ipAddr string) rtkMisc.CrossShareErr {
+func writeFileDataToSocket(id, ipAddr string, fileDropReqData *rtkFileDrop.FileDropData) rtkMisc.CrossShareErr {
 	startTime := time.Now().UnixMilli()
-	var sFileDrop network.Stream
-
-	fileDropReqData, ok := rtkFileDrop.GetFileDropData(id)
-	if !ok {
-		log.Printf("[%s] Err: Not found fileDrop data", rtkMisc.GetFuncInfo())
-		return rtkMisc.ERR_BIZ_FD_DATA_EMPTY
-	}
 
 	rtkConnection.HandleFmtTypeStreamReady(id, rtkCommon.FILE_DROP) // wait for file drop stream Ready
-	sFileDrop, ok = rtkConnection.GetFmtTypeStream(id, rtkCommon.FILE_DROP)
+	sFileDrop, ok := rtkConnection.GetFmtTypeStream(id, rtkCommon.FILE_DROP)
 	if !ok {
 		log.Printf("[%s] Err: Not found file stream by ID:[%s]", rtkMisc.GetFuncInfo(), id)
 		return rtkMisc.ERR_BIZ_FD_GET_STREAM_EMPTY
@@ -320,14 +311,8 @@ func writeFileToSocket(id, ip string, write *cancelableWriter, read *cancelableR
 	return rtkMisc.SUCCESS
 }
 
-func handleFileDataFromSocket(id, ipAddr, deviceName string) (string, rtkMisc.CrossShareErr) {
+func handleFileDataFromSocket(id, ipAddr, deviceName string, fileDropData *rtkFileDrop.FileDropData) (string, rtkMisc.CrossShareErr) {
 	startTime := time.Now().UnixMilli()
-
-	fileDropData, ok := rtkFileDrop.GetFileDropData(id)
-	if !ok {
-		log.Printf("[%s] Not found fileDrop data", rtkMisc.GetFuncInfo())
-		return "", rtkMisc.ERR_BIZ_FD_DATA_EMPTY
-	}
 
 	dstFileName := fileDropData.DstFilePath
 	sFileDrop, ok := rtkConnection.GetFmtTypeStream(id, rtkCommon.FILE_DROP)
@@ -503,7 +488,7 @@ func handleFileFromSocket(ipAddr, id string, write *cancelableWriter, read *canc
 	}
 }
 
-func ShowNotiMessageSendFileTransferDone(fileDropData rtkFileDrop.FileDropData, id string) {
+func ShowNotiMessageSendFileTransferDone(fileDropData *rtkFileDrop.FileDropData, id string) {
 	clientInfo, err := rtkUtils.GetClientInfo(id)
 	if err != nil {
 		log.Printf("[%s] %s", rtkMisc.GetFuncInfo(), err.Error())
@@ -519,7 +504,7 @@ func ShowNotiMessageSendFileTransferDone(fileDropData rtkFileDrop.FileDropData, 
 	rtkPlatform.GoNotiMessageFileTransfer(filename, clientInfo.DeviceName, clientInfo.Platform, fileDropData.TimeStamp, true)
 }
 
-func ShowNotiMessageRecvFileTransferDone(fileDropData rtkFileDrop.FileDropData, id string) {
+func ShowNotiMessageRecvFileTransferDone(fileDropData *rtkFileDrop.FileDropData, id string) {
 	clientInfo, err := rtkUtils.GetClientInfo(id)
 	if err != nil {
 		log.Printf("[%s] %s", rtkMisc.GetFuncInfo(), err.Error())

@@ -342,17 +342,17 @@ func GoMultiFilesDropRequest(id string, fileList *[]rtkCommon.FileInfo, folderLi
 		return filesTransCode
 	}
 
-	nMsgLength := int(370) //p2p null msg length
+	nMsgLength := int(rtkGlobal.P2PMsgMagicLength) //p2p null msg length
 
 	for _, file := range *fileList {
-		nMsgLength = nMsgLength + len(file.FilePath) + len(file.FileName) + 80
+		nMsgLength = nMsgLength + len(file.FileName) + rtkGlobal.FileInfoMagicLength
 	}
 
 	for _, folder := range *folderList {
-		nMsgLength = nMsgLength + len(folder) + 5
+		nMsgLength = nMsgLength + len(folder) + rtkGlobal.StringArrayMagicLengt
 	}
 
-	if nMsgLength >= 32768 {
+	if nMsgLength >= rtkGlobal.P2PMsgMaxLength {
 		log.Printf("[%s] ID[%s] get file count:[%d] folder count:[%d], the p2p message is too long and over range!", rtkMisc.GetFuncInfo(), id, len(*fileList), len(*folderList))
 		return rtkCommon.SendFilesRequestOverRange
 	}

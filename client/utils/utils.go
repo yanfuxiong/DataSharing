@@ -334,6 +334,21 @@ func WalkPath(dirPath string, pathList *[]string, fileInfoList *[]rtkCommon.File
 	return err
 }
 
+func ClearSrcFileListFullPath(srcFileList *[]rtkCommon.FileInfo) []rtkCommon.FileInfo {
+	dstSrcList := make([]rtkCommon.FileInfo, 0)
+	for _, fileInfo := range *srcFileList {
+		dstSrcList = append(dstSrcList, rtkCommon.FileInfo{
+			FileSize_: rtkCommon.FileSize{
+				SizeHigh: fileInfo.FileSize_.SizeHigh,
+				SizeLow:  fileInfo.FileSize_.SizeLow,
+			},
+			FilePath: "",
+			FileName: fileInfo.FileName,
+		})
+	}
+	return dstSrcList
+}
+
 func Base64Decode(src string) []byte {
 	bytes, err := base64.StdEncoding.DecodeString(src)
 	if err != nil {

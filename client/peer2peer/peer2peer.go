@@ -82,7 +82,7 @@ func HandleFileDropEvent(ctxMain context.Context, resultChan chan<- EventResult,
 							Command: COMM_SRC,
 						},
 						Data: rtkCommon.ExtDataFile{
-							SrcFileList:   data.SrcFileList,
+							SrcFileList:   rtkUtils.ClearSrcFileListFullPath(&data.SrcFileList),
 							ActionType:    data.ActionType,
 							FileType:      data.FileType,
 							TimeStamp:     data.TimeStamp,
@@ -218,7 +218,7 @@ func HandleReadInbandFromSocket(ctxMain context.Context, resultChan chan<- Event
 			log.Printf("[%s][Socket] ID:[%s] Err: Read operation is done by context", rtkMisc.GetFuncInfo(), id)
 			return
 		default:
-			buffer := make([]byte, 32*1024) // 32KB
+			buffer := make([]byte, rtkGlobal.P2PMsgMaxLength) // 32KB
 			nLen, errCode := rtkConnection.ReadSocket(id, buffer)
 			if errCode == rtkMisc.ERR_BIZ_GET_STREAM_RESET {
 				continue
@@ -400,7 +400,7 @@ func buildMessage(msg *Peer2PeerMessage, id string, event EventResult) bool {
 		} else if event.Cmd.Command == COMM_SRC {
 			if extData, ok := rtkFileDrop.GetFileDropData(id); ok {
 				msg.ExtData = rtkCommon.ExtDataFile{
-					SrcFileList:   extData.SrcFileList,
+					SrcFileList:   rtkUtils.ClearSrcFileListFullPath(&extData.SrcFileList),
 					ActionType:    extData.ActionType,
 					FileType:      extData.FileType,
 					TimeStamp:     extData.TimeStamp,
@@ -512,12 +512,16 @@ func processIoWrite(id, ipAddr string, fmtType rtkCommon.TransFmtType) {
 	resultCode := rtkMisc.SUCCESS
 	if fmtType == rtkCommon.FILE_DROP {
 		fileTransferId := int(0)
-		if fileDropReqData, ok := rtkFileDrop.GetFileDropData(id); ok {
-			log.Printf("[%s] Err: Not found fileDrop data", rtkMisc.GetFuncInfo())
+		fileDropReqData, ok := rtkFileDrop.GetFileDropData(id)
+		if ok {
 			fileTransferId = int(fileDropReqData.TimeStamp)
+			resultCode = writeFileDataToSocket(id, ipAddr, &fileDropReqData)
+		} else {
+			log.Printf("[%s] Err: Not found fileDrop data", rtkMisc.GetFuncInfo())
+			resultCode = rtkMisc.ERR_BIZ_FD_DATA_EMPTY
 		}
 		defer rtkFileDrop.ResetFileDropData(id)
-		resultCode = writeFileDataToSocket(id, ipAddr)
+
 		if resultCode != rtkMisc.SUCCESS {
 			log.Printf("(SRC) ID[%s] IP[%s] Copy file list To Socket failed, ERR code:[%d]", id, ipAddr, resultCode)
 			if resultCode != rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_CANCEL && resultCode != rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_TIMEOUT {
@@ -535,28 +539,32 @@ func processIoWrite(id, ipAddr string, fmtType rtkCommon.TransFmtType) {
 }
 
 func processIoRead(id, ipAddr, deviceName string, fmtType rtkCommon.TransFmtType) {
+	resultCode := rtkMisc.SUCCESS
 	if fmtType == rtkCommon.FILE_DROP {
 		fileTransferId := int(0)
+		dstFileName := ""
 		fileDropData, ok := rtkFileDrop.GetFileDropData(id)
 		if ok {
 			fileTransferId = int(fileDropData.TimeStamp)
+			dstFileName, resultCode = handleFileDataFromSocket(id, ipAddr, deviceName, &fileDropData)
+		} else {
+			log.Printf("[%s] Not found fileDrop data", rtkMisc.GetFuncInfo())
+			resultCode = rtkMisc.ERR_BIZ_FD_DATA_EMPTY
 		}
 		defer rtkFileDrop.ResetFileDropData(id)
-		dstFileName, resultCode := handleFileDataFromSocket(id, ipAddr, deviceName)
 
 		if resultCode != rtkMisc.SUCCESS {
 			log.Printf("(DST) ID[%s] IP[%s] Copy file [%s] From Socket failed, ERR code:[%d]", id, ipAddr, dstFileName, resultCode)
 
 			// any exceptions and user cancellation need to Notify to platfrom
 			HandleDataTransferError(COMM_CANCEL_DST, id, dstFileName, fileDropData.TimeStamp)
-
 			if resultCode != rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL && resultCode != rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_TIMEOUT {
 				sendCmdMsgToPeer(id, COMM_FILE_TRANSFER_DST_INTERRUPT, fmtType, resultCode)
 				rtkPlatform.GoNotifyErrEvent(id, resultCode, ipAddr, strconv.Itoa(fileTransferId), "", "")
 			}
 		}
 	} else if fmtType == rtkCommon.IMAGE_CB {
-		resultCode := handleCopyImageFromSocket(id, ipAddr)
+		resultCode = handleCopyImageFromSocket(id, ipAddr)
 		if resultCode != rtkMisc.SUCCESS {
 			log.Printf("(DST) ID[%s] IP[%s] Copy image From Socket failed, ERR code:[%d] ...", id, ipAddr, resultCode)
 			sendCmdMsgToPeer(id, COMM_CB_TRANSFER_DST_INTERRUPT, fmtType, resultCode)
