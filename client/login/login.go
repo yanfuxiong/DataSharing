@@ -48,18 +48,22 @@ func init() {
 	cancelAllBusinessFunc = nil
 
 	rtkPlatform.SetGoConnectLanServerCallback(func(monitorName, instance, ipAddr string) {
-		log.Printf("mobile confirm LanServer monitor name:%s Instance:%s, IpAddr:%d", monitorName, instance, ipAddr)
+		log.Printf("[%s][mobile] connect LanServer, monitor name:%s Instance:%s, IpAddr:%s", rtkMisc.GetFuncInfo(), monitorName, instance, ipAddr)
 		serverInstanceMap.Store(instance, ipAddr)
 		lanServerInstance = instance
+		lanServerAddr = ipAddr
 		g_monitorName = monitorName
+		if CurrentDiasStatus == DIAS_Status_Connected_DiasService_Failed {
+			CurrentDiasStatus = DIAS_Status_Connectting_DiasService
+		}
 	})
 
 	rtkPlatform.SetGoBrowseLanServerCallback(func() {
 		lanServerInstance = ""
 		lanServerAddr = ""
-		log.Printf("mobile Browse LanServer monitor triggered!")
-		stopLanServerBusiness()
-		time.Sleep(50 * time.Millisecond)
+		log.Printf("[%s][mobile] Browse LanServer monitor triggered!", rtkMisc.GetFuncInfo())
+		pSafeConnect.Close() // trigger ReConnectLanServer
+		heartBeatTicker.Reset(time.Duration(1 * time.Millisecond))
 		BrowseInstance()
 	})
 }
@@ -81,19 +85,21 @@ func ConnectLanServerRun(ctx context.Context) {
 		stopBrowseInstance()
 	}
 
-	time.Sleep(50 * time.Millisecond) // Delay 50ms between "stop browse server" and "start lookup server"
-
 	retryCnt := 0
 	for {
 		retryCnt++
 
-		errCode := initLanServer()
+		errCode := initLanServer(retryCnt)
 		if errCode == rtkMisc.SUCCESS {
 			break
 		}
 
-		if retryCnt == g_retryServerMaxCnt && (rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformWindows || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformMac) {
-			log.Printf("initLanServer %d times failed, errCode:%d !  try to lookup Service over again!", retryCnt, errCode)
+		if retryCnt == g_retryServerMaxCnt {
+			if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformWindows || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformMac {
+				log.Printf("initLanServer %d times failed, errCode:%d ! try to lookup Service over again ...", retryCnt, errCode)
+			} else {
+				log.Printf("initLanServer %d times failed, errCode:%d ! Browse service instances go on ...", retryCnt, errCode)
+			}
 			lanServerAddr = ""
 			serverInstanceMap.Delete(lanServerInstance)
 		}
@@ -209,7 +215,6 @@ func BrowseInstance() rtkMisc.CrossShareErr {
 	if cancelBrowse != nil {
 		cancelBrowse()
 		cancelBrowse = nil
-		time.Sleep(50 * time.Millisecond)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -267,6 +272,8 @@ func getLanServerAddr() (string, rtkMisc.CrossShareErr) {
 				return lanServerIp, rtkMisc.SUCCESS
 			}
 		}
+
+		time.Sleep(50 * time.Millisecond) // Delay 50ms between "stop browse server" and "start lookup server"
 		return lookupLanServer(ctx, lanServerInstance, rtkMisc.LanServiceType, rtkMisc.LanServerDomain)
 	} else {
 		if lanServerInstance != "" {
@@ -281,7 +288,7 @@ func getLanServerAddr() (string, rtkMisc.CrossShareErr) {
 	return "", rtkMisc.ERR_NETWORK_C2S_BROWSER_INVALID
 }
 
-func connectToLanServer() rtkMisc.CrossShareErr {
+func connectToLanServer(cnt int) rtkMisc.CrossShareErr {
 	if !pSafeConnect.IsAlive() {
 		if lanServerAddr == "" {
 			serverAddr, errCode := getLanServerAddr()
@@ -292,11 +299,15 @@ func connectToLanServer() rtkMisc.CrossShareErr {
 			lanServerAddr = serverAddr
 		}
 
-		log.Printf("get LanServer addr:%s  by serverInstance:[%s], try to Dial it!", lanServerAddr, lanServerInstance)
+		if cnt < 5 {
+			log.Printf("get LanServer addr:%s  by serverInstance:[%s], try to Dial it!", lanServerAddr, lanServerInstance)
+		}
 		pConnectLanServer, err := net.DialTimeout("tcp", lanServerAddr, time.Duration(5*time.Second))
 		if err != nil {
-			log.Printf("connecting to lanServerAddr[%s] Error:%+v ", lanServerAddr, err.Error())
-			NotifyDIASStatus(DIAS_Status_Connected_LAN_Server_Failed)
+			if cnt < 5 {
+				log.Printf("connecting to lanServerAddr[%s] Error:%+v ", lanServerAddr, err.Error())
+			}
+			NotifyDIASStatus(DIAS_Status_Connected_DiasService_Failed)
 			if netErr, ok := err.(net.Error); ok {
 				if netErr.Timeout() {
 					return rtkMisc.ERR_NETWORK_C2S_DIAL_TIMEOUT
@@ -312,8 +323,8 @@ func connectToLanServer() rtkMisc.CrossShareErr {
 	return rtkMisc.SUCCESS
 }
 
-func initLanServer() rtkMisc.CrossShareErr {
-	resultCode := connectToLanServer()
+func initLanServer(cnt int) rtkMisc.CrossShareErr {
+	resultCode := connectToLanServer(cnt)
 	if resultCode != rtkMisc.SUCCESS {
 		return resultCode
 	}
@@ -333,8 +344,8 @@ func isNeedReconnectProcess() bool {
 	}
 
 	if !pSafeConnect.IsAlive() && !isReconnectRunning.Load() {
+		lanServerHeartbeatStop()
 		stopLanServerBusiness()
-		heartBeatTicker.Reset(time.Duration(999 * time.Hour))
 		rtkMisc.GoSafe(func() { ReConnectLanServer() })
 		return true
 	}
@@ -352,26 +363,36 @@ func ReConnectLanServer() {
 
 	ctx, cancecl := context.WithCancel(context.Background())
 	reconnectCancelFunc = cancecl
+	defer func() {
+		if reconnectCancelFunc != nil {
+			reconnectCancelFunc()
+			reconnectCancelFunc = nil
+		}
+	}()
 
 	retryCnt := 0
 	for {
 		retryCnt++
 
-		if initLanServer() == rtkMisc.SUCCESS {
+		errCode := initLanServer(retryCnt)
+		if errCode == rtkMisc.SUCCESS {
 			log.Printf("ReConnectLanServer success!")
-			lanServerHeartbeatStart()
 			break
 		}
+
 		if retryCnt == g_retryServerMaxCnt {
 			NotifyDIASStatus(DIAS_Status_Connectting_DiasService)
 			rtkPlatform.GoMonitorNameNotify("")
-			log.Printf("connect To LanServerAddr:[%s] %d times failed!  try to lookup Service over again!", lanServerAddr, retryCnt)
+			if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformWindows || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformMac {
+				log.Printf("initLanServer %d times failed, errCode:%d ! try to Lookup Service over again!", retryCnt, errCode)
+			} else {
+				log.Printf("initLanServer %d times failed, errCode:%d ! try to Browse Service over again...", retryCnt, errCode)
+				BrowseInstance()
+			}
+
 			lanServerAddr = ""
 			serverInstanceMap.Delete(lanServerInstance)
 			lanServerInstance = ""
-			if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformAndroid || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformiOS {
-				BrowseInstance()
-			}
 		}
 		select {
 		case <-ctx.Done():
@@ -383,7 +404,13 @@ func ReConnectLanServer() {
 
 func lanServerHeartbeatStart() {
 	heartBeatTicker.Reset(time.Duration(rtkMisc.ClientHeartbeatInterval * time.Second))
-	log.Println("lanServerHeartbeatStart is Running!")
+	log.Println("lanServer heartbeat is Running...")
+}
+
+func lanServerHeartbeatStop() {
+	heartBeatTicker.Reset(time.Duration(999 * time.Hour))
+	//heartBeatTicker.Stop()  //Go Version must be 1.23 or greater
+	log.Println("lanServer heartbeat is Stop!")
 }
 
 func StopLanServerRun() {
@@ -406,7 +433,7 @@ func cancelLanServerBusiness() {
 	pSafeConnect.Close()
 	lanServerAddr = ""
 	stopBrowseInstance()
-	serverInstanceMap.Clear() // check if need clear
+	serverInstanceMap.Clear()
 	if isReconnectRunning.Load() {
 		if reconnectCancelFunc != nil {
 			reconnectCancelFunc()
@@ -416,8 +443,10 @@ func cancelLanServerBusiness() {
 }
 
 func NotifyDIASStatus(status CrossShareDiasStatus) {
-	CurrentDiasStatus = status
-	rtkPlatform.GoDIASStatusNotify(uint32(status))
+	if CurrentDiasStatus != status {
+		CurrentDiasStatus = status
+		rtkPlatform.GoDIASStatusNotify(uint32(status))
+	}
 }
 
 func browseLanServer(ctx context.Context, serviceType, domain string, resultChan chan<- browseParam) rtkMisc.CrossShareErr {

@@ -321,7 +321,7 @@ func GoMultiFilesDropRequest(id string, fileList *[]rtkCommon.FileInfo, folderLi
 	}
 
 	for _, folder := range *folderList {
-		nMsgLength = nMsgLength + len(folder) + rtkGlobal.StringArrayMagicLengt
+		nMsgLength = nMsgLength + len(folder) + rtkGlobal.StringArrayMagicLength
 	}
 
 	if nMsgLength >= rtkGlobal.P2PMsgMaxLength {
@@ -660,12 +660,12 @@ func GoMonitorNameNotify(name string) {
 }
 
 func GoDIASStatusNotify(diasStatus uint32) {
-	currentDiasStatus = diasStatus
-	log.Printf("[%s] diasStatus:%d", rtkMisc.GetFuncInfo(), currentDiasStatus)
 	if CallbackInstance == nil {
 		log.Println("GoDIASStatusNotify - failed - callbackInstance is nil")
 		return
 	}
+	currentDiasStatus = diasStatus
+	log.Printf("[%s] diasStatus:%d", rtkMisc.GetFuncInfo(), currentDiasStatus)
 	CallbackInstance.CallbackUpdateDiasStatus(int(diasStatus))
 }
 

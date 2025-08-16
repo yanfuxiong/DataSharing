@@ -108,7 +108,8 @@ type (
 	CallbackGetFilesTransCodeFunc      func(id string) rtkCommon.SendFilesRequestErrCode
 	CallbackReqClientUpdateVerFunc     func(clientVer string)
 	CallbackNotifyErrEventFunc         func(id string, errCode uint32, arg1, arg2, arg3, arg4 string)
-	CallbackConfirmLanServerFunc       func(monitorName, instance, ipAddr string)
+	CallbackConnectLanServerFunc       func(monitorName, instance, ipAddr string)
+	CallbackBrowseLanServerFunc        func()
 )
 
 var (
@@ -234,7 +235,11 @@ func SetGetFilesTransCodeCallback(cb CallbackGetFilesTransCodeFunc) {
 	callbackGetFilesTransCode = cb
 }
 
-func SetGoConfirmLanServerCallback(cb CallbackConfirmLanServerFunc) {
+func SetGoConnectLanServerCallback(cb CallbackConnectLanServerFunc) {
+}
+
+func SetGoBrowseLanServerCallback(cb CallbackBrowseLanServerFunc) {
+
 }
 
 /*======================================= Used by main.go, set Callback =======================================*/
@@ -651,10 +656,6 @@ func SetConfirmDocumentsAccept(ifConfirm bool) {
 
 func GetConfirmDocumentsAccept() bool {
 	return ifConfirmDocumentsAccept
-}
-
-func GoConnectMonitorErr(monitorName, ipAddr, err string) {
-
 }
 
 func GoNotifyBrowseResult(monitorName, instance, ipAddr, version string, timestamp int64) {

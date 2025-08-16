@@ -22,5 +22,5 @@ const (
 	FileInfoMagicLength = 80
 
 	//This is the length of content removed from String Array
-	StringArrayMagicLengt = 5
+	StringArrayMagicLength = 5
 )

@@ -370,8 +370,7 @@ func WithCancelSource(parent context.Context) (context.Context, func(rtkCommon.C
 		Mutex:   &sync.Mutex{},
 		Source:  0,
 	}
-
-	// 返回自定义取消函数（可携带来源参数）
+	
 	return cc, func(source rtkCommon.CancelBusinessSource) {
 		cc.Mutex.Lock()
 		defer cc.Mutex.Unlock()
