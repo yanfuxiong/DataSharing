@@ -51,7 +51,7 @@ func WatchNetworkInfo(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			currentIpList, ok := rtkMisc.GetNetworkIP()
+			currentIpList, ok := rtkMisc.GetNetworkIP([]string{})
 			if !ok {
 				if printNetError {
 					log.Printf("[%s] GetNetworkIP error!", rtkMisc.GetFuncInfo())
@@ -61,7 +61,7 @@ func WatchNetworkInfo(ctx context.Context) {
 			}
 			currentPort := GetListenPort()
 			printNetError = true
-			if (!rtkMisc.IsInTheList(lastIp, currentIpList) || currentPort != lastPort) && rtkMisc.IsNetworkConnected() {
+			if (!rtkMisc.IsInTheList(lastIp, currentIpList) || currentPort != lastPort) && rtkMisc.IsNetworkConnected([]string{}) {
 				log.Printf("[%s] NetworkInfo is change, new addr:[%+v]!", rtkMisc.GetFuncInfo(), currentIpList)
 				log.Println("**************** Attention please, the host listen addr is switch! ********************\n\n")
 

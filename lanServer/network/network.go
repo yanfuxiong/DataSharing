@@ -10,6 +10,10 @@ import (
 	"time"
 )
 
+var (
+	SupInterfaces = []string{"wlan0", "eth0"} // e.g., "en0", "wlan0", "lo0", "eth0.100"
+)
+
 // var availableChanFlag = make(chan bool)
 var networkSwitchSignalChan = make(chan struct{})
 
@@ -24,7 +28,7 @@ func WatchNetworkConnected(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if !rtkMisc.IsNetworkConnected() {
+			if !rtkMisc.IsNetworkConnected(SupInterfaces) {
 				if lastStatus {
 					lastStatus = false
 					//availableChanFlag <- false
@@ -54,7 +58,7 @@ func WatchNetworkInfo(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			currentIpList, ok := rtkMisc.GetNetworkIP()
+			currentIpList, ok := rtkMisc.GetNetworkIP(SupInterfaces)
 			if !ok {
 				if printNetError {
 					log.Printf("[%s] GetNetworkIP error!", rtkMisc.GetFuncInfo())
@@ -66,7 +70,7 @@ func WatchNetworkInfo(ctx context.Context) {
 			lastIp = rtkGlobal.ServerIPAddr
 			printNetError = true
 			// FIXME: it will trigger few times even it already got new IP
-			if lastIp != "" && !rtkMisc.IsInTheList(lastIp, currentIpList) && rtkMisc.IsNetworkConnected() {
+			if lastIp != "" && !rtkMisc.IsInTheList(lastIp, currentIpList) && rtkMisc.IsNetworkConnected(SupInterfaces) {
 				log.Println("==============================================================================")
 				log.Printf("%s Network  old IP:[%s] new IP:[%+v]!", rtkBuildConfig.ServerName, lastIp, currentIpList)
 				log.Printf("******** %s Network is Switch, cancel old business! ******** ", rtkBuildConfig.ServerName)

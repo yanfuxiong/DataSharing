@@ -1,7 +1,7 @@
 package global
 
 const (
-	LanServerVersion  = "2.2.13" // it must notify client and update client version and VersionReadme.txt  when intermediate version is update
+	LanServerVersion  = "2.2.14" // it must notify client and update client version and VersionReadme.txt  when intermediate version is update
 	ClientBaseVersion = "2.3"
 
 	LOG_PATH         = "/data/vendor/realtek/cross_share/"

@@ -9,6 +9,7 @@ import (
 	rtkCommon "rtk-cross-share/lanServer/common"
 	rtkGlobal "rtk-cross-share/lanServer/global"
 	rtkMisc "rtk-cross-share/misc"
+	"sync"
 	"time"
 
 	_ "github.com/ncruces/go-sqlite3/driver"
@@ -22,10 +23,12 @@ const (
 
 var (
 	g_SqlInstance *sql.DB //	sqlite Instance
+	dbMutex       sync.Mutex
 )
 
 const (
-	g_DBConnectionStr = "file:" + rtkGlobal.DB_PATH + rtkGlobal.DB_NAME + "?_busy_timeout=5000&cache=shared&mode=rwc&_jounal_mode=WAL" //sqlite connect string
+	// Not allow setup WAL by SELinux rules
+	g_DBConnectionStr = "file:" + rtkGlobal.DB_PATH + rtkGlobal.DB_NAME + "?cache=shared&mode=rwc" //sqlite connect string
 )
 
 func InitSqlite(ctx context.Context) {
@@ -69,6 +72,9 @@ func InitSqlite(ctx context.Context) {
 }
 
 func upsertClientInfo(pkIndex *int, clientId, host, ipAddr, deviceName, platform, version string) rtkMisc.CrossShareErr {
+	dbMutex.Lock()
+	defer dbMutex.Unlock()
+
 	if pkIndex == nil {
 		log.Printf("[%s] pkIndex is null", rtkMisc.GetFuncInfo())
 		return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
@@ -79,6 +85,7 @@ func upsertClientInfo(pkIndex *int, clientId, host, ipAddr, deviceName, platform
 		log.Printf("[%s] Err: %s", rtkMisc.GetFuncInfo(), err.Error())
 		return rtkMisc.ERR_DB_SQLITE_BEGIN
 	}
+	defer tx.Rollback()
 
 	sqlData := SqlDataQueryeClientMaxIndex
 	row := tx.QueryRow(sqlData.toString())
@@ -97,14 +104,12 @@ func upsertClientInfo(pkIndex *int, clientId, host, ipAddr, deviceName, platform
 		sqlData = SqlDataUpsertClientInfo
 		param := []any{clientId, host, ipAddr, deviceName, platform, version}
 		if sqlData.checkArgsCount(param) == false {
-			tx.Rollback()
 			return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
 		}
 
 		row = tx.QueryRow(sqlData.toString(), param...)
 		if err = row.Scan(pkIndex); err != nil {
 			log.Printf("[%s] Err: %s", rtkMisc.GetFuncInfo(), err.Error())
-			tx.Rollback()
 			return rtkMisc.ERR_DB_SQLITE_SCAN
 		}
 	} else {
@@ -113,7 +118,6 @@ func upsertClientInfo(pkIndex *int, clientId, host, ipAddr, deviceName, platform
 		var OldUpdate string
 		rowIndex := tx.QueryRow(sqlData.toString())
 		if err = rowIndex.Scan(&OldIndex, &OldUpdate); err != nil {
-			tx.Rollback()
 			log.Printf("[%s] Err: %s", rtkMisc.GetFuncInfo(), err.Error())
 			return rtkMisc.ERR_DB_SQLITE_SCAN
 		}
@@ -123,12 +127,10 @@ func upsertClientInfo(pkIndex *int, clientId, host, ipAddr, deviceName, platform
 		args := []any{clientId, ipAddr, deviceName, platform, version, OldIndex}
 		sqlData = SqlDataUpdateClientInfo.withCond_SET(SqlCondClientId, SqlCondIPAddr, SqlCondDeviceName, SqlCondPlatform, SqlCondVersion, SqlCondOnline).withCond_WHERE(SqlCondPkIndex)
 		if !sqlData.checkArgsCount(args) {
-			tx.Rollback()
 			return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
 		}
 		rowIndex = tx.QueryRow(sqlData.toString(), args...)
 		if err = rowIndex.Scan(pkIndex); err != nil {
-			tx.Rollback()
 			log.Printf("[%s] Err: %s", rtkMisc.GetFuncInfo(), err.Error())
 			return rtkMisc.ERR_DB_SQLITE_SCAN
 		}
@@ -136,7 +138,6 @@ func upsertClientInfo(pkIndex *int, clientId, host, ipAddr, deviceName, platform
 		sqlData = SqlDataDeleteAuthInfo.withCond_WHERE(SqlCondClientIndex)
 		_, err = tx.Exec(sqlData.toString(), OldIndex)
 		if err != nil {
-			tx.Rollback()
 			log.Printf("[%s] Err: %s", rtkMisc.GetFuncInfo(), err.Error())
 			return rtkMisc.ERR_DB_SQLITE_EXEC
 		}
@@ -154,6 +155,9 @@ func upsertClientInfo(pkIndex *int, clientId, host, ipAddr, deviceName, platform
 }
 
 func upsertAuthStatus(authPkIndex *int, clientPkIndex int, authStatus bool) rtkMisc.CrossShareErr {
+	dbMutex.Lock()
+	defer dbMutex.Unlock()
+
 	if authPkIndex == nil {
 		log.Printf("[%s] pkIndex is null", rtkMisc.GetFuncInfo())
 		return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
@@ -175,6 +179,9 @@ func upsertAuthStatus(authPkIndex *int, clientPkIndex int, authStatus bool) rtkM
 }
 
 func updateClientInfo(pkIndexList *[]int, setConds []SqlCond, whereConds []SqlCond, args ...any) rtkMisc.CrossShareErr {
+	dbMutex.Lock()
+	defer dbMutex.Unlock()
+
 	if pkIndexList == nil {
 		log.Printf("[%s] pkIndexList is null", rtkMisc.GetFuncInfo())
 		return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
@@ -353,21 +360,9 @@ func QueryReconnList(clientInfoList *[]rtkCommon.ClientInfoTb) rtkMisc.CrossShar
 	return err
 }
 
-func QueryNotifyClientVerList(clientInfoList *[]rtkCommon.ClientInfoTb) rtkMisc.CrossShareErr {
-	err := queryClientInfo(
-		clientInfoList,
-		[]SqlCond{SqlCondOnline, SqlCondAuthStatusIsTrue},
-	)
-
-	return err
-}
-
 func QueryMaxVersion() (string, rtkMisc.CrossShareErr) {
 	clientInfoList := make([]rtkCommon.ClientInfoTb, 0)
-	err := queryClientInfo(
-		&clientInfoList,
-		[]SqlCond{SqlCondOnline, SqlCondAuthStatusIsTrue},
-	)
+	err := QueryOnlineClientList(&clientInfoList)
 
 	maxVer := string("")
 	nMaxVerVal := int(0)

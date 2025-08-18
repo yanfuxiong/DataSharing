@@ -354,7 +354,7 @@ func GoMultiFilesDropRequest(id string, fileList *[]rtkCommon.FileInfo, folderLi
 	}
 
 	for _, folder := range *folderList {
-		nMsgLength = nMsgLength + len(folder) + rtkGlobal.StringArrayMagicLengt
+		nMsgLength = nMsgLength + len(folder) + rtkGlobal.StringArrayMagicLength
 	}
 
 	if nMsgLength >= rtkGlobal.P2PMsgMaxLength {

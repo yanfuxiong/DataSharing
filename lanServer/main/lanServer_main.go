@@ -13,6 +13,8 @@ import (
 	rtkdbManager "rtk-cross-share/lanServer/dbManager"
 	rtkDebug "rtk-cross-share/lanServer/debug"
 	rtkGlobal "rtk-cross-share/lanServer/global"
+	rtkIfaceMgr "rtk-cross-share/lanServer/interfaceMgr"
+	"strconv"
 
 	rtkNetwork "rtk-cross-share/lanServer/network"
 	rtkMisc "rtk-cross-share/misc"
@@ -25,13 +27,15 @@ var cancelServer = make(chan struct{})
 var acceptErrFlag = make(chan struct{})
 
 var (
-	supInterfaces = []string{"wlan0", "eth0"} // e.g., "en0", "wlan0", "lo0", "eth0.100"
-
 	name          = flag.String("name", rtkMisc.LanServerName, "The name for the service.")
 	service       = flag.String("service", rtkMisc.LanServiceType, "Set the service type of the new service.")
 	domain        = flag.String("domain", rtkMisc.LanServerDomain, "Set the network domain. Default should be fine.")
 	port          = flag.Int("port", rtkMisc.LanServerPort, "Set the port the service is listening to.")
-	interfaceName = flag.String("interface", supInterfaces[0], "Set the network interface name. Default WLAN.")
+	interfaceName = flag.String("interface", rtkNetwork.SupInterfaces[0], "Set the network interface name. Default WLAN.")
+
+	serviceForServer = flag.String("serviceForServer", rtkMisc.LanServiceTypeForServer, "Set the service type of the new service.")
+
+	g_foundOtherServer bool = false
 )
 
 func checkLanServerExists() (string, bool) {
@@ -64,6 +68,61 @@ func checkLanServerExists() (string, bool) {
 	}
 }
 
+func browseOtherServer(ctx context.Context) {
+	startBrowse := func(subCtx context.Context) {
+		g_foundOtherServer = false
+		resolver, err := zeroconf.NewResolver(nil, nil)
+		if err != nil {
+			log.Println("Failed to initialize resolver:", err.Error())
+			return
+		}
+
+		entries := make(chan *zeroconf.ServiceEntry)
+		rtkMisc.GoSafe(func() {
+			for entry := range entries {
+				if (len(entry.AddrIPv4) == 0) || (entry.Instance == *name) {
+					continue
+				}
+
+				ip := fmt.Sprintf("%s:%d", entry.AddrIPv4[0].String(), entry.Port)
+				log.Printf("[%s] Found other server: %s, IP:%s", rtkMisc.GetFuncInfo(), entry.Instance, ip)
+				g_foundOtherServer = true
+			}
+		})
+
+		err = resolver.Browse(subCtx, *serviceForServer, *domain, entries)
+		if err != nil {
+			log.Printf("[%s] Failed to browse:%+v", rtkMisc.GetFuncInfo(), err.Error())
+		}
+		log.Printf("Start Browse other server...")
+	}
+
+	ticker := time.NewTicker(time.Duration(5 * time.Minute))
+	defer ticker.Stop()
+	var subCancel context.CancelFunc
+
+	{
+		// first time browse
+		var subCtx context.Context
+		subCtx, subCancel = context.WithCancel(ctx)
+		startBrowse(subCtx)
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if subCancel != nil {
+				subCancel()
+			}
+			var subCtx context.Context
+			subCtx, subCancel = context.WithCancel(ctx)
+			startBrowse(subCtx)
+		}
+	}
+}
+
 func MainInit() {
 	flag.Parse()
 
@@ -79,12 +138,17 @@ func MainInit() {
 	log.Printf("%s Build Date: %s", rtkBuildConfig.ServerName, rtkBuildConfig.BuildDate)
 	log.Printf("=====================================================\n\n")
 
+	var printErrNetwork = true
 	for {
-		if rtkMisc.IsNetworkConnected() {
+		if rtkMisc.IsNetworkConnected(rtkNetwork.SupInterfaces) {
+			printErrNetwork = true
 			break
 		}
 
-		log.Printf("******** the network is unavailable! %s is not start! ******** ", rtkBuildConfig.ServerName)
+		if printErrNetwork {
+			log.Printf("******** the network is unavailable! %s is not start! ******** ", rtkBuildConfig.ServerName)
+			printErrNetwork = false
+		}
 		time.Sleep(5 * time.Second)
 	}
 
@@ -113,40 +177,6 @@ func MainInit() {
 		log.Printf("registerMdns Server restart...\n\n")
 		rtkMisc.GoSafe(func() { Run() })
 	}
-}
-
-func getValidAddrs(iface *net.Interface) ([]net.Addr, error) {
-	if iface == nil {
-		return nil, fmt.Errorf("[%s] Err: null interface", rtkMisc.GetFuncInfo())
-	}
-
-	addrs, err := iface.Addrs()
-	if err != nil {
-		return nil, err
-	}
-
-	var retAddrs []net.Addr
-	for _, addr := range addrs {
-		if ipNet, ok := addr.(*net.IPNet); ok && !ipNet.IP.IsLoopback() {
-			if ipNet.IP.To4() != nil {
-				retAddrs = append(retAddrs, addr)
-			}
-		}
-	}
-
-	if len(retAddrs) == 0 {
-		return nil, fmt.Errorf("Err: Empty addrs (%s)", iface.Name)
-	}
-
-	return retAddrs, nil
-}
-
-func getValidInterface(ifaceName string) (*net.Interface, error) {
-	iface, err := net.InterfaceByName(ifaceName)
-	if err == nil && iface != nil {
-		return iface, nil
-	}
-	return nil, err
 }
 
 func getValidHarwdareAddr(iface *net.Interface) (string, error) {
@@ -179,7 +209,7 @@ func setupMdnsId(iface *net.Interface) {
 	*name = rtkGlobal.ServerMdnsId
 }
 
-func registerMdns(server *zeroconf.Server) []net.Addr {
+func registerMdns(server **zeroconf.Server, serverForSearch **zeroconf.Server) []net.Addr {
 	var mdnsId = ""
 	var printErrIface = true
 	var printErrMac = true
@@ -187,8 +217,8 @@ func registerMdns(server *zeroconf.Server) []net.Addr {
 	var printErrMdns = true
 	for {
 		mdnsId = ""
-		for _, ifaceName := range supInterfaces {
-			iface, err := getValidInterface(ifaceName)
+		for _, ifaceName := range rtkNetwork.SupInterfaces {
+			iface, err := rtkMisc.GetValidInterface(ifaceName)
 			if err != nil {
 				if printErrIface {
 					log.Printf("Err: Get network interface(%s) failed: %s", ifaceName, err.Error())
@@ -213,7 +243,7 @@ func registerMdns(server *zeroconf.Server) []net.Addr {
 			}
 			printErrMac = true
 
-			addrs, err := getValidAddrs(iface)
+			addrs, err := rtkMisc.GetValidAddrs(iface)
 			if err != nil {
 				if printErrIp {
 					log.Printf("Err: Get server IP address failed: %s", err.Error())
@@ -240,9 +270,19 @@ func registerMdns(server *zeroconf.Server) []net.Addr {
 			// It's necessary be a contentText.
 			// If the contentText is null or empty, that iOS cannot discover service
 			// iOS use the IP in textRecord to skip the different IP from bonjour service
-			textRecordIp := rtkMisc.TextRecordKeyIp + "=" + ipAddr
+			getTextRecord := func(key, value string) string {
+				return key + "=" + value
+			}
 			// TODO: ProductName from DIAS
-			server, err = zeroconf.Register(*name, *service, *domain, rtkGlobal.ServerPort, []string{textRecordIp}, []net.Interface{*iface})
+			textRecordIp := getTextRecord(rtkMisc.TextRecordKeyIp, ipAddr)
+			textRecordMonitorName := getTextRecord(rtkMisc.TextRecordKeyMonitorName, rtkGlobal.ServerMonitorName)
+			textRecordTimestamp := getTextRecord(rtkMisc.TextRecordKeyTimestamp, strconv.FormatInt(time.Now().UnixMilli(), 10))
+			textRecordVersion := getTextRecord(rtkMisc.TextRecordKeyVersion, rtkGlobal.LanServerVersion)
+			textRecords := []string{textRecordIp, textRecordMonitorName, textRecordTimestamp, textRecordVersion}
+			*server, err = zeroconf.Register(*name, *service, *domain, *port, textRecords, []net.Interface{*iface})
+			*serverForSearch, _ = zeroconf.Register(*name, *serviceForServer, *domain, *port, []string{}, []net.Interface{*iface})
+			(*server).TTL(60)
+			(*serverForSearch).TTL(60)
 
 			if err != nil {
 				if printErrMdns {
@@ -265,17 +305,41 @@ func Run() {
 		log.Printf("an other %s IPAddr:[%s] is already running! so exit!", rtkBuildConfig.ServerName, ipAddress)
 		log.Fatal(fmt.Sprintf("%s is already exist!", rtkBuildConfig.ServerName))
 	}*/
-
+	var server *zeroconf.Server = nil
+	var serverForSearch *zeroconf.Server = nil
+	defer func() {
+		if server != nil {
+			server.Shutdown()
+			log.Printf("[%s] Rebuilt mDNS server, shutdown the last one", rtkMisc.GetFuncInfo())
+		}
+		if serverForSearch != nil {
+			serverForSearch.Shutdown()
+		}
+	}()
 	getServerListening := func() (net.Listener, error) {
 		startTime := time.Now().UnixMilli()
-		var server *zeroconf.Server
-		addrs := registerMdns(server)
-		defer func() {
-			if server != nil {
-				server.Shutdown()
-			}
-		}()
 
+		if server != nil {
+			server.Shutdown()
+			log.Printf("[%s] Rebuilt mDNS server, shutdown the last one", rtkMisc.GetFuncInfo())
+		}
+		if serverForSearch != nil {
+			serverForSearch.Shutdown()
+		}
+		addrs := registerMdns(&server, &serverForSearch)
+
+		var lastTrigger int64
+		server.ListenQuery(func() {
+			if g_foundOtherServer {
+				now := time.Now().UnixMilli()
+				if now-lastTrigger > 1000 { // debounce in 1 sec
+					lastTrigger = now
+					// DEBUG
+					// log.Printf("[%s] Found other server and detect client query", rtkMisc.GetFuncInfo())
+					rtkIfaceMgr.GetInterfaceMgr().TriggerDisplayMonitorName()
+				}
+			}
+		})
 		log.Printf("Register use [%d]ms, Published service info:", time.Now().UnixMilli()-startTime)
 		log.Println("- Name:", *name)
 		log.Println("- Type:", *service)
@@ -320,6 +384,7 @@ func Run() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	rtkMisc.GoSafe(func() { browseOtherServer(ctx) })
 	rtkMisc.GoSafe(func() { rtkClientManager.ReconnClientListHandler(ctx) })
 
 	for {

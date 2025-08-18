@@ -36,12 +36,14 @@ typedef void (*UpdateDeviceNameCb)(int source, int port, const char* name);
 typedef void (*DragFileStartCb)(int source, int port, int horzSize, int vertSize, int posX, int posY);
 typedef void (*UpdateClientInfoCb)(const CLIENT_INFO_DATA clientInfo);
 typedef void (*GetTimingDataCb)(TIMING_DATA** list, int* size);
+typedef void (*DisplayMonitorNameCb)();
 
 // store callback pointer
 static UpdateDeviceNameCb g_updateDeviceNameCb = 0;
 static DragFileStartCb g_dragFileStartCb = 0;
 static UpdateClientInfoCb g_updateClientInfoCb = 0;
 static GetTimingDataCb g_getTimingDataCb = 0;
+static DisplayMonitorNameCb g_displayMonitorNameCb = 0;
 
 // function GO can call to invoke callback
 static void setUpdateDeviceNameCb(UpdateDeviceNameCb cb) {g_updateDeviceNameCb = cb;}
@@ -66,6 +68,12 @@ static void setGetTimingDataCb(GetTimingDataCb cb) {g_getTimingDataCb = cb;}
 static void onGetTimingDataCb(TIMING_DATA** list, int* size) {
 	if (g_getTimingDataCb) {
 		g_getTimingDataCb(list, size);
+	}
+}
+static void setDisplayMonitorNameCb(DisplayMonitorNameCb cb) {g_displayMonitorNameCb = cb;}
+static void onDisplayMonitorNameCb() {
+	if (g_displayMonitorNameCb) {
+		g_displayMonitorNameCb();
 	}
 }
 */
@@ -95,6 +103,11 @@ func SetUpdateClientInfoCb(cb C.UpdateClientInfoCb) {
 //export SetGetTimingDataCb
 func SetGetTimingDataCb(cb C.GetTimingDataCb) {
 	C.setGetTimingDataCb(cb)
+}
+
+//export SetDisplayMonitorNameCb
+func SetDisplayMonitorNameCb(cb C.DisplayMonitorNameCb) {
+	C.setDisplayMonitorNameCb(cb)
 }
 
 //export AuthDevice
@@ -155,9 +168,30 @@ func GetClientInfoData(cSource, cPort C.int) C.CLIENT_INFO_DATA {
 	return goToCClientInfo(clientInfoData)
 }
 
+//export UpdateMonitorName
+func UpdateMonitorName(cName *C.char) {
+	name := C.GoString(cName)
+	rtkIfaceMgr.GetInterfaceMgr().UpdateMonitorName(name)
+}
+
 //export Init
 func Init() {
-	rtkIfaceMgr.GetInterfaceMgr().SetupCallback(goUpdateDeviceNameCb, goDragFileStartCb, goUpdateClientInfoCb, goGetTimingDataCb)
+	initFunc()
+}
+
+//export InitWithName
+func InitWithName(cMonitorName *C.char) {
+	initFunc()
+	UpdateMonitorName(cMonitorName)
+}
+
+func initFunc() {
+	rtkIfaceMgr.GetInterfaceMgr().SetupCallback(
+		goUpdateDeviceNameCb,
+		goDragFileStartCb,
+		goUpdateClientInfoCb,
+		goDisplayMonitorNameCb,
+		goGetTimingDataCb)
 	MainInit()
 }
 
@@ -181,6 +215,10 @@ func goDragFileStartCb(source, port, horzSize, vertSize, posX, posY int) {
 
 func goUpdateClientInfoCb(clientInfo rtkCommon.ClientInfoTb) {
 	C.onUpdateClientInfoCb(goToCClientInfo(clientInfo))
+}
+
+func goDisplayMonitorNameCb() {
+	C.onDisplayMonitorNameCb()
 }
 
 func goGetTimingDataCb() []rtkCommon.TimingData {

@@ -27,15 +27,17 @@ type (
 		index int
 		id    string
 	}
-	UpdateClientInfoCb func(clientInfo rtkCommon.ClientInfoTb)
-	GetTimingDataCb    func() []rtkCommon.TimingData
-	InterfaceMgr       struct {
-		mu                  sync.RWMutex
-		mUpdateDeviceNameCb UpdateDeviceNameCb
-		mDragFileStartCb    DragFileStartCb
-		mDragFileSrcInfo    DragFileSrcInfo
-		mUpdateClientInfoCb UpdateClientInfoCb
-		mGetTimingDataCb    GetTimingDataCb
+	UpdateClientInfoCb   func(clientInfo rtkCommon.ClientInfoTb)
+	DisplayMonitorNameCb func()
+	GetTimingDataCb      func() []rtkCommon.TimingData
+	InterfaceMgr         struct {
+		mu                    sync.RWMutex
+		mUpdateDeviceNameCb   UpdateDeviceNameCb
+		mDragFileStartCb      DragFileStartCb
+		mDragFileSrcInfo      DragFileSrcInfo
+		mUpdateClientInfoCb   UpdateClientInfoCb
+		mDisplayMonitorNameCb DisplayMonitorNameCb
+		mGetTimingDataCb      GetTimingDataCb
 	}
 )
 
@@ -56,6 +58,7 @@ func (mgr *InterfaceMgr) SetupCallback(
 	updateDeviceNameCb UpdateDeviceNameCb,
 	dragFileStartCb DragFileStartCb,
 	updateClientInfoCb UpdateClientInfoCb,
+	displayMonitorNameCb DisplayMonitorNameCb,
 	getTimingDataCb GetTimingDataCb,
 ) {
 	mgr.mu.Lock()
@@ -63,6 +66,7 @@ func (mgr *InterfaceMgr) SetupCallback(
 	mgr.mUpdateDeviceNameCb = updateDeviceNameCb
 	mgr.mDragFileStartCb = dragFileStartCb
 	mgr.mUpdateClientInfoCb = updateClientInfoCb
+	mgr.mDisplayMonitorNameCb = displayMonitorNameCb
 	mgr.mGetTimingDataCb = getTimingDataCb
 }
 
@@ -100,6 +104,16 @@ func (mgr *InterfaceMgr) TriggerUpdateClientInfo(clientInfo rtkCommon.ClientInfo
 	mgr.mu.RUnlock()
 
 	mgr.mUpdateClientInfoCb(clientInfo)
+}
+
+func (mgr *InterfaceMgr) TriggerDisplayMonitorName() {
+	mgr.mu.RLock()
+	if mgr.mDisplayMonitorNameCb == nil {
+		log.Printf("[%s][%s] Error: DisplayMonitorName callback is null", tag, rtkMisc.GetFuncInfo())
+		return
+	}
+	mgr.mu.RUnlock()
+	mgr.mDisplayMonitorNameCb()
 }
 
 func (mgr *InterfaceMgr) TriggerGetTimingData() []rtkCommon.TimingData {
@@ -199,4 +213,9 @@ func (mgr *InterfaceMgr) GetClientInfodData(source, port int) rtkCommon.ClientIn
 	}
 
 	return clientInfoTb
+}
+
+func (mgr *InterfaceMgr) UpdateMonitorName(name string) {
+	log.Printf("[%s][%s] MonitorName: %s", tag, rtkMisc.GetFuncInfo(), name)
+	rtkGlobal.ServerMonitorName = name
 }

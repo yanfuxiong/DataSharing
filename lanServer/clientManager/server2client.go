@@ -140,7 +140,7 @@ func dealC2SMsgInitClient(ext *json.RawMessage) (uint32, interface{}) {
 	}
 
 	initClientRsp.ClientIndex = uint32(pkIndex)
-	initClientRsp.MonitorName = "cross_share_lan_serv" // MonitorName is temporarily write the dead data for debug
+	initClientRsp.MonitorName = rtkGlobal.ServerMonitorName
 	return initClientRsp.ClientIndex, initClientRsp
 }
 
@@ -193,7 +193,7 @@ func dealC2SMsgReqClientList() interface{} {
 
 func buildNotifyClientVersion(id, version string) rtkMisc.CrossShareErr {
 	clientInfoList := make([]rtkCommon.ClientInfoTb, 0)
-	errCode := rtkdbManager.QueryNotifyClientVerList(&clientInfoList)
+	errCode := rtkdbManager.QueryOnlineClientList(&clientInfoList)
 	if errCode != rtkMisc.SUCCESS {
 		return errCode
 	}
