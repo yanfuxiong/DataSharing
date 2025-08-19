@@ -34,7 +34,6 @@ type InitClientMessageReq struct {
 type InitClientMessageResponse struct {
 	Response
 	ClientIndex   uint32
-	MonitorName   string
 	ClientVersion string
 }
 

@@ -97,7 +97,7 @@ func sendReconnClientList(id string, extData rtkMisc.ReconnClientListReq) rtkMis
 
 func dealC2SMsgInitClient(ext *json.RawMessage) (uint32, interface{}) {
 	var extData rtkMisc.InitClientMessageReq
-	initClientRsp := rtkMisc.InitClientMessageResponse{Response: rtkMisc.GetResponse(rtkMisc.SUCCESS), ClientIndex: 0, MonitorName: "", ClientVersion: ""}
+	initClientRsp := rtkMisc.InitClientMessageResponse{Response: rtkMisc.GetResponse(rtkMisc.SUCCESS), ClientIndex: 0, ClientVersion: ""}
 	err := json.Unmarshal(*ext, &extData)
 	if err != nil {
 		log.Printf("clientID:[%s] decode ExtDataText Err: %s", extData.ClientID, err.Error())
@@ -140,7 +140,6 @@ func dealC2SMsgInitClient(ext *json.RawMessage) (uint32, interface{}) {
 	}
 
 	initClientRsp.ClientIndex = uint32(pkIndex)
-	initClientRsp.MonitorName = rtkGlobal.ServerMonitorName
 	return initClientRsp.ClientIndex, initClientRsp
 }
 

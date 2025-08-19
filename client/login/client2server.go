@@ -129,7 +129,6 @@ func handleReadMessageFromServer(buffer []byte) rtkMisc.CrossShareErr {
 				return resetClientRsp.Code
 			}
 		}
-		rtkPlatform.GoMonitorNameNotify(g_monitorName)
 		log.Printf("Requst Reset Client Response success, request client list!")
 		errCode := sendReqMsgToLanServer(rtkMisc.C2SMsg_REQ_CLIENT_LIST)
 		if errCode != rtkMisc.SUCCESS {
@@ -182,11 +181,9 @@ func dealS2CMsgInitClient(id string, extData json.RawMessage) rtkMisc.CrossShare
 	}
 
 	rtkGlobal.NodeInfo.ClientIndex = initClientRsp.ClientIndex
-	g_monitorName = initClientRsp.MonitorName
 	log.Printf("Requst Init Client success, get Client Index:[%d]", initClientRsp.ClientIndex)
 	lanServerHeartbeatStart()
 
-	rtkPlatform.GoMonitorNameNotify(g_monitorName)
 	if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformAndroid || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformiOS {
 		errCode, authData := rtkPlatform.GetAuthData()
 		if errCode != rtkMisc.SUCCESS {

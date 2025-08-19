@@ -93,7 +93,7 @@ type (
 	CallbackDIASSourceAndPortFunc          func(uint8, uint8)
 	CallbackMethodStartBrowseMdns          func(string, string)
 	CallbackMethodStopBrowseMdns           func()
-	CallbackMethodBrowseMdnsResultFunc     func(string, string, int)
+	CallbackMethodBrowseMdnsResultFunc     func(string, string, int, string, string, string, string)
 	CallbackDetectPluginEventFunc          func(isPlugin bool, productName string)
 	CallbackGetAuthDataFunc                func() string
 	CallbackDIASStatusFunc                 func(uint32)
@@ -101,7 +101,7 @@ type (
 	CallbackGetFilesTransCodeFunc          func(id string) rtkCommon.SendFilesRequestErrCode
 	CallbackRequestUpdateClientVersionFunc func(string)
 	CallbackNotifyBrowseResultFunc         func(monitorName, instance, ipAddr, version string, timestamp int64)
-	CallbackConnectLanServerFunc           func(monitorName, instance, ipAddr string)
+	CallbackConnectLanServerFunc           func(instance string)
 	CallbackBrowseLanServerFunc            func()
 )
 
@@ -356,14 +356,15 @@ func GoTriggerNetworkSwitch() {
 	callbackNetworkSwitch()
 }
 
-func GoBrowseMdnsResultCallback(instance, ip string, port int) {
+func GoBrowseMdnsResultCallback(instance, ip string, port int, productName, mName, timestamp, version string) {
 	if callbackMethodBrowseMdnsResult == nil {
 		log.Println("CallbackMethodBrowseMdnsResult is null!")
 		return
 	}
 
-	log.Printf("[%s] instance:[%s], ip:[%s], port:[%d]", rtkMisc.GetFuncInfo(), instance, ip, port)
-	callbackMethodBrowseMdnsResult(instance, ip, port)
+	log.Printf("[%s] instance:[%s], ip:[%s], port:[%d], productName:[%s], mName:[%s], timestamp:[%s], verion:[%s]",
+		rtkMisc.GetFuncInfo(), instance, ip, port, productName, mName, timestamp, version)
+	callbackMethodBrowseMdnsResult(instance, ip, port, productName, mName, timestamp, version)
 }
 
 func GoGetMacAddressCallback(mac string) {
@@ -379,13 +380,13 @@ func SetConfirmDocumentsAccept(ifConfirm bool) {
 	ifConfirmDocumentsAccept = ifConfirm
 }
 
-func GoConnectLanServer(monitorName, instance, ipAddr string) {
+func GoConnectLanServer(instance string) {
 	if callbackConnectLanServer == nil {
 		log.Println("callbackConnectLanServer is null!")
 		return
 	}
 
-	callbackConnectLanServer(monitorName, instance, ipAddr)
+	callbackConnectLanServer(instance)
 }
 
 func GoBrowseLanServer() {

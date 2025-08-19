@@ -46,8 +46,7 @@ var (
 	// Used by connection package
 	GetClientListFlag = make(chan []rtkMisc.ClientInfo)
 
-	// Used by cmd package
-	CurrentDiasStatus CrossShareDiasStatus
+	currentDiasStatus CrossShareDiasStatus
 )
 
 func SetDisconnectAllClientCallback(cb callbackDisconnectAllClientFunc) {

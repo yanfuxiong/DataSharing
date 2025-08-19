@@ -120,9 +120,9 @@ type (
 	CallbackDIASSourceAndPortFunc      func(uint8, uint8)
 	CallbackAuthStatusCodeFunc         func(uint8)
 	CallbackExtractDIASFunc            func()
-	CallbackMethodBrowseMdnsResultFunc func(string, string, int)
+	CallbackMethodBrowseMdnsResultFunc func(string, string, int, string, string, string, string)
 	CallbackGetFilesTransCodeFunc      func(id string) rtkCommon.SendFilesRequestErrCode
-	CallbackConnectLanServerFunc       func(monitorName, instance, ipAddr string)
+	CallbackConnectLanServerFunc       func(instance string)
 	CallbackBrowseLanServerFunc        func()
 )
 
@@ -358,13 +358,13 @@ func SetConfirmDocumentsAccept(ifConfirm bool) {
 	ifConfirmDocumentsAccept = ifConfirm
 }
 
-func GoConnectLanServer(monitorName, instance, ipAddr string) {
+func GoConnectLanServer(instance string) {
 	if callbackConnectLanServer == nil {
 		log.Println("callbackConnectLanServer is null!")
 		return
 	}
 
-	callbackConnectLanServer(monitorName, instance, ipAddr)
+	callbackConnectLanServer(instance)
 }
 
 func GoBrowseLanServer() {

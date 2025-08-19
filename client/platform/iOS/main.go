@@ -679,9 +679,10 @@ func SetSrcAndPort(source, port int) {
 }
 
 //export SetBrowseMdnsResult
-func SetBrowseMdnsResult(instance, ip string, port int) {
-	log.Printf("[%s], instacne:[%s], ip:[%s], port[%d]", rtkMisc.GetFuncInfo(), instance, ip, port)
-	rtkPlatform.GoBrowseMdnsResultCallback(instance, ip, port)
+func SetBrowseMdnsResult(instance, ip string, port int, productName, mName, timestamp, version string) {
+	log.Printf("[%s], instacne:[%s], ip:[%s], port[%d], productName:[%s], mName:[%s], timestamp:[%s], verion:[%s]",
+		rtkMisc.GetFuncInfo(), instance, ip, port, productName, mName, timestamp, version)
+	rtkPlatform.GoBrowseMdnsResultCallback(instance, ip, port, productName, mName, timestamp, version)
 }
 
 //export SetConfirmDocumentsAccept
@@ -701,8 +702,8 @@ func BrowseLanServer() {
 	rtkPlatform.GoBrowseLanServer()
 }
 
-//export ConnectLanServer
-func ConnectLanServer(monitorName, instance, ipAddr string) {
-	log.Printf("[%s] monitorName:[%s], instance:[%s], ipAddr:[%s]", rtkMisc.GetFuncInfo(), monitorName, instance, ipAddr)
-	rtkPlatform.GoConnectLanServer(monitorName, instance, ipAddr)
+//export WorkerConnectLanServer
+func WorkerConnectLanServer(instance string) {
+	log.Printf("[%s]  instance:[%s]", rtkMisc.GetFuncInfo(), instance)
+	rtkPlatform.GoConnectLanServer(instance)
 }

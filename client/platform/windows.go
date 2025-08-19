@@ -96,7 +96,7 @@ type (
 	CallbackGetMacAddressFunc          func(string)
 	CallbackAuthStatusCodeFunc         func(uint8)
 	CallbackDIASSourceAndPortFunc      func(uint8, uint8)
-	CallbackMethodBrowseMdnsResultFunc func(string, string, int)
+	CallbackMethodBrowseMdnsResultFunc func(string, string, int, string, string, string, string)
 	CallbackAuthViaIndexCallbackFunc   func(uint32)
 	CallbackDIASStatusFunc             func(uint32)
 	CallbackDeviceNameFunc             func() string
@@ -108,7 +108,7 @@ type (
 	CallbackGetFilesTransCodeFunc      func(id string) rtkCommon.SendFilesRequestErrCode
 	CallbackReqClientUpdateVerFunc     func(clientVer string)
 	CallbackNotifyErrEventFunc         func(id string, errCode uint32, arg1, arg2, arg3, arg4 string)
-	CallbackConnectLanServerFunc       func(monitorName, instance, ipAddr string)
+	CallbackConnectLanServerFunc       func(instance string)
 	CallbackBrowseLanServerFunc        func()
 )
 
