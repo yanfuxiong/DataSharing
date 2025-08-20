@@ -28,6 +28,14 @@ const (
 type callbackDisconnectAllClientFunc func()
 type callbackCancelAllBusinessFunc func()
 
+type browseParam struct {
+	instance    string
+	ip          string
+	monitorName string
+	ver         string
+	timeStamp   int64
+}
+
 var (
 	serverInstanceMap       sync.Map //KEY: instance
 	cancelBrowse            func()
@@ -38,6 +46,7 @@ var (
 	pSafeConnect            *safeConnect
 	heartBeatTicker         *time.Ticker
 	isReconnectRunning      atomic.Bool
+	lanServerRunning        atomic.Bool
 	reconnectCancelFunc     func()
 	disconnectAllClientFunc callbackDisconnectAllClientFunc
 	cancelAllBusinessFunc   callbackCancelAllBusinessFunc

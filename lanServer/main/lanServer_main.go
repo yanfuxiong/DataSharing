@@ -94,7 +94,7 @@ func browseOtherServer(ctx context.Context) {
 		if err != nil {
 			log.Printf("[%s] Failed to browse:%+v", rtkMisc.GetFuncInfo(), err.Error())
 		}
-		log.Printf("Start Browse other server...")
+		// log.Printf("Start Browse other server...")
 	}
 
 	ticker := time.NewTicker(time.Duration(5 * time.Minute))
@@ -165,12 +165,9 @@ func MainInit() {
 		select {
 		case <-ctx.Done():
 			return
-		case <-rtkNetwork.GetNetworkSwitchFlag():
+		case <-acceptErrFlag:
 			rtkdbManager.UpdateAllClientOffline()
 			cancelServer <- struct{}{}
-			time.Sleep(5 * time.Second)
-			log.Printf("==============================================================================")
-		case <-acceptErrFlag:
 			time.Sleep(5 * time.Second)
 		}
 
@@ -387,14 +384,8 @@ func Run() {
 	rtkMisc.GoSafe(func() { browseOtherServer(ctx) })
 	rtkMisc.GoSafe(func() { rtkClientManager.ReconnClientListHandler(ctx) })
 
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-cancelServer:
-			log.Printf("%s  %s:%d listening is cancel!", rtkBuildConfig.ServerName, rtkGlobal.ServerIPAddr, rtkGlobal.ServerPort)
-			return
-		default:
+	rtkMisc.GoSafe(func() {
+		for {
 			conn, err := listener.Accept()
 			if err != nil {
 				log.Printf("Server %s:%d accepting connection Error:%+v", rtkGlobal.ServerIPAddr, rtkGlobal.ServerPort, err.Error())
@@ -405,6 +396,17 @@ func Run() {
 			timestamp := time.Now().UnixMicro()
 			log.Printf("%s Accept a connect, RemoteAddr: %s \n", rtkBuildConfig.ServerName, conn.RemoteAddr().String())
 			rtkMisc.GoSafe(func() { rtkClientManager.HandleClient(ctx, conn, timestamp) })
+		}
+	})
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-cancelServer:
+			log.Println("==============================================================================")
+			log.Printf("Cancel server. Close TCP and mDNS server in %s:%d", rtkGlobal.ServerIPAddr, rtkGlobal.ServerPort)
+			return
 		}
 	}
 }
@@ -427,3 +429,4 @@ func getAvailablePort() (int, error) {
 	log.Printf("[%s] get port:%d\n", rtkMisc.GetFuncInfo(), nPort)
 	return nPort, nil
 }
+
