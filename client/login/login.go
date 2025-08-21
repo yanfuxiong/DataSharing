@@ -100,7 +100,7 @@ func mobileInitLanServer(instance string) {
 		return
 	}
 
-	if currentDiasStatus > DIAS_Status_Connectting_DiasService {
+	if currentDiasStatus > DIAS_Status_Connectting_DiasService && lanServerInstance == instance {
 		log.Printf("[%s][mobile] instance:%s currentDiasStatus:%d, not allowed connect LanServer over again! ", rtkMisc.GetFuncInfo(), instance, currentDiasStatus)
 		NotifyDIASStatus(DIAS_Status_Connected_DiasService_Failed)
 		return
@@ -146,15 +146,15 @@ func ConnectLanServerRun(ctx context.Context) {
 		}
 	}()
 
-	serverInstanceMap.Range(func(k, v any) bool {
-		param := v.(browseParam)
-		rtkPlatform.GoNotifyBrowseResult(param.monitorName, param.instance, param.ip, param.ver, param.timeStamp)
-		return true
-	})
-	lanServerRunning.Store(true)
-
 	if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformWindows || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformMac {
 		computerInitLanServer(ctx)
+	} else {
+		serverInstanceMap.Range(func(k, v any) bool {
+			param := v.(browseParam)
+			rtkPlatform.GoNotifyBrowseResult(param.monitorName, param.instance, param.ip, param.ver, param.timeStamp)
+			return true
+		})
+		lanServerRunning.Store(true)
 	}
 
 	readResult := make(chan struct {
@@ -481,6 +481,7 @@ func cancelLanServerBusiness() {
 	lanServerAddr = ""
 	stopBrowseInstance()
 	serverInstanceMap.Clear()
+	lanServerRunning.Store(false)
 	if isReconnectRunning.Load() {
 		if reconnectCancelFunc != nil {
 			reconnectCancelFunc()

@@ -705,5 +705,10 @@ func BrowseLanServer() {
 //export WorkerConnectLanServer
 func WorkerConnectLanServer(instance string) {
 	log.Printf("[%s]  instance:[%s]", rtkMisc.GetFuncInfo(), instance)
-	rtkPlatform.GoConnectLanServer(instance)
+
+	if !rtkPlatform.IsConnecting() {
+		rtkPlatform.GoConnectLanServer(instance)
+	} else {
+		log.Printf("[%s] connecting in progress, skip it!", rtkMisc.GetFuncInfo())
+	}
 }

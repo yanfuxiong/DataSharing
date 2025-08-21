@@ -14,6 +14,7 @@ import (
 	rtkGlobal "rtk-cross-share/client/global"
 	rtkUtils "rtk-cross-share/client/utils"
 	rtkMisc "rtk-cross-share/misc"
+	"sync/atomic"
 	"syscall"
 
 	"github.com/libp2p/go-libp2p/core/crypto"
@@ -24,6 +25,7 @@ const (
 )
 
 var (
+	isConnecting             atomic.Bool
 	imageData                bytes.Buffer
 	copyTextChan             = make(chan string, 100)
 	isNetWorkConnected       bool // Deprecated: unused
@@ -83,6 +85,8 @@ func init() {
 	ifConfirmDocumentsAccept = false
 	rootPath = ""
 	rtkUtils.InitDeviceSrcAndPort(deviceSrcPort)
+	isNetWorkConnected = false
+	isConnecting.Store(false)
 }
 
 func GetRootPath() string {
@@ -358,7 +362,14 @@ func SetConfirmDocumentsAccept(ifConfirm bool) {
 	ifConfirmDocumentsAccept = ifConfirm
 }
 
+func IsConnecting() bool {
+	return isConnecting.Load()
+}
+
 func GoConnectLanServer(instance string) {
+	isConnecting.Store(true)
+	defer isConnecting.Store(false)
+
 	if callbackConnectLanServer == nil {
 		log.Println("callbackConnectLanServer is null!")
 		return
