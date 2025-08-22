@@ -93,9 +93,9 @@ func checkMobileTiming(clientIndex int, authData rtkMisc.AuthDataInfo) (bool, in
 		}
 
 		retryCnt++
-		log.Printf("[%s] Not found timing(%dx%d@%d), Retry:(%d/%d)",
-			rtkMisc.GetFuncInfo(), authData.Width, authData.Height, authData.Framerate, retryCnt, maxRetryCnt)
 		if retryCnt >= maxRetryCnt {
+			log.Printf("[%s] Not found timing(%dx%d@%d), Retry:(%d/%d)",
+				rtkMisc.GetFuncInfo(), authData.Width, authData.Height, authData.Framerate, retryCnt, maxRetryCnt)
 			return false, 0, 0
 		}
 	}

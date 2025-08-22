@@ -47,6 +47,7 @@ func WatchNetworkConnected(ctx context.Context) {
 
 }
 
+// Depreacted: Use listener.Accept error as network changed
 func WatchNetworkInfo(ctx context.Context) {
 	var lastIp string
 	ticker := time.NewTicker(5 * time.Second)
@@ -74,12 +75,13 @@ func WatchNetworkInfo(ctx context.Context) {
 				log.Println("==============================================================================")
 				log.Printf("%s Network  old IP:[%s] new IP:[%+v]!", rtkBuildConfig.ServerName, lastIp, currentIpList)
 				log.Printf("******** %s Network is Switch, cancel old business! ******** ", rtkBuildConfig.ServerName)
-				networkSwitchSignalChan <- struct{}{}
+				// networkSwitchSignalChan <- struct{}{}
 			}
 		}
 	}
 }
 
+// Deprecated: Unused
 func GetNetworkSwitchFlag() <-chan struct{} {
 	return networkSwitchSignalChan
 }

@@ -66,21 +66,19 @@ func computerInitLanServer(ctx context.Context) {
 	retryCnt := 0
 	bPrintErrLog := true
 	for {
-		retryCnt++
-
 		errCode := initLanServer(bPrintErrLog)
 		if errCode == rtkMisc.SUCCESS {
 			break
 		}
 
+		if retryCnt < g_retryServerMaxCnt {
+			retryCnt++
+		}
 		if retryCnt == g_retryServerMaxCnt {
 			bPrintErrLog = false
 			log.Printf("initLanServer %d times failed, errCode:%d ! try to lookup Service over again ...", retryCnt, errCode)
 			lanServerAddr = ""
 			serverInstanceMap.Delete(lanServerInstance)
-		}
-		if retryCnt > 999999 {
-			retryCnt = g_retryServerMaxCnt
 		}
 
 		select {
@@ -93,6 +91,7 @@ func computerInitLanServer(ctx context.Context) {
 
 func mobileInitLanServer(instance string) {
 	log.Printf("[%s][mobile] connect LanServer, Instance:%s", rtkMisc.GetFuncInfo(), instance)
+
 	mapValue, ok := serverInstanceMap.Load(instance)
 	if !ok {
 		log.Printf("[%s][mobile] unknown instance:%s", rtkMisc.GetFuncInfo(), instance)
@@ -100,8 +99,8 @@ func mobileInitLanServer(instance string) {
 		return
 	}
 
-	if currentDiasStatus > DIAS_Status_Connectting_DiasService && lanServerInstance == instance {
-		log.Printf("[%s][mobile] instance:%s currentDiasStatus:%d, not allowed connect LanServer over again! ", rtkMisc.GetFuncInfo(), instance, currentDiasStatus)
+	if currentDiasStatus > DIAS_Status_Connectting_DiasService {
+		log.Printf("[%s][mobile] currentDiasStatus:%d, not allowed connect LanServer over again! ", rtkMisc.GetFuncInfo(), currentDiasStatus)
 		NotifyDIASStatus(DIAS_Status_Connected_DiasService_Failed)
 		return
 	}
@@ -126,6 +125,7 @@ func mobileInitLanServer(instance string) {
 		if retryCnt == g_retryServerMaxCnt {
 			bPrintErrLog = false
 			log.Printf("initLanServer %d times failed, errCode:%d ! Browse service instances go on ...", retryCnt, errCode)
+			NotifyDIASStatus(DIAS_Status_Connected_DiasService_Failed)
 			return
 		}
 		<-time.After(g_retryServerInterval)
@@ -291,13 +291,15 @@ func stopBrowseInstance() {
 	}
 }
 
-func getLanServerAddr() (string, rtkMisc.CrossShareErr) {
+func getLanServerAddr(bPrintErr bool) (string, rtkMisc.CrossShareErr) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 
 	if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformWindows || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformMac {
 		if lanServerInstance == "" {
-			log.Printf("[%s] lanServerInstance is not set!", rtkMisc.GetFuncInfo())
+			if bPrintErr {
+				log.Printf("[%s] lanServerInstance is not set!", rtkMisc.GetFuncInfo())
+			}
 			return "", rtkMisc.ERR_BIZ_C2S_GET_NO_SERVER_NAME
 		}
 
@@ -312,7 +314,7 @@ func getLanServerAddr() (string, rtkMisc.CrossShareErr) {
 		}
 
 		time.Sleep(50 * time.Millisecond) // Delay 50ms between "stop browse server" and "start lookup server"
-		return lookupLanServer(ctx, lanServerInstance, rtkMisc.LanServiceType, rtkMisc.LanServerDomain)
+		return lookupLanServer(ctx, lanServerInstance, rtkMisc.LanServiceType, rtkMisc.LanServerDomain, bPrintErr)
 	} else {
 		if lanServerInstance != "" {
 			mapValue, ok := serverInstanceMap.Load(lanServerInstance)
@@ -334,7 +336,7 @@ func getLanServerAddr() (string, rtkMisc.CrossShareErr) {
 func connectToLanServer(bPrintErr bool) rtkMisc.CrossShareErr {
 	if !pSafeConnect.IsAlive() {
 		if lanServerAddr == "" {
-			serverAddr, errCode := getLanServerAddr()
+			serverAddr, errCode := getLanServerAddr(bPrintErr)
 			if errCode != rtkMisc.SUCCESS {
 				return errCode
 			}
@@ -421,6 +423,9 @@ func ReConnectLanServer() {
 			break
 		}
 
+		if retryCnt < g_retryServerMaxCnt {
+			retryCnt++
+		}
 		if retryCnt == g_retryServerMaxCnt {
 			NotifyDIASStatus(DIAS_Status_Connectting_DiasService)
 			rtkPlatform.GoMonitorNameNotify("")
@@ -437,7 +442,6 @@ func ReConnectLanServer() {
 
 			bPrintErrLog = false
 		}
-		retryCnt++
 		select {
 		case <-ctx.Done():
 			return
@@ -494,7 +498,10 @@ func NotifyDIASStatus(status CrossShareDiasStatus) {
 	if currentDiasStatus != status {
 		rtkPlatform.GoDIASStatusNotify(uint32(status))
 
-		if (status != DIAS_Status_Authorization_Failed) && (status != DIAS_Status_Connected_DiasService_Failed) {
+		if (status == DIAS_Status_Wait_DiasMonitor) ||
+			(status == DIAS_Status_Connectting_DiasService) ||
+			(status == DIAS_Status_Wait_Other_Clients) ||
+			(status == DIAS_Status_Get_Clients_Success) {
 			currentDiasStatus = status
 		}
 	}
@@ -654,7 +661,7 @@ func browseLanServeriOS(ctx context.Context, serviceType string, resultChan chan
 	return rtkMisc.SUCCESS
 }
 
-func lookupLanServer(ctx context.Context, instance, serviceType, domain string) (string, rtkMisc.CrossShareErr) {
+func lookupLanServer(ctx context.Context, instance, serviceType, domain string, bPrintErr bool) (string, rtkMisc.CrossShareErr) {
 	startTime := time.Now().UnixMilli()
 	resolver, err := zeroconf.NewResolver(rtkUtils.GetNetInterfaces(), nil)
 	if err != nil {
@@ -663,7 +670,9 @@ func lookupLanServer(ctx context.Context, instance, serviceType, domain string) 
 	}
 
 	lanServerEntry := make(chan *zeroconf.ServiceEntry)
-	log.Printf("Start Lookup service  by name:%s  type:%s", instance, serviceType)
+	if bPrintErr {
+		log.Printf("Start Lookup service  by name:%s  type:%s", instance, serviceType)
+	}
 	err = resolver.Lookup(ctx, instance, serviceType, domain, lanServerEntry)
 	if err != nil {
 		log.Println("Failed to browse:", err.Error())
@@ -692,7 +701,9 @@ func lookupLanServer(ctx context.Context, instance, serviceType, domain string) 
 		textRecordTimeStamp := txtMap[rtkMisc.TextRecordKeyTimestamp]
 		textRecordKeyVersion := txtMap[rtkMisc.TextRecordKeyVersion]
 
-		if len(entry.AddrIPv4) > 0 {
+		if entry.Instance != instance {
+			log.Printf("Expect instance[%s], ignore instance [%s]", instance, entry.Instance)
+		} else if len(entry.AddrIPv4) > 0 {
 			lanServerIp := fmt.Sprintf("%s:%d", entry.AddrIPv4[0].String(), entry.Port)
 			log.Printf("Lookup get Service, mName:[%s] instance:[%s] IP:[%s] ver:[%s] timestamp:[%s], use %d ms", textRecordmonitorName, entry.Instance, lanServerIp, textRecordKeyVersion, textRecordTimeStamp, time.Now().UnixMilli()-startTime)
 			stamp, err := strconv.Atoi(textRecordTimeStamp)

@@ -181,8 +181,8 @@ func Init() {
 
 //export InitWithName
 func InitWithName(cMonitorName *C.char) {
-	initFunc()
 	UpdateMonitorName(cMonitorName)
+	initFunc()
 }
 
 func initFunc() {

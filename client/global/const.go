@@ -1,7 +1,7 @@
 package global
 
 const (
-	ClientVersion = "2.3.36"
+	ClientVersion = "2.3.37"
 
 	ProtocolID     = "/libp2p/dcutr"
 	HostProtocolID = "host_register"

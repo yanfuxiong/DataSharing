@@ -11,6 +11,8 @@ import (
 	"time"
 )
 
+var VERSION_CONTROL = false
+
 // TODO: call by via InterfaceMgr
 func SendDragFileEvent(srcId, targetId string, srcClientIndex uint32) rtkMisc.CrossShareErr {
 	msg := rtkMisc.C2SMessage{
@@ -104,33 +106,36 @@ func dealC2SMsgInitClient(ext *json.RawMessage) (uint32, interface{}) {
 		initClientRsp.Response = rtkMisc.GetResponse(rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL)
 		return 0, initClientRsp
 	}
-	if !rtkMisc.CheckFullVersionVaild(extData.ClientVersion) {
-		initClientRsp.Response = rtkMisc.GetResponse(rtkMisc.ERR_BIZ_VERSION_INVALID)
-		log.Printf("clientID:[%s] get invalid version:[%s]", extData.ClientID, extData.ClientVersion)
-		return 0, initClientRsp
-	}
 
-	reqVerValue := rtkMisc.GetVersionValue(extData.ClientVersion)
-	curMaxVersion, errCode := rtkdbManager.QueryMaxVersion()
-	if errCode != rtkMisc.SUCCESS {
-		initClientRsp.Response = rtkMisc.GetResponse(errCode)
-		return 0, initClientRsp
-	}
+	if VERSION_CONTROL {
+		if !rtkMisc.CheckFullVersionVaild(extData.ClientVersion) {
+			initClientRsp.Response = rtkMisc.GetResponse(rtkMisc.ERR_BIZ_VERSION_INVALID)
+			log.Printf("clientID:[%s] get invalid version:[%s]", extData.ClientID, extData.ClientVersion)
+			return 0, initClientRsp
+		}
 
-	if curMaxVersion == "" {
-		log.Printf("[%s] get online clients list max version is null, client base version:%s and req client version:%s", rtkMisc.GetFuncInfo(), rtkGlobal.ClientBaseVersion, extData.ClientVersion)
-		curMaxVersion = rtkGlobal.ClientBaseVersion
-	} else {
-		log.Printf("[%s] online clients list get max version:%s, and req client version:%s", rtkMisc.GetFuncInfo(), rtkMisc.GetShortVersion(curMaxVersion), extData.ClientVersion)
-	}
+		reqVerValue := rtkMisc.GetVersionValue(extData.ClientVersion)
+		curMaxVersion, errCode := rtkdbManager.QueryMaxVersion()
+		if errCode != rtkMisc.SUCCESS {
+			initClientRsp.Response = rtkMisc.GetResponse(errCode)
+			return 0, initClientRsp
+		}
 
-	curVerValue := rtkMisc.GetVersionValue(curMaxVersion)
-	if curVerValue > reqVerValue { // client need to update version
-		initClientRsp.ClientVersion = rtkMisc.GetShortVersion(curMaxVersion)
-		return 0, initClientRsp
-	} else if curVerValue < reqVerValue { // other client list need update version
-		log.Printf("[%s] clientID:[%s] Version:[%s] is newer than current:[%s], notify other client list to update!", rtkMisc.GetFuncInfo(), extData.ClientID, extData.ClientVersion, curMaxVersion)
-		buildNotifyClientVersion(extData.ClientID, rtkMisc.GetShortVersion(extData.ClientVersion))
+		if curMaxVersion == "" {
+			log.Printf("[%s] get online clients list max version is null, client base version:%s and req client version:%s", rtkMisc.GetFuncInfo(), rtkGlobal.ClientBaseVersion, extData.ClientVersion)
+			curMaxVersion = rtkGlobal.ClientBaseVersion
+		} else {
+			log.Printf("[%s] online clients list get max version:%s, and req client version:%s", rtkMisc.GetFuncInfo(), rtkMisc.GetShortVersion(curMaxVersion), extData.ClientVersion)
+		}
+
+		curVerValue := rtkMisc.GetVersionValue(curMaxVersion)
+		if curVerValue > reqVerValue { // client need to update version
+			initClientRsp.ClientVersion = rtkMisc.GetShortVersion(curMaxVersion)
+			return 0, initClientRsp
+		} else if curVerValue < reqVerValue { // other client list need update version
+			log.Printf("[%s] clientID:[%s] Version:[%s] is newer than current:[%s], notify other client list to update!", rtkMisc.GetFuncInfo(), extData.ClientID, extData.ClientVersion, curMaxVersion)
+			buildNotifyClientVersion(extData.ClientID, rtkMisc.GetShortVersion(extData.ClientVersion))
+		}
 	}
 
 	pkIndex, errCode := rtkdbManager.UpsertClientInfo(extData.ClientID, extData.HOST, extData.IPAddr, extData.DeviceName, extData.Platform, extData.ClientVersion)
