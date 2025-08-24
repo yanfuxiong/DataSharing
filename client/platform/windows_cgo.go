@@ -1,4 +1,4 @@
-//go:build windows
+//go:build ignore
 
 package platform
 
@@ -930,10 +930,6 @@ func GoSetupDstPasteText(content []byte) {
 	clipboard.Write(clipboard.FmtText, content)
 }
 
-func ReceiveFileConfirm(fileSize int64) {
-	log.Println("ReceiveFileConfirm:", fileSize)
-}
-
 func ReceiveImageCopyDataDone(fileSize int64, imgHeader rtkCommon.ImgHeader) {
 }
 
@@ -1041,7 +1037,7 @@ func GoGetDeviceName() string {
 	return wcharToString(C.GetDeviceName())
 }
 
-func GoGetDownloadPath() string {
+func getDownloadPathInternal() string {
 	path := C.GetDownloadPath()
 	if path == nil {
 		log.Fatalf("[%s] C.GetDownloadPath :[%s] invalid!", rtkMisc.GetFuncInfo(), path)
@@ -1049,10 +1045,10 @@ func GoGetDownloadPath() string {
 	defer C.CoTaskMemFree(unsafe.Pointer(path))
 	downLoadPath := wcharToString(path)
 	if !rtkMisc.FolderExists(downLoadPath) {
-		log.Fatalf("[%s] GoGetDownloadPath :[%s] invalid!", rtkMisc.GetFuncInfo(), downLoadPath)
+		log.Fatalf("[%s] getDownloadPath :[%s] invalid!", rtkMisc.GetFuncInfo(), downLoadPath)
 	}
 
-	log.Printf(" GoGetDownloadPath:[%s] success!", downLoadPath)
+	log.Printf(" getDownloadPath:[%s] success!", downLoadPath)
 	return downLoadPath
 }
 

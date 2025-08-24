@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/libp2p/go-yamux/v5"
 	"io"
 	"log"
 	"net"
@@ -20,6 +19,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/libp2p/go-yamux/v5"
 )
 
 var (
@@ -27,8 +28,8 @@ var (
 )
 
 type fileTransferInfo struct {
-	caneclFn       func()
-	isCaneclByPeer bool // true: cancel by peer and not need send interrupt message to peer
+	cancelFn       func()
+	isCancelByPeer bool // true: cancel by peer and not need send interrupt message to peer
 }
 
 type cancelableReader struct {
@@ -151,35 +152,35 @@ func DeleteFile(filePath string) error {
 
 func SetFileTransferInfo(id string, fn func()) {
 	fileTransferInfoMap.Store(id, fileTransferInfo{
-		caneclFn:       fn,
-		isCaneclByPeer: false,
+		cancelFn:       fn,
+		isCancelByPeer: false,
 	})
 }
 
 func CancelSrcFileTransfer(id string) {
 	if value, ok := fileTransferInfoMap.Load(id); ok {
 		fileInfo := value.(fileTransferInfo)
-		fileInfo.isCaneclByPeer = true
+		fileInfo.isCancelByPeer = true
 		fileTransferInfoMap.Store(id, fileInfo)
 		log.Printf("[%s] (SRC) ID:[%s] Cancel FileTransfer success!", rtkMisc.GetFuncInfo(), id)
-		fileInfo.caneclFn()
+		fileInfo.cancelFn()
 	}
 }
 
 func CancelDstFileTransfer(id string) {
 	if value, ok := fileTransferInfoMap.Load(id); ok {
 		fileInfo := value.(fileTransferInfo)
-		fileInfo.isCaneclByPeer = true
+		fileInfo.isCancelByPeer = true
 		fileTransferInfoMap.Store(id, fileInfo)
 		log.Printf("[%s] (DST) ID:[%s] Cancel FileTransfer success!", rtkMisc.GetFuncInfo(), id)
-		fileInfo.caneclFn()
+		fileInfo.cancelFn()
 	}
 }
 
 func IsInterruptByPeer(id string) bool {
 	if value, ok := fileTransferInfoMap.Load(id); ok {
 		fileInfo := value.(fileTransferInfo)
-		return fileInfo.isCaneclByPeer
+		return fileInfo.isCancelByPeer
 	}
 	return false
 }

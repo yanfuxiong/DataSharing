@@ -92,7 +92,7 @@ type (
 	CallbackDIASSourceAndPortFunc          func(uint8, uint8)
 	CallbackMethodStartBrowseMdns          func(string, string)
 	CallbackMethodStopBrowseMdns           func()
-	CallbackMethodBrowseMdnsResultFunc     func(string, string, int)
+	CallbackMethodBrowseMdnsResultFunc     func(string, string, int, string, string, string, string)
 	CallbackDetectPluginEventFunc          func(isPlugin bool, productName string)
 	CallbackDIASStatusFunc                 func(uint32)
 	CallbackMonitorNameFunc                func(string)

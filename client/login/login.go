@@ -607,12 +607,12 @@ func browseLanServerAndroid(ctx context.Context, serviceType, domain string, res
 				if lanServerRunning.Load() {
 					rtkPlatform.GoNotifyBrowseResult(textRecordmName, entry.Instance, lanServerIp, textRecordKeyVersion, int64(stamp))
 				}
-				rtkPlatform.GoNotifyBrowseResult("testMonitorName", "test-Instance", "10.24.136.104:8080", "2.12.14", 0)
+				/*rtkPlatform.GoNotifyBrowseResult("testMonitorName", "test-Instance", "10.24.136.104:8080", "2.12.14", 0)
 				serverInstanceMap.Store("test-Instance", browseParam{
 					instance:    "test-Instance",
 					ip:          "10.24.136.104:8080",
 					monitorName: "testMonitorName",
-				})
+				})*/
 
 				resultChan <- browseParam{entry.Instance, lanServerIp, textRecordmName, textRecordKeyVersion, int64(stamp)}
 			}

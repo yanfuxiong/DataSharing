@@ -3,7 +3,6 @@
 package platform
 
 import (
-	"atomic"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -21,7 +20,6 @@ import (
 )
 
 var (
-	isConnecting             atomic.Bool
 	imageData                bytes.Buffer
 	copyTextChan             = make(chan string, 100)
 	isNetWorkConnected       bool // Deprecated: unused
@@ -45,7 +43,6 @@ func initFilePath() {
 	lockFile = "singleton.lock"
 	crashLogFile = "crash.log"
 	downloadPath = ""
-	isConnecting.Store(false)
 }
 
 func GetRootPath() string {
@@ -383,14 +380,7 @@ func SetConfirmDocumentsAccept(ifConfirm bool) {
 	ifConfirmDocumentsAccept = ifConfirm
 }
 
-func IsConnecting() bool {
-	return isConnecting.Load()
-}
-
 func GoConnectLanServer(instance string) {
-	isConnecting.Store(true)
-	defer isConnecting.Store(false)
-
 	if callbackConnectLanServer == nil {
 		log.Println("callbackConnectLanServer is null!")
 		return
