@@ -110,6 +110,7 @@ const (
 	ERR_BIZ_C2S_UNKNOWN_MSG_TYPE
 	ERR_BIZ_C2S_READ_EMPTY_DATA
 	ERR_BIZ_C2S_GET_EMPTY_CONNECT
+	ERR_BIZ_C2S_EXT_DATA_EMPTY
 )
 
 // lan server to client business error code

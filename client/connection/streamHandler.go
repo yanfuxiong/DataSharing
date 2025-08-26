@@ -156,8 +156,10 @@ func updateFmtTypeStreamInternal(stream network.Stream, fmtType rtkCommon.TransF
 	if sInfo, ok := streamPoolMap[id]; ok {
 		if fmtType == rtkCommon.IMAGE_CB {
 			if sInfo.sImage != nil {
-				log.Printf("[%s] ID:[%s] IP:[%s]  found old image stream is alive, not close it !", rtkMisc.GetFuncInfo(), id, sInfo.ipAddr)
-				//sInfo.sImage.Close()
+				log.Printf("[%s] ID:[%s] IP:[%s]  found old image stream is alive, stop it !", rtkMisc.GetFuncInfo(), id, sInfo.ipAddr)
+				if isDst {
+					sInfo.sImage.Reset() // cover the last image
+				}
 			}
 			sInfo.sImage = stream
 		} else if fmtType == rtkCommon.FILE_DROP {
@@ -215,10 +217,10 @@ func GetFileTransErrCode(id string) rtkCommon.SendFilesRequestErrCode {
 	defer streamPoolMutex.RUnlock()
 	if sInfo, ok := streamPoolMap[id]; ok {
 		if sInfo.transFileState == TRANS_FILE_IN_PROGRESS_SRC {
-			log.Printf("[%s] ID:[%s] Currently sending documents to this users", rtkMisc.GetFuncInfo(), id)
+			log.Printf("[%s] ID:[%s] Currently sending documents to this user", rtkMisc.GetFuncInfo(), id)
 			return rtkCommon.SendFilesRequestInProgressBySrc
 		} else if sInfo.transFileState == TRANS_FILE_IN_PROGRESS_DST {
-			log.Printf("[%s] ID:[%s] Currently receiving documents from this users", rtkMisc.GetFuncInfo(), id)
+			log.Printf("[%s] ID:[%s] Currently receiving documents from this user", rtkMisc.GetFuncInfo(), id)
 			return rtkCommon.SendFilesRequestInProgressByDst
 		}
 	}

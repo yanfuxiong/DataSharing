@@ -49,9 +49,10 @@ func ConnectionInit(ctx context.Context) {
 	log.Printf("[%s] listen host[%s] port[%d] connection start init", rtkMisc.GetFuncInfo(), rtkGlobal.ListenHost, rtkGlobal.ListenPort)
 
 	if setupNode(rtkGlobal.ListenHost, rtkGlobal.ListenPort) != nil {
-		ticker := time.NewTicker(3 * time.Second)
+		ticker := time.NewTicker(1 * time.Second)
 		defer ticker.Stop()
-		for {
+		retryCnt := 0
+		for retryCnt < 5 {
 			select {
 			case <-ctx.Done():
 				return
@@ -60,6 +61,7 @@ func ConnectionInit(ctx context.Context) {
 					goto setNodeSuccessFlag
 				}
 			}
+			retryCnt++
 		}
 	}
 
@@ -174,12 +176,6 @@ func setupNode(ip string, port int) error {
 		return rtkUtils.ExtractTCPIPandPort(addrs[0])
 	}
 	publicIp, publicPort := filterAddr(tempNode.Addrs())
-	deviceName := rtkPlatform.GoGetDeviceName()
-	if deviceName == "" {
-		rtkGlobal.NodeInfo.DeviceName = publicIp
-	} else {
-		rtkGlobal.NodeInfo.DeviceName = deviceName
-	}
 	rtkGlobal.NodeInfo.IPAddr.PublicIP = publicIp
 	rtkGlobal.NodeInfo.IPAddr.PublicPort = publicPort
 

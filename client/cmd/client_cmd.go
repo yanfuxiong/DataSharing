@@ -22,7 +22,7 @@ import (
 
 var (
 	cablePlugInFlagChan      = make(chan struct{}, 1)
-	cablePlugOutFlagChan     = make(chan struct{})
+	cablePlugOutFlagChan     = make(chan struct{}, 1)
 	networkSwitchFlagChan    = make(chan struct{})
 	clientVerInvalidFlagChan = make(chan struct{})
 	getLanServerMacTimeStamp int64
@@ -210,6 +210,8 @@ func businessProcess(ctx context.Context) {
 			if cancelBusinessFunc != nil {
 				log.Printf("******** Client Network is Switch, cancel old business! ******** ")
 				cancelBusinessFunc(rtkCommon.SourceNetworkSwitch)
+				time.Sleep(100 * time.Millisecond) // wait for print cancel log
+				rtkLogin.BrowseInstance()
 				time.Sleep(5 * time.Second)
 				log.Println("===========================================================================\n\n")
 				log.Printf("[%s] business is restart!", rtkMisc.GetFuncInfo())
@@ -217,6 +219,7 @@ func businessProcess(ctx context.Context) {
 				sonCtx, cancelBusinessFunc = rtkUtils.WithCancelSource(ctx)
 				businessStart(sonCtx)
 			} else {
+				rtkLogin.BrowseInstance()
 				log.Printf("******** Client Network is Switch, business is not start! ******** ")
 				log.Println("===========================================================================\n\n")
 			}

@@ -55,10 +55,11 @@ func init() {
 		log.Printf("[%s][mobile] Browse LanServer monitor triggered!", rtkMisc.GetFuncInfo())
 		lanServerInstance = ""
 		lanServerAddr = ""
-		serverInstanceMap.Clear()
 		stopLanServerBusiness()
 		BrowseInstance()
 	})
+
+	rtkPlatform.SetGoSetMsgEventCallback(sendPlatformMsgEventToLanServer)
 }
 
 func computerInitLanServer(ctx context.Context) {
@@ -71,7 +72,7 @@ func computerInitLanServer(ctx context.Context) {
 			break
 		}
 
-		if retryCnt < g_retryServerMaxCnt {
+		if retryCnt <= g_retryServerMaxCnt {
 			retryCnt++
 		}
 		if retryCnt == g_retryServerMaxCnt {
@@ -79,6 +80,7 @@ func computerInitLanServer(ctx context.Context) {
 			log.Printf("initLanServer %d times failed, errCode:%d ! try to lookup Service over again ...", retryCnt, errCode)
 			lanServerAddr = ""
 			serverInstanceMap.Delete(lanServerInstance)
+			NotifyDIASStatus(DIAS_Status_Connected_DiasService_Failed)
 		}
 
 		select {
@@ -90,6 +92,11 @@ func computerInitLanServer(ctx context.Context) {
 }
 
 func mobileInitLanServer(instance string) {
+	if !lanServerRunning.Load() {
+		log.Printf("[%s] ConnectLanServerRun is not running!", rtkMisc.GetFuncInfo())
+		return
+	}
+
 	log.Printf("[%s][mobile] connect LanServer, Instance:%s", rtkMisc.GetFuncInfo(), instance)
 
 	mapValue, ok := serverInstanceMap.Load(instance)
@@ -254,6 +261,7 @@ func heartBeatFunc() {
 }
 
 func BrowseInstance() rtkMisc.CrossShareErr {
+	serverInstanceMap.Clear()
 	if cancelBrowse != nil {
 		cancelBrowse()
 		cancelBrowse = nil
@@ -351,7 +359,7 @@ func connectToLanServer(bPrintErr bool) rtkMisc.CrossShareErr {
 			if bPrintErr {
 				log.Printf("connecting to lanServerAddr[%s] Error:%+v ", lanServerAddr, err.Error())
 			}
-			NotifyDIASStatus(DIAS_Status_Connected_DiasService_Failed)
+
 			if netErr, ok := err.(net.Error); ok {
 				if netErr.Timeout() {
 					return rtkMisc.ERR_NETWORK_C2S_DIAL_TIMEOUT
@@ -423,7 +431,7 @@ func ReConnectLanServer() {
 			break
 		}
 
-		if retryCnt < g_retryServerMaxCnt {
+		if retryCnt <= g_retryServerMaxCnt {
 			retryCnt++
 		}
 		if retryCnt == g_retryServerMaxCnt {
@@ -711,6 +719,7 @@ func lookupLanServer(ctx context.Context, instance, serviceType, domain string, 
 				log.Printf("[%s] WARNING: invalid[%s]:%d. err:%s", rtkMisc.GetFuncInfo(), rtkMisc.TextRecordKeyTimestamp, stamp, err)
 			}
 			param := browseParam{entry.Instance, lanServerIp, textRecordmonitorName, textRecordKeyVersion, int64(stamp)}
+			g_monitorName = textRecordmonitorName
 			serverInstanceMap.Store(param.instance, param)
 			return lanServerIp, rtkMisc.SUCCESS
 		} else {

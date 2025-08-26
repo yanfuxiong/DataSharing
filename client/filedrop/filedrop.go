@@ -14,7 +14,6 @@ import (
 type FileDropData struct {
 	// Req data
 	SrcFileList   []rtkCommon.FileInfo
-	FileType      rtkCommon.FileType
 	ActionType    rtkCommon.FileActionType
 	TimeStamp     uint64
 	FolderList    []string // must start with folder name and end with '/'.  eg: folderName/aaa/bbb/
@@ -26,9 +25,9 @@ type FileDropData struct {
 	Cmd         rtkCommon.FileDropCmd
 }
 
-type caneclInfo struct {
-	caneclFn      func()
-	isCaneclByGui bool
+type cancelInfo struct {
+	cancelFn      func()
+	isCancelByGui bool
 }
 
 var (
@@ -37,7 +36,7 @@ var (
 	fileDropReqIdChan  = make(chan string, 10)
 	fileDropRespIdChan = make(chan string, 10)
 
-	caneclFileTransMap sync.Map //key: ID
+	cancelFileTransMap sync.Map //key: ID
 
 	dragFileInfoList  []rtkCommon.FileInfo
 	dragFolderList    []string
@@ -46,13 +45,12 @@ var (
 	dragTotalDesc     string
 )
 
-func UpdateFileListDrop(id string, fileInfoList []rtkCommon.FileInfo, folderList []string, total, timeStamp uint64, totalDesc string) {
+func updateFileListDrop(id string, fileInfoList []rtkCommon.FileInfo, folderList []string, total, timeStamp uint64, totalDesc string) {
 	fileDropDataMutex.Lock()
 	defer fileDropDataMutex.Unlock()
 
 	fileDropDataMap[id] = FileDropData{
 		SrcFileList:   append([]rtkCommon.FileInfo(nil), fileInfoList...),
-		FileType:      rtkCommon.P2PFile_Type_Multiple,
 		ActionType:    rtkCommon.P2PFileActionType_Drop,
 		TimeStamp:     timeStamp,
 		FolderList:    append([]string(nil), folderList...),
@@ -66,7 +64,7 @@ func UpdateFileListDrop(id string, fileInfoList []rtkCommon.FileInfo, folderList
 }
 
 func UpdateFileListDropReqDataFromLocal(id string, fileInfoList []rtkCommon.FileInfo, folderList []string, total, timeStamp uint64, totalDesc string) {
-	UpdateFileListDrop(id, fileInfoList, folderList, total, timeStamp, totalDesc)
+	updateFileListDrop(id, fileInfoList, folderList, total, timeStamp, totalDesc)
 
 	nCount := rtkUtils.GetClientCount()
 	for i := 0; i < nCount; i++ {
@@ -75,39 +73,7 @@ func UpdateFileListDropReqDataFromLocal(id string, fileInfoList []rtkCommon.File
 }
 
 func UpdateFileListDropReqDataFromDst(id string, fileInfoList []rtkCommon.FileInfo, folderList []string, total, timeStamp uint64, totalDesc string) {
-	UpdateFileListDrop(id, fileInfoList, folderList, total, timeStamp, totalDesc)
-}
-
-func UpdateFileDropReqDataFromLocal(id string, fileInfo rtkCommon.FileInfo, timestamp uint64) {
-	updateFileDropReqData(id, fileInfo, timestamp)
-
-	nCount := rtkUtils.GetClientCount()
-	for i := 0; i < nCount; i++ {
-		fileDropReqIdChan <- id
-	}
-}
-
-func UpdateFileDropReqDataFromDst(id string, fileInfo rtkCommon.FileInfo, timestamp uint64) {
-	updateFileDropReqData(id, fileInfo, timestamp)
-}
-
-func updateFileDropReqData(id string, fileInfo rtkCommon.FileInfo, timestamp uint64) {
-	fileSize := uint64(fileInfo.FileSize_.SizeHigh)<<32 | uint64(fileInfo.FileSize_.SizeLow)
-
-	fileDropDataMutex.Lock()
-	fileDropDataMap[id] = FileDropData{
-		SrcFileList:   []rtkCommon.FileInfo{fileInfo},
-		FileType:      rtkCommon.P2PFile_Type_Single,
-		ActionType:    rtkCommon.P2PFileActionType_Drop,
-		TimeStamp:     timestamp,
-		FolderList:    nil,
-		TotalDescribe: rtkMisc.FileSizeDesc(fileSize),
-		TotalSize:     fileSize,
-
-		DstFilePath: "",
-		Cmd:         rtkCommon.FILE_DROP_REQUEST,
-	}
-	fileDropDataMutex.Unlock()
+	updateFileListDrop(id, fileInfoList, folderList, total, timeStamp, totalDesc)
 }
 
 func UpdateFileDropRespDataFromLocal(id string, cmd rtkCommon.FileDropCmd, filePath string) {
@@ -167,7 +133,7 @@ func ResetFileDropData(id string) {
 	delete(fileDropDataMap, id)
 	fileDropDataMutex.Unlock()
 
-	caneclFileTransMap.Delete(id)
+	cancelFileTransMap.Delete(id)
 	dragFileInfoList = nil
 	dragFolderList = nil
 	dragFileTimeStamp = 0
@@ -176,14 +142,13 @@ func ResetFileDropData(id string) {
 }
 
 func init() {
-	caneclFileTransMap.Clear()
+	cancelFileTransMap.Clear()
 	dragFileInfoList = nil
 	dragFolderList = nil
 	dragFileTimeStamp = 0
 	dragTotalSize = 0
 	dragTotalDesc = ""
 
-	rtkPlatform.SetGoFileDropRequestCallback(UpdateFileDropReqDataFromLocal)
 	rtkPlatform.SetGoFileDropResponseCallback(UpdateFileDropRespDataFromLocal) //pop-up confirmation
 	rtkPlatform.SetGoFileListDropRequestCallback(UpdateFileListDropReqDataFromLocal)
 
@@ -191,7 +156,7 @@ func init() {
 }
 
 func CancelFileTransfer(id, ip string, timestamp uint64) {
-	if value, ok := caneclFileTransMap.Load(id); ok {
+	if value, ok := cancelFileTransMap.Load(id); ok {
 		currentFileData, exist := GetFileDropData(id)
 		if !exist {
 			log.Printf("[%s] ID:[%s],IPAddr:[%s], Not fount file data", rtkMisc.GetFuncInfo(), id, ip)
@@ -201,29 +166,29 @@ func CancelFileTransfer(id, ip string, timestamp uint64) {
 			log.Printf("[%s] ID:[%s],IPAddr:[%s], timestamp:[%d] invalid! ", rtkMisc.GetFuncInfo(), id, ip, timestamp)
 			return
 		}
-		caneclData := value.(caneclInfo)
-		if !caneclData.isCaneclByGui {
-			caneclData.caneclFn()
-			caneclData.caneclFn = nil
-			caneclData.isCaneclByGui = true
-			caneclFileTransMap.Store(id, caneclData)
+		cancelData := value.(cancelInfo)
+		if !cancelData.isCancelByGui {
+			cancelData.cancelFn()
+			cancelData.cancelFn = nil
+			cancelData.isCancelByGui = true
+			cancelFileTransMap.Store(id, cancelData)
 			log.Printf("ID:[%s],IPAddr:[%s] CancelFileTransfer success by platform GUI!", id, ip)
 		}
 	} else {
-		log.Printf("[%s] ID:[%s],IPAddr:[%s] get no caneclFileTransMap data!", rtkMisc.GetFuncInfo(), id, ip)
+		log.Printf("[%s] ID:[%s],IPAddr:[%s] get no cancelFileTransMap data!", rtkMisc.GetFuncInfo(), id, ip)
 	}
 }
 
 func SetCancelFileTransferFunc(id string, fn func()) {
-	caneclFileTransMap.Store(id, caneclInfo{
-		caneclFn:      fn,
-		isCaneclByGui: false,
+	cancelFileTransMap.Store(id, cancelInfo{
+		cancelFn:      fn,
+		isCancelByGui: false,
 	})
 }
 
 func IsCancelFileTransferByGui(id string) bool {
-	if value, ok := caneclFileTransMap.Load(id); ok {
-		return value.(caneclInfo).isCaneclByGui
+	if value, ok := cancelFileTransMap.Load(id); ok {
+		return value.(cancelInfo).isCancelByGui
 	}
 	return false
 }
@@ -257,12 +222,6 @@ func WatchFileDropRespEvent(ctx context.Context, id string, resultChan chan<- st
 }
 
 // ********************  Setup Dst file info ****************
-
-func SetupDstFileDrop(id, ip, platform string, fileInfo rtkCommon.FileInfo, timestamp uint64) {
-	UpdateFileDropReqDataFromDst(id, fileInfo, timestamp)
-	fileSize := uint64(fileInfo.FileSize_.SizeHigh)<<32 | uint64(fileInfo.FileSize_.SizeLow)
-	rtkPlatform.GoSetupFileDrop(ip, id, filepath.Base(fileInfo.FilePath), platform, fileSize, timestamp)
-}
 
 func SetupDstFileListDrop(id, ip, platform, totalDesc string, fileList []rtkCommon.FileInfo, folderList []string, totalSize, timestamp uint64) {
 	UpdateFileListDropReqDataFromDst(id, fileList, folderList, totalSize, timestamp, totalDesc)

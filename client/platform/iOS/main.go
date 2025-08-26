@@ -1,4 +1,5 @@
 //go:build ios
+// +build ios
 
 package main
 
@@ -11,9 +12,7 @@ typedef void (*CallbackMethodImage)(char* content);
 typedef void (*EventCallback)(int event);
 typedef void (*CallbackMethodFileConfirm)(char* id, char* platform, char* fileName, long long fileSize);
 typedef void (*CallbackMethodFoundPeer)();
-typedef void (*CallbackMethodFileNotify)(char* ip, char* id, char* platform, char* fileName, unsigned long long fileSize,unsigned long long timestamp);
 typedef void (*CallbackMethodFileListNotify)(char* ip, char* id, char* platform,unsigned int fileCnt, unsigned long long totalSize,unsigned long long timestamp, char* firstFileName, unsigned long long firstFileSize);
-typedef void (*CallbackUpdateProgressBar)(char* id, char* fileName,unsigned long long recvSize,unsigned long long total,unsigned long long timestamp);
 typedef void (*CallbackUpdateMultipleProgressBar)(char* ip,char* id, char* deviceName, char* currentfileName,unsigned int recvFileCnt, unsigned int totalFileCnt,unsigned long long currentFileSize,unsigned long long totalSize,unsigned long long recvSize,unsigned long long timestamp);
 typedef void (*CallbackFileError)(char* id, char* fileName, char* err);
 typedef void (*CallbackMethodStartBrowseMdns)(char* instance, char* serviceType);
@@ -30,9 +29,7 @@ static CallbackMethodImage gCallbackMethodImage = 0;
 static EventCallback gEventCallback = 0;
 static CallbackMethodFileConfirm gCallbackMethodFileConfirm = 0;
 static CallbackMethodFoundPeer gCallbackMethodFoundPeer = 0;
-static CallbackMethodFileNotify gCallbackMethodFileNotify = 0;
 static CallbackMethodFileListNotify gCallbackMethodFileListNotify = 0;
-static CallbackUpdateProgressBar gCallbackUpdateProgressBar = 0;
 static CallbackUpdateMultipleProgressBar gCallbackUpdateMultipleProgressBar = 0;
 static CallbackFileError gCallbackFileError = 0;
 static CallbackMethodStartBrowseMdns gCallbackMethodStartBrowseMdns = 0;
@@ -64,17 +61,9 @@ static void setCallbackMethodFoundPeer(CallbackMethodFoundPeer cb) {gCallbackMet
 static void invokeCallbackMethodFoundPeer() {
 	if (gCallbackMethodFoundPeer) {gCallbackMethodFoundPeer();}
 }
-static void setCallbackMethodFileNotify(CallbackMethodFileNotify cb) {gCallbackMethodFileNotify = cb;}
-static void invokeCallbackMethodFileNotify(char* ip, char* id, char* platform, char* fileName, unsigned long long fileSize,unsigned long long timestamp) {
-	if (gCallbackMethodFileNotify) {gCallbackMethodFileNotify(ip, id, platform, fileName, fileSize, timestamp);}
-}
 static void setCallbackMethodFileListNotify(CallbackMethodFileListNotify cb) {gCallbackMethodFileListNotify = cb;}
 static void invokeCallbackMethodFileListNotify(char* ip, char* id, char* platform,unsigned int fileCnt, unsigned long long totalSize,unsigned long long timestamp, char* firstFileName, unsigned long long firstFileSize) {
 	if (gCallbackMethodFileListNotify) {gCallbackMethodFileListNotify(ip, id, platform, fileCnt, totalSize, timestamp, firstFileName, firstFileSize);}
-}
-static void setCallbackUpdateProgressBar(CallbackUpdateProgressBar cb) {gCallbackUpdateProgressBar = cb;}
-static void invokeCallbackUpdateProgressBar(char* id, char* fileName,unsigned long long recvSize,unsigned long long total,unsigned long long timestamp) {
-	if (gCallbackUpdateProgressBar) {gCallbackUpdateProgressBar(id, fileName, recvSize, total,timestamp);}
 }
 static void setCallbackUpdateMultipleProgressBar(CallbackUpdateMultipleProgressBar cb) {gCallbackUpdateMultipleProgressBar = cb;}
 static void invokeCallbackUpdateMultipleProgressBar(char* ip,char* id, char* deviceName, char* currentfileName,unsigned int recvFileCnt, unsigned int totalFileCnt,unsigned long long currentFileSize,unsigned long long totalSize,unsigned long long recvSize,unsigned long long timestamp) {
@@ -122,7 +111,6 @@ import "C"
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"path/filepath"
 	rtkBuildConfig "rtk-cross-share/client/buildConfig"
@@ -145,10 +133,8 @@ func init() {
 	rtkPlatform.SetCallbackMethodImage(GoTriggerCallbackMethodImage)
 	rtkPlatform.SetEventCallback(GoTriggerEventCallback)
 	rtkPlatform.SetCallbackMethodFileConfirm(GoTriggerCallbackMethodFileConfirm)
-	rtkPlatform.SetCallbackFileNotify(GoTriggerCallbackMethodFileNotify)
 	rtkPlatform.SetCallbackFileListNotify(GoTriggerCallbackMethodFileListNotify)
 	rtkPlatform.SetCallbackMethodFoundPeer(GoTriggerCallbackMethodFoundPeer)
-	rtkPlatform.SetCallbackUpdateProgressBar(GoTriggerCallbackUpdateProgressBar)
 	rtkPlatform.SetCallbackUpdateMultipleProgressBar(GoTriggerCallbackUpdateMultipleProgressBar)
 	rtkPlatform.SetCallbackFileError(GoTriggerCallbackFileError)
 	rtkPlatform.SetCallbackMethodStartBrowseMdns(GoTriggerCallbackMethodStartBrowseMdns)
@@ -203,20 +189,6 @@ func GoTriggerCallbackMethodFoundPeer() {
 	C.invokeCallbackMethodFoundPeer()
 }
 
-func GoTriggerCallbackMethodFileNotify(ip, id, platform, fileName string, fileSize uint64, timestamp uint64) {
-	cip := C.CString(ip)
-	cid := C.CString(id)
-	cplatform := C.CString(platform)
-	cfilename := C.CString(fileName)
-	cfileSize := C.ulonglong(fileSize)
-	ctimestamp := C.ulonglong(timestamp)
-	defer C.free(unsafe.Pointer(cip))
-	defer C.free(unsafe.Pointer(cid))
-	defer C.free(unsafe.Pointer(cplatform))
-	defer C.free(unsafe.Pointer(cfilename))
-	C.invokeCallbackMethodFileNotify(cip, cid, cplatform, cfilename, cfileSize, ctimestamp)
-}
-
 func GoTriggerCallbackMethodFileListNotify(ip, id, platform string, fileCnt uint32, totalSize uint64, timestamp uint64, firstFileName string, firstFileSize uint64) {
 	cip := C.CString(ip)
 	cid := C.CString(id)
@@ -235,17 +207,6 @@ func GoTriggerCallbackMethodFileListNotify(ip, id, platform string, fileCnt uint
 	ctimeStamp := C.ulonglong(timestamp)
 	cfirstFileSize := C.ulonglong(firstFileSize)
 	C.invokeCallbackMethodFileListNotify(cip, cid, cplatform, cFileCnt, ctotalSize, ctimeStamp, cfirstFileName, cfirstFileSize)
-}
-
-func GoTriggerCallbackUpdateProgressBar(id, filename string, recvSize, total, timestamp uint64) {
-	cid := C.CString(id)
-	cfilename := C.CString(filename)
-	crecvSize := C.ulonglong(recvSize)
-	ctotal := C.ulonglong(total)
-	ctimestamp := C.ulonglong(timestamp)
-	defer C.free(unsafe.Pointer(cid))
-	defer C.free(unsafe.Pointer(cfilename))
-	C.invokeCallbackUpdateProgressBar(cid, cfilename, crecvSize, ctotal, ctimestamp)
 }
 
 func GoTriggerCallbackUpdateMultipleProgressBar(ip, id, deviceName, currentFileName string, sentFileCnt, totalFileCnt uint32, currentFileSize, totalSize, sentSize, timestamp uint64) {
@@ -388,19 +349,9 @@ func SetCallbackMethodFoundPeer(cb C.CallbackMethodFoundPeer) {
 	C.setCallbackMethodFoundPeer(cb)
 }
 
-//export SetCallbackMethodFileNotify
-func SetCallbackMethodFileNotify(cb C.CallbackMethodFileNotify) {
-	C.setCallbackMethodFileNotify(cb)
-}
-
 //export SetCallbackMethodFileListNotify
 func SetCallbackMethodFileListNotify(cb C.CallbackMethodFileListNotify) {
 	C.setCallbackMethodFileListNotify(cb)
-}
-
-//export SetCallbackUpdateProgressBar
-func SetCallbackUpdateProgressBar(cb C.CallbackUpdateProgressBar) {
-	C.setCallbackUpdateProgressBar(cb)
 }
 
 //export SetCallbackUpdateMultipleProgressBar
@@ -461,13 +412,20 @@ func SetCallbackNotifyBrowseResult(cb C.CallbackNotifyBrowseResult) {
 
 //export MainInit
 func MainInit(deviceName, serverId, serverIpInfo, listenHost string, listenPort int) {
-	rtkPlatform.SetDeviceName(deviceName)
+	rtkGlobal.NodeInfo.DeviceName = deviceName
 	rootPath := rtkPlatform.GetRootPath()
 	if rootPath == "" || !rtkMisc.FolderExists(rootPath) {
 		log.Fatalf("[%s] RootPath :[%s] is invalid!", rtkMisc.GetFuncInfo(), rootPath)
 	}
 
+	log.Printf("[%s] device name:[%s] host:[%s] port:[%d]", rtkMisc.GetFuncInfo(), deviceName, listenHost, listenPort)
 	rtkCmd.MainInit(serverId, serverIpInfo, listenHost, listenPort)
+}
+
+//export SetMsgEventFunc
+func SetMsgEventFunc(event int, arg1, arg2, arg3, arg4 string) {
+	log.Printf("[%s] event:[%d], arg1:%s, arg2:%s, arg3:%s, arg4:%s\n", rtkMisc.GetFuncInfo(), event, arg1, arg2, arg3, arg4)
+	rtkPlatform.GoSetMsgEventFunc(uint32(event), arg1, arg2, arg3, arg4)
 }
 
 //export SendText
@@ -524,33 +482,6 @@ func SendAddrsFromPlatform(addrsList string) {
 func SendNetInterfaces(name, mac string, mtu, index int, flag uint) {
 	log.Printf("SendNetInterfaces [%s][%s][%d][%d][%d]", name, mac, mtu, index, flag)
 	rtkUtils.SetNetInterfaces(name, index)
-}
-
-//export SendFileDropRequest
-func SendFileDropRequest(filePath, id string, fileSize int64) {
-	if filePath == "" || len(filePath) == 0 || fileSize == 0 {
-		log.Printf("filePath:[%s] or fileSizeLow:[%d] is null", filePath, fileSize)
-		return
-	}
-	if !rtkMisc.FileExists(filePath) {
-		log.Printf("[%s] filePath:[%s] is not exists!", rtkMisc.GetFuncInfo(), filePath)
-		return
-	}
-
-	low := uint32(fileSize & 0xFFFFFFFF)
-	high := uint32(fileSize >> 32)
-
-	var fileInfo = rtkCommon.FileInfo{
-		FileSize_: rtkCommon.FileSize{
-			SizeHigh: high,
-			SizeLow:  low,
-		},
-		FilePath: filePath,
-		FileName: filepath.Base(filePath),
-	}
-
-	rtkPlatform.GoFileDropRequest(id, fileInfo, uint64(time.Now().UnixMilli()))
-	log.Printf("(SRC)Send file:[%s] to [%s], fileSize:%d", filePath, id, fileSize)
 }
 
 //export SendMultiFilesDropRequest

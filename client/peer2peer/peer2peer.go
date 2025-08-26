@@ -84,7 +84,6 @@ func HandleFileDropEvent(ctxMain context.Context, resultChan chan<- EventResult,
 						Data: rtkCommon.ExtDataFile{
 							SrcFileList:   rtkUtils.ClearSrcFileListFullPath(&data.SrcFileList),
 							ActionType:    data.ActionType,
-							FileType:      data.FileType,
 							TimeStamp:     data.TimeStamp,
 							FolderList:    data.FolderList,
 							TotalDescribe: data.TotalDescribe,
@@ -402,7 +401,6 @@ func buildMessage(msg *Peer2PeerMessage, id string, event EventResult) bool {
 				msg.ExtData = rtkCommon.ExtDataFile{
 					SrcFileList:   rtkUtils.ClearSrcFileListFullPath(&extData.SrcFileList),
 					ActionType:    extData.ActionType,
-					FileType:      extData.FileType,
 					TimeStamp:     extData.TimeStamp,
 					FolderList:    extData.FolderList,
 					TotalDescribe: extData.TotalDescribe,
@@ -679,7 +677,7 @@ func processFileDrop(id string, event EventResult) bool {
 		}
 	} else if nextState == STATE_TRANS && nextCommand == COMM_DST {
 		if extData, ok := event.Data.(rtkCommon.ExtDataFile); ok {
-			log.Printf("[%s] Ready to accept file,ActionType:[%s] FileType:[%s]", rtkMisc.GetFuncInfo(), extData.ActionType, extData.FileType)
+			log.Printf("[%s] Ready to accept file,ActionType:[%s]", rtkMisc.GetFuncInfo(), extData.ActionType)
 			// [Dst]: Setup file drop Data and DO NOT send msg
 
 			if len(extData.SrcFileList) == 0 && len(extData.FolderList) == 0 {
@@ -693,23 +691,9 @@ func processFileDrop(id string, event EventResult) bool {
 			}
 
 			if extData.ActionType == rtkCommon.P2PFileActionType_Drop {
-				if extData.FileType == rtkCommon.P2PFile_Type_Single {
-					rtkFileDrop.SetupDstFileDrop(id, clientInfo.IpAddr, clientInfo.Platform, extData.SrcFileList[0], extData.TimeStamp)
-				} else if extData.FileType == rtkCommon.P2PFile_Type_Multiple {
-					rtkFileDrop.SetupDstFileListDrop(id, clientInfo.IpAddr, clientInfo.Platform, extData.TotalDescribe, extData.SrcFileList, extData.FolderList, extData.TotalSize, extData.TimeStamp)
-				} else {
-					log.Printf("[%s] ID[%s] IP:[%s] get file unknown FileType:[%s] ", rtkMisc.GetFuncInfo(), id, clientInfo.IpAddr, extData.FileType)
-					return false
-				}
+				rtkFileDrop.SetupDstFileListDrop(id, clientInfo.IpAddr, clientInfo.Platform, extData.TotalDescribe, extData.SrcFileList, extData.FolderList, extData.TotalSize, extData.TimeStamp)
 			} else if extData.ActionType == rtkCommon.P2PFileActionType_Drag {
-				if extData.FileType == rtkCommon.P2PFile_Type_Single {
-					rtkFileDrop.SetupDstDragFile(id, clientInfo.IpAddr, clientInfo.Platform, extData.SrcFileList[0], extData.TotalSize, extData.TimeStamp)
-				} else if extData.FileType == rtkCommon.P2PFile_Type_Multiple {
-					rtkFileDrop.SetupDstDragFileList(id, clientInfo.IpAddr, clientInfo.Platform, extData.SrcFileList, extData.FolderList, extData.TotalSize, extData.TimeStamp, extData.TotalDescribe)
-				} else {
-					log.Printf("[%s] ID[%s] IP:[%s] get file unknown FileType:[%s] ", rtkMisc.GetFuncInfo(), id, clientInfo.IpAddr, extData.FileType)
-					return false
-				}
+				rtkFileDrop.SetupDstDragFileList(id, clientInfo.IpAddr, clientInfo.Platform, extData.SrcFileList, extData.FolderList, extData.TotalSize, extData.TimeStamp, extData.TotalDescribe)
 			} else {
 				log.Printf("[%s] ID[%s] IP:[%s] get file unknown ActionType:[%s] ", rtkMisc.GetFuncInfo(), id, clientInfo.IpAddr, extData.ActionType)
 				return false

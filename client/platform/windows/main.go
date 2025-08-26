@@ -100,15 +100,6 @@ static void CleanClipboardCallbackFunc(CleanClipboardCallback cb) {
     if (cb) cb();
 }
 
-typedef const wchar_t* (*GetDeviceNameCallback)();
-static const wchar_t* GetDeviceNameCallbackFunc(GetDeviceNameCallback cb) {
-    if (cb) {
-		return cb();
-	} else {
-		return NULL;
-	}
-}
-
 typedef void (*AuthViaIndexCallback)(uint32_t index);
 static void AuthViaIndexCallbackFunc(AuthViaIndexCallback cb, uint32_t index) {
     if (cb) cb(index);
@@ -122,15 +113,6 @@ static void DIASStatusCallbackFunc(DIASStatusCallback cb, uint32_t code) {
 typedef void (*RequestSourceAndPortCallback)();
 static void RequestSourceAndPortCallbackFunc(RequestSourceAndPortCallback cb) {
     if (cb) cb();
-}
-
-typedef const wchar_t* (*GetDownloadPathCallback)();
-static const wchar_t* GetDownloadPathCallbackFunc(GetDownloadPathCallback cb) {
-    if (cb) {
-		return cb();
-	} else {
-		return NULL;
-	}
 }
 
 typedef void (*SetupDstPasteImageCallback)(const wchar_t* desc, IMAGE_HEADER imgHeader, uint32_t dataSize);
@@ -241,11 +223,9 @@ var (
 	g_UpdateSystemInfoCallback           C.UpdateSystemInfoCallback           = nil
 	g_NotiMessageCallback                C.NotiMessageCallback                = nil
 	g_CleanClipboardCallback             C.CleanClipboardCallback             = nil
-	g_GetDeviceNameCallback              C.GetDeviceNameCallback              = nil
 	g_AuthViaIndexCallback               C.AuthViaIndexCallback               = nil
 	g_DIASStatusCallback                 C.DIASStatusCallback                 = nil
 	g_RequestSourceAndPortCallback       C.RequestSourceAndPortCallback       = nil
-	g_GetDownloadPathCallback            C.GetDownloadPathCallback            = nil
 	g_SetupDstPasteImageCallback         C.SetupDstPasteImageCallback         = nil
 	g_RequestUpdateClientVersionCallback C.RequestUpdateClientVersionCallback = nil
 	g_NotifyErrEventCallback             C.NotifyErrEventCallback             = nil
@@ -256,8 +236,6 @@ func main() {}
 func init() {
 	rtkPlatform.SetAuthViaIndexCallback(GoTriggerCallbackSetAuthViaIndex)
 	rtkPlatform.SetDIASStatusCallback(GoTriggerCallbackSetDIASStatus)
-	rtkPlatform.SetDeviceNameCallback(GoTriggerCallbackGetDeviceName)
-	rtkPlatform.SetDownloadPathCallback(GoTriggerCallbackGetDownloadPath)
 	rtkPlatform.SetRequestSourceAndPortCallback(GoTriggerCallbackRequestSourceAndPort)
 	rtkPlatform.SetUpdateSystemInfoCallback(GoTriggerCallbackUpdateSystemInfo)
 	rtkPlatform.SetUpdateClientStatusCallback(GoTriggerCallbackUpdateClientStatus)
@@ -293,27 +271,6 @@ func GoTriggerCallbackSetDIASStatus(status uint32) {
 	cStatus := C.uint32_t(status)
 	log.Printf("[%s] set DIASStatus:[%d]", rtkMisc.GetFuncInfo(), status)
 	C.DIASStatusCallbackFunc(g_DIASStatusCallback, cStatus)
-}
-
-func GoTriggerCallbackGetDeviceName() string {
-	if g_GetDeviceNameCallback == nil {
-		log.Printf("%s g_GetDeviceNameCallback is not set!", rtkMisc.GetFuncInfo())
-		return ""
-	}
-
-	deviceName := WCharToGoString(C.GetDeviceNameCallbackFunc(g_GetDeviceNameCallback))
-	log.Printf("[%s] get device name:[%s]", rtkMisc.GetFuncInfo(), deviceName)
-	return deviceName
-}
-
-func GoTriggerCallbackGetDownloadPath() string {
-	if g_GetDownloadPathCallback == nil {
-		log.Printf("%s g_GetDownloadPathCallback is not set!", rtkMisc.GetFuncInfo())
-		return ""
-	}
-	path := WCharToGoString(C.GetDownloadPathCallbackFunc(g_GetDownloadPathCallback))
-	log.Printf("[%s] get download path:[%s] success!", rtkMisc.GetFuncInfo(), path)
-	return path
 }
 
 func GoTriggerCallbackRequestSourceAndPort() {
@@ -752,6 +709,18 @@ func SetMultiFilesDropRequest(ipPort *C.char, clientID *C.char, timeStamp C.uint
 	return C.uint(rtkPlatform.GoMultiFilesDropRequest(id, &fileList, &folderList, totalSize, timestamp, totalDesc))
 }
 
+//export SetMsgEventFunc
+func SetMsgEventFunc(cEvent C.uint32_t, cArg1 *C.char, cArg2 *C.char, cArg3 *C.char, cArg4 *C.char) {
+	event := uint32(cEvent)
+	arg1 := C.GoString(cArg1)
+	arg2 := C.GoString(cArg2)
+	arg3 := C.GoString(cArg3)
+	arg4 := C.GoString(cArg4)
+
+	log.Printf("[%s] event:[%d], arg1:%s, arg2:%s, arg3:%s, arg4:%s\n", rtkMisc.GetFuncInfo(), event, arg1, arg2, arg3, arg4)
+	rtkPlatform.GoSetMsgEventFunc(event, arg1, arg2, arg3, arg4)
+}
+
 //export RequestUpdateDownloadPath
 func RequestUpdateDownloadPath(cDownloadPath *C.wchar_t) {
 	downloadPath := WCharToGoString(cDownloadPath)
@@ -854,12 +823,6 @@ func SetCleanClipboardCallback(callback C.CleanClipboardCallback) {
 	g_CleanClipboardCallback = callback
 }
 
-//export SetGetDeviceNameCallback
-func SetGetDeviceNameCallback(callback C.GetDeviceNameCallback) {
-	log.Println("SetGetDeviceNameCallback")
-	g_GetDeviceNameCallback = callback
-}
-
 //export SetAuthViaIndexCallback
 func SetAuthViaIndexCallback(callback C.AuthViaIndexCallback) {
 	log.Println("SetAuthViaIndexCallback")
@@ -876,12 +839,6 @@ func SetDIASStatusCallback(callback C.DIASStatusCallback) {
 func SetRequestSourceAndPortCallback(callback C.RequestSourceAndPortCallback) {
 	log.Println("SetRequestSourceAndPortCallback")
 	g_RequestSourceAndPortCallback = callback
-}
-
-//export SetGetDownloadPathCallback
-func SetGetDownloadPathCallback(callback C.GetDownloadPathCallback) {
-	log.Println("SetGetDownloadPathCallback")
-	g_GetDownloadPathCallback = callback
 }
 
 //export SetSetupDstPasteImageCallback

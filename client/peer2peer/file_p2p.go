@@ -252,9 +252,7 @@ func writeFileDataToSocket(id, ipAddr string, fileDropReqData *rtkFileDrop.FileD
 		ctx:        ctx,
 	}
 
-	if fileDropReqData.FileType == rtkCommon.P2PFile_Type_Multiple {
-		log.Printf("(SRC) Start Copy file data to IP:[%s], file count:[%d] folder count:[%d] totalSize:[%d] TotalDescribe:[%s] ...", ipAddr, fileCount, folderCount, fileDropReqData.TotalSize, fileDropReqData.TotalDescribe)
-	}
+	log.Printf("(SRC) Start Copy file data to IP:[%s], file count:[%d] folder count:[%d] totalSize:[%d] TotalDescribe:[%s] ...", ipAddr, fileCount, folderCount, fileDropReqData.TotalSize, fileDropReqData.TotalDescribe)
 
 	for _, file := range fileDropReqData.SrcFileList {
 		fileSize := uint64(file.FileSize_.SizeHigh)<<32 | uint64(file.FileSize_.SizeLow)
@@ -264,9 +262,8 @@ func writeFileDataToSocket(id, ipAddr string, fileDropReqData *rtkFileDrop.FileD
 		}
 	}
 
-	if fileDropReqData.FileType == rtkCommon.P2PFile_Type_Multiple {
-		log.Printf("(SRC) End to Copy all file data to IP:[%s] success,TotalDescribe:[%s], total use [%d] ms", ipAddr, fileDropReqData.TotalDescribe, time.Now().UnixMilli()-startTime)
-	}
+	log.Printf("(SRC) End to Copy all file data to IP:[%s] success,TotalDescribe:[%s], total use [%d] ms", ipAddr, fileDropReqData.TotalDescribe, time.Now().UnixMilli()-startTime)
+
 	ShowNotiMessageSendFileTransferDone(fileDropReqData, id)
 	return rtkMisc.SUCCESS
 }
@@ -328,11 +325,6 @@ func handleFileDataFromSocket(id, ipAddr, deviceName string, fileDropData *rtkFi
 		return dstFileName, rtkMisc.ERR_BIZ_FD_UNKNOWN_CMD
 	}
 
-	if fileDropData.FileType != rtkCommon.P2PFile_Type_Single && fileDropData.FileType != rtkCommon.P2PFile_Type_Multiple {
-		log.Printf("[%s] Invalid FileType :[%s]", rtkMisc.GetFuncInfo(), fileDropData.FileType)
-		return dstFileName, rtkMisc.ERR_BIZ_FD_UNKNOWN_TYPE
-	}
-
 	nSrcFileCount := uint32(len(fileDropData.SrcFileList))
 	folderCount := uint32(len(fileDropData.FolderList))
 	if (nSrcFileCount == 0 && folderCount == 0) || fileDropData.TimeStamp == 0 {
@@ -340,30 +332,28 @@ func handleFileDataFromSocket(id, ipAddr, deviceName string, fileDropData *rtkFi
 		return dstFileName, rtkMisc.ERR_BIZ_FD_DATA_INVALID
 	}
 
-	var currentFileSize uint64
-	sentCount := uint32(0)
-	if fileDropData.FileType == rtkCommon.P2PFile_Type_Multiple {
-		nFolderCount := 0
-		for _, dir := range fileDropData.FolderList {
-			path := filepath.Join(fileDropData.DstFilePath, rtkMisc.AdaptationPath(dir))
-			err := rtkMisc.CreateDir(path, 0755)
-			if err != nil {
-				log.Printf("[%s] CreateDir:[%s] err:[%+v]", rtkMisc.GetFuncInfo(), path, err)
-				continue
-			}
-			rtkPlatform.GoDragFileListFolderNotify(ipAddr, id, path, fileDropData.TimeStamp)
-			nFolderCount++
+	nFolderCount := 0
+	for _, dir := range fileDropData.FolderList {
+		path := filepath.Join(fileDropData.DstFilePath, rtkMisc.AdaptationPath(dir))
+		err := rtkMisc.CreateDir(path, 0755)
+		if err != nil {
+			log.Printf("[%s] CreateDir:[%s] err:[%+v]", rtkMisc.GetFuncInfo(), path, err)
+			continue
 		}
-		if nFolderCount > 0 {
-			log.Printf("(DST) Create  %d dir success!", nFolderCount)
-		}
-		log.Printf("(DST) Start Copy file list, count:[%d], totalSize:[%d], TotalDescribe:[%s]", nSrcFileCount, fileDropData.TotalSize, fileDropData.TotalDescribe)
+		rtkPlatform.GoDragFileListFolderNotify(ipAddr, id, path, fileDropData.TimeStamp)
+		nFolderCount++
 	}
+	if nFolderCount > 0 {
+		log.Printf("(DST) Create  %d dir success!", nFolderCount)
+	}
+	log.Printf("(DST) Start Copy file list, count:[%d], totalSize:[%d], TotalDescribe:[%s]", nSrcFileCount, fileDropData.TotalSize, fileDropData.TotalDescribe)
 
 	progressBar := New64(int64(fileDropData.TotalSize))
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	currentFileSize := uint64(0)
+	sentCount := uint32(0)
 	rtkMisc.GoSafe(func() {
 		barTicker := time.NewTicker(100 * time.Millisecond)
 		defer barTicker.Stop()
@@ -425,17 +415,13 @@ func handleFileDataFromSocket(id, ipAddr, deviceName string, fileDropData *rtkFi
 			return dstFileName, dstTransResult
 		}
 		sentCount++
-		if fileDropData.FileType == rtkCommon.P2PFile_Type_Multiple && uint32(i) != (nSrcFileCount-1) {
+		if uint32(i) != (nSrcFileCount - 1) {
 			rtkPlatform.GoUpdateMultipleProgressBar(ipAddr, id, deviceName, dstFileName, sentCount, nSrcFileCount, currentFileSize, fileDropData.TotalSize, uint64(progressBar.GetCurrentBytes()), fileDropData.TimeStamp)
 		}
 	}
 
-	if fileDropData.FileType == rtkCommon.P2PFile_Type_Multiple {
-		rtkPlatform.GoUpdateMultipleProgressBar(ipAddr, id, deviceName, dstFileName, sentCount, nSrcFileCount, currentFileSize, fileDropData.TotalSize, fileDropData.TotalSize, fileDropData.TimeStamp)
-		log.Printf("(DST) End Copy file list success, count:[%d] totalSize:[%d] total use:[%d]ms", nSrcFileCount, fileDropData.TotalSize, time.Now().UnixMilli()-startTime)
-	} else {
-		rtkPlatform.GoUpdateProgressBar(ipAddr, id, fileDropData.TotalSize, fileDropData.TotalSize, fileDropData.TimeStamp, dstFileName)
-	}
+	rtkPlatform.GoUpdateMultipleProgressBar(ipAddr, id, deviceName, dstFileName, sentCount, nSrcFileCount, currentFileSize, fileDropData.TotalSize, fileDropData.TotalSize, fileDropData.TimeStamp)
+	log.Printf("(DST) End Copy file list success, count:[%d] totalSize:[%d] total use:[%d]ms", nSrcFileCount, fileDropData.TotalSize, time.Now().UnixMilli()-startTime)
 	ShowNotiMessageRecvFileTransferDone(fileDropData, id)
 	return dstFileName, rtkMisc.SUCCESS
 }

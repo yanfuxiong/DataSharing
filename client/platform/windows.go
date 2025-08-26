@@ -1,4 +1,5 @@
 //go:build windows
+// +build windows
 
 package platform
 
@@ -27,16 +28,15 @@ var (
 	crashLogFile             = "crash.log"
 	downloadPath             = ""
 	chNotifyPasteText        = make(chan struct{}, 100)
-	strDeviceName            string
 	ifConfirmDocumentsAccept bool
 )
 
 func InitPlatform(rootPath, downLoadPath, deviceName string) {
 	downloadPath = downLoadPath
 	if deviceName == "" {
-		strDeviceName = "UnknownDeviceName"
+		rtkGlobal.NodeInfo.DeviceName = "UnknownDeviceName"
 	} else {
-		strDeviceName = deviceName
+		rtkGlobal.NodeInfo.DeviceName = deviceName
 	}
 
 	getPath := func(dirPath, filePath string) string {
@@ -72,7 +72,7 @@ func InitPlatform(rootPath, downLoadPath, deviceName string) {
 		rtkMisc.SetupLogFile()
 	}
 
-	log.Printf("[%s] init rootPath:[%s] downLoadPath:[%s], deviceName:[%s] success!", rtkMisc.GetFuncInfo(), rootPath, downLoadPath, strDeviceName)
+	log.Printf("[%s] init rootPath:[%s] downLoadPath:[%s], deviceName:[%s] success!", rtkMisc.GetFuncInfo(), rootPath, downLoadPath, deviceName)
 }
 
 type (
@@ -82,7 +82,6 @@ type (
 	CallbackPasteImageFunc             func()
 	CallbackDataTransferFunc           func(data []byte)
 	CallbackCleanClipboardFunc         func()
-	CallbackFileDropRequestFunc        func(string, rtkCommon.FileInfo, uint64)
 	CallbackFileListDropRequestFunc    func(string, []rtkCommon.FileInfo, []string, uint64, uint64, string)
 	CallbackDragFileListRequestFunc    func([]rtkCommon.FileInfo, []string, uint64, uint64, string)
 	CallbackDragFileListNotifyFunc     func(ip, id, platform string, fileCnt uint32, totalSize, timestamp uint64, firstFileName string, firstFileSize uint64)
@@ -90,7 +89,6 @@ type (
 	CallbackMultipleProgressBarFunc    func(ip, id, deviceName, currentFileName string, sentFileCnt, totalFileCnt uint32, currentFileSize, totalSize, sentSize, timestamp uint64)
 	CallbackNotiMessageFileTransFunc   func(fileName, clientName, platform string, timestamp uint64, isSender bool)
 	CallbackFileDropResponseFunc       func(string, rtkCommon.FileDropCmd, string)
-	CallbackFileDragInfoFunc           func(rtkCommon.FileInfo, uint64)
 	CallbackCancelFileTransFunc        func(string, string, uint64)
 	CallbackExtractDIASFunc            func()
 	CallbackGetMacAddressFunc          func(string)
@@ -99,8 +97,6 @@ type (
 	CallbackMethodBrowseMdnsResultFunc func(string, string, int, string, string, string, string)
 	CallbackAuthViaIndexCallbackFunc   func(uint32)
 	CallbackDIASStatusFunc             func(uint32)
-	CallbackDeviceNameFunc             func() string
-	CallbackDownloadPathFunc           func() string
 	CallbackReqSourceAndPortFunc       func()
 	CallbackUpdateSystemInfoFunc       func(ipAddr string, verInfo string)
 	CallbackUpdateClientStatusFunc     func(status uint32, ip, id, deviceName, deviceType string)
@@ -110,6 +106,7 @@ type (
 	CallbackNotifyErrEventFunc         func(id string, errCode uint32, arg1, arg2, arg3, arg4 string)
 	CallbackConnectLanServerFunc       func(instance string)
 	CallbackBrowseLanServerFunc        func()
+	CallbackSetMsgEventFunc            func(event uint32, arg1, arg2, arg3, arg4 string)
 )
 
 var (
@@ -117,7 +114,6 @@ var (
 	callbackNetworkSwitchCB            CallbackNetworkSwitchFunc          = nil
 	callbackInstanceCopyImageCB        CallbackCopyImageFunc              = nil
 	callbackInstancePasteImageCB       CallbackPasteImageFunc             = nil
-	callbackInstanceFileDropRequestCB  CallbackFileDropRequestFunc        = nil
 	callbackFileListDropRequestCB      CallbackFileListDropRequestFunc    = nil
 	callbackDragFileListRequestCB      CallbackDragFileListRequestFunc    = nil
 	callbackDragFileListNotifyCB       CallbackDragFileListNotifyFunc     = nil
@@ -125,7 +121,6 @@ var (
 	callbackMultipleProgressBarCB      CallbackMultipleProgressBarFunc    = nil
 	callbackNotiMessageFileTransCB     CallbackNotiMessageFileTransFunc   = nil
 	callbackInstanceFileDropResponseCB CallbackFileDropResponseFunc       = nil
-	callbackInstanceFileDragCB         CallbackFileDragInfoFunc           = nil
 	callbackCancelFileTransDragCB      CallbackCancelFileTransFunc        = nil
 	callbackExtractDIASCB              CallbackExtractDIASFunc            = nil
 	callbackGetMacAddressCB            CallbackGetMacAddressFunc          = nil
@@ -134,13 +129,12 @@ var (
 	callbackMethodBrowseMdnsResult     CallbackMethodBrowseMdnsResultFunc = nil
 	callbackReqClientUpdateVer         CallbackReqClientUpdateVerFunc     = nil
 	callbackNotifyErrEvent             CallbackNotifyErrEventFunc         = nil
+	callbackSetMsgEvent                CallbackSetMsgEventFunc            = nil
 
 	// main.go Callback
 	callbackAuthViaIndex       CallbackAuthViaIndexCallbackFunc = nil
 	callbackDIASStatus         CallbackDIASStatusFunc           = nil
 	callbackReqSourceAndPort   CallbackReqSourceAndPortFunc     = nil
-	callbackDeviceName         CallbackDeviceNameFunc           = nil
-	callbackDownloadPath       CallbackDownloadPathFunc         = nil
 	callbackUpdateSystemInfo   CallbackUpdateSystemInfoFunc     = nil
 	callbackUpdateClientStatus CallbackUpdateClientStatusFunc   = nil
 	callbackSetupDstImageCB    CallbackSetupDstImageFunc        = nil
@@ -148,22 +142,6 @@ var (
 	callbackCleanClipboard     CallbackCleanClipboardFunc       = nil
 	callbackGetFilesTransCode  CallbackGetFilesTransCodeFunc    = nil
 )
-
-func getDeviceName() string {
-	if callbackDeviceName == nil {
-		log.Fatalf("callbackDeviceName is nil!")
-	}
-
-	return callbackDeviceName()
-}
-
-func getDownloadPathInternal() string {
-	if callbackDownloadPath == nil {
-		log.Fatalf("callbackDownloadPath is nil!")
-	}
-
-	return callbackDownloadPath()
-}
 
 /*======================================= Used  by GO set Callback =======================================*/
 
@@ -183,10 +161,6 @@ func SetImageDataTransferCallback(cb CallbackDataTransferFunc) {
 	callbackDataTransferCB = cb
 }
 
-func SetGoFileDropRequestCallback(cb CallbackFileDropRequestFunc) {
-	callbackInstanceFileDropRequestCB = cb
-}
-
 func SetGoFileListDropRequestCallback(cb CallbackFileListDropRequestFunc) {
 	callbackFileListDropRequestCB = cb
 }
@@ -197,10 +171,6 @@ func SetGoDragFileListRequestCallback(cb CallbackDragFileListRequestFunc) {
 
 func SetGoFileDropResponseCallback(cb CallbackFileDropResponseFunc) {
 	callbackInstanceFileDropResponseCB = cb
-}
-
-func SetGoDragFileCallback(cb CallbackFileDragInfoFunc) {
-	callbackInstanceFileDragCB = cb
 }
 
 func SetGoCancelFileTransCallback(cb CallbackCancelFileTransFunc) {
@@ -242,6 +212,10 @@ func SetGoBrowseLanServerCallback(cb CallbackBrowseLanServerFunc) {
 
 }
 
+func SetGoSetMsgEventCallback(cb CallbackSetMsgEventFunc) {
+	callbackSetMsgEvent = cb
+}
+
 /*======================================= Used by main.go, set Callback =======================================*/
 
 func SetAuthViaIndexCallback(cb CallbackAuthViaIndexCallbackFunc) {
@@ -250,14 +224,6 @@ func SetAuthViaIndexCallback(cb CallbackAuthViaIndexCallbackFunc) {
 
 func SetDIASStatusCallback(cb CallbackDIASStatusFunc) {
 	callbackDIASStatus = cb
-}
-
-func SetDeviceNameCallback(cb CallbackDeviceNameFunc) {
-	callbackDeviceName = cb
-}
-
-func SetDownloadPathCallback(cb CallbackDownloadPathFunc) {
-	callbackDownloadPath = cb
 }
 
 func SetRequestSourceAndPortCallback(cb CallbackReqSourceAndPortFunc) {
@@ -305,6 +271,13 @@ func SetNotifyErrEventCallback(cb CallbackNotifyErrEventFunc) {
 }
 
 /*======================================= Used by main.go, Called by C++ =======================================*/
+func GoSetMsgEventFunc(event uint32, arg1, arg2, arg3, arg4 string) {
+	if callbackSetMsgEvent == nil {
+		log.Println("callbackSetMsgEvent is null!")
+		return
+	}
+	callbackSetMsgEvent(event, arg1, arg2, arg3, arg4)
+}
 
 func GoCopyImage(fileSize rtkCommon.FileSize, imgHeader rtkCommon.ImgHeader, data []byte) {
 	callbackInstanceCopyImageCB(fileSize, imgHeader, data)
@@ -461,10 +434,6 @@ func GoMultiFilesDropNotify(ip, id, platform string, fileCnt uint32, totalSize, 
 	callbackMultiFilesDropNotifyCB(ip, id, platform, fileCnt, totalSize, timestamp, firstFileName, firstFileSize)
 }
 
-func GoDragFileNotify(ip, id, fileName, platform string, fileSize uint64, timestamp uint64) {
-
-}
-
 func GoDragFileListNotify(ip, id, platform string, fileCnt uint32, totalSize uint64, timestamp uint64, firstFileName string, firstFileSize uint64) {
 	callbackDragFileListNotifyCB(ip, id, platform, fileCnt, totalSize, timestamp, firstFileName, firstFileSize)
 }
@@ -495,10 +464,6 @@ func GoDataTransfer(data []byte) {
 }
 
 func ReceiveImageCopyDataDone(fileSize int64, imgHeader rtkCommon.ImgHeader) {
-
-}
-
-func GoUpdateProgressBar(ip, id string, fileSize, sentSize, timestamp uint64, fileName string) {
 
 }
 
@@ -640,10 +605,6 @@ func UnlockFile(file *os.File) error {
 
 func GoTriggerNetworkSwitch() {
 	callbackNetworkSwitchCB()
-}
-
-func GoGetDeviceName() string {
-	return strDeviceName
 }
 
 func GoGetSrcAndPortFromIni() rtkMisc.SourcePort {

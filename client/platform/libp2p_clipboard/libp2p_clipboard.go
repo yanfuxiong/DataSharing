@@ -49,13 +49,20 @@ func BrowseLanServer() {
 
 func MainInit(cb Callback, deviceName, serverId, serverIpInfo, listentHost string, listentPort int) {
 	rtkPlatform.SetCallback(cb)
-	rtkPlatform.SetDeviceName(deviceName)
+	rtkGlobal.NodeInfo.DeviceName = deviceName
 
 	rootPath := rtkPlatform.GetRootPath()
 	if rootPath == "" || !rtkMisc.FolderExists(rootPath) {
 		log.Fatalf("[%s] RootPath :[%s] is invalid!", rtkMisc.GetFuncInfo(), rootPath)
 	}
+
+	log.Printf("[%s] device name:[%s] host:[%s] port:[%d]", rtkMisc.GetFuncInfo(), deviceName, listentHost, listentPort)
 	rtkCmd.MainInit(serverId, serverIpInfo, listentHost, listentPort)
+}
+
+func SetMsgEventFunc(event int, arg1, arg2, arg3, arg4 string) {
+	log.Printf("[%s] event:[%d], arg1:%s, arg2:%s, arg3:%s, arg4:%s\n", rtkMisc.GetFuncInfo(), event, arg1, arg2, arg3, arg4)
+	rtkPlatform.GoSetMsgEventFunc(uint32(event), arg1, arg2, arg3, arg4)
 }
 
 func SendMessage(s string) {
@@ -107,32 +114,6 @@ func SendAddrsFromPlatform(addrsList string) {
 func SendNetInterfaces(name string, index int) {
 	log.Printf("[%s] SendNetInterfaces [%s][%d]", rtkMisc.GetFuncInfo(), name, index)
 	rtkUtils.SetNetInterfaces(name, index)
-}
-
-func SendCopyFile(filePath, id string, fileSize int64) {
-	if filePath == "" || len(filePath) == 0 || fileSize == 0 {
-		log.Printf("filePath:[%s] or fileSize:[%d] is null", filePath, fileSize)
-		return
-	}
-	if !rtkMisc.FileExists(filePath) {
-		log.Printf("[%s] filePath:[%s] is not exists!", rtkMisc.GetFuncInfo(), filePath)
-		return
-	}
-
-	low := uint32(fileSize & 0xFFFFFFFF)
-	high := uint32(fileSize >> 32)
-
-	var fileInfo = rtkCommon.FileInfo{
-		FileSize_: rtkCommon.FileSize{
-			SizeHigh: high,
-			SizeLow:  low,
-		},
-		FilePath: filePath,
-		FileName: filepath.Base(filePath),
-	}
-
-	rtkPlatform.GoFileDropRequest(id, fileInfo, uint64(time.Now().UnixMilli()))
-	log.Printf("(SRC)Send file:[%s] to [%s], fileSize:%d", filePath, id, fileSize)
 }
 
 func SendMultiFilesDropRequest(multiFilesData string) int {

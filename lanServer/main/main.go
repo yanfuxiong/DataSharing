@@ -82,6 +82,7 @@ import (
 	"reflect"
 	rtkCommon "rtk-cross-share/lanServer/common"
 	rtkIfaceMgr "rtk-cross-share/lanServer/interfaceMgr"
+	rtkMisc "rtk-cross-share/misc"
 	"unsafe"
 )
 
@@ -192,7 +193,12 @@ func initFunc() {
 		goUpdateClientInfoCb,
 		goDisplayMonitorNameCb,
 		goGetTimingDataCb)
-	MainInit()
+
+	rtkMisc.GoSafe(func() {
+		MainInit()
+	})
+
+	select {}
 }
 
 func goUpdateDeviceNameCb(source, port int, name string) {

@@ -10,10 +10,10 @@ import (
 )
 
 func StartProcessForPeer(id, ipAddr string) func() {
-	ctx, canecl := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
 	rtkMisc.GoSafe(func() { ProcessEventsForPeer(id, ipAddr, ctx) })
 	log.Printf("[%s][%s][%s] ProcessEventsForPeer is Start !", rtkMisc.GetFuncInfo(), id, ipAddr)
-	return canecl
+	return cancel
 }
 
 func SendDisconnectMsgToPeer(id string) {

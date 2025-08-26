@@ -195,6 +195,21 @@ func dealC2SMsgReqClientList() interface{} {
 	return getClientListRsp
 }
 
+func dealC2SMsgReqPlatformMsgEvent(id string, ext *json.RawMessage) interface{} {
+	var extData rtkMisc.PlatformMsgEventReq
+	msgEventRsp := rtkMisc.PlatformMsgEventResponse{Response: rtkMisc.GetResponse(rtkMisc.SUCCESS)}
+	err := json.Unmarshal(*ext, &extData)
+	if err != nil {
+		log.Printf("clientID:[%s] decode ExtDataText Err: %s", id, err.Error())
+		msgEventRsp.Response = rtkMisc.GetResponse(rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL)
+		return msgEventRsp
+	}
+	log.Printf("[%s] id:[%s] event:[%d], arg1:%s, arg2:%s, arg3:%s, arg4:%s\n", rtkMisc.GetFuncInfo(), id, extData.Event, extData.Arg1, extData.Arg2, extData.Arg3, extData.Arg4)
+	// TODO: Implement msg event business here
+
+	return msgEventRsp
+}
+
 func buildNotifyClientVersion(id, version string) rtkMisc.CrossShareErr {
 	clientInfoList := make([]rtkCommon.ClientInfoTb, 0)
 	errCode := rtkdbManager.QueryOnlineClientList(&clientInfoList)

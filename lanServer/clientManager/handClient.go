@@ -71,6 +71,8 @@ func handleReadFromClientMsg(buffer []byte, IPAddr string, MsgRsp *rtkMisc.C2SMe
 		MsgRsp.ExtData = dealC2SMsgMobileAuthDataIndex(msg.ClientID, msg.ClientIndex, &msg.ExtData)
 	case rtkMisc.C2SMsg_REQ_CLIENT_LIST:
 		MsgRsp.ExtData = dealC2SMsgReqClientList()
+	case rtkMisc.CS2Msg_MESSAGE_EVENT:
+		MsgRsp.ExtData = dealC2SMsgReqPlatformMsgEvent(msg.ClientID, &msg.ExtData)
 	default:
 		log.Printf("[%s]Unknown MsgType:[%s]", rtkMisc.GetFuncInfo(), msg.MsgType)
 		return rtkMisc.ERR_BIZ_S2C_UNKNOWN_MSG_TYPE

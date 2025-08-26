@@ -2,7 +2,6 @@ package filedrop
 
 import (
 	"log"
-	"path/filepath"
 	rtkCommon "rtk-cross-share/client/common"
 	rtkPlatform "rtk-cross-share/client/platform"
 	rtkUtils "rtk-cross-share/client/utils"
@@ -10,17 +9,7 @@ import (
 )
 
 func init() {
-
-	rtkPlatform.SetGoDragFileCallback(UpdateFileDragInfo)
 	rtkPlatform.SetGoDragFileListRequestCallback(UpdateDragFileListFromLocal)
-}
-
-func UpdateFileDragInfo(fileinfo rtkCommon.FileInfo, timestamp uint64) {
-	dragFileInfoList = []rtkCommon.FileInfo{fileinfo}
-	dragFolderList = nil
-	dragFileTimeStamp = timestamp
-	dragTotalSize = uint64(fileinfo.FileSize_.SizeHigh)<<32 | uint64(fileinfo.FileSize_.SizeLow)
-	dragTotalDesc = rtkMisc.FileSizeDesc(dragTotalSize)
 }
 
 func UpdateDragFileReqDataFromLocal(id string) rtkMisc.CrossShareErr {
@@ -66,7 +55,6 @@ func updateDragFileReqData(id string) {
 		Cmd:         rtkCommon.FILE_DROP_REQUEST,
 	}
 
-	targetData.FileType = rtkCommon.P2PFile_Type_Multiple
 	if len(dragFolderList) > 0 {
 		targetData.FolderList = append([]string(nil), dragFolderList...)
 	}
@@ -127,15 +115,6 @@ func UpdateDragFileListFromDst(fileInfoList []rtkCommon.FileInfo, folderList []s
 }
 
 // ********************  Setup Dst file info ****************
-
-func SetupDstDragFile(id, ip, platform string, fileInfo rtkCommon.FileInfo, fileSize, timestamp uint64) {
-	UpdateFileDragInfo(fileInfo, timestamp)
-	UpdateDragFileReqDataFromDst(id)
-	UpdateDragFileRespDataFromDst(id)
-
-	fileName := rtkMisc.AdaptationPath(filepath.Base(fileInfo.FilePath))
-	rtkPlatform.GoDragFileNotify(ip, id, fileName, platform, fileSize, timestamp)
-}
 
 func SetupDstDragFileList(id, ip, platform string, fileInfoList []rtkCommon.FileInfo, folderList []string, totalSize, timeStamp uint64, totalDesc string) {
 	UpdateDragFileListFromDst(fileInfoList, folderList, totalSize, timeStamp, totalDesc)

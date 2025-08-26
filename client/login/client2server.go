@@ -31,10 +31,21 @@ func sendReqHeartbeatToLanServer() rtkMisc.CrossShareErr {
 	return sendReqMsgToLanServer(rtkMisc.C2SMsg_CLIENT_HEARTBEAT)
 }
 
-func sendReqMsgToLanServer(MsgType rtkMisc.C2SMsgType) rtkMisc.CrossShareErr {
+func sendPlatformMsgEventToLanServer(event uint32, arg1, arg2, arg3, arg4 string) {
+	extData := rtkMisc.PlatformMsgEventReq{
+		Event: event,
+		Arg1:  arg1,
+		Arg2:  arg2,
+		Arg3:  arg3,
+		Arg4:  arg4,
+	}
+	sendReqMsgToLanServer(rtkMisc.CS2Msg_MESSAGE_EVENT, extData)
+}
+
+func sendReqMsgToLanServer(MsgType rtkMisc.C2SMsgType, extData ...interface{}) rtkMisc.CrossShareErr {
 	var msg rtkMisc.C2SMessage
 	msg.MsgType = MsgType
-	resultCode := buildMessageReq(&msg)
+	resultCode := buildMessageReq(&msg, extData...)
 	if resultCode != rtkMisc.SUCCESS {
 		return resultCode
 	}
@@ -58,7 +69,7 @@ func sendReqMsgToLanServer(MsgType rtkMisc.C2SMsgType) rtkMisc.CrossShareErr {
 	return rtkMisc.SUCCESS
 }
 
-func buildMessageReq(msg *rtkMisc.C2SMessage) rtkMisc.CrossShareErr {
+func buildMessageReq(msg *rtkMisc.C2SMessage, extData ...interface{}) rtkMisc.CrossShareErr {
 	msg.TimeStamp = time.Now().UnixMilli()
 	msg.ClientID = rtkGlobal.NodeInfo.ID
 
@@ -83,6 +94,13 @@ func buildMessageReq(msg *rtkMisc.C2SMessage) rtkMisc.CrossShareErr {
 		msg.ExtData = rtkMisc.AuthDataIndexMobileReq{mobileAuthData}
 	case rtkMisc.C2SMsg_REQ_CLIENT_LIST:
 		msg.ClientIndex = rtkGlobal.NodeInfo.ClientIndex
+	case rtkMisc.CS2Msg_MESSAGE_EVENT:
+		msg.ClientIndex = rtkGlobal.NodeInfo.ClientIndex
+		if len(extData) < 1 {
+			log.Printf("ext data is null!")
+			return rtkMisc.ERR_BIZ_C2S_EXT_DATA_EMPTY
+		}
+		msg.ExtData = extData[0]
 	default:
 		log.Printf("Unknown MsgType[%s]", msg.MsgType)
 		return rtkMisc.ERR_BIZ_C2S_UNKNOWN_MSG_TYPE
@@ -146,6 +164,8 @@ func handleReadMessageFromServer(buffer []byte) rtkMisc.CrossShareErr {
 		return dealS2CMsgReconnClientList(rspMsg.ClientID, rspMsg.ExtData)
 	case rtkMisc.CS2Msg_NOTIFY_CLIENT_VERSION:
 		return dealS2CMsgNotifyClientVersion(rspMsg.ClientID, rspMsg.ExtData)
+	case rtkMisc.CS2Msg_MESSAGE_EVENT:
+		return dealS2CMsgMessageEvent(rspMsg.ClientID, rspMsg.ExtData)
 	default:
 		log.Printf("[%s]Unknown MsgType:[%s]", rtkMisc.GetFuncInfo(), rspMsg.MsgType)
 		return rtkMisc.ERR_BIZ_C2S_UNKNOWN_MSG_TYPE
@@ -303,6 +323,21 @@ func dealS2CMsgNotifyClientVersion(id string, extData json.RawMessage) rtkMisc.C
 		return rtkMisc.ERR_BIZ_VERSION_INVALID
 	}
 	checkClientVersionInvalid(notifyVersion.ClientVersion)
+	return rtkMisc.SUCCESS
+}
+
+func dealS2CMsgMessageEvent(id string, extData json.RawMessage) rtkMisc.CrossShareErr {
+	var messageEventRsp rtkMisc.PlatformMsgEventResponse
+	err := json.Unmarshal(extData, &messageEventRsp)
+	if err != nil {
+		log.Printf("[%s] clientID:[%s]  Err: decode ExtDataText:%+v", rtkMisc.GetFuncInfo(), id, err)
+		return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
+	}
+
+	if messageEventRsp.Code != rtkMisc.SUCCESS {
+		log.Printf("[%s] Message Event Response failed, errCode:[%d]  errMsg:[%s]!", rtkMisc.GetFuncInfo(), messageEventRsp.Code, messageEventRsp.Msg)
+		return messageEventRsp.Code
+	}
 	return rtkMisc.SUCCESS
 }
 
