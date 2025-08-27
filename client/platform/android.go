@@ -48,6 +48,7 @@ type Callback interface {
 	CallbackFileListDragFolderNotify(ip, id, folderName string, timestamp int64)
 	CallbackFilesTransferDone(filesInfo, platform, deviceName string, timestamp int64)
 	CallbackMethodFoundPeer()
+	CallbackUpdateProgressBar(ip, id, filename string, recvSize, total int64, timestamp int64)
 	CallbackUpdateMultipleProgressBar(ip, id, deviceName, currentFileName string, sentFileCnt, totalFileCnt int, currentFileSize, totalSize, sentSize, timestamp int64)
 	CallbackFileError(id, filename, err string, timestamp int64)
 	CallbackNotifyErrEvent(id string, errCode int, arg1, arg2, arg3, arg4 string)
@@ -427,7 +428,7 @@ func GoDragFileListFolderNotify(ip, id, folderName string, timestamp uint64) {
 		log.Println(" CallbackInstance is null !")
 		return
 	}
-	log.Printf("(DST) GoDragFileListFolderNotify  source:%s ip:[%s]  folderName:[%s]  timestamp:%d", id, ip, folderName, timestamp)
+	log.Printf("(DST) GoDragFileListFolderNotify source:%s ip:[%s] folder:[%s] timestamp:%d", id, ip, folderName, timestamp)
 	CallbackInstance.CallbackFileListDragFolderNotify(ip, id, folderName, int64(timestamp))
 }
 

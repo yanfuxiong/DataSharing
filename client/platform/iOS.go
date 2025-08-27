@@ -527,7 +527,7 @@ func GoDragFileListFolderNotify(ip, id, folderName string, timestamp uint64) {
 		log.Println(" callbackFileListDragFolderNotify is null !")
 		return
 	}
-	log.Printf("(DST) GoDragFileListFolderNotify source id:%s ip:[%s] folderName:[%s] timestamp:%d", id, ip, folderName, timestamp)
+	log.Printf("(DST) GoDragFileListFolderNotify source:%s ip:[%s] folder:[%s] timestamp:%d", id, ip, folderName, timestamp)
 	callbackFileListDragFolderNotify(ip, id, folderName, timestamp)
 }
 

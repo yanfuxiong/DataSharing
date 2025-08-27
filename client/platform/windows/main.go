@@ -35,16 +35,6 @@ static void StopClipboardMonitorCallbackFunc(StopClipboardMonitorCallback cb) {
     if (cb) cb();
 }
 
-typedef void (*SetupFileDropCallback)(const char *ipPort, const char *id, uint64_t fileSize, uint64_t timestamp, const wchar_t *fileName);
-static void SetupFileDropCallbackFunc(SetupFileDropCallback cb, const char *ipPort, const char *id, uint64_t fileSize, uint64_t timestamp, const wchar_t *fileName) {
-    if (cb) cb(ipPort, id, fileSize, timestamp, fileName);
-}
-
-typedef void (*DragFileNotifyCallback)(const char *ipPort, const char *clientID, uint64_t fileSize, uint64_t timestamp, const wchar_t *fileName);
-static void DragFileNotifyCallbackFunc(DragFileNotifyCallback cb, const char *ipPort, const char *clientID, uint64_t fileSize, uint64_t timestamp, const wchar_t *fileName) {
-    if (cb) cb(ipPort, clientID, fileSize, timestamp, fileName);
-}
-
 typedef void (*DragFileListNotifyCallback)(const char *ipPort, const char *clientID, uint32_t cFileCount, uint64_t totalSize, uint64_t timestamp, const wchar_t *firstFileName, uint64_t firstFileSize);
 static void DragFileListNotifyCallbackFunc(DragFileListNotifyCallback cb, const char *ipPort, const char *clientID, uint32_t cFileCount, uint64_t totalSize, uint64_t timestamp, const wchar_t *firstFileName, uint64_t firstFileSize) {
     if (cb) cb(ipPort, clientID, cFileCount, totalSize, timestamp, firstFileName, firstFileSize);
@@ -63,21 +53,6 @@ static void UpdateMultipleProgressBarCallbackFunc(UpdateMultipleProgressBarCallb
 typedef void (*DataTransferCallback)(const unsigned char *data, uint32_t size);
 static void DataTransferCallbackFunc(DataTransferCallback cb, const unsigned char *data, uint32_t size) {
     if (cb) cb(data, size);
-}
-
-typedef void (*UpdateProgressBarCallback)(const char *ipPort, const char *id, uint64_t fileSize, uint64_t sentSize, uint64_t timestamp, const wchar_t *fileName);
-static void UpdateProgressBarCallbackFunc(UpdateProgressBarCallback cb, const char *ipPort, const char *id, uint64_t fileSize, uint64_t sentSize, uint64_t timestamp, const wchar_t *fileName) {
-    if (cb) cb(ipPort, id, fileSize, sentSize, timestamp, fileName);
-}
-
-typedef void (*DeinitProgressBarCallback)();
-static void DeinitProgressBarCallbackFunc(DeinitProgressBarCallback cb) {
-    if (cb) cb();
-}
-
-typedef void (*UpdateImageProgressBarCallback)(const char *ipPort, const char *id, uint64_t fileSize, uint64_t sentSize, uint64_t timestamp);
-static void UpdateImageProgressBarCallbackFunc(UpdateImageProgressBarCallback cb, const char *ipPort, const char *id, uint64_t fileSize, uint64_t sentSize, uint64_t timestamp) {
-    if (cb) cb(ipPort, id, fileSize, sentSize, timestamp);
 }
 
 typedef void (*UpdateClientStatusCallback)(uint32_t status, const char *ipPort, const char *id, const wchar_t *name, const char *deviceType);
@@ -212,13 +187,10 @@ func (w *WCharArray) Free() {
 var (
 	g_StartClipboardMonitorCallback      C.StartClipboardMonitorCallback      = nil
 	g_StopClipboardMonitorCallback       C.StopClipboardMonitorCallback       = nil
-	g_DragFileNotifyCallback             C.DragFileNotifyCallback             = nil
 	g_DragFileListNotifyCallback         C.DragFileListNotifyCallback         = nil
 	g_MultiFilesDropNotifyCallback       C.MultiFilesDropNotifyCallback       = nil
 	g_UpdateMultipleProgressBarCallback  C.UpdateMultipleProgressBarCallback  = nil
 	g_DataTransferCallback               C.DataTransferCallback               = nil
-	g_UpdateProgressBarCallback          C.UpdateProgressBarCallback          = nil
-	g_UpdateImageProgressBarCallback     C.UpdateImageProgressBarCallback     = nil
 	g_UpdateClientStatusCallback         C.UpdateClientStatusCallback         = nil
 	g_UpdateSystemInfoCallback           C.UpdateSystemInfoCallback           = nil
 	g_NotiMessageCallback                C.NotiMessageCallback                = nil
@@ -530,16 +502,6 @@ func SetClipboardCopyImg(cHeader C.IMAGE_HEADER, bitmapData *C.uchar, cDataSize 
 	log.Printf("Clipboard image content, width[%d] height[%d] data size[%d] \n", imgHeader.Width, imgHeader.Height, dataSize)
 }
 
-//export SetFileDropRequest
-func SetFileDropRequest(ipPort *C.char, clientID *C.char, fileSize C.uint64_t, timestamp C.uint64_t, fileName *C.wchar_t) {
-	fmt.Printf("SetFileDropRequest(%q, %q, %d, %d, %q)\n",
-		C.GoString(ipPort),
-		C.GoString(clientID),
-		fileSize,
-		timestamp,
-		WCharToGoString(fileName))
-}
-
 //export SetFileDropResponse
 func SetFileDropResponse(statusCode C.int, ipPort *C.char, clientID *C.char, fileSize C.uint64_t, timestamp C.uint64_t, fileName *C.wchar_t) {
 	fmt.Printf("SetFileDropResponse(%d, %q, %q, %d, %d, %q)\n",
@@ -587,11 +549,6 @@ func SetDIASSourceAndPort(cSource C.uchar, cPort C.uchar) {
 	port := uint8(cPort)
 	log.Printf("[%s] diasSourceAndPortCallback (src,port): (%d,%d)", rtkMisc.GetFuncInfo(), source, port)
 	rtkPlatform.GoSetDIASSourceAndPort(source, port)
-}
-
-//export SetDragFile
-func SetDragFile(timeStamp C.uint64_t, filePath *C.wchar_t) {
-	fmt.Printf("SetDragFile(%d, %q)\n", timeStamp, WCharToGoString(filePath))
 }
 
 //export SetConfirmDocumentsAccept
@@ -745,18 +702,6 @@ func SetStopClipboardMonitorCallback(callback C.StopClipboardMonitorCallback) {
 	g_StopClipboardMonitorCallback = callback
 }
 
-//export SetSetupFileDropCallback
-func SetSetupFileDropCallback(callback C.SetupFileDropCallback) {
-	fmt.Println("SetSetupFileDropCallback")
-	//g_SetupFileDropCallback = callback
-}
-
-//export SetDragFileNotifyCallback
-func SetDragFileNotifyCallback(callback C.DragFileNotifyCallback) {
-	fmt.Println("SetDragFileNotifyCallback")
-	g_DragFileNotifyCallback = callback
-}
-
 //export SetDragFileListNotifyCallback
 func SetDragFileListNotifyCallback(callback C.DragFileListNotifyCallback) {
 	log.Println("SetDragFileListNotifyCallback")
@@ -779,24 +724,6 @@ func SetUpdateMultipleProgressBarCallback(callback C.UpdateMultipleProgressBarCa
 func SetDataTransferCallback(callback C.DataTransferCallback) {
 	log.Println("SetDataTransferCallback")
 	g_DataTransferCallback = callback
-}
-
-//export SetUpdateProgressBarCallback
-func SetUpdateProgressBarCallback(callback C.UpdateProgressBarCallback) {
-	fmt.Println("SetUpdateProgressBarCallback")
-	g_UpdateProgressBarCallback = callback
-}
-
-//export SetDeinitProgressBarCallback
-func SetDeinitProgressBarCallback(callback C.DeinitProgressBarCallback) {
-	fmt.Println("SetDeinitProgressBarCallback")
-	//g_DeinitProgressBarCallback = callback
-}
-
-//export SetUpdateImageProgressBarCallback
-func SetUpdateImageProgressBarCallback(callback C.UpdateImageProgressBarCallback) {
-	fmt.Println("SetUpdateImageProgressBarCallback")
-	g_UpdateImageProgressBarCallback = callback
 }
 
 //export SetUpdateClientStatusCallback
