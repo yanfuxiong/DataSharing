@@ -67,7 +67,7 @@ func computerInitLanServer(ctx context.Context) {
 	retryCnt := 0
 	bPrintErrLog := true
 	for {
-		errCode := initLanServer(bPrintErrLog)
+		errCode := initLanServer(ctx, bPrintErrLog)
 		if errCode == rtkMisc.SUCCESS {
 			break
 		}
@@ -124,7 +124,7 @@ func mobileInitLanServer(instance string) {
 	bPrintErrLog := true
 	for {
 		retryCnt++
-		errCode := initLanServer(bPrintErrLog)
+		errCode := initLanServer(context.Background(), bPrintErrLog)
 		if errCode == rtkMisc.SUCCESS {
 			break
 		}
@@ -299,8 +299,8 @@ func stopBrowseInstance() {
 	}
 }
 
-func getLanServerAddr(bPrintErr bool) (string, rtkMisc.CrossShareErr) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+func getLanServerAddr(ctx context.Context, bPrintErr bool) (string, rtkMisc.CrossShareErr) {
+	tOctx, cancel := context.WithTimeout(ctx, time.Second*5)
 	defer cancel()
 
 	if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformWindows || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformMac {
@@ -322,7 +322,7 @@ func getLanServerAddr(bPrintErr bool) (string, rtkMisc.CrossShareErr) {
 		}
 
 		time.Sleep(50 * time.Millisecond) // Delay 50ms between "stop browse server" and "start lookup server"
-		return lookupLanServer(ctx, lanServerInstance, rtkMisc.LanServiceType, rtkMisc.LanServerDomain, bPrintErr)
+		return lookupLanServer(tOctx, lanServerInstance, rtkMisc.LanServiceType, rtkMisc.LanServerDomain, bPrintErr)
 	} else {
 		if lanServerInstance != "" {
 			mapValue, ok := serverInstanceMap.Load(lanServerInstance)
@@ -341,10 +341,10 @@ func getLanServerAddr(bPrintErr bool) (string, rtkMisc.CrossShareErr) {
 	return "", rtkMisc.ERR_NETWORK_C2S_BROWSER_INVALID
 }
 
-func connectToLanServer(bPrintErr bool) rtkMisc.CrossShareErr {
+func connectToLanServer(ctx context.Context, bPrintErr bool) rtkMisc.CrossShareErr {
 	if !pSafeConnect.IsAlive() {
 		if lanServerAddr == "" {
-			serverAddr, errCode := getLanServerAddr(bPrintErr)
+			serverAddr, errCode := getLanServerAddr(ctx, bPrintErr)
 			if errCode != rtkMisc.SUCCESS {
 				return errCode
 			}
@@ -354,7 +354,11 @@ func connectToLanServer(bPrintErr bool) rtkMisc.CrossShareErr {
 		if bPrintErr {
 			log.Printf("get LanServer addr:%s  by serverInstance:[%s], try to Dial it!", lanServerAddr, lanServerInstance)
 		}
-		pConnectLanServer, err := net.DialTimeout("tcp", lanServerAddr, time.Duration(5*time.Second))
+
+		tOctx, dialCancelFn := context.WithTimeout(ctx, time.Duration(5*time.Second))
+		defer dialCancelFn()
+		d := net.Dialer{Timeout: time.Duration(5 * time.Second)}
+		pConnectLanServer, err := d.DialContext(tOctx, "tcp", lanServerAddr)
 		if err != nil {
 			if bPrintErr {
 				log.Printf("connecting to lanServerAddr[%s] Error:%+v ", lanServerAddr, err.Error())
@@ -375,8 +379,8 @@ func connectToLanServer(bPrintErr bool) rtkMisc.CrossShareErr {
 	return rtkMisc.SUCCESS
 }
 
-func initLanServer(bPrintErr bool) rtkMisc.CrossShareErr {
-	resultCode := connectToLanServer(bPrintErr)
+func initLanServer(ctx context.Context, bPrintErr bool) rtkMisc.CrossShareErr {
+	resultCode := connectToLanServer(ctx, bPrintErr)
 	if resultCode != rtkMisc.SUCCESS {
 		return resultCode
 	}
@@ -425,7 +429,7 @@ func ReConnectLanServer() {
 	retryCnt := 0
 	bPrintErrLog := true
 	for {
-		errCode := initLanServer(bPrintErrLog)
+		errCode := initLanServer(ctx, bPrintErrLog)
 		if errCode == rtkMisc.SUCCESS {
 			log.Printf("ReConnectLanServer success!")
 			break
@@ -494,11 +498,10 @@ func cancelLanServerBusiness() {
 	stopBrowseInstance()
 	serverInstanceMap.Clear()
 	lanServerRunning.Store(false)
-	if isReconnectRunning.Load() {
-		if reconnectCancelFunc != nil {
-			reconnectCancelFunc()
-			reconnectCancelFunc = nil
-		}
+
+	if reconnectCancelFunc != nil {
+		reconnectCancelFunc()
+		reconnectCancelFunc = nil
 	}
 }
 
