@@ -43,12 +43,12 @@ type Callback interface {
 	LogMessageCallback(msg string)
 	EventCallback(event int)
 	CallbackMethodFileConfirm(id, platform, filename string, fileSize int64)
-	CallbackFileDragNotify(id, platform, filename string, fileSize int64)
+	CallbackFileDragNotify(id, platform, filename string, fileSize int64) // Deprecated: unused
 	CallbackFileListDragNotify(ip, id, platform string, fileCnt int, totalSize, timestamp int64, firstFileName string, firstFileSize int64)
 	CallbackFileListDragFolderNotify(ip, id, folderName string, timestamp int64)
 	CallbackFilesTransferDone(filesInfo, platform, deviceName string, timestamp int64)
 	CallbackMethodFoundPeer()
-	CallbackUpdateProgressBar(ip, id, filename string, recvSize, total int64, timestamp int64)
+	CallbackUpdateProgressBar(ip, id, filename string, recvSize, total int64, timestamp int64) // Deprecated: unused
 	CallbackUpdateMultipleProgressBar(ip, id, deviceName, currentFileName string, sentFileCnt, totalFileCnt int, currentFileSize, totalSize, sentSize, timestamp int64)
 	CallbackFileError(id, filename, err string, timestamp int64)
 	CallbackNotifyErrEvent(id string, errCode int, arg1, arg2, arg3, arg4 string)
@@ -394,11 +394,6 @@ func GoSetupDstPasteFile(desc, fileName, platform string, fileSizeHigh uint32, f
 	fileSize := int64(fileSizeHigh)<<32 | int64(fileSizeLow)
 	log.Printf("(DST) GoSetupDstPasteFile  sourceID:%s fileName:[%s] fileSize:[%d]", desc, fileName, fileSize)
 	CallbackInstance.CallbackMethodFileConfirm("", platform, fileName, fileSize)
-}
-
-func GoSetupFileDrop(ip, id, fileName, platform string, fileSize uint64, timestamp uint64) {
-	log.Printf("(DST) GoSetupFileDrop  source:%s ip:[%s]fileName:%s  fileSize:%d", id, ip, fileName, fileSize)
-	CallbackInstance.CallbackMethodFileConfirm(id, platform, fileName, int64(fileSize))
 }
 
 func GoSetupFileListDrop(ip, id, platform, totalDesc string, fileCount, folderCount uint32, timestamp uint64) {

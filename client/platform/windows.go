@@ -421,13 +421,8 @@ func GoSetupDstPasteFile(desc, fileName, platform string, fileSizeHigh uint32, f
 
 }
 
-func GoSetupFileDrop(ip, id, fileName, platform string, fileSize uint64, timestamp uint64) {
-
-}
-
 func GoSetupFileListDrop(ip, id, platform, totalDesc string, fileCount, folderCount uint32, timestamp uint64) {
 	log.Printf("[%s] fileCnt:[%d] folderCnt:[%d] totalDesc:[%s]", rtkMisc.GetFuncInfo(), fileCount, folderCount, totalDesc)
-
 }
 
 func GoMultiFilesDropNotify(ip, id, platform string, fileCnt uint32, totalSize, timestamp uint64, firstFileName string, firstFileSize uint64) {

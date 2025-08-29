@@ -61,13 +61,13 @@ func DebugCmdLine() {
 			name := "jack_huang123"
 			rtkPlatform.GoUpdateClientStatus(status, ip, id, name, "HDMI1")
 		} else if strings.Contains(line, "PIPE_SETUP_FILE_DROP") {
-			ip := "192.168.30.1:12345"
+			/*ip := "192.168.30.1:12345"
 			id := "QmQ7obXFx1XMFr6hCYXtovn9zREFqSXEtH5hdtpBDLjrAz"
 			// fileName := "D:\\jack_huang\\Downloads\\新增資料夾\\測試.mp4"
 			fileName := "D:\\jack_huang\\Downloads\\newFolder\\test.mp4"
 			var fileSize uint64 = 60727169
 			var timestamp uint64 = 1697049243123
-			rtkPlatform.GoSetupFileDrop(ip, id, fileName, rtkPlatform.GetPlatform(), fileSize, timestamp)
+			rtkPlatform.GoSetupFileDrop(ip, id, fileName, rtkPlatform.GetPlatform(), fileSize, timestamp)*/
 		} else if strings.Contains(line, "PIPE_UPDATE_PROGRESS") {
 			/*ip := "192.168.30.1:12345"
 			id := "QmQ7obXFx1XMFr6hCYXtovn9zREFqSXEtH5hdtpBDLjrAz"

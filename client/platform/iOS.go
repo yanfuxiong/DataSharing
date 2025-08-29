@@ -491,15 +491,6 @@ func GoSetupDstPasteFile(desc, fileName, platform string, fileSizeHigh uint32, f
 	callbackMethodFileConfirm("", platform, fileName, fileSize)
 }
 
-func GoSetupFileDrop(ip, id, fileName, platform string, fileSize uint64, timestamp uint64) {
-	if callbackMethodFileConfirm == nil {
-		log.Println("CallbackMethodFileConfirm is null!")
-		return
-	}
-	log.Printf("(DST) GoSetupFileDrop  source:%s ip:[%s]fileName:%s  fileSize:%d", id, ip, fileName, fileSize)
-	callbackMethodFileConfirm(id, platform, fileName, int64(fileSize))
-}
-
 func GoSetupFileListDrop(ip, id, platform, totalDesc string, fileCount, folderCount uint32, timestamp uint64) {
 	log.Printf("(DST) GoSetupFileListDrop  ID:]%s] IP:[%s] totalDesc:%s  fileCount:%d  folderCount:%d", id, ip, totalDesc, fileCount, folderCount)
 }
