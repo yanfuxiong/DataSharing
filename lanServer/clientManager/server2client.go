@@ -6,7 +6,6 @@ import (
 	"log"
 	rtkCommon "rtk-cross-share/lanServer/common"
 	rtkdbManager "rtk-cross-share/lanServer/dbManager"
-	rtkGlobal "rtk-cross-share/lanServer/global"
 	rtkMisc "rtk-cross-share/misc"
 	"time"
 )
@@ -122,19 +121,17 @@ func dealC2SMsgInitClient(ext *json.RawMessage) (uint32, interface{}) {
 		}
 
 		if curMaxVersion == "" {
-			log.Printf("[%s] get online clients list max version is null, client base version:%s and req client version:%s", rtkMisc.GetFuncInfo(), rtkGlobal.ClientBaseVersion, extData.ClientVersion)
-			curMaxVersion = rtkGlobal.ClientBaseVersion
+			log.Printf("[%s] Always allow the first online client", rtkMisc.GetFuncInfo()) // No online clients in DB, allow current client to connect
 		} else {
-			log.Printf("[%s] online clients list get max version:%s, and req client version:%s", rtkMisc.GetFuncInfo(), rtkMisc.GetShortVersion(curMaxVersion), extData.ClientVersion)
-		}
-
-		curVerValue := rtkMisc.GetVersionValue(curMaxVersion)
-		if curVerValue > reqVerValue { // client need to update version
-			initClientRsp.ClientVersion = rtkMisc.GetShortVersion(curMaxVersion)
-			return 0, initClientRsp
-		} else if curVerValue < reqVerValue { // other client list need update version
-			log.Printf("[%s] clientID:[%s] Version:[%s] is newer than current:[%s], notify other client list to update!", rtkMisc.GetFuncInfo(), extData.ClientID, extData.ClientVersion, curMaxVersion)
-			buildNotifyClientVersion(extData.ClientID, rtkMisc.GetShortVersion(extData.ClientVersion))
+			curVerValue := rtkMisc.GetVersionValue(curMaxVersion)
+			if curVerValue > reqVerValue { // Online clients version > current client version
+				log.Printf("[%s] online clients list get max version:%s, and req client version:%s, notify to update!", rtkMisc.GetFuncInfo(), rtkMisc.GetShortVersion(curMaxVersion), extData.ClientVersion)
+				initClientRsp.ClientVersion = rtkMisc.GetShortVersion(curMaxVersion)
+				return 0, initClientRsp
+			} else if curVerValue < reqVerValue { // Online clients version < current client version
+				log.Printf("[%s] clientID:[%s] Version:[%s] is newer than current:[%s], notify other client list to update!", rtkMisc.GetFuncInfo(), extData.ClientID, extData.ClientVersion, curMaxVersion)
+				buildNotifyClientVersion(extData.ClientID, rtkMisc.GetShortVersion(extData.ClientVersion))
+			}
 		}
 	}
 
