@@ -1,0 +1,468 @@
+/* Remove some focus boxes */
+* {
+    outline:none;
+    font-family:"Microsoft YaHei";
+}
+
+/*
+QWidget#test {
+    background-color:#071D2D;
+    color:white;
+    border:1px solid red;
+}
+*/
+
+QWidget#centralwidget {
+    /* CUSTOM_UI */
+    background-color:#000000;
+    border:2px solid #E41A2B;
+}
+
+QScrollArea#TipsListArea {
+    background-color:transparent;
+}
+
+QGroupBox#top_box {
+    background-color:#000000;
+    /* CUSTOM_UI */
+    border:2px solid #E41A2B;
+}
+
+QGroupBox#middle_box {
+    /* CUSTOM_UI */
+    border:2px dashed #E41A2B;
+    border-radius:4px;
+    background-color:#F0F0F0;
+}
+
+QWidget#FileRecordWidgetBox {
+    /* CUSTOM_UI */
+    background-color:#000000;
+}
+
+QGroupBox#FileRecordWidgetBox {
+    background-color: white;
+    border-radius:8px;
+    /* CUSTOM_UI */
+    border:1px solid #E41A2B;
+}
+
+QLabel#record_title_label {
+    /* CUSTOM_UI */
+    color: #E41A2B;
+}
+
+QLabel#more_icon:hover {
+    /* CUSTOM_UI */
+    background-color: rgba(192,192,192,160);
+}
+
+QGroupBox#about_view_root_box, QGroupBox#license_view_root_box, QFrame#about_view_h_line {
+    /* CUSTOM_UI */
+    border:1px solid #E41A2B;
+}
+
+QLabel#title_label {
+    background:transparent;
+    /* CUSTOM_UI */
+    color:white;
+}
+
+QLabel#title_logo {
+    /* CUSTOM_UI */
+    border-image:url(:/resource/icon/navibar_logo.svg);
+}
+
+QGroupBox#bottom_box, QGroupBox#tag_box_1, QGroupBox#tag_box_2, QGroupBox#tag_box_3, QGroupBox#tag_box_4 {
+    border:none;
+}
+
+QGroupBox#navibar_box_left, QGroupBox#navibar_box_middle, QGroupBox#navibar_box_right {
+    border:none;
+}
+
+QGroupBox#device_top_box, QGroupBox#device_bottom_box, QGroupBox#modify_box, QGroupBox#device_info_box {
+    border:1px solid lightgrey;
+    border-radius:4px;
+}
+
+QGroupBox#warning_icon_box, QGroupBox#warning_content_box, QGroupBox#warning_bottom_box {
+    border:none;
+}
+
+QLabel#warning_icon_label {
+    border-image:url(:/resource/icon/warning.png);
+}
+
+QLabel#DeviceInfo {
+    background: transparent;
+    color:white;
+    font-size: 16px;
+    border:none;
+}
+
+QLabel#online_devices_label {
+    color:white;
+    background:transparent;
+}
+
+QLabel#empty_label {
+    background:transparent;
+}
+
+QLabel#device_icon_label {
+    border-image:url(:/resource/device_icon/Device_Computer.png);
+}
+
+QLabel#clear_selected_label {
+    color: blue;
+    background:transparent;
+}
+
+QLabel#drag_drop_image_label {
+    background:transparent;
+    border-image:url(:/resource/icon/bk_1.png);
+}
+
+QLabel#accept_file_icon_label {
+    border-image:url(:/resource/file.svg);
+}
+
+QLabel#clear_all_icon {
+    border-image:url(:/resource/clear_all.svg);
+}
+
+QLabel#clear_all_icon:hover {
+    border-image:url(:/resource/clear_all_h.svg);
+}
+
+QLabel#back_label {
+    border-image:url(:/resource/back.svg);
+}
+
+QLabel#back_label:hover {
+    border-image:url(:/resource/back_h.svg);
+}
+
+QLabel#icon_left {
+    border-image:url(:/resource/icon/Device.svg);
+}
+
+QLabel#icon_right {
+    border-image:url(:/resource/icon/cancel.svg);
+}
+
+QLabel#icon_right:hover {
+    border-image:url(:/resource/icon/cancel_h.svg);
+}
+
+QLabel#failed_icon_label {
+    border-image:url(:/resource/icon/check_small.svg);
+}
+
+QLabel#openFileLabel {
+    border-image:url(:/resource/icon/open.svg);
+}
+
+QLabel#openFileLabel:hover {
+    border-image:url(:/resource/icon/open_h.svg);
+}
+
+QLabel#license_icon_label {
+    background-color:white;
+    color:black;
+}
+
+QLabel#license_title_label {
+    background-color:white;
+    color:black;
+}
+
+QLabel#about_icon_label {
+    background-color:white;
+    color:black;
+}
+
+QLabel#about_title_label {
+    background-color:white;
+    color:black;
+}
+
+QLabel#version_info_label, QLabel#version_info_key_label, QGroupBox#about_middle_box {
+    background-color:white;
+    color:#666666;
+    border:none;
+}
+
+QLabel#content_info_label {
+    background-color:white;
+    color:black;
+    border:none;
+}
+
+QLabel#copyright_info_label {
+    background-color:white;
+    color:#ACACAC;
+}
+
+QPushButton {
+    color:white;
+    /*background-color: #02356C;*/
+    background-color:rgb(37,116,237);
+    border: 1px solid #071D2D;
+    border-radius: 4px;
+}
+
+QPushButton:hover, QPushButton[focus_tag="true"] {
+    background-color: qlineargradient(spread:pad, x1:0.0, y1:0.0, x2:1.0, y2:0.5, stop:0 #0079D0, stop:1 #04E599);
+}
+
+QPushButton#openFile {
+    color:white;
+    border-image:url(:/resource/file.svg);
+    border: none;
+}
+
+QPushButton#openFile:hover {
+    border: 1px solid yellow;
+}
+
+QPushButton#fileExplorerButton {
+    color:black;
+    background-color:lightgrey;
+    border-radius: 4px;
+}
+
+QPushButton#fileExplorerButton:hover {
+    background-color: darkgrey;
+    color:white;
+}
+
+QPushButton#customMenuButton {
+    color:rgb(108,190,241);
+    background-color:rgb(243,243,243);
+    border-radius: 4px;
+}
+
+QPushButton#customMenuButton:hover {
+    background-color: darkgrey;
+    color:white;
+}
+
+QPushButton#about_dialog_close_btn {
+color:black;
+background-color:lightgrey;
+border-radius: 4px;
+}
+
+QPushButton#about_dialog_close_btn:hover {
+    background-color: darkgrey;
+    color:white;
+}
+
+QMenu::right-arrow {
+    image: url(:/resource/menu_icon/right-arrow.png);
+    width:20px;
+    height:20px;
+}
+
+/* ---------------------- Vertical scrollbar settings -------------------------------------- */
+
+QScrollBar:vertical {
+background:#F0F0F0;
+padding:0px;
+border-radius:5px;
+max-width:12px;
+}
+
+QScrollBar::handle:vertical{
+background:#CDCDCD;
+min-height:50px;
+border-radius:5px;
+}
+
+QScrollBar::handle:vertical:hover{
+background:#A6A6A6;
+}
+
+QScrollBar::handle:vertical:pressed{
+background:#606060;
+}
+
+QScrollBar::add-page:vertical{
+background:none;
+}
+
+QScrollBar::sub-page:vertical{
+background:none;
+}
+
+QScrollBar::add-line:vertical{
+background:none;
+height: 0px;
+}
+
+QScrollBar::sub-line:vertical{
+background:none;
+height: 0px;
+}
+
+QScrollArea{
+border:0px;
+}
+
+/* ---------------------- Horizontal scrollbar settings -------------------------------------- */
+
+QScrollBar:horizontal{
+background:#F0F0F0;
+padding:0px;
+border-radius:5px;
+max-height:12px;
+}
+
+QScrollBar::handle:horizontal{
+background:#CDCDCD;
+min-width:50px;
+border-radius:5px;
+}
+
+QScrollBar::handle:horizontal:hover{
+background:#A6A6A6;
+}
+
+QScrollBar::handle:horizontal:pressed{
+background:#606060;
+}
+
+QScrollBar::add-page:horizontal{
+background:none;
+}
+
+QScrollBar::sub-page:horizontal{
+background:none;
+}
+
+QScrollBar::add-line:horizontal{
+background:none;
+}
+
+QScrollBar::sub-line:horizontal{
+background:none;
+}
+
+/*---------Horizontal sliding bar------------------------*/
+
+QSlider::groove:horizontal{
+background:rgba(158,158,158,76); /* #9E9E9E opacity: 0.3; */
+height:8px;
+border-radius:4px;
+}
+
+QSlider::add-page:horizontal{
+background:rgba(158,158,158,76); /* #9E9E9E opacity: 0.3; */
+height:8px;
+border-radius:4px;
+}
+
+QSlider::sub-page:horizontal{
+background: qlineargradient(spread:pad, x1:0.0, y1:0.0, x2:1.0, y2:0.5, stop:0 #0079D0, stop:1 #04E599);
+height:8px;
+border-radius:4px;
+}
+
+QSlider::handle:horizontal{
+width:13px;
+margin-top:-3px;
+margin-bottom:-3px;
+border-radius:6px;
+background:#FFFFFF;
+}
+
+/*------------------- Vertical sliding bar -------------------*/
+
+QSlider::groove:vertical{
+background:rgba(158,158,158,76); /* #9E9E9E opacity: 0.3; */
+width:8px;
+border-radius:4px;
+}
+
+QSlider::add-page:vertical{
+background:rgba(158,158,158,76); /* #9E9E9E opacity: 0.3; */
+width:8px;
+border-radius:4px;
+}
+
+QSlider::sub-page:vertical{
+background: qlineargradient(spread:pad, x1:0.0, y1:0.0, x2:1.0, y2:0.5, stop:0 #0079D0, stop:1 #04E599);
+width:8px;
+border-radius:4px;
+}
+
+QSlider::handle:vertical{
+height:14px;
+margin-left:-3px;
+margin-right:-3px;
+border-radius:6px;
+background:#FFFFFF;
+}
+
+QRadioButton {
+color: white;
+}
+
+QRadioButton::indicator{
+width:15px;
+height:15px;
+}
+
+QRadioButton::indicator::unchecked{
+image:url(:/resource/radio_unchecked.svg);
+}
+
+QRadioButton::indicator::checked{
+image:url(:/resource/radio_checked.svg);
+}
+
+
+QGroupBox::indicator,QTreeWidget::indicator,QListWidget::indicator{
+padding:0px -3px 0px 3px;
+}
+
+
+QComboBox {
+    background-color: rgb(204,228,255);
+    border: 1px solid #0079D0;
+    border-radius: 3px;
+    color:black;
+}
+
+QComboBox::drop-down {
+    border-style:none;
+}
+
+QComboBox QAbstractItemView::item {
+    color:black;
+    /*background-color:#113149;*/
+    background:white;
+    min-height:26px;
+}
+
+QComboBox QAbstractItemView::item:hover {
+    background-color:#3595FF;
+}
+
+/*------------------------------- QProgressBar ------------------*/
+QProgressBar{
+min-height:10px;
+background:rgba(158,158,158,76); /* #9E9E9E opacity: 0.3; */
+border-radius:5px;
+text-align:center;
+color:white;
+/*border:1px solid #667481;*/
+}
+
+QProgressBar:chunk{
+border-radius:5px;
+background: qlineargradient(spread:pad, x1:0.0, y1:0.0, x2:1.0, y2:0.5, stop:0 #0079D0, stop:1 #04E599);
+}
+
