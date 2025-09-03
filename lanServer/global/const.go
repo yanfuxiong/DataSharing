@@ -1,7 +1,7 @@
 package global
 
 const (
-	LanServerVersion  = "2.2.14" // it must notify client and update client version and VersionReadme.txt  when intermediate version is update
+	LanServerVersion  = "2.2.16" // it must notify client and update client version and VersionReadme.txt  when intermediate version is update
 	ClientBaseVersion = "2.3"
 
 	LOG_PATH         = "/data/vendor/realtek/cross_share/"
@@ -14,4 +14,13 @@ const (
 	Src_STREAM            = 12
 	Port_max              = 4
 	Port_subType_Miracast = 9
+)
+
+type DpSrcType int
+
+const (
+	DP_SRC_TYPE_NONE    DpSrcType = 0
+	DP_SRC_TYPE_DP      DpSrcType = 1
+	DP_SRC_TYPE_MINI_DP DpSrcType = 2
+	DP_SRC_TYPE_USBC    DpSrcType = 3
 )

@@ -315,6 +315,11 @@ func (s *Server) handleQuery(query *dns.Msg, ifIndex int, from net.Addr) error {
 		return nil
 	}
 
+	remoteAddr := &net.UDPAddr{
+		IP:   from.(*net.UDPAddr).IP,
+		Port: from.(*net.UDPAddr).Port,
+	}
+
 	// Handle each question
 	var err error
 	for _, q := range query.Question {
@@ -336,8 +341,30 @@ func (s *Server) handleQuery(query *dns.Msg, ifIndex int, from net.Addr) error {
 		}
 
 		if isUnicastQuestion(q) {
+			// Handle unicast extra
+			for _, extraRR := range query.Extra {
+				txt, ok := extraRR.(*dns.TXT)
+				if !ok {
+					continue
+				}
+
+				for _, str := range txt.Txt {
+					if strings.HasPrefix(str, keyUnicastPort) {
+						var port int
+						format := fmt.Sprintf("%s%%d", keyUnicastPort) // filter with "unicast_port=%d"
+						_, err := fmt.Sscanf(str, format, &port)
+						if err != nil {
+							log.Printf("Check unicast port fail(%s). Err: %v", str, err)
+							continue
+						}
+
+						remoteAddr.Port = port
+					}
+				}
+			}
+
 			// Send unicast
-			if e := s.unicastResponse(&resp, ifIndex, from); e != nil {
+			if e := s.unicastResponse(&resp, ifIndex, remoteAddr); e != nil {
 				err = e
 			}
 		} else {
@@ -516,7 +543,7 @@ func (s *Server) serviceTypeName(resp *dns.Msg, ttl uint32) {
 }
 
 // Perform probing & announcement
-//TODO: implement a proper probing & conflict resolution
+// TODO: implement a proper probing & conflict resolution
 func (s *Server) probe() {
 	q := new(dns.Msg)
 	q.SetQuestion(s.service.ServiceInstanceName(), dns.TypePTR)

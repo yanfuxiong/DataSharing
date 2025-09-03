@@ -12,6 +12,17 @@ import (
 
 var VERSION_CONTROL = false
 
+// =============================
+// TimingData get event
+// =============================
+type SendPlatformMsgEventCallback func(event int, arg1, arg2, arg3, arg4 string)
+
+var sendPlatformMsgEventCallback SendPlatformMsgEventCallback
+
+func SetSendPlatformMsgEventCallback(cb SendPlatformMsgEventCallback) {
+	sendPlatformMsgEventCallback = cb
+}
+
 // TODO: call by via InterfaceMgr
 func SendDragFileEvent(srcId, targetId string, srcClientIndex uint32) rtkMisc.CrossShareErr {
 	msg := rtkMisc.C2SMessage{
@@ -202,7 +213,7 @@ func dealC2SMsgReqPlatformMsgEvent(id string, ext *json.RawMessage) interface{} 
 		return msgEventRsp
 	}
 	log.Printf("[%s] id:[%s] event:[%d], arg1:%s, arg2:%s, arg3:%s, arg4:%s\n", rtkMisc.GetFuncInfo(), id, extData.Event, extData.Arg1, extData.Arg2, extData.Arg3, extData.Arg4)
-	// TODO: Implement msg event business here
+	sendPlatformMsgEventCallback(int(extData.Event), extData.Arg1, extData.Arg2, extData.Arg3, extData.Arg4)
 
 	return msgEventRsp
 }

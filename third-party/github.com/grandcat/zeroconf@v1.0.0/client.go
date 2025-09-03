@@ -10,6 +10,7 @@ import (
 	"golang.org/x/net/ipv6"
 
 	"time"
+
 	"github.com/cenkalti/backoff"
 	"github.com/miekg/dns"
 )
@@ -35,7 +36,7 @@ type clientOpts struct {
 // ClientOption fills the option struct to configure intefaces, etc.
 type ClientOption func(*clientOpts)
 
-var ExternalIfaces []net.Interface			// add by xiongyanfu 20250221
+var ExternalIfaces []net.Interface // add by xiongyanfu 20250221
 
 // SelectIPTraffic selects the type of IP packets (IPv4, IPv6, or both) this
 // instance listens for.
@@ -63,7 +64,7 @@ type Resolver struct {
 // NewResolver creates a new resolver and joins the UDP multicast groups to
 // listen for mDNS messages.
 func NewResolver(ifaces []net.Interface, options ...ClientOption) (*Resolver, error) {
-	if ifaces!=nil && len(ifaces) > 0{
+	if ifaces != nil && len(ifaces) > 0 {
 		ExternalIfaces = ifaces
 	}
 	// Apply default configuration and load supplied options.
@@ -95,7 +96,7 @@ func (r *Resolver) Browse(ctx context.Context, service, domain string, entries c
 	ctx, cancel := context.WithCancel(ctx)
 	go r.c.mainloop(ctx, params)
 
-	err := r.c.query(params)
+	err := r.c.query(params, false)
 	if err != nil {
 		cancel()
 		return err
@@ -103,7 +104,7 @@ func (r *Resolver) Browse(ctx context.Context, service, domain string, entries c
 	// If previous probe was ok, it should be fine now. In case of an error later on,
 	// the entries' queue is closed.
 	go func() {
-		if err := r.c.periodicQuery(ctx, params); err != nil {
+		if err := r.c.periodicQuery(ctx, params, false); err != nil {
 			cancel()
 		}
 	}()
@@ -112,7 +113,7 @@ func (r *Resolver) Browse(ctx context.Context, service, domain string, entries c
 }
 
 // Lookup a specific service by its name and type in a given domain.
-func (r *Resolver) Lookup(ctx context.Context, instance, service, domain string, entries chan<- *ServiceEntry) error {
+func (r *Resolver) Lookup(ctx context.Context, instance, service, domain string, entries chan<- *ServiceEntry, isUnicast bool) error {
 	params := defaultParams(service)
 	params.Instance = instance
 	if domain != "" {
@@ -121,7 +122,7 @@ func (r *Resolver) Lookup(ctx context.Context, instance, service, domain string,
 	params.Entries = entries
 	ctx, cancel := context.WithCancel(ctx)
 	go r.c.mainloop(ctx, params)
-	err := r.c.query(params)
+	err := r.c.query(params, isUnicast)
 	if err != nil {
 		// cancel mainloop
 		cancel()
@@ -130,7 +131,7 @@ func (r *Resolver) Lookup(ctx context.Context, instance, service, domain string,
 	// If previous probe was ok, it should be fine now. In case of an error later on,
 	// the entries' queue is closed.
 	go func() {
-		if err := r.c.periodicQuery(ctx, params); err != nil {
+		if err := r.c.periodicQuery(ctx, params, isUnicast); err != nil {
 			cancel()
 		}
 	}()
@@ -145,9 +146,10 @@ func defaultParams(service string) *LookupParams {
 
 // Client structure encapsulates both IPv4/IPv6 UDP connections.
 type client struct {
-	ipv4conn *ipv4.PacketConn
-	ipv6conn *ipv6.PacketConn
-	ifaces   []net.Interface
+	ipv4conn        *ipv4.PacketConn
+	ipv6conn        *ipv6.PacketConn
+	unicastIpv4conn *ipv4.PacketConn
+	ifaces          []net.Interface
 }
 
 // Client structure constructor
@@ -179,11 +181,20 @@ func newClient(opts clientOpts) (*client, error) {
 			return nil, err
 		}
 	}
-
+	// Unicast interfaces
+	var unicastIpv4conn *ipv4.PacketConn
+	if (opts.listenOn & IPv4) > 0 {
+		var err error
+		unicastIpv4conn, err = joinUdp4Unicast(ifaces)
+		if err != nil {
+			return nil, err
+		}
+	}
 	return &client{
-		ipv4conn: ipv4conn,
-		ipv6conn: ipv6conn,
-		ifaces:   ifaces,
+		ipv4conn:        ipv4conn,
+		ipv6conn:        ipv6conn,
+		unicastIpv4conn: unicastIpv4conn,
+		ifaces:          ifaces,
 	}, nil
 }
 
@@ -196,6 +207,9 @@ func (c *client) mainloop(ctx context.Context, params *LookupParams) {
 	}
 	if c.ipv6conn != nil {
 		go c.recv(ctx, c.ipv6conn, msgCh)
+	}
+	if c.unicastIpv4conn != nil {
+		go c.recv(ctx, c.unicastIpv4conn, msgCh)
 	}
 
 	// Iterate through channels from listeners goroutines
@@ -320,6 +334,9 @@ func (c *client) shutdown() {
 	if c.ipv6conn != nil {
 		c.ipv6conn.Close()
 	}
+	if c.unicastIpv4conn != nil {
+		c.unicastIpv4conn.Close()
+	}
 }
 
 // Data receiving routine reads from connection, unpacks packets into dns.Msg
@@ -355,6 +372,7 @@ func (c *client) recv(ctx context.Context, l interface{}, msgCh chan *dns.Msg) {
 		}
 
 		n, _, err := readFrom(buf)
+		// log.Printf("[RECV] from %v, size=%d", src, n)
 		if err != nil {
 			fatalErr = err
 			continue
@@ -378,7 +396,7 @@ func (c *client) recv(ctx context.Context, l interface{}, msgCh chan *dns.Msg) {
 // the main processing loop or some timeout/cancel fires.
 // TODO: move error reporting to shutdown function as periodicQuery is called from
 // go routine context.
-func (c *client) periodicQuery(ctx context.Context, params *LookupParams) error {
+func (c *client) periodicQuery(ctx context.Context, params *LookupParams, isUnicast bool) error {
 	if params.stopProbing == nil {
 		return nil
 	}
@@ -390,7 +408,7 @@ func (c *client) periodicQuery(ctx context.Context, params *LookupParams) error 
 
 	for {
 		// Do periodic query.
-		if err := c.query(params); err != nil {
+		if err := c.query(params, isUnicast); err != nil {
 			return err
 		}
 		// Backoff and cancel logic.
@@ -415,7 +433,7 @@ func (c *client) periodicQuery(ctx context.Context, params *LookupParams) error 
 
 // Performs the actual query by service name (browse) or service instance name (lookup),
 // start response listeners goroutines and loops over the entries channel.
-func (c *client) query(params *LookupParams) error {
+func (c *client) query(params *LookupParams, isUnicast bool) error {
 	var serviceName, serviceInstanceName string
 	serviceName = fmt.Sprintf("%s.%s.", trimDot(params.Service), trimDot(params.Domain))
 	if params.Instance != "" {
@@ -424,10 +442,26 @@ func (c *client) query(params *LookupParams) error {
 
 	// send the query
 	m := new(dns.Msg)
+	var dnsClass uint16 = dns.ClassINET
+	if isUnicast {
+		dnsClass = dnsClass | 0x8000
+
+		var hNamer = serviceName
+		if serviceInstanceName != "" {
+			hNamer = serviceInstanceName
+		}
+
+		uniCastTxt := &dns.TXT{
+			Hdr: dns.RR_Header{hNamer, dns.TypeTXT, dns.ClassINET, 120, 0},
+			Txt: []string{fmt.Sprintf("%s%d", keyUnicastPort, unicastAddrIPv4.Port)},
+		}
+		m.Extra = append(m.Extra, uniCastTxt)
+	}
+
 	if serviceInstanceName != "" {
 		m.Question = []dns.Question{
-			dns.Question{serviceInstanceName, dns.TypeSRV, dns.ClassINET},
-			dns.Question{serviceInstanceName, dns.TypeTXT, dns.ClassINET},
+			dns.Question{serviceInstanceName, dns.TypeSRV, dnsClass},
+			dns.Question{serviceInstanceName, dns.TypeTXT, dnsClass},
 		}
 		m.RecursionDesired = false
 	} else {

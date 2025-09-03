@@ -59,6 +59,11 @@ const (
 		WHERE %s
 		RETURNING t_client_info.PkIndex;`
 
+	SqlDataResetAuthInfo SqlData = `
+		UPDATE t_auth_info
+		SET AuthStatus=0, UpdateTime=(datetime('now','localtime'))
+		WHERE AuthStatus=1;`
+
 	SqlDataQueryClientInfo SqlData = `
 		SELECT t_client_info.PkIndex, ClientId, Host, IPAddr,
 		Source, Port, DeviceName, Platform, Version,

@@ -52,6 +52,11 @@ func InitSqlite(ctx context.Context) {
 		log.Fatal(err)
 	}
 
+	_, err = g_SqlInstance.Exec(SqlDataResetAuthInfo.toString())
+	if err != nil {
+		log.Println("[WARN] Database error: Reset auth info failed: ", err)
+	}
+
 	UpdateAllClientOffline()
 
 	rtkMisc.GoSafe(func() {

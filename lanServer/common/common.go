@@ -55,23 +55,43 @@ const (
 	SrcPortType_HDMI_2   SourcePortType = "HDMI2"
 	SrcPortType_USBC_1   SourcePortType = "USBC1"
 	SrcPortType_USBC_2   SourcePortType = "USBC2"
+	SrcPortType_DP_1     SourcePortType = "DP1"
+	SrcPortType_DP_2     SourcePortType = "DP2"
 	SrcPortType_MIRACAST SourcePortType = "Miracast"
+)
+
+var (
+	MAX_PORT_HDMI = 2 // Now only support 2 port in HDMI
+	MAX_PORT_DP   = 2 // Now only support 2 port in DP
+	DpSrcTypeAry  = make([]SourcePortType, MAX_PORT_DP)
 )
 
 // TODO: This mapping is hardcode now. Need to consider the different PCB in the future
 func GetClientSourcePortType(src, port int) string {
 	srcPortType := SrcPortType_UNKNOWN
-	if src == rtkGlobal.Src_HDMI && port == 0 {
-		srcPortType = SrcPortType_HDMI_1
-	} else if src == rtkGlobal.Src_HDMI && port == 1 {
-		srcPortType = SrcPortType_HDMI_2
-	} else if src == rtkGlobal.Src_DP && port == 0 {
-		srcPortType = SrcPortType_USBC_1
-	} else if src == rtkGlobal.Src_DP && port == 1 {
-		srcPortType = SrcPortType_USBC_2
-	} else if src == rtkGlobal.Src_STREAM && port == rtkGlobal.Port_subType_Miracast {
-		srcPortType = SrcPortType_MIRACAST
-	} else {
+	switch src {
+	case rtkGlobal.Src_HDMI:
+		if port >= MAX_PORT_HDMI {
+			log.Printf("[%s] Invalid port: %d", rtkMisc.GetFuncInfo(), port)
+		} else if port == 0 {
+			srcPortType = SrcPortType_HDMI_1
+		} else if port == 1 {
+			srcPortType = SrcPortType_HDMI_2
+		}
+
+	case rtkGlobal.Src_DP:
+		if port >= MAX_PORT_DP {
+			log.Printf("[%s] Invalid port: %d", rtkMisc.GetFuncInfo(), port)
+		} else {
+			srcPortType = DpSrcTypeAry[port]
+		}
+
+	case rtkGlobal.Src_STREAM:
+		if port == rtkGlobal.Port_subType_Miracast {
+			srcPortType = SrcPortType_MIRACAST
+		}
+
+	default:
 		log.Printf("[%s] source:[%d] port:[%d] unknown type!", rtkMisc.GetFuncInfo(), src, port)
 	}
 

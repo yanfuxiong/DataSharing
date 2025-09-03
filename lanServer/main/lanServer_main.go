@@ -10,6 +10,7 @@ import (
 	"os"
 	rtkBuildConfig "rtk-cross-share/lanServer/buildConfig"
 	rtkClientManager "rtk-cross-share/lanServer/clientManager"
+	rtkCommon "rtk-cross-share/lanServer/common"
 	rtkdbManager "rtk-cross-share/lanServer/dbManager"
 	rtkDebug "rtk-cross-share/lanServer/debug"
 	rtkGlobal "rtk-cross-share/lanServer/global"
@@ -49,7 +50,7 @@ func checkLanServerExists() (string, bool) {
 	getLanServerEntry := make(chan *zeroconf.ServiceEntry)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(5))
 	defer cancel()
-	err = resolver.Lookup(ctx, rtkMisc.LanServerName, *service, *domain, getLanServerEntry)
+	err = resolver.Lookup(ctx, rtkMisc.LanServerName, *service, *domain, getLanServerEntry, false)
 	if err != nil {
 		log.Println("Failed to Lookup:", err.Error())
 		return "", false
@@ -138,6 +139,8 @@ func MainInit() {
 	log.Printf("%s Build Date: %s", rtkBuildConfig.ServerName, rtkBuildConfig.BuildDate)
 	log.Printf("=====================================================\n\n")
 
+	initDpSrcType()
+
 	var printErrNetwork = true
 	for {
 		if rtkMisc.IsNetworkConnected(rtkNetwork.SupInterfaces) {
@@ -173,6 +176,29 @@ func MainInit() {
 
 		log.Printf("registerMdns Server restart...\n\n")
 		rtkMisc.GoSafe(func() { Run() })
+	}
+}
+
+func initDpSrcType() {
+	usbcCnt := 0
+	dpCnt := 0
+	for port := range rtkCommon.MAX_PORT_DP {
+		dpSrcType := rtkIfaceMgr.GetInterfaceMgr().TriggerGetDpSrcTypeCb(rtkGlobal.Src_DP, port)
+		if dpSrcType == rtkGlobal.DP_SRC_TYPE_USBC {
+			if usbcCnt == 0 {
+				rtkCommon.DpSrcTypeAry[port] = rtkCommon.SrcPortType_USBC_1
+			} else if usbcCnt == 1 {
+				rtkCommon.DpSrcTypeAry[port] = rtkCommon.SrcPortType_USBC_2
+			}
+			usbcCnt++
+		} else {
+			if dpCnt == 0 {
+				rtkCommon.DpSrcTypeAry[port] = rtkCommon.SrcPortType_DP_1
+			} else if dpCnt == 1 {
+				rtkCommon.DpSrcTypeAry[port] = rtkCommon.SrcPortType_DP_2
+			}
+			dpCnt++
+		}
 	}
 }
 
@@ -270,12 +296,12 @@ func registerMdns(server **zeroconf.Server, serverForSearch **zeroconf.Server) [
 			getTextRecord := func(key, value string) string {
 				return key + "=" + value
 			}
-			// TODO: ProductName from DIAS
 			textRecordIp := getTextRecord(rtkMisc.TextRecordKeyIp, ipAddr)
 			textRecordMonitorName := getTextRecord(rtkMisc.TextRecordKeyMonitorName, rtkGlobal.ServerMonitorName)
+			textRecordProductName := getTextRecord(rtkMisc.TextRecordKeyProductName, rtkGlobal.ServerProductName)
 			textRecordTimestamp := getTextRecord(rtkMisc.TextRecordKeyTimestamp, strconv.FormatInt(time.Now().UnixMilli(), 10))
 			textRecordVersion := getTextRecord(rtkMisc.TextRecordKeyVersion, rtkGlobal.LanServerVersion)
-			textRecords := []string{textRecordIp, textRecordMonitorName, textRecordTimestamp, textRecordVersion}
+			textRecords := []string{textRecordIp, textRecordMonitorName, textRecordProductName, textRecordTimestamp, textRecordVersion}
 			*server, err = zeroconf.Register(*name, *service, *domain, *port, textRecords, []net.Interface{*iface})
 			*serverForSearch, _ = zeroconf.Register(*name, *serviceForServer, *domain, *port, []string{}, []net.Interface{*iface})
 			(*server).TTL(60)

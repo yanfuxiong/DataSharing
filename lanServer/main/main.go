@@ -37,6 +37,8 @@ typedef void (*DragFileStartCb)(int source, int port, int horzSize, int vertSize
 typedef void (*UpdateClientInfoCb)(const CLIENT_INFO_DATA clientInfo);
 typedef void (*GetTimingDataCb)(TIMING_DATA** list, int* size);
 typedef void (*DisplayMonitorNameCb)();
+typedef void (*GetDpSrcTypeCb)(int source, int port, int* dpSrcType);
+typedef void (*SendMsgEventCb)(int event, const char* arg1, const char* arg2, const char* arg3, const char* arg4);
 
 // store callback pointer
 static UpdateDeviceNameCb g_updateDeviceNameCb = 0;
@@ -44,6 +46,8 @@ static DragFileStartCb g_dragFileStartCb = 0;
 static UpdateClientInfoCb g_updateClientInfoCb = 0;
 static GetTimingDataCb g_getTimingDataCb = 0;
 static DisplayMonitorNameCb g_displayMonitorNameCb = 0;
+static GetDpSrcTypeCb g_getDpSrcTypeCb = 0;
+static SendMsgEventCb g_sendMsgEventCb = 0;
 
 // function GO can call to invoke callback
 static void setUpdateDeviceNameCb(UpdateDeviceNameCb cb) {g_updateDeviceNameCb = cb;}
@@ -76,11 +80,24 @@ static void onDisplayMonitorNameCb() {
 		g_displayMonitorNameCb();
 	}
 }
+static void setGetDpSrcTypeCb(GetDpSrcTypeCb cb) {g_getDpSrcTypeCb = cb;}
+static void onGetDpSrcTypeCb(int source, int port, int* dpSrcType) {
+	if (g_getDpSrcTypeCb) {
+		g_getDpSrcTypeCb(source, port, dpSrcType);
+	}
+}
+static void setSendMsgEventCb(SendMsgEventCb cb) {g_sendMsgEventCb = cb;}
+static void onSendMsgEventCb(int event, const char* arg1, const char* arg2, const char* arg3, const char* arg4) {
+	if (g_sendMsgEventCb) {
+		g_sendMsgEventCb(event, arg1, arg2, arg3, arg4);
+	}
+}
 */
 import "C"
 import (
 	"reflect"
 	rtkCommon "rtk-cross-share/lanServer/common"
+	rtkGlobal "rtk-cross-share/lanServer/global"
 	rtkIfaceMgr "rtk-cross-share/lanServer/interfaceMgr"
 	rtkMisc "rtk-cross-share/misc"
 	"unsafe"
@@ -109,6 +126,16 @@ func SetGetTimingDataCb(cb C.GetTimingDataCb) {
 //export SetDisplayMonitorNameCb
 func SetDisplayMonitorNameCb(cb C.DisplayMonitorNameCb) {
 	C.setDisplayMonitorNameCb(cb)
+}
+
+//export SetGetDpSrcTypeCb
+func SetGetDpSrcTypeCb(cb C.GetDpSrcTypeCb) {
+	C.setGetDpSrcTypeCb(cb)
+}
+
+//export SetSendMsgEventCb
+func SetSendMsgEventCb(cb C.SendMsgEventCb) {
+	C.setSendMsgEventCb(cb)
 }
 
 //export AuthDevice
@@ -175,6 +202,12 @@ func UpdateMonitorName(cName *C.char) {
 	rtkIfaceMgr.GetInterfaceMgr().UpdateMonitorName(name)
 }
 
+//export UpdateProductName
+func UpdateProductName(cName *C.char) {
+	name := C.GoString(cName)
+	rtkIfaceMgr.GetInterfaceMgr().UpdateProductName(name)
+}
+
 //export Init
 func Init() {
 	initFunc()
@@ -187,12 +220,14 @@ func InitWithName(cMonitorName *C.char) {
 }
 
 func initFunc() {
-	rtkIfaceMgr.GetInterfaceMgr().SetupCallback(
+	rtkIfaceMgr.GetInterfaceMgr().SetupCallbackFromServer(
 		goUpdateDeviceNameCb,
 		goDragFileStartCb,
 		goUpdateClientInfoCb,
 		goDisplayMonitorNameCb,
-		goGetTimingDataCb)
+		goGetDpSrcTypeCb,
+		goGetTimingDataCb,
+		goSendMsgEventCb)
 
 	rtkMisc.GoSafe(func() {
 		MainInit()
@@ -227,6 +262,15 @@ func goDisplayMonitorNameCb() {
 	C.onDisplayMonitorNameCb()
 }
 
+func goGetDpSrcTypeCb(source, port int) rtkGlobal.DpSrcType {
+	cSource := C.int(source)
+	cPort := C.int(port)
+	var cDpSrcType C.int
+	C.onGetDpSrcTypeCb(cSource, cPort, &cDpSrcType)
+
+	return rtkGlobal.DpSrcType(cDpSrcType)
+}
+
 func goGetTimingDataCb() []rtkCommon.TimingData {
 	var cList *C.TIMING_DATA
 	var cSize C.int
@@ -252,6 +296,19 @@ func goGetTimingDataCb() []rtkCommon.TimingData {
 	}
 
 	return result
+}
+
+func goSendMsgEventCb(event int, arg1, arg2, arg3, arg4 string) {
+	cEvent := C.int(event)
+	cArg1 := C.CString(arg1)
+	defer C.free(unsafe.Pointer(cArg1))
+	cArg2 := C.CString(arg2)
+	defer C.free(unsafe.Pointer(cArg2))
+	cArg3 := C.CString(arg3)
+	defer C.free(unsafe.Pointer(cArg3))
+	cArg4 := C.CString(arg4)
+	defer C.free(unsafe.Pointer(cArg4))
+	C.onSendMsgEventCb(cEvent, cArg1, cArg2, cArg3, cArg4)
 }
 
 func main() {

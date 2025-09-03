@@ -29,7 +29,9 @@ type (
 	}
 	UpdateClientInfoCb   func(clientInfo rtkCommon.ClientInfoTb)
 	DisplayMonitorNameCb func()
+	GetDpSrcTypeCb       func(source, port int) rtkGlobal.DpSrcType
 	GetTimingDataCb      func() []rtkCommon.TimingData
+	SendMsgEventCb       func(event int, arg1, arg2, arg3, arg4 string)
 	InterfaceMgr         struct {
 		mu                    sync.RWMutex
 		mUpdateDeviceNameCb   UpdateDeviceNameCb
@@ -37,29 +39,34 @@ type (
 		mDragFileSrcInfo      DragFileSrcInfo
 		mUpdateClientInfoCb   UpdateClientInfoCb
 		mDisplayMonitorNameCb DisplayMonitorNameCb
+		mGetDpSrcTypeCb       GetDpSrcTypeCb
 		mGetTimingDataCb      GetTimingDataCb
+		mSendMsgEventCb       SendMsgEventCb
 	}
 )
 
 func GetInterfaceMgr() *InterfaceMgr {
 	once.Do(func() {
 		instance = &InterfaceMgr{}
-		instance.initDbCallback()
+		instance.initCallbackToClient()
 	})
 	return instance
 }
 
-func (mgr *InterfaceMgr) initDbCallback() {
+func (mgr *InterfaceMgr) initCallbackToClient() {
 	rtkdbManager.SetNotifyUpdateClientInfoCallback(mgr.TriggerUpdateClientInfo)
 	rtkClientManager.SetNotifyGetTimingDataCallback(mgr.TriggerGetTimingData)
+	rtkClientManager.SetSendPlatformMsgEventCallback(mgr.TriggerSendMsgEvent)
 }
 
-func (mgr *InterfaceMgr) SetupCallback(
+func (mgr *InterfaceMgr) SetupCallbackFromServer(
 	updateDeviceNameCb UpdateDeviceNameCb,
 	dragFileStartCb DragFileStartCb,
 	updateClientInfoCb UpdateClientInfoCb,
 	displayMonitorNameCb DisplayMonitorNameCb,
+	getDpSrcTypeCb GetDpSrcTypeCb,
 	getTimingDataCb GetTimingDataCb,
+	sendMsgEventCb SendMsgEventCb,
 ) {
 	mgr.mu.Lock()
 	defer mgr.mu.Unlock()
@@ -67,7 +74,9 @@ func (mgr *InterfaceMgr) SetupCallback(
 	mgr.mDragFileStartCb = dragFileStartCb
 	mgr.mUpdateClientInfoCb = updateClientInfoCb
 	mgr.mDisplayMonitorNameCb = displayMonitorNameCb
+	mgr.mGetDpSrcTypeCb = getDpSrcTypeCb
 	mgr.mGetTimingDataCb = getTimingDataCb
+	mgr.mSendMsgEventCb = sendMsgEventCb
 }
 
 // Deprecated: Use UpdateClientInfodData
@@ -116,6 +125,16 @@ func (mgr *InterfaceMgr) TriggerDisplayMonitorName() {
 	mgr.mDisplayMonitorNameCb()
 }
 
+func (mgr *InterfaceMgr) TriggerGetDpSrcTypeCb(source, port int) rtkGlobal.DpSrcType {
+	mgr.mu.RLock()
+	if mgr.mGetDpSrcTypeCb == nil {
+		log.Printf("[%s][%s] Error: GetDpSrcType callback is null", tag, rtkMisc.GetFuncInfo())
+		return rtkGlobal.DP_SRC_TYPE_NONE
+	}
+	mgr.mu.RUnlock()
+	return mgr.mGetDpSrcTypeCb(source, port)
+}
+
 func (mgr *InterfaceMgr) TriggerGetTimingData() []rtkCommon.TimingData {
 	mgr.mu.RLock()
 	if mgr.mGetTimingDataCb == nil {
@@ -125,6 +144,17 @@ func (mgr *InterfaceMgr) TriggerGetTimingData() []rtkCommon.TimingData {
 	mgr.mu.RUnlock()
 
 	return mgr.mGetTimingDataCb()
+}
+
+func (mgr *InterfaceMgr) TriggerSendMsgEvent(event int, arg1, arg2, arg3, arg4 string) {
+	mgr.mu.RLock()
+	if mgr.mSendMsgEventCb == nil {
+		log.Printf("[%s][%s] Error: SendMsgEvent callback is null", tag, rtkMisc.GetFuncInfo())
+		return
+	}
+	mgr.mu.RUnlock()
+
+	mgr.mSendMsgEventCb(event, arg1, arg2, arg3, arg4)
 }
 
 func (mgr *InterfaceMgr) AuthDevice(source, port, index int) bool {
@@ -218,4 +248,9 @@ func (mgr *InterfaceMgr) GetClientInfodData(source, port int) rtkCommon.ClientIn
 func (mgr *InterfaceMgr) UpdateMonitorName(name string) {
 	log.Printf("[%s][%s] MonitorName: %s", tag, rtkMisc.GetFuncInfo(), name)
 	rtkGlobal.ServerMonitorName = name
+}
+
+func (mgr *InterfaceMgr) UpdateProductName(name string) {
+	log.Printf("[%s][%s] ProductName: %s", tag, rtkMisc.GetFuncInfo(), name)
+	rtkGlobal.ServerProductName = name
 }
