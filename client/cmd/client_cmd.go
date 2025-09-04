@@ -22,7 +22,7 @@ import (
 
 var (
 	cablePlugInFlagChan      = make(chan struct{}, 1)
-	cablePlugOutFlagChan     = make(chan struct{}, 1)
+	cablePlugOutFlagChan     = make(chan struct{})
 	networkSwitchFlagChan    = make(chan struct{})
 	clientVerInvalidFlagChan = make(chan struct{})
 	getLanServerMacTimeStamp int64

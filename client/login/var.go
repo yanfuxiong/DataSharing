@@ -51,6 +51,7 @@ var (
 	disconnectAllClientFunc callbackDisconnectAllClientFunc
 	cancelAllBusinessFunc   callbackCancelAllBusinessFunc
 	mobileAuthData          rtkMisc.AuthDataInfo
+	g_lookupByUnicast       bool
 
 	// Used by connection package
 	GetClientListFlag = make(chan []rtkMisc.ClientInfo)

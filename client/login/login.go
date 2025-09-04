@@ -154,6 +154,7 @@ func ConnectLanServerRun(ctx context.Context) {
 	}()
 
 	if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformWindows || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformMac {
+		g_lookupByUnicast = true
 		computerInitLanServer(ctx)
 	} else {
 		serverInstanceMap.Range(func(k, v any) bool {
@@ -300,9 +301,6 @@ func stopBrowseInstance() {
 }
 
 func getLanServerAddr(ctx context.Context, bPrintErr bool) (string, rtkMisc.CrossShareErr) {
-	tOctx, cancel := context.WithTimeout(ctx, time.Second*5)
-	defer cancel()
-
 	if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformWindows || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformMac {
 		if lanServerInstance == "" {
 			if bPrintErr {
@@ -322,6 +320,8 @@ func getLanServerAddr(ctx context.Context, bPrintErr bool) (string, rtkMisc.Cros
 		}
 
 		time.Sleep(50 * time.Millisecond) // Delay 50ms between "stop browse server" and "start lookup server"
+		tOctx, cancel := context.WithTimeout(ctx, time.Second*5)
+		defer cancel()
 		return lookupLanServer(tOctx, lanServerInstance, rtkMisc.LanServiceType, rtkMisc.LanServerDomain, bPrintErr)
 	} else {
 		if lanServerInstance != "" {
@@ -544,10 +544,10 @@ func browseLanServer(ctx context.Context, serviceType, domain string, resultChan
 				txtMap := getTextRecordMap(entry.Text)
 				textRecordmonitorName := txtMap[rtkMisc.TextRecordKeyMonitorName]
 				textRecordTimeStamp := txtMap[rtkMisc.TextRecordKeyTimestamp]
-				TextRecordKeyVersion := txtMap[rtkMisc.TextRecordKeyVersion]
-				log.Printf("Browse get a Service, mName:[%s] instance:[%s] IP:[%s] ver:[%s] timestamp:[%s], use %d ms", textRecordmonitorName, entry.Instance, lanServerIp, TextRecordKeyVersion, textRecordTimeStamp, time.Now().UnixMilli()-startTime)
+				textRecordKeyVersion := txtMap[rtkMisc.TextRecordKeyVersion]
+				log.Printf("Browse get a Service, mName:[%s] instance:[%s] IP:[%s] ver:[%s] timestamp:[%s], use %d ms", textRecordmonitorName, entry.Instance, lanServerIp, textRecordKeyVersion, textRecordTimeStamp, time.Now().UnixMilli()-startTime)
 
-				resultChan <- browseParam{entry.Instance, lanServerIp, textRecordmonitorName, TextRecordKeyVersion, 0}
+				resultChan <- browseParam{entry.Instance, lanServerIp, textRecordmonitorName, textRecordKeyVersion, 0}
 			}
 		}
 		log.Printf("Stop Browse service instances...")
@@ -618,12 +618,6 @@ func browseLanServerAndroid(ctx context.Context, serviceType, domain string, res
 				if lanServerRunning.Load() {
 					rtkPlatform.GoNotifyBrowseResult(textRecordmName, entry.Instance, lanServerIp, textRecordKeyVersion, int64(stamp))
 				}
-				/*rtkPlatform.GoNotifyBrowseResult("testMonitorName", "test-Instance", "10.24.136.104:8080", "2.12.14", 0)
-				serverInstanceMap.Store("test-Instance", browseParam{
-					instance:    "test-Instance",
-					ip:          "10.24.136.104:8080",
-					monitorName: "testMonitorName",
-				})*/
 
 				resultChan <- browseParam{entry.Instance, lanServerIp, textRecordmName, textRecordKeyVersion, int64(stamp)}
 			}
@@ -682,11 +676,13 @@ func lookupLanServer(ctx context.Context, instance, serviceType, domain string, 
 
 	lanServerEntry := make(chan *zeroconf.ServiceEntry)
 	if bPrintErr {
-		log.Printf("Start Lookup service  by name:%s  type:%s", instance, serviceType)
+		log.Printf("Start Lookup service  by instance:%s  type:%s domain:%s", instance, serviceType, domain)
 	}
-	err = resolver.Lookup(ctx, instance, serviceType, domain, lanServerEntry)
+
+	err = resolver.Lookup(ctx, instance, serviceType, domain, lanServerEntry, g_lookupByUnicast)
+	g_lookupByUnicast = !g_lookupByUnicast // Retry with Unicast package every 2 times
 	if err != nil {
-		log.Println("Failed to browse:", err.Error())
+		log.Println("Failed to Lookup:", err.Error())
 		return "", rtkMisc.ERR_NETWORK_C2S_LOOKUP
 	}
 
