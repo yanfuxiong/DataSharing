@@ -29,6 +29,7 @@ type ClientInfo struct {
 	Platform       string
 	DeviceName     string
 	SourcePortType string
+	Version        string
 }
 
 type InitClientMessageReq struct {

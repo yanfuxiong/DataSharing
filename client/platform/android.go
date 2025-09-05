@@ -38,6 +38,7 @@ var (
 
 // Notify to Android APK
 type Callback interface {
+	CallbackPasteXClipData(text, image, html string)
 	CallbackMethod(result string)
 	CallbackMethodImage(content string)
 	LogMessageCallback(msg string)
@@ -104,7 +105,8 @@ func GetLockFilePath() string {
 
 type (
 	CallbackNetworkSwitchFunc          func()
-	CallbackCopyImageFunc              func(rtkCommon.FileSize, rtkCommon.ImgHeader, []byte)
+	CallbackCopyImageFunc              func(rtkCommon.ImgHeader, []byte)
+	CallbackXClipCopyFunc              func(cbText, cbImage, cbHtml []byte)
 	CallbackPasteImageFunc             func()
 	CallbackFileDropResponseFunc       func(string, rtkCommon.FileDropCmd, string)
 	CallbackFileListDropRequestFunc    func(string, []rtkCommon.FileInfo, []string, uint64, uint64, string)
@@ -126,6 +128,7 @@ var (
 	callbackNetworkSwitchCB            CallbackNetworkSwitchFunc          = nil
 	callbackInstanceCopyImageCB        CallbackCopyImageFunc              = nil
 	callbackInstancePasteImageCB       CallbackPasteImageFunc             = nil
+	callbackXClipCopyCB                CallbackXClipCopyFunc              = nil
 	callbackInstanceFileDropResponseCB CallbackFileDropResponseFunc       = nil
 	callbackFileListDropRequestCB      CallbackFileListDropRequestFunc    = nil
 	callbackDragFileListRequestCB      CallbackDragFileListRequestFunc    = nil
@@ -147,6 +150,10 @@ func SetGoNetworkSwitchCallback(cb CallbackNetworkSwitchFunc) {
 }
 
 // Notify to Clipboard/FileDrop
+func SetCopyXClipCallback(cb CallbackXClipCopyFunc) {
+	callbackXClipCopyCB = cb
+}
+
 func SetCopyImageCallback(cb CallbackCopyImageFunc) {
 	callbackInstanceCopyImageCB = cb
 }
@@ -277,8 +284,17 @@ func SendMessage(strText string) {
 	}
 }
 
-func GoCopyImage(fileSize rtkCommon.FileSize, imgHeader rtkCommon.ImgHeader, data []byte) {
-	callbackInstanceCopyImageCB(fileSize, imgHeader, data)
+func GoCopyXClipData(text, image, html []byte) {
+	if callbackXClipCopyCB == nil {
+		log.Println("callbackXClipCopyCB is null!")
+		return
+	}
+
+	callbackXClipCopyCB(text, image, html)
+}
+
+func GoCopyImage(imgHeader rtkCommon.ImgHeader, data []byte) {
+	callbackInstanceCopyImageCB(imgHeader, data)
 }
 
 func GoPasteImage() {
@@ -450,6 +466,33 @@ func FoundPeer() {
 	CallbackInstance.CallbackMethodFoundPeer()
 }
 
+
+func GoSetupDstPasteXClipData(cbText, cbImage, cbHtml []byte) {
+	if CallbackInstance == nil {
+		log.Println("GoSetupDstPasteText - failed - callbackInstance is nil")
+		return
+	}
+	log.Printf("[%s] text len:%d , image len:%d, html:%d\n\n", rtkMisc.GetFuncInfo(), len(cbText), len(cbImage), len(cbHtml))
+
+	imageStr := ""
+	if len(cbImage) > 0 {
+		imageBase64 := rtkUtils.Base64Encode(cbImage)
+		imageStr = imageBase64
+		log.Printf("call back image data:[%s]", imageStr[:20])
+	}
+
+	CallbackInstance.CallbackPasteXClipData(string(cbText), imageStr, string(cbHtml))
+}
+
+func GoSetupDstPasteText(content []byte) {
+	log.Printf("GoSetupDstPasteText:%s \n\n", string(content))
+	if CallbackInstance == nil {
+		log.Println("GoSetupDstPasteText - failed - callbackInstance is nil")
+		return
+	}
+	CallbackInstance.CallbackMethod(string(content))
+}
+
 func GoSetupDstPasteImage(desc string, content []byte, imgHeader rtkCommon.ImgHeader, dataSize uint32) {
 	log.Printf("GoSetupDstPasteImage from ID %s, len:[%d] dataSize:[%d]\n\n", desc, len(content), dataSize)
 	imageData.Reset()
@@ -479,6 +522,9 @@ func GoUpdateClientStatus(status uint32, ip, id, name, deviceType string) {
 }
 
 func GoNotiMessageFileTransfer(fileInfo, clientName, platform string, timestamp uint64, isSender bool) {
+	if !isSender {
+		return
+	}
 	log.Printf("[%s]: fileInfo:[%s], clientName:%s, timestamp:%d ", rtkMisc.GetFuncInfo(), fileInfo, clientName, timestamp)
 	if CallbackInstance == nil {
 		log.Println(" CallbackInstance is null !")
@@ -523,15 +569,6 @@ func GoRequestUpdateClientVersion(ver string) {
 }
 
 func GoCleanClipboard() {
-}
-
-func GoSetupDstPasteText(content []byte) {
-	log.Printf("GoSetupDstPasteText:%s \n\n", string(content))
-	if CallbackInstance == nil {
-		log.Println("GoSetupDstPasteText - failed - callbackInstance is nil")
-		return
-	}
-	CallbackInstance.CallbackMethod(string(content))
 }
 
 func GenKey() crypto.PrivKey {

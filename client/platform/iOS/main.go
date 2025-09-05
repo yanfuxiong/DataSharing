@@ -450,26 +450,27 @@ func SendImage(content string) {
 		return
 	}
 
-	w, h, size := rtkUtils.GetByteImageInfo(data)
-	if size == 0 {
-		log.Println("GetByteImageInfo err!")
+	format, width, height := rtkUtils.GetByteImageInfo(data)
+	jpegData, err := rtkUtils.ImageToJpeg(format, data)
+	if err != nil {
 		return
 	}
-	log.Printf("SendImage:[%d][%d][%d]", len(content), len(data), size)
+	if len(jpegData) == 0 {
+		log.Printf("[CopyImage] Error: jpeg data is empty")
+		return
+	}
+	log.Printf("SendImage:[%d][%d]", len(content), len(jpegData))
 
 	imgHeader := rtkCommon.ImgHeader{
-		Width:       int32(w),
-		Height:      int32(h),
+		Width:       int32(width),
+		Height:      int32(height),
 		Planes:      1,
-		BitCount:    uint16((size * 8) / (w * h)),
+		BitCount:    32,
 		Compression: 0,
 	}
-	// FIXME
-	fileSize := rtkCommon.FileSize{
-		SizeHigh: 0,
-		SizeLow:  uint32(size),
-	}
-	rtkPlatform.GoCopyImage(fileSize, imgHeader, rtkUtils.ImageToBitmap(data))
+
+
+	rtkPlatform.GoCopyImage(imgHeader, jpegData)
 }
 
 //export SendAddrsFromPlatform

@@ -97,6 +97,7 @@ func OpenSrcFile(file **os.File, filePath string) rtkMisc.CrossShareErr {
 	}
 
 	if !rtkMisc.FileExists(filePath) {
+		log.Println("Error file not exist: ", filePath)
 		return rtkMisc.ERR_BIZ_FD_FILE_NOT_EXISTS
 	}
 

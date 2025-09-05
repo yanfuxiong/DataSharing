@@ -77,7 +77,8 @@ func InitPlatform(rootPath, downLoadPath, deviceName string) {
 
 type (
 	CallbackNetworkSwitchFunc          func()
-	CallbackCopyImageFunc              func(rtkCommon.FileSize, rtkCommon.ImgHeader, []byte)
+	CallbackXClipCopyFunc              func(cbText, cbImage, cbHtml []byte)
+	CallbackCopyImageFunc              func(rtkCommon.ImgHeader, []byte)
 	CallbackSetupDstImageFunc          func(id string, content []byte, imgHeader rtkCommon.ImgHeader, dataSize uint32)
 	CallbackPasteImageFunc             func()
 	CallbackDataTransferFunc           func(data []byte)
@@ -112,6 +113,7 @@ type (
 var (
 	// Go business Callback
 	callbackNetworkSwitchCB            CallbackNetworkSwitchFunc          = nil
+	callbackXClipCopyCB                CallbackXClipCopyFunc              = nil
 	callbackInstanceCopyImageCB        CallbackCopyImageFunc              = nil
 	callbackInstancePasteImageCB       CallbackPasteImageFunc             = nil
 	callbackFileListDropRequestCB      CallbackFileListDropRequestFunc    = nil
@@ -147,6 +149,10 @@ var (
 
 func SetGoNetworkSwitchCallback(cb CallbackNetworkSwitchFunc) {
 	callbackNetworkSwitchCB = cb
+}
+
+func SetCopyXClipCallback(cb CallbackXClipCopyFunc) {
+	callbackXClipCopyCB = cb
 }
 
 func SetCopyImageCallback(cb CallbackCopyImageFunc) {
@@ -279,8 +285,12 @@ func GoSetMsgEventFunc(event uint32, arg1, arg2, arg3, arg4 string) {
 	callbackSetMsgEvent(event, arg1, arg2, arg3, arg4)
 }
 
-func GoCopyImage(fileSize rtkCommon.FileSize, imgHeader rtkCommon.ImgHeader, data []byte) {
-	callbackInstanceCopyImageCB(fileSize, imgHeader, data)
+func GoCopyXClipData(text, image, html string) {
+
+}
+
+func GoCopyImage(imgHeader rtkCommon.ImgHeader, data []byte) {
+	callbackInstanceCopyImageCB(imgHeader, data)
 }
 
 // Deprecated: unused
@@ -434,6 +444,10 @@ func GoDragFileListNotify(ip, id, platform string, fileCnt uint32, totalSize uin
 }
 
 func GoDragFileListFolderNotify(ip, id, folderName string, timestamp uint64) {
+}
+
+func GoSetupDstPasteXClipData(cbText, cbImage, cbHtml []byte) {
+
 }
 
 func GoSetupDstPasteImage(id string, content []byte, imgHeader rtkCommon.ImgHeader, dataSize uint32) {

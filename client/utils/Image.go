@@ -4,130 +4,56 @@ import (
 	"bytes"
 	"errors"
 	"image"
-	"image/color"
+	"image/draw"
 	"image/jpeg"
-	"image/png"
 	"log"
+	rtkMisc "rtk-cross-share/misc"
+	"time"
 )
 
-func mirrorHorizontal(img *image.RGBA) *image.RGBA {
-	bounds := img.Bounds()
-	width := bounds.Dx()
-	height := bounds.Dy()
-	mirrored := image.NewRGBA(bounds)
+const (
+	kImgQuality = 100
+)
 
-	for y := 0; y < height; y++ {
-		for x := 0; x < width; x++ {
-			mirrored.Set(width-1-x, y, img.At(x, y))
-		}
-	}
-
-	return mirrored
-}
-
-func rotateImage(img image.Image) *image.RGBA {
-	bounds := img.Bounds()
-	width, height := bounds.Dx(), bounds.Dy()
-	newImg := image.NewRGBA(image.Rect(0, 0, width, height))
-
-	for y := 0; y < height; y++ {
-		for x := 0; x < width; x++ {
-			nx := width - 1 - x
-			ny := height - 1 - y
-			newImg.Set(nx, ny, img.At(x, y))
-		}
-	}
-
-	return newImg
-}
-
-// PC>android
-// Deprecated: Transfer JPEG image directly
-func BitmapToImage(bitmapData []byte, w, h int) []byte {
-	//w, h, _ := GetByteImageInfo(bitmapData)
-
-	img := image.NewRGBA(image.Rect(0, 0, w, h))
-	for y := 0; y < h; y++ {
-		for x := 0; x < w; x++ {
-			i := (y*w + x) * 4
-
-			/*
-				img.Pix[4*(x+y*w)] = bitmapData[i+2]   //B
-				img.Pix[4*(x+y*w)+1] = bitmapData[i+1] //g
-				img.Pix[4*(x+y*w)+2] = bitmapData[i]   //r
-				img.Pix[4*(x+y*w)+3] = 255             //A
-			*/
-
-			nx := x
-			ny := h - 1 - y
-			offset := 4 * (nx + ny*w)
-			img.Pix[offset] = bitmapData[i+2]
-			img.Pix[offset+1] = bitmapData[i+1]
-			img.Pix[offset+2] = bitmapData[i]
-			img.Pix[offset+3] = 255
-		}
-	}
-
-	var buffer bytes.Buffer
-	encoder := png.Encoder{
-		CompressionLevel: png.BestSpeed,
-	}
-	err := encoder.Encode(&buffer, img)
+func GetByteImageInfo(data []byte) (format string, width, height int) {
+	cfg, format, err := image.DecodeConfig(bytes.NewReader(data))
 	if err != nil {
-		log.Println(err)
-		return nil
+		log.Printf("[%s] decode config err: %v", rtkMisc.GetFuncInfo(), err)
+		return "", 0, 0
 	}
 
-	return buffer.Bytes()
+	return format, cfg.Width, cfg.Height
 }
 
-func GetByteImageInfo(data []byte) (wight, height, size int) {
-	img, err := png.Decode(bytes.NewReader(data))
+func ImageToJpeg(format string, data []byte) ([]byte, error) {
+	if format == "jpeg" {
+		return data, nil
+	}
+
+	log.Printf("(SRC) Start to convert %s to jpg Qaulity(%d)", format, kImgQuality)
+	startTime := time.Now().UnixMilli()
+
+	img, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
-		img, err = jpeg.Decode(bytes.NewReader(data))
-		if err != nil {
-			log.Println("jpeg decode err:", err)
-			return 0, 0, 0
-		}
+		log.Printf("[%s] decode img err: %v", rtkMisc.GetFuncInfo(), err)
+		return nil, err
 	}
-	w, h := img.Bounds().Dx(), img.Bounds().Dy()
-
-	return w, h, (4 * w * h)
-
-}
-
-// android>PC
-func ImageToBitmap(imgData []byte) []byte {
-	img, err := png.Decode(bytes.NewReader(imgData))
+	buf := &bytes.Buffer{}
+	err = jpeg.Encode(buf, img, &jpeg.Options{Quality: kImgQuality})
 	if err != nil {
-		log.Println("png decode err, try jpeg...")
-		img, err = jpeg.Decode(bytes.NewReader(imgData))
-		if err != nil {
-			log.Println("jpeg decode err:", err)
-			return nil
-		}
+		log.Printf("[%s] encode to jpeg err: %v", rtkMisc.GetFuncInfo(), err)
+		return nil, err
 	}
 
-	rgba := mirrorHorizontal(rotateImage(img))
+	log.Printf("(SRC) Convert %s to jpg. Input size:[%d] Output size:[%d] use [%d] ms...", format, len(data), buf.Len(), time.Now().UnixMilli()-startTime)
 
-	bitmapData := make([]byte, (rgba.Bounds().Dx())*(rgba.Bounds().Dy())*4)
-	for y := 0; y < int(rgba.Bounds().Dy()); y++ {
-		for x := 0; x < int(rgba.Bounds().Dx()); x++ {
-			c := rgba.At(x, y)
-
-			offset := (y*int(rgba.Bounds().Dx()) + x) * 4
-
-			r, g, b, _ := c.RGBA()
-			bitmapData[offset+2] = uint8(r)
-			bitmapData[offset+1] = uint8(g)
-			bitmapData[offset] = uint8(b)
-			bitmapData[offset+3] = 0
-		}
-	}
-	return bitmapData
+	return buf.Bytes(), nil
 }
 
 func BmpToJpg(data []byte, width, height, bitCount int) ([]byte, error) {
+	log.Printf("(SRC) Start to convert bmp to jpg Qaulity(%d)", kImgQuality)
+	startTime := time.Now().UnixMilli()
+
 	expectedSize := width * height * 4
 	if len(data) != expectedSize {
 		log.Printf("invalid data size: expected %d, got %d", expectedSize, len(data))
@@ -135,35 +61,40 @@ func BmpToJpg(data []byte, width, height, bitCount int) ([]byte, error) {
 	}
 
 	if bitCount != 32 {
-		return data, errors.New("invalid bit count")
+		log.Printf("[WARNING] unsupport bit count: %d", bitCount)
 	}
 
 	img := image.NewRGBA(image.Rect(0, 0, width, height))
-
 	bytesPerPixel := 4
+	stride := width * bytesPerPixel
+
 	for y := 0; y < height; y++ {
+		srcOffset := y * stride
+		dstOffset := (height - 1 - y) * stride
 		for x := 0; x < width; x++ {
-			offset := (y*width + x) * bytesPerPixel
-			if offset+3 >= len(data) {
-				log.Printf("unexpected end of data at offset %d", offset)
-				return data, errors.New("unexpected end of data offset")
-			}
-			b := data[offset]
-			g := data[offset+1]
-			r := data[offset+2]
-			a := data[offset+3]
-			img.Set(x, height-y-1, color.RGBA{R: r, G: g, B: b, A: a})
+			b := data[srcOffset]
+			g := data[srcOffset+1]
+			r := data[srcOffset+2]
+			a := data[srcOffset+3]
+
+			img.Pix[dstOffset+0] = r
+			img.Pix[dstOffset+1] = g
+			img.Pix[dstOffset+2] = b
+			img.Pix[dstOffset+3] = a
+
+			srcOffset += 4
+			dstOffset += 4
 		}
 	}
 
 	var buffer bytes.Buffer
-	options := &jpeg.Options{Quality: 90}
+	options := &jpeg.Options{Quality: kImgQuality}
 	err := jpeg.Encode(&buffer, img, options)
 	if err != nil {
 		return nil, err
 	}
 
-	log.Printf("[BmpToJpg] successfully. Width:%d, Height:%d, BitCount:%d", width, height, bitCount)
+	log.Printf("(SRC) Convert bmp to jpg. Input size:[%d]. Ouput size:[%d] use [%d] ms...", len(data), buffer.Len(), time.Now().UnixMilli()-startTime)
 	return buffer.Bytes(), nil
 }
 
@@ -176,20 +107,31 @@ func JpgToBmp(jpegData []byte) ([]byte, error) {
 	bounds := img.Bounds()
 	width := bounds.Dx()
 	height := bounds.Dy()
-
 	bitCount := 32
-	bmpData := make([]byte, width*height*(bitCount/8)) // for 32bits
-	rowStride := width * (bitCount/8) // for 32bits
+
+	bmpData := make([]byte, width*height*4)
+	rowStride := width * 4
+
+	rgbaImg, ok := img.(*image.RGBA)
+	if !ok {
+		rgbaImg = image.NewRGBA(bounds)
+		draw.Draw(rgbaImg, bounds, img, bounds.Min, draw.Src)
+	}
 
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
-			r, g, b, a := img.At(x, y).RGBA()
-			offset := (height-y-1)*rowStride + x*(bitCount/8)
+			srcOffset := y*rgbaImg.Stride + x*4
+			dstOffset := (height-1-y)*rowStride + x*4
 
-			bmpData[offset] = byte(b >> 8)
-			bmpData[offset+1] = byte(g >> 8)
-			bmpData[offset+2] = byte(r >> 8)
-			bmpData[offset+3] = byte(a >> 8)
+			r := rgbaImg.Pix[srcOffset+0]
+			g := rgbaImg.Pix[srcOffset+1]
+			b := rgbaImg.Pix[srcOffset+2]
+			a := rgbaImg.Pix[srcOffset+3]
+
+			bmpData[dstOffset+0] = b // B
+			bmpData[dstOffset+1] = g // G
+			bmpData[dstOffset+2] = r // R
+			bmpData[dstOffset+3] = a // A
 		}
 	}
 

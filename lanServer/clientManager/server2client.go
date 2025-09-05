@@ -197,6 +197,7 @@ func dealC2SMsgReqClientList() interface{} {
 			Platform:       client.Platform,
 			DeviceName:     client.DeviceName,
 			SourcePortType: rtkCommon.GetClientSourcePortType(client.Source, client.Port),
+			Version:        client.Version,
 		})
 	}
 

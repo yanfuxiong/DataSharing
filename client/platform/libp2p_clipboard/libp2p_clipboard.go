@@ -65,6 +65,33 @@ func SetMsgEventFunc(event int, arg1, arg2, arg3, arg4 string) {
 	rtkPlatform.GoSetMsgEventFunc(uint32(event), arg1, arg2, arg3, arg4)
 }
 
+func SendXClipData(text, image, html string) {
+	log.Printf("[%s] text:%d, image:%d, html:%d\n\n", rtkMisc.GetFuncInfo(), len(text), len(image), len(html))
+	imgData := []byte(nil)
+	if image != "" {
+		startTime := time.Now().UnixMilli()
+		data := rtkUtils.Base64Decode(image)
+		if data == nil {
+			return
+		}
+
+		format, width, height := rtkUtils.GetByteImageInfo(data)
+		jpegData, err := rtkUtils.ImageToJpeg(format, data)
+		if err != nil {
+			return
+		}
+		if len(jpegData) == 0 {
+			log.Printf("[CopyXClip] Error: jpeg data is empty")
+			return
+		}
+
+		imgData = jpegData
+		log.Printf("image get jpg size:[%d](%d,%d),decode use:[%d]ms", len(imgData), width, height, time.Now().UnixMilli()-startTime)
+	}
+
+	rtkPlatform.GoCopyXClipData([]byte(text), imgData, []byte(html))
+}
+
 func SendMessage(s string) {
 	rtkPlatform.SendMessage(s)
 }
@@ -77,33 +104,35 @@ func GetClientList() string {
 
 func SendImage(content string) {
 	if content == "" || len(content) == 0 {
+		log.Printf("[%s] content is null!", rtkMisc.GetFuncInfo())
 		return
 	}
 	data := rtkUtils.Base64Decode(content)
 	if data == nil {
+		log.Printf("[%s] Image base64 decode error", rtkMisc.GetFuncInfo())
 		return
 	}
 
-	w, h, size := rtkUtils.GetByteImageInfo(data)
-	if size == 0 {
-		log.Println("GetByteImageInfo err!")
+	format, width, height := rtkUtils.GetByteImageInfo(data)
+	jpegData, err := rtkUtils.ImageToJpeg(format, data)
+	if err != nil {
 		return
 	}
-	log.Printf("SendImage:[%d][%d][%d]", len(content), len(data), size)
+	if len(jpegData) == 0 {
+		log.Printf("[CopyImage] Error: jpeg data is empty")
+		return
+	}
+	log.Printf("SendImage:[%d][%d]", len(content), len(jpegData))
 
 	imgHeader := rtkCommon.ImgHeader{
-		Width:       int32(w),
-		Height:      int32(h),
+		Width:       int32(width),
+		Height:      int32(height),
 		Planes:      1,
-		BitCount:    uint16((size * 8) / (w * h)),
+		BitCount:    32,
 		Compression: 0,
 	}
-	// FIXME
-	fileSize := rtkCommon.FileSize{
-		SizeHigh: 0,
-		SizeLow:  uint32(size),
-	}
-	rtkPlatform.GoCopyImage(fileSize, imgHeader, rtkUtils.ImageToBitmap(data))
+
+	rtkPlatform.GoCopyImage(imgHeader, jpegData)
 }
 
 func SendAddrsFromPlatform(addrsList string) {

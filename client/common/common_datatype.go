@@ -29,9 +29,10 @@ type ImgHeader struct {
 type TransFmtType string
 
 const (
-	TEXT_CB 	TransFmtType = "TEXT_CB"
-	IMAGE_CB 	TransFmtType = "IMAGE_CB"
-	FILE_DROP 	TransFmtType = "FILE_DROP"
+	TEXT_CB   TransFmtType = "TEXT_CB"
+	IMAGE_CB  TransFmtType = "IMAGE_CB"
+	XCLIP_CB  TransFmtType = "XCLIP_CB"
+	FILE_DROP TransFmtType = "FILE_DROP"
 )
 
 type ExtDataText struct {
@@ -53,10 +54,19 @@ type ExtDataImg struct {
 	Data   []byte
 }
 
+type ExtDataXClip struct {
+	Text     []byte // Text,UTF-8
+	Image    []byte // decode base64
+	Html     []byte // Html
+	TextLen  int64
+	ImageLen int64
+	HtmlLen  int64
+}
+
 type ClipBoardData struct {
 	SourceID  string
 	Hash      string
 	TimeStamp uint64
 	FmtType   TransFmtType
-	ExtData   interface{} // ExtDataText, ExtDataImg, ExtDataFile(future)
+	ExtData   interface{} // ExtDataText, ExtDataImg, ExtDataFile(future), ExtDataXClip
 }
