@@ -1,4 +1,0 @@
-<resources>
-    <string name="app_name">CrossShare</string>
-    <string name="pc_to_phone_file_dialog_subtitle"> %1$s want to transfer %2$s &#040;%3$s&#041; to you, do you want to receive？</string>
-</resources>
