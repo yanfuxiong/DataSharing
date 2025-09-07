@@ -58,6 +58,7 @@ type Callback interface {
 	CallbackUpdateMonitorName(monitorName string)
 	CallbackRequestUpdateClientVersion(clienVersion string)
 	CallbackNotifyBrowseResult(monitorName, instance, ipAddr, version string, timestamp int64)
+	CallbackUpdateClientListEx(clientListJson string)
 }
 
 var CallbackInstance Callback = nil
@@ -466,6 +467,15 @@ func FoundPeer() {
 	CallbackInstance.CallbackMethodFoundPeer()
 }
 
+func GoUpdateClientList() {
+	if CallbackInstance == nil {
+		log.Println(" CallbackInstance is null !")
+		return
+	}
+	clientList := rtkUtils.GetClientListEx()
+	log.Printf("[%s] json Str:%s", rtkMisc.GetFuncInfo(), clientList)
+	CallbackInstance.CallbackUpdateClientListEx(clientList)
+}
 
 func GoSetupDstPasteXClipData(cbText, cbImage, cbHtml []byte) {
 	if CallbackInstance == nil {

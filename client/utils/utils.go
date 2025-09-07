@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/md5"
 	"encoding/base64"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -17,6 +18,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/libp2p/go-libp2p/core/network"
 
@@ -235,12 +237,12 @@ func GetClientIp(id string) (string, bool) {
 	return "", false
 }
 
-func InsertClientInfoMap(id, ipAddr, platform, name, srcPortType string) {
+func InsertClientInfoMap(id, ipAddr, platform, name, srcPortType, ver string) {
 	rtkGlobal.ClientListRWMutex.Lock()
 	defer rtkGlobal.ClientListRWMutex.Unlock()
 
 	if _, ok := rtkGlobal.ClientInfoMap[id]; !ok {
-		rtkGlobal.ClientInfoMap[id] = rtkMisc.ClientInfo{ID: id, IpAddr: ipAddr, Platform: platform, DeviceName: name, SourcePortType: srcPortType}
+		rtkGlobal.ClientInfoMap[id] = rtkMisc.ClientInfo{ID: id, IpAddr: ipAddr, Platform: platform, DeviceName: name, SourcePortType: srcPortType, Version: ver}
 	}
 }
 
@@ -272,6 +274,34 @@ func GetClientList() string {
 		clientList += val.SourcePortType + ","
 	}
 	return strings.Trim(clientList, ",")
+}
+
+func GetClientListEx() string {
+	clientLstInfo := rtkCommon.ClientListInfo{
+		TimeStamp:  time.Now().UnixMilli(),
+		ID:         rtkGlobal.NodeInfo.ID,
+		IpAddr:     rtkMisc.ConcatIP(rtkGlobal.NodeInfo.IPAddr.PublicIP, rtkGlobal.NodeInfo.IPAddr.PublicPort),
+		ClientList: make([]rtkMisc.ClientInfo, 0),
+	}
+	rtkGlobal.ClientListRWMutex.RLock()
+	for _, val := range rtkGlobal.ClientInfoMap {
+		clientLstInfo.ClientList = append(clientLstInfo.ClientList, rtkMisc.ClientInfo{
+			ID:             val.ID,
+			IpAddr:         val.IpAddr,
+			Platform:       val.Platform,
+			DeviceName:     val.DeviceName,
+			SourcePortType: val.SourcePortType,
+			Version:        val.Version,
+		})
+	}
+	rtkGlobal.ClientListRWMutex.RUnlock()
+
+	encodedData, err := json.Marshal(clientLstInfo)
+	if err != nil {
+		log.Println("Failed to Marshal ClientListInfo data, err:", err)
+		return ""
+	}
+	return string(encodedData)
 }
 
 func GetClientCount() int {

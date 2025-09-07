@@ -1,5 +1,7 @@
 package common
 
+import rtkMisc "rtk-cross-share/misc"
+
 type IPAddrInfo struct {
 	LocalPort  string
 	PublicPort string
@@ -13,4 +15,11 @@ type NodeInfo struct {
 	DeviceName     string
 	Platform       string
 	SourcePortType string
+}
+
+type ClientListInfo struct {
+	TimeStamp  int64
+	ID         string // self node ID
+	IpAddr     string // self node IpAddr
+	ClientList []rtkMisc.ClientInfo
 }

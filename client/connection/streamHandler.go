@@ -355,7 +355,7 @@ func CancelStreamPool() {
 
 	nCount := uint8(0)
 	for id, sInfo := range tempStreamMap {
-		updateUIOnlineStatus(false, id, sInfo.ipAddr, "", "", "")
+		updateUIOnlineStatus(false, id, sInfo.ipAddr, "", "", "", "")
 		callbackSendDisconnectMsgToPeer(id)
 
 		if sInfo.sFileDrop != nil {

@@ -102,6 +102,12 @@ func GetClientList() string {
 	return clientList
 }
 
+func GetClientListEx() string {
+	clientList := rtkUtils.GetClientListEx()
+	log.Printf("[%s] json Str:%s", rtkMisc.GetFuncInfo(), clientList)
+	return clientList
+}
+
 func SendImage(content string) {
 	if content == "" || len(content) == 0 {
 		log.Printf("[%s] content is null!", rtkMisc.GetFuncInfo())

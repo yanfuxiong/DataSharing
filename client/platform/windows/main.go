@@ -55,6 +55,10 @@ static void DataTransferCallbackFunc(DataTransferCallback cb, const unsigned cha
     if (cb) cb(data, size);
 }
 
+typedef void (*UpdateClientListCallback)(const char *clientListJson);
+static void UpdateClientListCallbackFunc(UpdateClientListCallback cb, const char *clientListJson) {
+    if (cb) cb(clientListJson);
+}
 typedef void (*UpdateClientStatusCallback)(uint32_t status, const char *ipPort, const char *id, const wchar_t *name, const char *deviceType);
 static void UpdateClientStatusCallbackFunc(UpdateClientStatusCallback cb, uint32_t status, const char *ipPort, const char *id, const wchar_t *name, const char *deviceType) {
     if (cb) cb(status, ipPort, id, name, deviceType);
@@ -191,6 +195,7 @@ var (
 	g_MultiFilesDropNotifyCallback       C.MultiFilesDropNotifyCallback       = nil
 	g_UpdateMultipleProgressBarCallback  C.UpdateMultipleProgressBarCallback  = nil
 	g_DataTransferCallback               C.DataTransferCallback               = nil
+	g_UpdateClientListCallback           C.UpdateClientListCallback           = nil
 	g_UpdateClientStatusCallback         C.UpdateClientStatusCallback         = nil
 	g_UpdateSystemInfoCallback           C.UpdateSystemInfoCallback           = nil
 	g_NotiMessageCallback                C.NotiMessageCallback                = nil
@@ -211,6 +216,7 @@ func init() {
 	rtkPlatform.SetRequestSourceAndPortCallback(GoTriggerCallbackRequestSourceAndPort)
 	rtkPlatform.SetUpdateSystemInfoCallback(GoTriggerCallbackUpdateSystemInfo)
 	rtkPlatform.SetUpdateClientStatusCallback(GoTriggerCallbackUpdateClientStatus)
+	rtkPlatform.SetUpdateClientListExCallback(GoTriggerCallbackUpdateClientList)
 	rtkPlatform.SetImageDataTransferCallback(GoTriggerCallbackImageDataTransfer)
 	rtkPlatform.SetSetupDstImageCallback(GoTriggerCallbackSetupDstPasteImage)
 	rtkPlatform.SetCleanClipboardCallback(GoTriggerCallbackCleanClipboard)
@@ -266,6 +272,20 @@ func GoTriggerCallbackUpdateSystemInfo(ipAddr, versionInfo string) {
 	defer C.free(unsafe.Pointer(cServiceVer))
 
 	C.UpdateSystemInfoCallbackFunc(g_UpdateSystemInfoCallback, cIpAddr, cServiceVer)
+}
+
+func GoTriggerCallbackUpdateClientList() {
+	if g_UpdateClientListCallback == nil {
+		log.Printf("%s g_UpdateClientListCallback is not set!", rtkMisc.GetFuncInfo())
+		return
+	}
+
+	clientList := rtkUtils.GetClientListEx()
+	log.Printf("[%s] json Str:%s", rtkMisc.GetFuncInfo(), clientList)
+	cClientListJson := C.CString(clientList)
+	defer C.free(unsafe.Pointer(cClientListJson))
+
+	defer C.UpdateClientListCallbackFunc(g_UpdateClientListCallback, cClientListJson)
 }
 
 func GoTriggerCallbackUpdateClientStatus(status uint32, ip, id, deviceName, deviceType string) {
@@ -491,15 +511,13 @@ func SetClipboardCopyImg(cHeader C.IMAGE_HEADER, bitmapData *C.uchar, cDataSize 
 	}
 
 	data := C.GoBytes(unsafe.Pointer(bitmapData), C.int(cDataSize))
-	dataSize := uint32(cDataSize)
-	// FIXME
-	filesize := rtkCommon.FileSize{
-		SizeHigh: 0,
-		SizeLow:  dataSize,
+	jpgData, err := rtkUtils.BmpToJpg(data, int(imgHeader.Width), int(imgHeader.Height), int(imgHeader.BitCount))
+	if err != nil {
+		return
 	}
 
-	rtkPlatform.GoCopyImage(filesize, imgHeader, data)
-	log.Printf("Clipboard image content, width[%d] height[%d] data size[%d] \n", imgHeader.Width, imgHeader.Height, dataSize)
+	rtkPlatform.GoCopyImage(imgHeader, jpgData)
+	log.Printf("Clipboard image content, width[%d] height[%d] data size[%d] \n", imgHeader.Width, imgHeader.Height, len(jpgData))
 }
 
 //export SetFileDropResponse
@@ -678,6 +696,16 @@ func SetMsgEventFunc(cEvent C.uint32_t, cArg1 *C.char, cArg2 *C.char, cArg3 *C.c
 	rtkPlatform.GoSetMsgEventFunc(event, arg1, arg2, arg3, arg4)
 }
 
+//export GetClientListEx
+func GetClientListEx() *C.char {
+	clientList := rtkUtils.GetClientListEx()
+	log.Printf("[%s] json Str:%s", rtkMisc.GetFuncInfo(), clientList)
+	cClientListJson := C.CString(clientList)
+	defer C.free(unsafe.Pointer(cClientListJson))
+
+	return cClientListJson
+}
+
 //export RequestUpdateDownloadPath
 func RequestUpdateDownloadPath(cDownloadPath *C.wchar_t) {
 	downloadPath := WCharToGoString(cDownloadPath)
@@ -724,6 +752,12 @@ func SetUpdateMultipleProgressBarCallback(callback C.UpdateMultipleProgressBarCa
 func SetDataTransferCallback(callback C.DataTransferCallback) {
 	log.Println("SetDataTransferCallback")
 	g_DataTransferCallback = callback
+}
+
+//export SetUpdateClientListCallback
+func SetUpdateClientListCallback(callback C.UpdateClientListCallback) {
+	log.Println("SetUpdateClientListCallback")
+	g_UpdateClientListCallback = callback
 }
 
 //export SetUpdateClientStatusCallback

@@ -258,6 +258,7 @@ func dealS2CMsgRespClientList(id string, extData json.RawMessage) rtkMisc.CrossS
 				Platform:       client.Platform,
 				DeviceName:     client.DeviceName,
 				SourcePortType: client.SourcePortType,
+				Version:        client.Version,
 			})
 		} else {
 			rtkGlobal.NodeInfo.SourcePortType = client.SourcePortType

@@ -33,6 +33,7 @@ type RegistMdnsMessage struct {
 	Platform       string
 	DeviceName     string
 	SourcePortType string
+	Version        string
 }
 
 type RegResponseMessage struct {

@@ -445,9 +445,9 @@ func onlineEvent(stream network.Stream, isFromListener bool, clientInfo *rtkMisc
 	defer mutex.Unlock()
 
 	ipAddr := rtkUtils.GetRemoteAddrFromStream(stream)
-	var peerDeviceName, peerPlatForm, srcPortType string
+	var peerDeviceName, peerPlatForm, srcPortType, peerVer string
 	if isFromListener {
-		resultCode := handleNotice(stream, &peerPlatForm, &peerDeviceName, &srcPortType)
+		resultCode := handleNotice(stream, &peerPlatForm, &peerDeviceName, &srcPortType, &peerVer)
 		if resultCode != rtkMisc.SUCCESS {
 			stream.Reset()
 			log.Printf("[%s] ID:[%s] IP:[%s] errCode:%d, so reset this stream, onlineEvent failed!", id, ipAddr, resultCode)
@@ -463,6 +463,7 @@ func onlineEvent(stream network.Stream, isFromListener bool, clientInfo *rtkMisc
 		peerDeviceName = clientInfo.DeviceName
 		peerPlatForm = clientInfo.Platform
 		srcPortType = clientInfo.SourcePortType
+		peerVer = clientInfo.Version
 	}
 
 	UpdateStream(id, stream)
@@ -474,7 +475,7 @@ func onlineEvent(stream network.Stream, isFromListener bool, clientInfo *rtkMisc
 	}
 	log.Println("****************************************************************************************\n\n")
 
-	updateUIOnlineStatus(true, id, ipAddr, peerPlatForm, peerDeviceName, srcPortType)
+	updateUIOnlineStatus(true, id, ipAddr, peerPlatForm, peerDeviceName, srcPortType, peerVer)
 	return rtkMisc.SUCCESS
 }
 
@@ -486,7 +487,7 @@ func offlineEvent(stream network.Stream) {
 
 	clientInfo, err := rtkUtils.GetClientInfo(id)
 	if err == nil {
-		updateUIOnlineStatus(false, id, clientInfo.IpAddr, clientInfo.Platform, clientInfo.DeviceName, clientInfo.SourcePortType)
+		updateUIOnlineStatus(false, id, clientInfo.IpAddr, clientInfo.Platform, clientInfo.DeviceName, clientInfo.SourcePortType, "")
 	} else {
 		log.Printf("[%s] %s, so not need updateUIOnlineStatus!", rtkMisc.GetFuncInfo(), err.Error())
 	}
@@ -508,12 +509,12 @@ func OfflineEvent(id string) {
 	offlineEvent(s)
 }
 
-func updateUIOnlineStatus(isOnline bool, id, ipAddr, platfrom, deviceName, srcPortType string) {
+func updateUIOnlineStatus(isOnline bool, id, ipAddr, platfrom, deviceName, srcPortType, ver string) {
 	if isOnline {
 		log.Printf("[%s] IP:[%s] Online: increase client count", rtkMisc.GetFuncInfo(), ipAddr)
 		// TODO: android/ios/macOs client Online/Offline UI API replace with GoUpdateClientStatus
 		rtkPlatform.GoUpdateClientStatus(1, ipAddr, id, deviceName, srcPortType)
-		rtkUtils.InsertClientInfoMap(id, ipAddr, platfrom, deviceName, srcPortType)
+		rtkUtils.InsertClientInfoMap(id, ipAddr, platfrom, deviceName, srcPortType, ver)
 		rtkPlatform.FoundPeer()
 	} else {
 		log.Printf("[%s] IP:[%s] Offline: decrease client count", rtkMisc.GetFuncInfo(), ipAddr)
@@ -521,6 +522,7 @@ func updateUIOnlineStatus(isOnline bool, id, ipAddr, platfrom, deviceName, srcPo
 		rtkUtils.LostClientInfoMap(id)
 		rtkPlatform.FoundPeer()
 	}
+	rtkPlatform.GoUpdateClientList()
 }
 
 func noticeToPeer(s network.Stream) rtkMisc.CrossShareErr {
@@ -533,6 +535,7 @@ func noticeToPeer(s network.Stream) rtkMisc.CrossShareErr {
 		Platform:       rtkGlobal.NodeInfo.Platform,
 		DeviceName:     rtkGlobal.NodeInfo.DeviceName,
 		SourcePortType: rtkGlobal.NodeInfo.SourcePortType,
+		Version:        rtkGlobal.ClientVersion,
 	}
 	if err := json.NewEncoder(write).Encode(registMsg); err != nil {
 		log.Printf("[%s] ID:[%s] Stream json.NewEncoder.Encode err:%+v", rtkMisc.GetFuncInfo(), s.Conn().RemotePeer().String(), err)
@@ -553,7 +556,7 @@ func noticeToPeer(s network.Stream) rtkMisc.CrossShareErr {
 	return rtkMisc.SUCCESS
 }
 
-func handleNotice(s network.Stream, platForm, name, srcPortType *string) rtkMisc.CrossShareErr {
+func handleNotice(s network.Stream, platForm, name, srcPortType, ver *string) rtkMisc.CrossShareErr {
 	read := bufio.NewReader(s)
 	ipAddr := rtkUtils.GetRemoteAddrFromStream(s)
 
@@ -574,6 +577,7 @@ func handleNotice(s network.Stream, platForm, name, srcPortType *string) rtkMisc
 	*platForm = regMsg.Platform
 	*name = regMsg.DeviceName
 	*srcPortType = regMsg.SourcePortType
+	*ver = regMsg.Version
 
 	log.Printf("[%s] IP:[%s] handleNotice success!", rtkMisc.GetFuncInfo(), ipAddr)
 	return rtkMisc.SUCCESS

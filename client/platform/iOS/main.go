@@ -12,6 +12,7 @@ typedef void (*CallbackMethodImage)(char* content);
 typedef void (*EventCallback)(int event);
 typedef void (*CallbackMethodFileConfirm)(char* id, char* platform, char* fileName, long long fileSize);
 typedef void (*CallbackMethodFoundPeer)();
+typedef void (*CallbackUpdateClientList)(char* clientJsonStr);
 typedef void (*CallbackMethodFileListNotify)(char* ip, char* id, char* platform,unsigned int fileCnt, unsigned long long totalSize,unsigned long long timestamp, char* firstFileName, unsigned long long firstFileSize);
 typedef void (*CallbackUpdateMultipleProgressBar)(char* ip,char* id, char* deviceName, char* currentfileName,unsigned int recvFileCnt, unsigned int totalFileCnt,unsigned long long currentFileSize,unsigned long long totalSize,unsigned long long recvSize,unsigned long long timestamp);
 typedef void (*CallbackFileError)(char* id, char* fileName, char* err);
@@ -29,6 +30,7 @@ static CallbackMethodImage gCallbackMethodImage = 0;
 static EventCallback gEventCallback = 0;
 static CallbackMethodFileConfirm gCallbackMethodFileConfirm = 0;
 static CallbackMethodFoundPeer gCallbackMethodFoundPeer = 0;
+static CallbackUpdateClientList gCallbackUpdateClientList = 0;
 static CallbackMethodFileListNotify gCallbackMethodFileListNotify = 0;
 static CallbackUpdateMultipleProgressBar gCallbackUpdateMultipleProgressBar = 0;
 static CallbackFileError gCallbackFileError = 0;
@@ -56,6 +58,10 @@ static void invokeEventCallback(int event) {
 static void setCallbackMethodFileConfirm(CallbackMethodFileConfirm cb) {gCallbackMethodFileConfirm = cb;}
 static void invokeCallbackMethodFileConfirm(char* id, char* platform, char* fileName, long long fileSize) {
 	if (gCallbackMethodFileConfirm) {gCallbackMethodFileConfirm(id, platform, fileName, fileSize);}
+}
+static void setCallbackUpdateClientList(CallbackUpdateClientList cb) {gCallbackUpdateClientList = cb;}
+static void invokeCallbackUpdateClientList(char* clientJsonStr) {
+	if (gCallbackUpdateClientList) {gCallbackUpdateClientList(clientJsonStr);}
 }
 static void setCallbackMethodFoundPeer(CallbackMethodFoundPeer cb) {gCallbackMethodFoundPeer = cb;}
 static void invokeCallbackMethodFoundPeer() {
@@ -134,6 +140,7 @@ func init() {
 	rtkPlatform.SetEventCallback(GoTriggerEventCallback)
 	rtkPlatform.SetCallbackMethodFileConfirm(GoTriggerCallbackMethodFileConfirm)
 	rtkPlatform.SetCallbackFileListNotify(GoTriggerCallbackMethodFileListNotify)
+	rtkPlatform.SetCallbackUpdateClientListEx(GoTriggerCallbackUpdateClientList)
 	rtkPlatform.SetCallbackMethodFoundPeer(GoTriggerCallbackMethodFoundPeer)
 	rtkPlatform.SetCallbackUpdateMultipleProgressBar(GoTriggerCallbackUpdateMultipleProgressBar)
 	rtkPlatform.SetCallbackFileError(GoTriggerCallbackFileError)
@@ -182,6 +189,15 @@ func GoTriggerCallbackMethodFileConfirm(id, platform, fileName string, fileSize 
 	defer C.free(unsafe.Pointer(cplatform))
 	defer C.free(unsafe.Pointer(cfileName))
 	C.invokeCallbackMethodFileConfirm(cid, cplatform, cfileName, cfileSize)
+}
+
+func GoTriggerCallbackUpdateClientList() {
+	clientList := rtkUtils.GetClientListEx()
+	log.Printf("[%s] json Str:%s", rtkMisc.GetFuncInfo(), clientList)
+	cClientListJson := C.CString(clientList)
+	defer C.free(unsafe.Pointer(cClientListJson))
+
+	defer C.invokeCallbackUpdateClientList(cClientListJson)
 }
 
 func GoTriggerCallbackMethodFoundPeer() {
@@ -344,6 +360,11 @@ func SetCallbackMethodFileConfirm(cb C.CallbackMethodFileConfirm) {
 	C.setCallbackMethodFileConfirm(cb)
 }
 
+//export SetCallbackUpdateClientList
+func SetCallbackUpdateClientList(cb C.CallbackUpdateClientList) {
+	C.setCallbackUpdateClientList(cb)
+}
+
 //export SetCallbackMethodFoundPeer
 func SetCallbackMethodFoundPeer(cb C.CallbackMethodFoundPeer) {
 	C.setCallbackMethodFoundPeer(cb)
@@ -431,6 +452,13 @@ func SetMsgEventFunc(event int, arg1, arg2, arg3, arg4 string) {
 //export SendText
 func SendText(s string) {
 	rtkPlatform.SendMessage(s)
+}
+
+//export GetClientListEx
+func GetClientListEx() *C.char {
+	clientList := rtkUtils.GetClientListEx()
+	log.Printf("[%s] json Str:%s", rtkMisc.GetFuncInfo(), clientList)
+	return C.CString(clientList)
 }
 
 //export GetClientList

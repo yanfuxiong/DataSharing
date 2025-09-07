@@ -82,6 +82,7 @@ type (
 	CallbackFileListDragFolderNotify       func(string, string, string, uint64)
 	CallbackFileListDropRequestFunc        func(string, []rtkCommon.FileInfo, []string, uint64, uint64, string)
 	CallbackMethodFoundPeer                func()
+	CallbackUpdateClientListExFunc         func()
 	CallbackUpdateMultipleProgressBar      func(string, string, string, string, uint32, uint32, uint64, uint64, uint64, uint64)
 	CallbackCancelFileTransFunc            func(string, string, uint64)
 	CallbackFileError                      func(string, string, string)
@@ -141,6 +142,7 @@ var (
 	callbackConnectLanServer           CallbackConnectLanServerFunc           = nil
 	callbackBrowseLanServer            CallbackBrowseLanServerFunc            = nil
 	callbackSetMsgEvent                CallbackSetMsgEventFunc                = nil
+	callbackUpdateClientListEx         CallbackUpdateClientListExFunc         = nil
 )
 
 /*======================================= Used by main.go, set Callback =======================================*/
@@ -167,6 +169,10 @@ func SetCallbackFileListNotify(cb CallbackFileListDragNotify) {
 
 func SetCallbackFileListFolderNotify(cb CallbackFileListDragFolderNotify) {
 	callbackFileListDragFolderNotify = cb
+}
+
+func SetCallbackUpdateClientListEx(cb CallbackUpdateClientListExFunc) {
+	callbackUpdateClientListEx = cb
 }
 
 func SetCallbackMethodFoundPeer(cb CallbackMethodFoundPeer) {
@@ -540,6 +546,15 @@ func ReceiveImageCopyDataDone(fileSize int64, imgHeader rtkCommon.ImgHeader) {
 		callbackMethodImage(imageBase64)
 		imageData.Reset()
 	})
+}
+
+func GoUpdateClientList() {
+	if callbackUpdateClientListEx == nil {
+		log.Println(" callbackUpdateClientListEx is null!\n\n")
+		return
+	}
+
+	callbackUpdateClientListEx()
 }
 
 func FoundPeer() {
