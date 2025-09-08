@@ -17,6 +17,12 @@ type NodeInfo struct {
 	SourcePortType string
 }
 
+type ClientStatusInfo struct {
+	TimeStamp int64
+	Status    uint8 //1: online; 0:offline
+	rtkMisc.ClientInfo
+}
+
 type ClientListInfo struct {
 	TimeStamp  int64
 	ID         string // self node ID

@@ -58,7 +58,7 @@ type Callback interface {
 	CallbackUpdateMonitorName(monitorName string)
 	CallbackRequestUpdateClientVersion(clienVersion string)
 	CallbackNotifyBrowseResult(monitorName, instance, ipAddr, version string, timestamp int64)
-	CallbackUpdateClientListEx(clientListJson string)
+	CallbackUpdateClientStatus(clientInfo string)
 }
 
 var CallbackInstance Callback = nil
@@ -467,14 +467,35 @@ func FoundPeer() {
 	CallbackInstance.CallbackMethodFoundPeer()
 }
 
-func GoUpdateClientList() {
+func GoUpdateClientStatusEx(id string, status uint8) {
 	if CallbackInstance == nil {
 		log.Println(" CallbackInstance is null !")
 		return
 	}
-	clientList := rtkUtils.GetClientListEx()
-	log.Printf("[%s] json Str:%s", rtkMisc.GetFuncInfo(), clientList)
-	CallbackInstance.CallbackUpdateClientListEx(clientList)
+
+	var clientInfo rtkCommon.ClientStatusInfo
+	if status == 1 {
+		info, err := rtkUtils.GetClientInfo(id)
+		if err != nil {
+			log.Printf("[%s] err:%+v", rtkMisc.GetFuncInfo(), err)
+			return
+		}
+		clientInfo.ClientInfo = info
+	} else {
+		clientInfo.ID = id
+	}
+
+	clientInfo.TimeStamp = time.Now().UnixMilli()
+	clientInfo.Status = status
+
+	encodedData, err := json.Marshal(clientInfo)
+	if err != nil {
+		log.Println("Failed to Marshal ClientStatusInfo data, err:", err)
+		return
+	}
+
+	log.Printf("[%s] json Str:%s", rtkMisc.GetFuncInfo(), string(encodedData))
+	CallbackInstance.CallbackUpdateClientStatus(string(encodedData))
 }
 
 func GoSetupDstPasteXClipData(cbText, cbImage, cbHtml []byte) {

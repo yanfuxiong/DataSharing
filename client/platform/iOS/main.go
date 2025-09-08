@@ -12,7 +12,7 @@ typedef void (*CallbackMethodImage)(char* content);
 typedef void (*EventCallback)(int event);
 typedef void (*CallbackMethodFileConfirm)(char* id, char* platform, char* fileName, long long fileSize);
 typedef void (*CallbackMethodFoundPeer)();
-typedef void (*CallbackUpdateClientList)(char* clientJsonStr);
+typedef void (*CallbackUpdateClientStatus)(char* clientJsonStr);
 typedef void (*CallbackMethodFileListNotify)(char* ip, char* id, char* platform,unsigned int fileCnt, unsigned long long totalSize,unsigned long long timestamp, char* firstFileName, unsigned long long firstFileSize);
 typedef void (*CallbackUpdateMultipleProgressBar)(char* ip,char* id, char* deviceName, char* currentfileName,unsigned int recvFileCnt, unsigned int totalFileCnt,unsigned long long currentFileSize,unsigned long long totalSize,unsigned long long recvSize,unsigned long long timestamp);
 typedef void (*CallbackFileError)(char* id, char* fileName, char* err);
@@ -30,7 +30,7 @@ static CallbackMethodImage gCallbackMethodImage = 0;
 static EventCallback gEventCallback = 0;
 static CallbackMethodFileConfirm gCallbackMethodFileConfirm = 0;
 static CallbackMethodFoundPeer gCallbackMethodFoundPeer = 0;
-static CallbackUpdateClientList gCallbackUpdateClientList = 0;
+static CallbackUpdateClientStatus gCallbackUpdateClientStatus = 0;
 static CallbackMethodFileListNotify gCallbackMethodFileListNotify = 0;
 static CallbackUpdateMultipleProgressBar gCallbackUpdateMultipleProgressBar = 0;
 static CallbackFileError gCallbackFileError = 0;
@@ -59,9 +59,9 @@ static void setCallbackMethodFileConfirm(CallbackMethodFileConfirm cb) {gCallbac
 static void invokeCallbackMethodFileConfirm(char* id, char* platform, char* fileName, long long fileSize) {
 	if (gCallbackMethodFileConfirm) {gCallbackMethodFileConfirm(id, platform, fileName, fileSize);}
 }
-static void setCallbackUpdateClientList(CallbackUpdateClientList cb) {gCallbackUpdateClientList = cb;}
-static void invokeCallbackUpdateClientList(char* clientJsonStr) {
-	if (gCallbackUpdateClientList) {gCallbackUpdateClientList(clientJsonStr);}
+static void setCallbackUpdateClientStatus(CallbackUpdateClientStatus cb) {gCallbackUpdateClientStatus = cb;}
+static void invokeCallbackUpdateClientStatus(char* clientJsonStr) {
+	if (gCallbackUpdateClientStatus) {gCallbackUpdateClientStatus(clientJsonStr);}
 }
 static void setCallbackMethodFoundPeer(CallbackMethodFoundPeer cb) {gCallbackMethodFoundPeer = cb;}
 static void invokeCallbackMethodFoundPeer() {
@@ -140,7 +140,7 @@ func init() {
 	rtkPlatform.SetEventCallback(GoTriggerEventCallback)
 	rtkPlatform.SetCallbackMethodFileConfirm(GoTriggerCallbackMethodFileConfirm)
 	rtkPlatform.SetCallbackFileListNotify(GoTriggerCallbackMethodFileListNotify)
-	rtkPlatform.SetCallbackUpdateClientListEx(GoTriggerCallbackUpdateClientList)
+	rtkPlatform.SetCallbackUpdateClientStatus(GoTriggerCallbackUpdateClientStatus)
 	rtkPlatform.SetCallbackMethodFoundPeer(GoTriggerCallbackMethodFoundPeer)
 	rtkPlatform.SetCallbackUpdateMultipleProgressBar(GoTriggerCallbackUpdateMultipleProgressBar)
 	rtkPlatform.SetCallbackFileError(GoTriggerCallbackFileError)
@@ -191,13 +191,12 @@ func GoTriggerCallbackMethodFileConfirm(id, platform, fileName string, fileSize 
 	C.invokeCallbackMethodFileConfirm(cid, cplatform, cfileName, cfileSize)
 }
 
-func GoTriggerCallbackUpdateClientList() {
-	clientList := rtkUtils.GetClientListEx()
-	log.Printf("[%s] json Str:%s", rtkMisc.GetFuncInfo(), clientList)
-	cClientListJson := C.CString(clientList)
-	defer C.free(unsafe.Pointer(cClientListJson))
+func GoTriggerCallbackUpdateClientStatus(clientInfo string) {
+	log.Printf("[%s] json Str:%s", rtkMisc.GetFuncInfo(), clientInfo)
+	cClientInfo := C.CString(clientInfo)
+	defer C.free(unsafe.Pointer(cClientInfo))
 
-	defer C.invokeCallbackUpdateClientList(cClientListJson)
+	C.invokeCallbackUpdateClientStatus(cClientInfo)
 }
 
 func GoTriggerCallbackMethodFoundPeer() {
@@ -360,9 +359,9 @@ func SetCallbackMethodFileConfirm(cb C.CallbackMethodFileConfirm) {
 	C.setCallbackMethodFileConfirm(cb)
 }
 
-//export SetCallbackUpdateClientList
-func SetCallbackUpdateClientList(cb C.CallbackUpdateClientList) {
-	C.setCallbackUpdateClientList(cb)
+//export SetCallbackUpdateClientStatus
+func SetCallbackUpdateClientStatus(cb C.CallbackUpdateClientStatus) {
+	C.setCallbackUpdateClientStatus(cb)
 }
 
 //export SetCallbackMethodFoundPeer
@@ -475,6 +474,7 @@ func SendImage(content string) {
 	}
 	data := rtkUtils.Base64Decode(content)
 	if data == nil {
+		log.Printf("[%s] Image base64 decode error", rtkMisc.GetFuncInfo())
 		return
 	}
 
@@ -496,7 +496,6 @@ func SendImage(content string) {
 		BitCount:    32,
 		Compression: 0,
 	}
-
 
 	rtkPlatform.GoCopyImage(imgHeader, jpegData)
 }

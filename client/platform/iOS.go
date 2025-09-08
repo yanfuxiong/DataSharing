@@ -16,6 +16,7 @@ import (
 	rtkMisc "rtk-cross-share/misc"
 	"sync/atomic"
 	"syscall"
+	"time"
 
 	"github.com/libp2p/go-libp2p/core/crypto"
 )
@@ -69,7 +70,7 @@ func GetLockFilePath() string {
 
 type (
 	CallbackNetworkSwitchFunc              func()
-	CallbackXClipCopyFunc               	func(cbText, cbImage, cbHtml []byte)
+	CallbackXClipCopyFunc                  func(cbText, cbImage, cbHtml []byte)
 	CallbackMethodText                     func(string)
 	CallbackMethodImage                    func(string)
 	EventCallback                          func(int)
@@ -82,7 +83,7 @@ type (
 	CallbackFileListDragFolderNotify       func(string, string, string, uint64)
 	CallbackFileListDropRequestFunc        func(string, []rtkCommon.FileInfo, []string, uint64, uint64, string)
 	CallbackMethodFoundPeer                func()
-	CallbackUpdateClientListExFunc         func()
+	CallbackUpdateClientStatusFunc         func(clientInfo string)
 	CallbackUpdateMultipleProgressBar      func(string, string, string, string, uint32, uint32, uint64, uint64, uint64, uint64)
 	CallbackCancelFileTransFunc            func(string, string, uint64)
 	CallbackFileError                      func(string, string, string)
@@ -108,7 +109,7 @@ type (
 
 var (
 	callbackNetworkSwitch              CallbackNetworkSwitchFunc              = nil
-	callbackXClipCopyCB                CallbackXClipCopyFunc              = nil
+	callbackXClipCopyCB                CallbackXClipCopyFunc                  = nil
 	callbackMethodText                 CallbackMethodText                     = nil
 	callbackMethodImage                CallbackMethodImage                    = nil
 	eventCallback                      EventCallback                          = nil
@@ -142,7 +143,7 @@ var (
 	callbackConnectLanServer           CallbackConnectLanServerFunc           = nil
 	callbackBrowseLanServer            CallbackBrowseLanServerFunc            = nil
 	callbackSetMsgEvent                CallbackSetMsgEventFunc                = nil
-	callbackUpdateClientListEx         CallbackUpdateClientListExFunc         = nil
+	callbackUpdateClientStatus         CallbackUpdateClientStatusFunc         = nil
 )
 
 /*======================================= Used by main.go, set Callback =======================================*/
@@ -171,8 +172,8 @@ func SetCallbackFileListFolderNotify(cb CallbackFileListDragFolderNotify) {
 	callbackFileListDragFolderNotify = cb
 }
 
-func SetCallbackUpdateClientListEx(cb CallbackUpdateClientListExFunc) {
-	callbackUpdateClientListEx = cb
+func SetCallbackUpdateClientStatus(cb CallbackUpdateClientStatusFunc) {
+	callbackUpdateClientStatus = cb
 }
 
 func SetCallbackMethodFoundPeer(cb CallbackMethodFoundPeer) {
@@ -403,7 +404,7 @@ func GoBrowseLanServer() {
 	callbackBrowseLanServer()
 }
 
-func GoCopyImage( imgHeader rtkCommon.ImgHeader, data []byte) {
+func GoCopyImage(imgHeader rtkCommon.ImgHeader, data []byte) {
 	callbackInstanceCopyImage(imgHeader, data)
 }
 
@@ -548,13 +549,33 @@ func ReceiveImageCopyDataDone(fileSize int64, imgHeader rtkCommon.ImgHeader) {
 	})
 }
 
-func GoUpdateClientList() {
-	if callbackUpdateClientListEx == nil {
-		log.Println(" callbackUpdateClientListEx is null!\n\n")
+func GoUpdateClientStatusEx(id string, status uint8) {
+	if callbackUpdateClientStatus == nil {
+		log.Printf("callbackUpdateClientStatus is null!\n\n")
 		return
 	}
 
-	callbackUpdateClientListEx()
+	var clientInfo rtkCommon.ClientStatusInfo
+	if status == 1 { // online
+		info, err := rtkUtils.GetClientInfo(id)
+		if err != nil {
+			log.Printf("[%s] err:%+v", rtkMisc.GetFuncInfo(), err)
+			return
+		}
+		clientInfo.ClientInfo = info
+	} else {
+		clientInfo.ID = id
+	}
+
+	clientInfo.TimeStamp = time.Now().UnixMilli()
+	clientInfo.Status = status
+	encodedData, err := json.Marshal(clientInfo)
+	if err != nil {
+		log.Println("Failed to Marshal ClientStatusInfo data, err:", err)
+		return
+	}
+
+	callbackUpdateClientStatus(string(encodedData))
 }
 
 func FoundPeer() {

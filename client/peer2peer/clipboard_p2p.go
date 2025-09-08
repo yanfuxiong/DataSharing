@@ -169,7 +169,7 @@ func handleXClipDataFromSocket(id, ipAddr string) rtkMisc.CrossShareErr {
 	nDstWrite, err := io.Copy(&xClipBuffer, sXClip)
 	if err != nil {
 		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-			log.Printf("[%s] IP:[%s] (DST) Read image  timeout:%+v", rtkMisc.GetFuncInfo(), ipAddr, netErr)
+			log.Printf("[%s] IP:[%s] (DST) Read XClip data timeout:%+v", rtkMisc.GetFuncInfo(), ipAddr, netErr)
 			return rtkMisc.ERR_BIZ_CB_DST_COPY_IMAGE_TIMEOUT
 		} else {
 			log.Printf("[%s] IP:[%s] (DST) Copy XClip data, Error:%+v", rtkMisc.GetFuncInfo(), ipAddr, err)

@@ -11,7 +11,7 @@ import (
 )
 
 type safeConnect struct {
-	connectMutex     sync.RWMutex // TODO: how to lock Read and Write
+	connectMutex     sync.RWMutex
 	connectLanServer net.Conn
 	isAlive          bool
 }

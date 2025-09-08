@@ -5,6 +5,7 @@ package platform
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"golang.design/x/clipboard"
@@ -101,6 +102,7 @@ type (
 	CallbackReqSourceAndPortFunc       func()
 	CallbackUpdateSystemInfoFunc       func(ipAddr string, verInfo string)
 	CallbackUpdateClientStatusFunc     func(status uint32, ip, id, deviceName, deviceType string)
+	CallbackUpdateClientStatusExFunc   func(clientInfo string)
 	CallbackDetectPluginEventFunc      func(isPlugin bool, productName string)
 	CallbackGetFilesTransCodeFunc      func(id string) rtkCommon.SendFilesRequestErrCode
 	CallbackReqClientUpdateVerFunc     func(clientVer string)
@@ -134,15 +136,16 @@ var (
 	callbackSetMsgEvent                CallbackSetMsgEventFunc            = nil
 
 	// main.go Callback
-	callbackAuthViaIndex       CallbackAuthViaIndexCallbackFunc = nil
-	callbackDIASStatus         CallbackDIASStatusFunc           = nil
-	callbackReqSourceAndPort   CallbackReqSourceAndPortFunc     = nil
-	callbackUpdateSystemInfo   CallbackUpdateSystemInfoFunc     = nil
-	callbackUpdateClientStatus CallbackUpdateClientStatusFunc   = nil
-	callbackSetupDstImageCB    CallbackSetupDstImageFunc        = nil
-	callbackDataTransferCB     CallbackDataTransferFunc         = nil
-	callbackCleanClipboard     CallbackCleanClipboardFunc       = nil
-	callbackGetFilesTransCode  CallbackGetFilesTransCodeFunc    = nil
+	callbackAuthViaIndex         CallbackAuthViaIndexCallbackFunc = nil
+	callbackDIASStatus           CallbackDIASStatusFunc           = nil
+	callbackReqSourceAndPort     CallbackReqSourceAndPortFunc     = nil
+	callbackUpdateSystemInfo     CallbackUpdateSystemInfoFunc     = nil
+	callbackUpdateClientStatus   CallbackUpdateClientStatusFunc   = nil
+	callbackSetupDstImageCB      CallbackSetupDstImageFunc        = nil
+	callbackDataTransferCB       CallbackDataTransferFunc         = nil
+	callbackCleanClipboard       CallbackCleanClipboardFunc       = nil
+	callbackGetFilesTransCode    CallbackGetFilesTransCodeFunc    = nil
+	callbackUpdateClientStatusEx CallbackUpdateClientStatusExFunc = nil
 )
 
 /*======================================= Used  by GO set Callback =======================================*/
@@ -238,6 +241,10 @@ func SetRequestSourceAndPortCallback(cb CallbackReqSourceAndPortFunc) {
 
 func SetUpdateSystemInfoCallback(cb CallbackUpdateSystemInfoFunc) {
 	callbackUpdateSystemInfo = cb
+}
+
+func SetUpdateClientStatusExCallback(cb CallbackUpdateClientStatusExFunc) {
+	callbackUpdateClientStatusEx = cb
 }
 
 func SetUpdateClientStatusCallback(cb CallbackUpdateClientStatusFunc) {
@@ -483,6 +490,35 @@ func GoUpdateMultipleProgressBar(ip, id, deviceName, currentFileName string, sen
 func GoUpdateSystemInfo(ipAddr, serviceVer string) {
 	log.Printf("[%s] Ip:[%s]  version[%s]", rtkMisc.GetFuncInfo(), ipAddr, serviceVer)
 	callbackUpdateSystemInfo(ipAddr, serviceVer)
+}
+
+func GoUpdateClientStatusEx(id string, status uint8) {
+	if callbackUpdateClientStatusEx == nil {
+		log.Printf("callbackUpdateClientStatusEx is null!\n\n")
+		return
+	}
+
+	var clientInfo rtkCommon.ClientStatusInfo
+	if status == 1 { // online
+		info, err := rtkUtils.GetClientInfo(id)
+		if err != nil {
+			log.Printf("[%s] err:%+v", rtkMisc.GetFuncInfo(), err)
+			return
+		}
+		clientInfo.ClientInfo = info
+	} else {
+		clientInfo.ID = id
+	}
+
+	clientInfo.TimeStamp = time.Now().UnixMilli()
+	clientInfo.Status = status
+	encodedData, err := json.Marshal(clientInfo)
+	if err != nil {
+		log.Println("Failed to Marshal ClientStatusInfo data, err:", err)
+		return
+	}
+
+	callbackUpdateClientStatusEx(string(encodedData))
 }
 
 func GoUpdateClientStatus(status uint32, ip, id, name, deviceType string) {

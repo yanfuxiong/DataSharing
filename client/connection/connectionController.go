@@ -516,13 +516,14 @@ func updateUIOnlineStatus(isOnline bool, id, ipAddr, platfrom, deviceName, srcPo
 		rtkPlatform.GoUpdateClientStatus(1, ipAddr, id, deviceName, srcPortType)
 		rtkUtils.InsertClientInfoMap(id, ipAddr, platfrom, deviceName, srcPortType, ver)
 		rtkPlatform.FoundPeer()
+		rtkPlatform.GoUpdateClientStatusEx(id, 1)
 	} else {
 		log.Printf("[%s] IP:[%s] Offline: decrease client count", rtkMisc.GetFuncInfo(), ipAddr)
 		rtkPlatform.GoUpdateClientStatus(0, ipAddr, id, deviceName, srcPortType)
 		rtkUtils.LostClientInfoMap(id)
 		rtkPlatform.FoundPeer()
+		rtkPlatform.GoUpdateClientStatusEx(id, 0)
 	}
-	rtkPlatform.GoUpdateClientList()
 }
 
 func noticeToPeer(s network.Stream) rtkMisc.CrossShareErr {
