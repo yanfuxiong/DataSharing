@@ -1,5 +1,4 @@
 //go:build windows
-// +build windows
 
 package platform
 
@@ -78,7 +77,8 @@ func InitPlatform(rootPath, downLoadPath, deviceName string) {
 
 type (
 	CallbackNetworkSwitchFunc          func()
-	CallbackXClipCopyFunc              func(cbText, cbImage, cbHtml []byte)
+	CallbackCopyXClipFunc              func(cbText, cbImage, cbHtml []byte)
+	CallbackPasteXClipFunc             func(text, image, html string)
 	CallbackCopyImageFunc              func(rtkCommon.ImgHeader, []byte)
 	CallbackSetupDstImageFunc          func(id string, content []byte, imgHeader rtkCommon.ImgHeader, dataSize uint32)
 	CallbackPasteImageFunc             func()
@@ -115,7 +115,8 @@ type (
 var (
 	// Go business Callback
 	callbackNetworkSwitchCB            CallbackNetworkSwitchFunc          = nil
-	callbackXClipCopyCB                CallbackXClipCopyFunc              = nil
+	callbackCopyXClipDataCB            CallbackCopyXClipFunc              = nil
+	callbackPasteXClipDataCB           CallbackPasteXClipFunc             = nil
 	callbackInstanceCopyImageCB        CallbackCopyImageFunc              = nil
 	callbackInstancePasteImageCB       CallbackPasteImageFunc             = nil
 	callbackFileListDropRequestCB      CallbackFileListDropRequestFunc    = nil
@@ -141,11 +142,11 @@ var (
 	callbackReqSourceAndPort     CallbackReqSourceAndPortFunc     = nil
 	callbackUpdateSystemInfo     CallbackUpdateSystemInfoFunc     = nil
 	callbackUpdateClientStatus   CallbackUpdateClientStatusFunc   = nil
+	callbackUpdateClientStatusEx CallbackUpdateClientStatusExFunc = nil
 	callbackSetupDstImageCB      CallbackSetupDstImageFunc        = nil
 	callbackDataTransferCB       CallbackDataTransferFunc         = nil
 	callbackCleanClipboard       CallbackCleanClipboardFunc       = nil
 	callbackGetFilesTransCode    CallbackGetFilesTransCodeFunc    = nil
-	callbackUpdateClientStatusEx CallbackUpdateClientStatusExFunc = nil
 )
 
 /*======================================= Used  by GO set Callback =======================================*/
@@ -154,8 +155,11 @@ func SetGoNetworkSwitchCallback(cb CallbackNetworkSwitchFunc) {
 	callbackNetworkSwitchCB = cb
 }
 
-func SetCopyXClipCallback(cb CallbackXClipCopyFunc) {
-	callbackXClipCopyCB = cb
+func SetCopyXClipCallback(cb CallbackCopyXClipFunc) {
+	callbackCopyXClipDataCB = cb
+}
+func SetPasteXClipCallback(cb CallbackPasteXClipFunc) {
+	callbackPasteXClipDataCB = cb
 }
 
 func SetCopyImageCallback(cb CallbackCopyImageFunc) {
@@ -292,8 +296,13 @@ func GoSetMsgEventFunc(event uint32, arg1, arg2, arg3, arg4 string) {
 	callbackSetMsgEvent(event, arg1, arg2, arg3, arg4)
 }
 
-func GoCopyXClipData(text, image, html string) {
+func GoCopyXClipData(text, image, html []byte) {
+	if callbackCopyXClipDataCB == nil {
+		log.Println("callbackCopyXClipDataCB is null!")
+		return
+	}
 
+	callbackCopyXClipDataCB(text, image, html)
 }
 
 func GoCopyImage(imgHeader rtkCommon.ImgHeader, data []byte) {
@@ -454,7 +463,19 @@ func GoDragFileListFolderNotify(ip, id, folderName string, timestamp uint64) {
 }
 
 func GoSetupDstPasteXClipData(cbText, cbImage, cbHtml []byte) {
+	if callbackPasteXClipDataCB == nil {
+		log.Printf("callbackPasteXClipDataCB is null!\n\n")
+		return
+	}
 
+	imageStr := ""
+	if len(cbImage) > 0 {
+		imageBase64 := rtkUtils.Base64Encode(cbImage)
+		imageStr = imageBase64
+		log.Printf("call back image data:[%s]", imageStr[:20])
+	}
+
+	callbackPasteXClipDataCB(string(cbText), imageStr, string(cbHtml))
 }
 
 func GoSetupDstPasteImage(id string, content []byte, imgHeader rtkCommon.ImgHeader, dataSize uint32) {

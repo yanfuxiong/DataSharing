@@ -459,12 +459,12 @@ func ReceiveImageCopyDataDone(fileSize int64, imgHeader rtkCommon.ImgHeader) {
 }
 
 func FoundPeer() {
-	log.Println("CallbackMethodFoundPeer")
+	/*log.Println("CallbackMethodFoundPeer")
 	if CallbackInstance == nil {
 		log.Println(" CallbackInstance is null !")
 		return
 	}
-	CallbackInstance.CallbackMethodFoundPeer()
+	CallbackInstance.CallbackMethodFoundPeer()*/
 }
 
 func GoUpdateClientStatusEx(id string, status uint8) {
@@ -474,7 +474,7 @@ func GoUpdateClientStatusEx(id string, status uint8) {
 	}
 
 	var clientInfo rtkCommon.ClientStatusInfo
-	if status == 1 {
+	if status == 1 { // online
 		info, err := rtkUtils.GetClientInfo(id)
 		if err != nil {
 			log.Printf("[%s] err:%+v", rtkMisc.GetFuncInfo(), err)
@@ -500,7 +500,7 @@ func GoUpdateClientStatusEx(id string, status uint8) {
 
 func GoSetupDstPasteXClipData(cbText, cbImage, cbHtml []byte) {
 	if CallbackInstance == nil {
-		log.Println("GoSetupDstPasteText - failed - callbackInstance is nil")
+		log.Println("GoSetupDstPasteXClipData failed - callbackInstance is nil")
 		return
 	}
 	log.Printf("[%s] text len:%d , image len:%d, html:%d\n\n", rtkMisc.GetFuncInfo(), len(cbText), len(cbImage), len(cbHtml))
