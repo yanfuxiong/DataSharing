@@ -199,12 +199,13 @@ func businessProcess(ctx context.Context) {
 				cancelBusinessFunc(rtkCommon.SourceCablePlugIn)
 				time.Sleep(100 * time.Millisecond) // wait for print cancel log
 				cancelBusinessFunc = nil
+				rtkLogin.BrowseInstance()
 			}
 			log.Println("===========================================================================\n\n")
 
 			rtkLogin.NotifyDIASStatus(rtkLogin.DIAS_Status_Connectting_DiasService)
 			sonCtx, cancelBusinessFunc = rtkUtils.WithCancelSource(ctx)
-			businessStart(sonCtx)
+			rtkMisc.GoSafe(func() { businessStart(sonCtx) })
 		case <-networkSwitchFlagChan:
 			log.Println("===========================================================================")
 			if cancelBusinessFunc != nil {
@@ -212,12 +213,11 @@ func businessProcess(ctx context.Context) {
 				cancelBusinessFunc(rtkCommon.SourceNetworkSwitch)
 				time.Sleep(100 * time.Millisecond) // wait for print cancel log
 				rtkLogin.BrowseInstance()
-				time.Sleep(5 * time.Second)
 				log.Println("===========================================================================\n\n")
 				log.Printf("[%s] business is restart!", rtkMisc.GetFuncInfo())
 
 				sonCtx, cancelBusinessFunc = rtkUtils.WithCancelSource(ctx)
-				businessStart(sonCtx)
+				rtkMisc.GoSafe(func() { businessStart(sonCtx) })
 			} else {
 				rtkLogin.BrowseInstance()
 				log.Printf("******** Client Network is Switch, business is not start! ******** ")

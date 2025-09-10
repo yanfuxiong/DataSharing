@@ -352,6 +352,10 @@ func GoSetMsgEventFunc(event uint32, arg1, arg2, arg3, arg4 string) {
 	callbackSetMsgEvent(event, arg1, arg2, arg3, arg4)
 }
 
+func SetDeviceName(name string) {
+	rtkGlobal.NodeInfo.DeviceName = name
+}
+
 func GoTriggerNetworkSwitch() {
 	callbackNetworkSwitch()
 }

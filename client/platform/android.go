@@ -80,7 +80,6 @@ func initFilePath() {
 func init() {
 	ifConfirmDocumentsAccept = false
 	rootPath = ""
-	isNetWorkConnected = false
 	isConnecting.Store(false)
 }
 
@@ -267,6 +266,10 @@ func GoSetMsgEventFunc(event uint32, arg1, arg2, arg3, arg4 string) {
 		return
 	}
 	callbackSetMsgEvent(event, arg1, arg2, arg3, arg4)
+}
+
+func SetDeviceName(name string) {
+	rtkGlobal.NodeInfo.DeviceName = name
 }
 
 func GoTriggerNetworkSwitch() {

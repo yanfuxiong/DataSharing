@@ -96,6 +96,7 @@ func HandleFileDropEvent(ctxMain context.Context, resultChan chan<- EventResult,
 						Data: rtkCommon.ExtDataFile{
 							SrcFileList:   rtkUtils.ClearSrcFileListFullPath(&data.SrcFileList),
 							ActionType:    data.ActionType,
+							FileType:      rtkCommon.P2PFile_Type_Multiple,
 							TimeStamp:     data.TimeStamp,
 							FolderList:    data.FolderList,
 							TotalDescribe: data.TotalDescribe,
@@ -421,6 +422,7 @@ func buildMessage(msg *Peer2PeerMessage, id string, event EventResult) bool {
 				msg.ExtData = rtkCommon.ExtDataFile{
 					SrcFileList:   rtkUtils.ClearSrcFileListFullPath(&extData.SrcFileList),
 					ActionType:    extData.ActionType,
+					FileType:      rtkCommon.P2PFile_Type_Multiple,
 					TimeStamp:     extData.TimeStamp,
 					FolderList:    extData.FolderList,
 					TotalDescribe: extData.TotalDescribe,

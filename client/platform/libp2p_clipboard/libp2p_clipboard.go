@@ -49,7 +49,7 @@ func BrowseLanServer() {
 
 func MainInit(cb Callback, deviceName, serverId, serverIpInfo, listentHost string, listentPort int) {
 	rtkPlatform.SetCallback(cb)
-	rtkGlobal.NodeInfo.DeviceName = deviceName
+	rtkPlatform.SetDeviceName(deviceName)
 
 	rootPath := rtkPlatform.GetRootPath()
 	if rootPath == "" || !rtkMisc.FolderExists(rootPath) {
