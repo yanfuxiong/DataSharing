@@ -92,6 +92,9 @@ func computerInitLanServer(ctx context.Context) {
 }
 
 func mobileInitLanServer(instance string) {
+	initLanServerMutex.Lock()
+	defer initLanServerMutex.Unlock()
+
 	if !lanServerRunning.Load() {
 		log.Printf("[%s] ConnectLanServerRun is not running!", rtkMisc.GetFuncInfo())
 		return
@@ -108,12 +111,21 @@ func mobileInitLanServer(instance string) {
 
 	if currentDiasStatus > DIAS_Status_Connectting_DiasService {
 		log.Printf("[%s][mobile] currentDiasStatus:%d, not allowed connect LanServer over again! ", rtkMisc.GetFuncInfo(), currentDiasStatus)
-		NotifyDIASStatus(DIAS_Status_Connected_DiasService_Failed)
+		if currentDiasStatus != DIAS_Status_Wait_Other_Clients && currentDiasStatus != DIAS_Status_Get_Clients_Success {
+			NotifyDIASStatus(DIAS_Status_Connected_DiasService_Failed)
+		}
 		return
 	}
 
 	if lanServerInstance != "" {
-		stopLanServerBusiness()
+		if lanServerInstance != instance {
+			stopLanServerBusiness()
+		} else {
+			if pSafeConnect.IsAlive() {
+				log.Printf("[%s][mobile] Instance:%s is already connected, skip it!", rtkMisc.GetFuncInfo(), instance)
+				return
+			}
+		}
 	}
 
 	lanServerInstance = instance
@@ -149,7 +161,7 @@ func ConnectLanServerRun(ctx context.Context) {
 			} else if source == rtkCommon.SourceCablePlugOut {
 				NotifyDIASStatus(DIAS_Status_Wait_DiasMonitor)
 			}
-			log.Printf("[%s] source:%d", rtkMisc.GetFuncInfo(), source)
+			log.Printf("ConnectLanServerRun was canceled from source:%d", source)
 		}
 	}()
 
@@ -335,7 +347,9 @@ func getLanServerAddr(ctx context.Context, bPrintErr bool) (string, rtkMisc.Cros
 				log.Printf("[%s] lanServerInstance:[%s] is invalid or get no data from map!", rtkMisc.GetFuncInfo(), lanServerInstance)
 			}
 		} else {
-			log.Printf("[%s] lanServerInstance is null!", rtkMisc.GetFuncInfo())
+			if bPrintErr {
+				log.Printf("[%s] lanServerInstance is null!", rtkMisc.GetFuncInfo())
+			}
 		}
 	}
 	return "", rtkMisc.ERR_NETWORK_C2S_BROWSER_INVALID
@@ -496,7 +510,6 @@ func cancelLanServerBusiness() {
 	pSafeConnect.Close()
 	lanServerAddr = ""
 	stopBrowseInstance()
-	serverInstanceMap.Clear()
 	lanServerRunning.Store(false)
 
 	if reconnectCancelFunc != nil {

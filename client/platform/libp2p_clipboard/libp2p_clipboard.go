@@ -35,11 +35,7 @@ func SetupRootPath(rootPath string) {
 
 func WorkerConnectLanServer(instance string) {
 	log.Printf("[%s]  instance:[%s]", rtkMisc.GetFuncInfo(), instance)
-	if !rtkPlatform.IsConnecting() {
-		rtkPlatform.GoConnectLanServer(instance)
-	} else {
-		log.Printf("[%s] connecting in progress, skip it!", rtkMisc.GetFuncInfo())
-	}
+	rtkPlatform.GoConnectLanServer(instance)
 }
 
 func BrowseLanServer() {
@@ -94,12 +90,6 @@ func SendXClipData(text, image, html string) {
 
 func SendMessage(s string) {
 	rtkPlatform.SendMessage(s)
-}
-
-func GetClientList() string {
-	clientList := rtkUtils.GetClientList()
-	log.Printf("GetClientList :[%s]", clientList)
-	return clientList
 }
 
 func GetClientListEx() string {

@@ -393,6 +393,34 @@ func Base64Encode(src []byte) string {
 	return base64.StdEncoding.EncodeToString(src)
 }
 
+func addSuffixBeforeExt(path, suffix string) string {
+	ext := filepath.Ext(path)
+	name := strings.TrimSuffix(path, ext)
+	return fmt.Sprintf("%s%s%s", name, suffix, ext)
+}
+
+func GetTargetDstPathName(dstFullPath, dstFileName string) (string, string) {
+	index := uint(0)
+	var dstPath string
+
+	for {
+		if index == 0 {
+			dstPath = dstFullPath
+		} else {
+			dstPath = addSuffixBeforeExt(dstFullPath, fmt.Sprintf(" (%d)", index))
+		}
+		if !rtkMisc.FileExists(dstPath) {
+			if index == 0 {
+				return dstPath, dstFileName
+			} else {
+				return dstPath, addSuffixBeforeExt(dstFileName, fmt.Sprintf(" (%d)", index))
+			}
+
+		}
+		index++
+	}
+}
+
 func WithCancelSource(parent context.Context) (context.Context, func(rtkCommon.CancelBusinessSource)) {
 	ctx, cancel := context.WithCancel(parent)
 	cc := &rtkCommon.CustomContext{

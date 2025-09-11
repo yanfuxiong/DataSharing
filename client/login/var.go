@@ -52,6 +52,7 @@ var (
 	cancelAllBusinessFunc   callbackCancelAllBusinessFunc
 	mobileAuthData          rtkMisc.AuthDataInfo
 	g_lookupByUnicast       bool
+	initLanServerMutex      sync.Mutex
 
 	// Used by connection package
 	GetClientListFlag = make(chan []rtkMisc.ClientInfo)

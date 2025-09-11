@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/libp2p/go-libp2p/core/crypto"
 	"log"
 	"os"
 	"path/filepath"
@@ -14,17 +15,14 @@ import (
 	rtkGlobal "rtk-cross-share/client/global"
 	rtkUtils "rtk-cross-share/client/utils"
 	rtkMisc "rtk-cross-share/misc"
-	"sync/atomic"
 	"syscall"
-
-	"github.com/libp2p/go-libp2p/core/crypto"
+	"time"
 )
 
 var (
-	isConnecting             atomic.Bool
 	imageData                bytes.Buffer
 	copyTextChan             = make(chan string, 100)
-	isNetWorkConnected       bool
+	isNetWorkConnected       bool // Deprecated: unused
 	ifConfirmDocumentsAccept bool
 	privKeyFile              string
 	hostID                   string
@@ -48,7 +46,8 @@ type Callback interface {
 	CallbackFileListDragNotify(ip, id, platform string, fileCnt int, totalSize, timestamp int64, firstFileName string, firstFileSize int64)
 	CallbackFileListDragFolderNotify(ip, id, folderName string, timestamp int64)
 	CallbackFilesTransferDone(filesInfo, platform, deviceName string, timestamp int64)
-	CallbackMethodFoundPeer()
+	CallbackUpdateClientStatus(clientInfo string)
+	//CallbackMethodFoundPeer()
 	CallbackUpdateProgressBar(ip, id, filename string, recvSize, total int64, timestamp int64) // Deprecated: unused
 	CallbackUpdateMultipleProgressBar(ip, id, deviceName, currentFileName string, sentFileCnt, totalFileCnt int, currentFileSize, totalSize, sentSize, timestamp int64)
 	CallbackFileError(id, filename, err string, timestamp int64)
@@ -58,7 +57,6 @@ type Callback interface {
 	CallbackUpdateMonitorName(monitorName string)
 	CallbackRequestUpdateClientVersion(clienVersion string)
 	CallbackNotifyBrowseResult(monitorName, instance, ipAddr, version string, timestamp int64)
-	CallbackUpdateClientStatus(clientInfo string)
 }
 
 var CallbackInstance Callback = nil
@@ -80,7 +78,6 @@ func initFilePath() {
 func init() {
 	ifConfirmDocumentsAccept = false
 	rootPath = ""
-	isConnecting.Store(false)
 }
 
 func GetRootPath() string {
@@ -265,7 +262,7 @@ func GoSetMsgEventFunc(event uint32, arg1, arg2, arg3, arg4 string) {
 		log.Println("callbackSetMsgEvent is null!")
 		return
 	}
-	callbackSetMsgEvent(event, arg1, arg2, arg3, arg4)
+	rtkMisc.GoSafe(func() { callbackSetMsgEvent(event, arg1, arg2, arg3, arg4) })
 }
 
 func SetDeviceName(name string) {
@@ -368,20 +365,13 @@ func SetConfirmDocumentsAccept(ifConfirm bool) {
 	ifConfirmDocumentsAccept = ifConfirm
 }
 
-func IsConnecting() bool {
-	return isConnecting.Load()
-}
-
 func GoConnectLanServer(instance string) {
-	isConnecting.Store(true)
-	defer isConnecting.Store(false)
-
 	if callbackConnectLanServer == nil {
 		log.Println("callbackConnectLanServer is null!")
 		return
 	}
 
-	callbackConnectLanServer(instance)
+	rtkMisc.GoSafe(func() { callbackConnectLanServer(instance) })
 }
 
 func GoBrowseLanServer() {
@@ -390,7 +380,7 @@ func GoBrowseLanServer() {
 		return
 	}
 
-	callbackBrowseLanServer()
+	rtkMisc.GoSafe(func() { callbackBrowseLanServer() })
 }
 
 /***************** Used  by GO business *****************/
@@ -455,7 +445,7 @@ func ReceiveImageCopyDataDone(fileSize int64, imgHeader rtkCommon.ImgHeader) {
 	}
 	rtkMisc.GoSafe(func() {
 		imageBase64 := rtkUtils.Base64Encode(imageData.Bytes())
-		// log.Printf("len[%d][%d][%d][%+v]", len(ImageData), len(imageBase64), rtkGlobal.Handler.CopyImgHeader.Width, imageBase64)
+		//log.Printf("len[%d][%d][%s]", len(imageData.Bytes()), len(imageBase64), imageBase64[:20])
 		CallbackInstance.CallbackMethodImage(imageBase64)
 		imageData.Reset()
 	})
