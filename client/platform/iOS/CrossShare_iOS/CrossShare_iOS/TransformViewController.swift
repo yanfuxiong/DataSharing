@@ -16,12 +16,63 @@ class TransformViewController: BaseViewController {
         super.viewDidLoad()
         
         setupUI()
+        FileTransferDataManager.shared.addObserver(self)
         initialize()
-        addNotifications()
+        setupShareExtensionMonitoring()
+     }
+
+     private func setupShareExtensionMonitoring() {
+         SharedCommunicationManager.shared.onTransferProgress = { [weak self] payload in
+             self?.handleShareExtensionProgress(payload: payload)
+         }
+     }
+
+     private func handleShareExtensionProgress(payload: [String: Any]) {
+         guard let status = payload["status"] as? String else { return }
+         
+         Logger.info("TransformViewController: Share Extension status update: \(status)")
+         
+         switch status {
+         case "transfer_started":
+             DispatchQueue.main.async { [weak self] in
+                 self?.ensureDataSync()
+             }
+         default:
+             break
+         }
+     }
+    
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        
+        DispatchQueue.main.async { [weak self] in
+            self?.ensureDataSync()
+        }
+    }
+    
+    private func ensureDataSync() {
+        let latestData = FileTransferDataManager.shared.getCurrentData()
+        if latestData.count != dataArray.count || dataArray.isEmpty {
+            Logger.info("TransformViewController: syncing data, latest count: \(latestData.count)")
+            dataArray = latestData
+            fileContennerView.dataArray = latestData
+        }
+    }
+    
+    deinit {
+        FileTransferDataManager.shared.removeObserver(self)
+    }
+    
+    private func setupVideoDisplayLayer() {
+        self.videoView.setNeedsLayout()
+        self.videoView.layoutIfNeeded()
+
+        PictureInPictureManager.shared.setupDisplayLayer(for: self.videoView)
     }
     
     func setupUI() {
-        self.title = "Cross Share"
+        self.navigationItem.title = "Cross Share"
+        self.view.addSubview(videoContainerView)
         self.view.addSubview(self.fileContennerView)
         
         self.fileContennerView.snp.makeConstraints { make in
@@ -31,15 +82,49 @@ class TransformViewController: BaseViewController {
         }
         self.view.setNeedsLayout()
         self.view.layoutIfNeeded()
+        
+        self.videoContainerView.snp.makeConstraints { make in
+            make.left.right.equalToSuperview()
+            make.top.equalTo(self.view.safeAreaLayoutGuide.snp.top).offset(10)
+            make.height.equalTo(1)
+        }
+
+        self.videoView.snp.makeConstraints { make in
+            make.edges.equalToSuperview()
+        }
+
+        setupVideoDisplayLayer()
     }
     
     func initialize() {
+        dataArray = FileTransferDataManager.shared.getCurrentData()
+        Logger.info("TransformViewController: initialize with \(dataArray.count) items")
         
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            self.fileContennerView.dataArray = self.dataArray
+        }
     }
     
-    func addNotifications() {
-        NotificationCenter.default.addObserver(self, selector: #selector(receriveNewFiles(_:)), name: ReceiveFuleSuccessNotification, object: nil)
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        ensureDataSync()
+        setupVideoDisplayLayer()
     }
+    
+    lazy var videoContainerView: UIView = {
+        let view = UIView(frame: .zero)
+        view.backgroundColor = UIColor.clear
+        view.isUserInteractionEnabled = true
+        return view
+    }()
+    
+    lazy var videoView: UIView = {
+        let view = UIView(frame: .zero)
+        view.backgroundColor = UIColor.white
+        view.isUserInteractionEnabled = true
+        videoContainerView.addSubview(view)
+        return view
+    }()
     
     lazy var fileContennerView: DeviceTransportView = {
         let view = DeviceTransportView(frame: .zero)
@@ -49,44 +134,29 @@ class TransformViewController: BaseViewController {
     }()
 }
 
-extension TransformViewController {
-    @objc private func receriveNewFiles(_ ntf: Notification) {
+extension TransformViewController: FileTransferDataObserver {
+    func dataDidUpdate(_ data: [DownloadItem]) {
+//        Logger.info("TransformViewController: dataDidUpdate called with \(data.count) items")
+        
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
-            Logger.info("TransformViewController receiveNewFiles \(self.tabBarController?.selectedIndex)")
-            if self.tabBarController?.selectedIndex != 1 {
-                self.tabBarController?.selectedIndex = 1
-            }
-            if let userInfo = ntf.userInfo as? [String: Any],
-               let newItem = userInfo["download"] as? DownloadItem {
-                var isNewFile = false
-                if let index = self.dataArray.firstIndex(where: { $0.uuid == newItem.uuid }) {
-                    self.dataArray[index].receiveSize = newItem.receiveSize
-                    self.dataArray[index].totalSize = newItem.totalSize
-                    self.dataArray[index].finishTime = newItem.finishTime
-                    self.dataArray[index].timestamp = newItem.timestamp
-                    if let recvFileCnt = newItem.recvFileCnt, let currentfileName = newItem.currentfileName {
-                        self.dataArray[index].recvFileCnt = recvFileCnt
-                        self.dataArray[index].currentfileName = currentfileName
-                    }
-                } else {
-                    self.dataArray.append(newItem)
-                    isNewFile = true
-                }
-                self.dataArray.sort { ($0.timestamp ?? 0) > ($1.timestamp ?? 0) }
-                self.fileContennerView.dataArray = self.dataArray
-                if isNewFile {
-                    self.userManuallySwitchedFromFile = false
-                    if let index = self.dataArray.firstIndex(where: { $0.uuid == newItem.uuid }) {
-                        let fileCnt = (self.dataArray[index].totalFileCnt ?? 0)
-                        let fileMsg = fileCnt > 1 ? "\(fileCnt) files" : "\(fileCnt) file"
-                        let deviceName = self.dataArray[index].deviceName ?? ""
-                        let params: [String] = [fileMsg, deviceName]
-                        PushNotiManager.shared.sendLocalNotification(code: .receiveStart, with: params)
-                    }
+            
+            let oldInProgressCount = self.dataArray.filter { ($0.receiveSize ?? 0) < ($0.totalSize ?? 0) && $0.error == nil }.count
+            let newInProgressCount = data.filter { ($0.receiveSize ?? 0) < ($0.totalSize ?? 0) && $0.error == nil }.count
+            
+//            Logger.info("TransformViewController: oldInProgress=\(oldInProgressCount), newInProgress=\(newInProgressCount)")
+            
+            self.dataArray = data
+            self.fileContennerView.dataArray = data
+            
+            if newInProgressCount > oldInProgressCount {
+                Logger.info("TransformViewController: switching to InProgress")
+                self.fileContennerView.switchToInProgress()
+                
+                if self.tabBarController?.selectedIndex != 1 {
+                    self.tabBarController?.selectedIndex = 1
                 }
             }
         }
     }
 }
-

@@ -15,6 +15,14 @@ class BonjourService: NSObject, NetServiceBrowserDelegate, NetServiceDelegate {
     private var mFilterInstance: String? = nil
     private let syncQueue = DispatchQueue(label: "BonjourService")
 
+    enum RecordKey: String {
+        case ip = "ip"
+        case productName = "productName"
+        case monitorName = "mName"
+        case timestamp = "timestamp"
+        case version = "ver"
+    }
+    
     override init() {
         super.init()
         mBrowser = NetServiceBrowser()
@@ -53,7 +61,7 @@ class BonjourService: NSObject, NetServiceBrowserDelegate, NetServiceDelegate {
         }
     }
 
-    func foundServices(instanceName: String, ip: String, port: Int) {
+    func foundServices(instanceName: String, ip: String, port: Int, productName: String, monitorName: String, timestamp: String, version: String) {
         if mFilterInstance == nil {
             return
         }
@@ -64,7 +72,7 @@ class BonjourService: NSObject, NetServiceBrowserDelegate, NetServiceDelegate {
         }
 
         syncQueue.async { [self] in
-            SetBrowseMdnsResult(instanceName.toGoString(), ip.toGoString(), GoInt(port))
+            SetBrowseMdnsResult(instanceName.toGoString(), ip.toGoString(), GoInt(port), productName.toGoString(), monitorName.toGoString(), timestamp.toGoString(), version.toGoString())
             if mFilterInstance != "" {
                 stop()
             }
@@ -87,9 +95,20 @@ class BonjourService: NSObject, NetServiceBrowserDelegate, NetServiceDelegate {
             return
         }
 
-        guard let ipData = NetService.dictionary(fromTXTRecord: txtData)["ip"],
-              let ipFromTextData = String(data: ipData, encoding: .utf8) else {
-            Logger.info("[Bonjour][Err] Empty IP by textData in \(sender.name)")
+        func getTxtData(key: String) -> String? {
+            guard let tmpData = NetService.dictionary(fromTXTRecord: txtData)[key],
+                  let value = String(data: tmpData, encoding: .utf8) else {
+                Logger.info("[Bonjour][Err] Empty \(key) by textData in \(sender.name)")
+                return nil
+            }
+            
+            return value
+        }
+
+        guard let ipData = getTxtData(key: RecordKey.ip.rawValue),
+              let mNameData = getTxtData(key: RecordKey.monitorName.rawValue),
+              let timestampData = getTxtData(key: RecordKey.timestamp.rawValue),
+              let versionData = getTxtData(key: RecordKey.version.rawValue) else {
             return
         }
 
@@ -105,15 +124,21 @@ class BonjourService: NSObject, NetServiceBrowserDelegate, NetServiceDelegate {
                     inet_ntop(AF_INET, &addr_in.sin_addr, &ip, socklen_t(INET_ADDRSTRLEN))
                     let ipStr = String(cString: ip)
 
-                    if !(ipFromTextData.isEmpty) && ipStr != ipFromTextData {
-                        Logger.info("[Bonjour][Err] Skip IP:(\(ipStr)) by textRecord:(\(ipFromTextData))")
+                    if !(ipData.isEmpty) && ipStr != ipData {
+                        Logger.info("[Bonjour][Err] Skip IP:(\(ipStr)) by textRecord:(\(ipData))")
                         return
                     }
                     let formatter = DateFormatter()
                     formatter.dateFormat = "yyyy-MM-dd HH:mm:ss.SSS"
                     let timestamp = formatter.string(from: Date())
                     Logger.info("[Bonjour][\(timestamp)] Resolve instance: \(sender.name) address: \(ipStr), port: \(sender.port)")
-                    foundServices(instanceName: sender.name, ip: ipStr, port: sender.port)
+                    foundServices(instanceName: sender.name,
+                                  ip: ipStr,
+                                  port: sender.port,
+                                  productName: "",
+                                  monitorName: mNameData,
+                                  timestamp: timestampData,
+                                  version: versionData)
                 } else {
                     // DEBUG: for IPv6
 //                            Logger.info("[Bonjour][Error]: Unavailable IP address type. Only support IPv4 now")

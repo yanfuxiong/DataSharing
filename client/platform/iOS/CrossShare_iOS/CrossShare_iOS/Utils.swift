@@ -85,7 +85,6 @@ extension URL {
     }
 }
 
-
 extension UserDefaults {
     
     static var groupId: String {
@@ -103,6 +102,9 @@ extension UserDefaults {
         case DEVICECONFIG_PORT
         case DEVICE_CLIENTS
         case FILE_PATH
+        case ISACTIVITY
+        case SEND_TO_DEVICE
+        case LAN_SERVICE_INFO
     }
     
     enum DefaultsType {
@@ -129,6 +131,15 @@ extension UserDefaults {
         }
     }
     
+    static func setStandardBool(forKey key: String, value: Bool, type: DefaultsType = .standard) {
+        if type == .both {
+            UserDefaults.standard.set(value, forKey: key)
+            userDefaults(type: .group).set(value, forKey: key)
+        } else {
+            userDefaults(type: type).set(value, forKey: key)
+        }
+    }
+    
     static func getBool(forKey key: KEY, type: DefaultsType = .standard) -> Bool {
         return userDefaults(type: type).bool(forKey: key.rawValue)
     }
@@ -152,6 +163,15 @@ extension UserDefaults {
             userDefaults(type: .group).set(value, forKey: key.rawValue)
         } else {
             userDefaults(type: type).set(value, forKey: key.rawValue)
+        }
+    }
+    
+    static func setStandardInt(forKey key: String, value: Int, type: DefaultsType = .standard) {
+        if type == .both {
+            UserDefaults.standard.set(value, forKey: key)
+            userDefaults(type: .group).set(value, forKey: key)
+        } else {
+            userDefaults(type: type).set(value, forKey: key)
         }
     }
     

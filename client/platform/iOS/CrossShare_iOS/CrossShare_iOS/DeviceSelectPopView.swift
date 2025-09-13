@@ -12,6 +12,8 @@ let SOURCE_HDMI1 = "HDMI1";
 let SOURCE_HDMI2 = "HDMI2";
 let SOURCE_USBC1 = "USBC1";
 let SOURCE_USBC2 = "USBC2";
+let SOURCE_DP1 = "DP1";
+let SOURCE_DP2 = "DP2";
 let SOURCE_MIRACAST = "Miracast";
 
 class DeviceSelectPopView: UIView, UICollectionViewDataSource, UICollectionViewDelegateFlowLayout {
@@ -67,7 +69,7 @@ class DeviceSelectPopView: UIView, UICollectionViewDataSource, UICollectionViewD
         addSubview(contentView)
         contentView.snp.makeConstraints { make in
             make.left.right.bottom.equalToSuperview()
-            make.height.equalTo(420)
+            make.height.equalTo(500).priority(.low)
         }
         
         cancelButton.setImage(UIImage(named: "back"), for: .normal)
@@ -77,6 +79,7 @@ class DeviceSelectPopView: UIView, UICollectionViewDataSource, UICollectionViewD
         cancelButton.snp.makeConstraints { make in
             make.top.equalToSuperview().offset(20)
             make.left.equalToSuperview().offset(14)
+            make.size.equalTo(CGSize(width: 30, height: 30))
         }
         
         crossShareLabel.text = "Cross Share"
@@ -88,7 +91,7 @@ class DeviceSelectPopView: UIView, UICollectionViewDataSource, UICollectionViewD
             make.centerX.equalToSuperview()
         }
         
-        titleLabel.text = fileNameShow()
+        titleLabel.attributedText = fileNameShow()
         titleLabel.numberOfLines = 0
         titleLabel.textAlignment = .center
         titleLabel.font = UIFont.systemFont(ofSize: 13)
@@ -96,6 +99,7 @@ class DeviceSelectPopView: UIView, UICollectionViewDataSource, UICollectionViewD
         titleLabel.snp.makeConstraints { make in
             make.top.equalTo(crossShareLabel.snp.bottom).offset(60)
             make.centerX.equalToSuperview()
+            make.left.equalTo(cancelButton.snp.right)
         }
         
         lineView.backgroundColor = .lightGray
@@ -118,6 +122,7 @@ class DeviceSelectPopView: UIView, UICollectionViewDataSource, UICollectionViewD
             make.height.equalTo(100)
             make.left.equalTo(cancelButton)
             make.centerX.equalToSuperview()
+            make.bottom.equalToSuperview().offset(-80)
         }
         
         transportButton.setTitle("Transport Files", for: .normal)
@@ -135,17 +140,95 @@ class DeviceSelectPopView: UIView, UICollectionViewDataSource, UICollectionViewD
         }
     }
     
-    private func fileNameShow() -> String {
-        var mclintString = ""
-        if fileNames.isEmpty
-        {
-            return ""
+    private func fileNameShow() -> NSAttributedString {
+        if fileNames.isEmpty {
+            return NSAttributedString(string: "")
         }
-        for fileName in fileNames {
-            mclintString.append(fileName)
-            mclintString.append("\n")
+        
+        let testLabel = UILabel()
+        testLabel.font = UIFont.systemFont(ofSize: 13)
+        testLabel.numberOfLines = 0
+        
+        let screenWidth = UIScreen.main.bounds.width
+        let availableWidth = screenWidth - 64
+        
+        var fullText = ""
+        for (index, fileName) in fileNames.enumerated() {
+            fullText.append(fileName)
+            if index < fileNames.count - 1 {
+                fullText.append("\n")
+            }
         }
-        return mclintString
+        
+        testLabel.text = fullText
+        let fullSize = testLabel.sizeThatFits(CGSize(width: availableWidth, height: CGFloat.greatestFiniteMagnitude))
+        
+        if fullSize.height > 320 {
+            return createTruncatedTextWithStyledDots(availableWidth: availableWidth)
+        } else {
+            return NSAttributedString(string: fullText, attributes: [
+                .font: UIFont.systemFont(ofSize: 13)
+            ])
+        }
+    }
+    
+    private func createTruncatedTextWithStyledDots(availableWidth: CGFloat) -> NSAttributedString {
+        let testLabel = UILabel()
+        testLabel.font = UIFont.systemFont(ofSize: 13)
+        testLabel.numberOfLines = 0
+        
+        let reservedHeight: CGFloat = 100
+        let availableHeightForFiles = 320 - reservedHeight
+        
+        var displayText = ""
+        
+        for (index, fileName) in fileNames.enumerated() {
+            let testText = displayText.isEmpty ? fileName : displayText + "\n" + fileName
+            testLabel.text = testText
+            
+            let testSize = testLabel.sizeThatFits(CGSize(width: availableWidth, height: CGFloat.greatestFiniteMagnitude))
+            
+            if testSize.height > availableHeightForFiles {
+                break
+            }
+            
+            displayText = testText
+            
+            if index == fileNames.count - 1 {
+                return NSAttributedString(string: displayText, attributes: [
+                    .font: UIFont.systemFont(ofSize: 13)
+                ])
+            }
+        }
+        
+        let attributedString = NSMutableAttributedString()
+        
+        if !displayText.isEmpty {
+            let fileNamesAttr = NSAttributedString(string: displayText + "\n\n\n", attributes: [
+                .font: UIFont.systemFont(ofSize: 13),
+                .foregroundColor: UIColor.label
+            ])
+            attributedString.append(fileNamesAttr)
+        }
+        
+        if let dotsImage = UIImage(named: "more") {
+            let textAttachment = NSTextAttachment()
+            textAttachment.image = dotsImage
+            
+            textAttachment.bounds = CGRect(x: 0, y: -5, width: 30, height: 30)
+            
+            let imageString = NSAttributedString(attachment: textAttachment)
+            attributedString.append(imageString)
+            attributedString.append(NSAttributedString(string: "\n"))
+        }
+        
+        let totalAttr = NSAttributedString(string: "Total \(fileNames.count) files", attributes: [
+            .font: UIFont.boldSystemFont(ofSize: 16),
+            .foregroundColor: UIColor.black
+        ])
+        attributedString.append(totalAttr)
+        
+        return attributedString
     }
     
     @objc func transportFiles() {
@@ -166,6 +249,16 @@ class DeviceSelectPopView: UIView, UICollectionViewDataSource, UICollectionViewD
     }
     
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
+        if let selectedIndexPaths = collectionView.indexPathsForSelectedItems {
+            for selectedIndexPath in selectedIndexPaths {
+                if selectedIndexPath != indexPath {
+                    if let cell = collectionView.cellForItem(at: selectedIndexPath) as? DeviceCollectionCell {
+                        collectionView.deselectItem(at: selectedIndexPath, animated: false)
+                    }
+                }
+            }
+        }
+
         onSelect?(clients[indexPath.item])
     }
     
@@ -260,6 +353,10 @@ class DeviceCollectionCell: UICollectionViewCell {
             imageName = "usb_c1"
         case SOURCE_USBC2:
             imageName = "usb_c2"
+        case SOURCE_DP1:
+            imageName = "dp1"
+        case SOURCE_DP2:
+            imageName = "dp2"
         case SOURCE_MIRACAST:
             imageName = "miracast"
         default:
@@ -272,6 +369,30 @@ class DeviceCollectionCell: UICollectionViewCell {
         selButton.isSelected = false
         sender.isSelected = true
         selButton = sender
+    }
+
+    override var isSelected: Bool {
+        didSet {
+            if isSelected {
+                self.icoImgView.layer.borderWidth = 3
+                self.icoImgView.layer.borderColor = UIColor(red: 51/255.0, green: 51/255.0, blue: 51/255.0, alpha: 0.6).cgColor
+                self.icoImgView.layer.cornerRadius = 12
+                self.icoImgView.clipsToBounds = true
+            } else {
+                self.icoImgView.layer.borderWidth = 0
+                self.icoImgView.layer.borderColor = UIColor.clear.cgColor
+                self.icoImgView.layer.cornerRadius = 0
+                self.icoImgView.clipsToBounds = false
+            }
+        }
+    }
+
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        self.layer.borderWidth = 0
+        self.layer.borderColor = UIColor.clear.cgColor
+        self.layer.cornerRadius = 0
+        self.clipsToBounds = false
     }
 }
 

@@ -11,6 +11,8 @@ class DownloadViewCell: UITableViewCell {
     
     var deleteBlock:(() -> ())?
     var openBlock:(() -> ())?
+    var cancelBlock:(() -> ())?
+    var refreshBlock:(() -> ())?
     
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         super.init(style: style, reuseIdentifier: reuseIdentifier)
@@ -51,10 +53,22 @@ class DownloadViewCell: UITableViewCell {
             make.size.equalTo(CGSize(width: 20, height: 20))
         }
         
+        cancelImgView.snp.makeConstraints { make in
+            make.right.equalToSuperview().offset(-12)
+            make.centerY.equalToSuperview()
+            make.size.equalTo(CGSize(width: 28, height: 28))
+        }
+        
+        refreshImgView.snp.makeConstraints { make in
+            make.right.equalToSuperview().offset(-12)
+            make.centerY.equalToSuperview()
+            make.size.equalTo(CGSize(width: 28, height: 28))
+        }
+        
         openFileView.snp.makeConstraints { make in
             make.right.equalTo(deleteImgView.snp.left).offset(-10)
             make.centerY.equalToSuperview()
-            make.size.equalTo(CGSize(width: 20, height: 20))
+            make.size.equalTo(CGSize(width: 28, height: 28))
         }
         
         progressView.snp.makeConstraints { make in
@@ -115,10 +129,31 @@ class DownloadViewCell: UITableViewCell {
     
     lazy var deleteImgView: UIImageView = {
         let imgView = UIImageView()
+        imgView.isHidden = true
         imgView.isUserInteractionEnabled = true
         imgView.image = UIImage(named: "garbage")
         cornerView.addSubview(imgView)
         imgView.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(deleteAction)))
+        return imgView
+    }()
+    
+    lazy var cancelImgView: UIImageView = {
+        let imgView = UIImageView()
+        imgView.isHidden = true
+        imgView.isUserInteractionEnabled = true
+        imgView.image = UIImage(named: "cancel")
+        cornerView.addSubview(imgView)
+        imgView.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(cancelAction)))
+        return imgView
+    }()
+    
+    lazy var refreshImgView: UIImageView = {
+        let imgView = UIImageView()
+        imgView.isHidden = true
+        imgView.isUserInteractionEnabled = true
+        imgView.image = UIImage(named: "failure")
+        cornerView.addSubview(imgView)
+        imgView.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(refreshAction)))
         return imgView
     }()
     
@@ -219,7 +254,32 @@ class DownloadViewCell: UITableViewCell {
         }
         self.totalLab.isHidden = !model.isMutip
         if let receiveSize = model.receiveSize,let totalSize = model.totalSize {
-            self.deleteImgView.isHidden = receiveSize < totalSize
+            if receiveSize < totalSize {
+                self.cancelImgView.isHidden = false
+                self.refreshImgView.isHidden = true
+                self.deleteImgView.isHidden = true
+            } else {
+                self.cancelImgView.isHidden = true
+                self.refreshImgView.isHidden = true
+                self.deleteImgView.isHidden = false
+            }
+            if model.error != nil {
+                self.cancelImgView.isHidden = true
+                self.refreshImgView.isHidden = false
+                self.deleteImgView.isHidden = true
+                
+                self.finishLab.text = convertDateFormat(timeStamp: Date.now.timeIntervalSince1970)
+                if totalSize > 0 {
+                    self.fileRatioLab.text = "Failed \(Float(Double(receiveSize) / Double(totalSize)))%"
+                    progressView.setProgress(Float(Double(receiveSize) / Double(totalSize)), animated: true)
+                    progressView.progressTintColor = .systemRed
+                    self.fileRatioLab.textColor = .systemRed
+                }
+            }
+            // FIXME: cancel dialogue not pop randomly
+            self.cancelImgView.isHidden = true
+            // TODO: retry API not ready
+            self.refreshImgView.isHidden = true
             self.openFileView.isHidden = receiveSize < totalSize
             self.finishLab.isHidden = receiveSize < totalSize
             self.fileRatioLab.text = ((totalSize == 0) ? "0%" : "\(Float(receiveSize * 100 / totalSize))%")
@@ -255,6 +315,18 @@ class DownloadViewCell: UITableViewCell {
         } else {
             let progress = Float(Double(total) / 1024.0 / 1024.0 / 1024.0)
             return String(format: "%.2fG", progress)
+        }
+    }
+    
+    @objc func cancelAction() {
+        if let cancelBlock = self.cancelBlock {
+            cancelBlock()
+        }
+    }
+    
+    @objc func refreshAction() {
+        if let refreshBlock = self.refreshBlock {
+            refreshBlock()
         }
     }
     

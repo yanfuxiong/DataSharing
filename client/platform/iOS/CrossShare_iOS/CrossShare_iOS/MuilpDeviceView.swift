@@ -30,7 +30,7 @@ class MuilpDeviceView: UIView {
         self.addSubview(tableView)
         
         self.tableView.tableHeaderView = self.tableViewTopView
-        self.tableView.tableHeaderView?.size = CGSize(width: UIScreen.main.bounds.width, height: 132.adaptH)
+        self.tableView.tableHeaderView?.size = CGSize(width: UIScreen.main.bounds.width, height: 169.adaptH)
         
         self.tableView.setNeedsLayout()
         self.tableView.layoutIfNeeded()
@@ -75,8 +75,8 @@ class MuilpDeviceView: UIView {
 }
 
 extension MuilpDeviceView {
-    func refreshUI() {
-        self.ddccidView.updateDDccidView(with: "ED’s monitor", ipAddress: P2PManager.shared.deviceDiasId)
+    func refreshUI(_ name:String) {
+        self.ddccidView.updateDDccidView(with: name, ipAddress: P2PManager.shared.deviceDiasId)
     }
 }
 
@@ -107,27 +107,22 @@ class DDccidView: UIView {
     }
     
     private func setupUI() {
-        addSubviews([waitImageView,DDccidNameLable,DDccidLable,lineView])
+        addSubviews([waitImageView,DDccidNameLable,lineView])
         
         waitImageView.snp.makeConstraints { make in
             make.centerX.equalToSuperview()
-            make.top.equalToSuperview().offset(16.adaptH)
+            make.top.equalToSuperview().offset(34.adaptH)
             make.size.equalTo(CGSize(width: 74, height: 74).adapt)
         }
         
         DDccidNameLable.snp.makeConstraints { make in
             make.centerX.equalToSuperview()
-            make.top.equalTo(waitImageView.snp.bottom).offset(7.adaptH)
-        }
-        
-        DDccidLable.snp.makeConstraints { make in
-            make.centerX.equalToSuperview()
-            make.top.equalTo(DDccidNameLable.snp.bottom).offset(3.adaptH)
+            make.top.equalTo(waitImageView.snp.bottom).offset(23.adaptH)
         }
         
         lineView.snp.makeConstraints { make in
             make.left.right.bottom.equalToSuperview()
-            make.height.equalTo(1.adaptH)
+            make.height.equalTo(3.adaptH)
         }
     }
     
@@ -148,15 +143,6 @@ class DDccidView: UIView {
         return text
     }()
     
-    lazy var DDccidLable: UILabel = {
-        let text = UILabel(frame: .zero)
-        text.textColor = UIColor.init(hex: 0x201B13)
-        text.font = UIFont.systemFont(ofSize: 12)
-        text.text = "Device Name"
-        addSubview(text)
-        return text
-    }()
-    
     lazy var lineView: UIView = {
         let imgView = UIView()
         imgView.backgroundColor = UIColor.init(hex: 0xD3D3D3)
@@ -169,7 +155,6 @@ class DDccidView: UIView {
 extension DDccidView {
     func updateDDccidView(with deviceName: String, ipAddress: String) {
         self.DDccidNameLable.text = deviceName
-        self.DDccidLable.text = ipAddress
     }
 }
 

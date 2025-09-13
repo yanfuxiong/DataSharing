@@ -14,10 +14,20 @@ import MBProgressHUD
 class ShareViewController: UIViewController {
     
     private var devicePopView: DeviceSelectPopView?
+    private let notifier = CrossProcessNotifier(appGroupID: UserDefaults.groupId)
+    private let dataUpdateNotification = "com.realtek.crossshare.dataDidUpdate"
+    private var status:Int = 1
+    private var statusString:String = ""
     
     override func viewDidLoad() {
         super.viewDidLoad()
         handleInput()
+        addNotificationObservers()
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        notifier.stopObserving(name: dataUpdateNotification)
     }
     
     func handleInput() {
@@ -29,7 +39,7 @@ class ShareViewController: UIViewController {
         
         var filePaths: [URL] = []
         let dispatchGroup = DispatchGroup()
-
+        
         for provider in attachments {
             dispatchGroup.enter()
             if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
@@ -103,10 +113,32 @@ class ShareViewController: UIViewController {
                 self.cancelExtensionContext(with: "No files selected.")
                 return
             }
+            guard UserDefaults.getBool(forKey: .ISACTIVITY, type: .group) == true else {
+                Logger.info("Error: ISACTIVITY not found in UserDefaults.")
+                self.cancelExtensionContext(with: "Please open CrossShare app first and wait a moment")
+                return
+            }
             self.showDeviceSelectPopView(urls: filePaths)
         }
     }
-
+    
+    private func addNotificationObservers() {
+        notifier.observe(name: dataUpdateNotification) { userInfo in
+            if let data = userInfo,let status = data["status"] as? Int {
+                print("received data: \(data)")
+                self.status = status
+                self.statusString = data["message"] as? String ?? ""
+                DispatchQueue.main.async {
+                    if self.status == 1 {
+                        MBProgressHUD.showTips(.success, self.statusString, toView: self.view, duration: 1.5)
+                    } else {
+                        MBProgressHUD.showTips(.warn, self.statusString, toView: self.view, duration: 1.5)
+                    }
+                }
+            }
+        }
+    }
+    
     private func getFileExtension(from typeIdentifier: String) -> String {
         switch typeIdentifier {
         case "com.android.package-archive":
@@ -132,8 +164,81 @@ class ShareViewController: UIViewController {
     }
     
     func showDeviceSelectPopView(urls: [URL]) {
+        let (hasFiles, hasFolders) = analyzeURLs(urls)
+        if hasFolders && hasFiles {
+            showFolderWarningPopup(urls: urls, type: .mixedContent)
+            return
+        } else if hasFolders && !hasFiles {
+            showFolderWarningPopup(urls: urls, type: .foldersOnly)
+            return
+        }
+        continueWithFileSelection(urls: urls,isFolder: false)
+    }
+    
+    private func analyzeURLs(_ urls: [URL]) -> (hasFiles: Bool, hasFolders: Bool) {
+        var hasFiles = false
+        var hasFolders = false
+        
+        for url in urls {
+            guard url.startAccessingSecurityScopedResource() else {
+                continue
+            }
+            defer { url.stopAccessingSecurityScopedResource() }
+            
+            var isDirectory: ObjCBool = false
+            if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) {
+                if isDirectory.boolValue {
+                    hasFolders = true
+                } else {
+                    hasFiles = true
+                }
+                if hasFiles && hasFolders {
+                    break
+                }
+            }
+        }
+        return (hasFiles, hasFolders)
+    }
+    
+    private func showFolderWarningPopup(urls: [URL], type: ShareFilesPopType) {
+        let popView = ShareFilesPopView(frame: self.view.bounds, type: type)
+        
+        switch type {
+        case .mixedContent:
+            popView.onContinue = { [weak self] in
+                self?.dismissFolderPopView(popView)
+                let filteredUrls = self?.filterOutFolders(from: urls) ?? []
+                if !filteredUrls.isEmpty {
+                    self?.continueWithFileSelection(urls: filteredUrls,isFolder: true)
+                } else {
+                    self?.cancelExtensionContext(with: "No files to transfer after filtering")
+                }
+            }
+            
+            popView.onCancel = { [weak self] in
+                self?.dismissFolderPopView(popView)
+                self?.cancelExtensionContext(with: "User cancelled file transfer")
+            }
+            
+        case .foldersOnly:
+            popView.onConfirm = { [weak self] in
+                self?.dismissFolderPopView(popView)
+                self?.cancelExtensionContext(with: "Only folders selected, transfer not supported")
+            }
+        }
+        
+        popView.alpha = 0
+        self.view.addSubview(popView)
+        
+        UIView.animate(withDuration: 0.3) {
+            popView.alpha = 1
+        }
+    }
+    
+    private func continueWithFileSelection(urls: [URL], isFolder: Bool = false) {
         var clients: [ClientInfo] = []
         var fileNames: [String] = []
+
         if let clientsString = UserDefaults.get(forKey: .DEVICE_CLIENTS,type: .group),
            let data = clientsString.data(using: .utf8) {
             let json = try? JSON(data: data)
@@ -148,24 +253,25 @@ class ShareViewController: UIViewController {
                 }
             }
         }
+
         if urls.isEmpty {
-            self.cancelExtensionContext(with: "Error: No URLs provided")
+            print("Error: No URLs provided to continueWithFileSelection.")
+            self.cancelExtensionContext(with: "No URLs to process")
             return
         }
-        
+
         for url in urls {
             if url.startAccessingSecurityScopedResource() {
                 fileNames.append(url.lastPathComponent)
                 url.stopAccessingSecurityScopedResource()
             } else {
-                Logger.info("Warning: Could not access security-scoped resource for \(url.lastPathComponent).")
                 fileNames.append("Unknown File")
             }
         }
         
-        Logger.info("Found \(clients.count) clients:")
+        print("Found \(clients.count) clients:")
         for client in clients {
-            Logger.info("Device: \(client.name), IP:Port: \(client.ip), ID: \(client.id)")
+            print("Device: \(client.name), IP:Port: \(client.ip), ID: \(client.id)")
         }
         
         var selectedClient: ClientInfo?
@@ -175,15 +281,15 @@ class ShareViewController: UIViewController {
             popView.frame = self.view.bounds
             popView.alpha = 0
             self.devicePopView = popView
+
             popView.onSelect = { [weak self] client in
                 guard let self = self else { return }
-                Logger.info("select device：\(client.name)")
+                print("choose device：\(client.name)")
                 selectedClient = client
-                MBProgressHUD.showTips(.success,"Device: \(client.name)", toView: self.view, duration: 1.0)
             }
             popView.onCancel = { [weak self] in
                 self?.dismissDevicePopView()
-                self?.cancelExtensionContext(with: "cancel transport files",duration: 1)
+                self?.cancelExtensionContext(with: "User cancelled device selection")
             }
             popView.onSure = { [weak self] in
                 guard let self = self else { return }
@@ -191,69 +297,26 @@ class ShareViewController: UIViewController {
                     MBProgressHUD.showTips(.warn,"Please select a device", toView: self.view)
                     return
                 }
+                
                 self.dismissDevicePopView()
                 let timestamp = String(Int(Date().timeIntervalSince1970))
-                var urlSchemeString: String?
-                
-                if urls.count == 1, let singleUrl = urls.first {
-                    guard let finalFilePath = self.copyDocumentToTemp(singleUrl, timestamp) else {
-                        self.cancelExtensionContext(with: "Failed to prepare file.")
-                        return
-                    }
-                    guard let fileSize = self.getFileSize(atPath: finalFilePath) else {
-                        self.cancelExtensionContext(with: "Invalid file selected.")
-                        return
-                    }
-                    guard let encodedFilePath = finalFilePath.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
-                        Logger.info("Error: Could not percent-encode file path")
-                        self.cancelExtensionContext(with: "Failed to prepare file path.")
-                        return
-                    }
-                    urlSchemeString = "crossshare://import?filePath=\(encodedFilePath)&clientId=\(currentSelectedClient.id)&clientIp=\(currentSelectedClient.ip)&fileSize=\(fileSize)&isMup=false"
-                } else if urls.count > 1 {
-                    var copiedFilePaths: [String] = []
-                    for url in urls {
-                        if let copiedPath = self.copyDocumentToTemp(url, timestamp) {
-                            copiedFilePaths.append(copiedPath)
-                        } else {
-                            print("Warning: Failed to copy \(url.lastPathComponent) to app group container.")
-                        }
-                    }
-
-                    if copiedFilePaths.isEmpty {
-                        self.cancelExtensionContext(with: "multi-file copy failed")
-                        return
-                    }
-                    
-                    do {
-                        let pathsJsonData = try JSONSerialization.data(withJSONObject: copiedFilePaths, options: [])
-                        guard let pathsJsonString = String(data: pathsJsonData, encoding: .utf8),
-                              let encodedPaths = pathsJsonString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
-                            print("Error: Could not create or encode paths JSON string for multiple files")
-                            self.cancelExtensionContext(with: "multi-file paths encoding failed")
-                            return
-                        }
-                        urlSchemeString = "crossshare://import?paths=\(encodedPaths)&clientId=\(currentSelectedClient.id)&clientIp=\(currentSelectedClient.ip)&isMup=true"
-                    } catch {
-                        print("Error: Could not serialize paths to JSON for multiple files: \(error)")
-                        self.cancelExtensionContext(with: "multi-file paths serialization failed")
-                        return
-                    }
+                let taskId = UUID().uuidString
+                if urls.count > 0 {
+                    self.handleMultipleFileShare(
+                        urls: urls,
+                        client: currentSelectedClient,
+                        timestamp: timestamp,
+                        taskId: taskId
+                    )
                 } else {
                     self.cancelExtensionContext(with: "No files to share.")
                     return
                 }
-                
-                if let scheme = urlSchemeString, let openURL = URL(string: scheme) {
-                    self.openURL(openURL)
-                    self.extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
-                } else {
-                    Logger.info("Error: Could not create URL from scheme: \(urlSchemeString ?? "nil")")
-                    self.cancelExtensionContext(with: "URL creation failed")
-                }
             }
-            // move -40 for safe area and margin
-            popView.frame.origin.y -= 40
+            
+            if !isFolder {
+                popView.y -= 80
+            }
             self.view.addSubview(popView)
             UIView.animate(withDuration: 0.3) {
                 popView.alpha = 1
@@ -262,34 +325,81 @@ class ShareViewController: UIViewController {
                 }
             }
         } else {
-            Logger.info("No clients available to share with.")
-            self.cancelExtensionContext(with: "No clients available to share with.")
+            print("No clients available to share with.")
+            MBProgressHUD.showTips(.error, "No devices found.", toView: self.view)
+            self.cancelExtensionContext(with: "No clients found")
         }
     }
     
-    func openURL(_ url: URL) {
-        var responder = self as UIResponder?
-        let selector = NSSelectorFromString("openURL:")
-        while responder != nil {
-            if responder?.responds(to: selector) == true {
-                responder?.perform(selector, with: url)
-                break
+    private func handleMultipleFileShare(urls: [URL], client: ClientInfo, timestamp: String,taskId : String) {
+        var copiedFilePaths: [String] = []
+        for url in urls {
+            if let copiedPath = self.copyDocumentToTemp(url, timestamp) {
+                copiedFilePaths.append(copiedPath)
             }
-            responder = responder?.next
+        }
+        
+        if copiedFilePaths.isEmpty {
+            self.sendTransferError(message: "Failed to prepare files")
+            return
+        }
+        
+        let payload: [String: Any] = [
+            "taskId":taskId,
+            "clientId": client.id,
+            "clientIp": client.ip,
+            "clientName": client.name,
+            "filePaths": copiedFilePaths,
+            "timestamp": timestamp,
+            "fileNames": urls.map { $0.lastPathComponent }
+        ]
+        
+        SharedCommunicationManager.shared.sendCommunication(
+            type: .transferPrepare,
+            payload: payload
+        )
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            self.extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
         }
     }
     
-    func getFileSize(atPath path: String) -> Int64? {
-        let fileManager = FileManager.default
-        do {
-            let attributes = try fileManager.attributesOfItem(atPath: path)
-            if let fileSize = attributes[FileAttributeKey.size] as? NSNumber {
-                return fileSize.int64Value
+    private func sendTransferError(message: String) {
+        let payload: [String: Any] = [
+            "error": message,
+            "timestamp": Date().timeIntervalSince1970
+        ]
+        
+        SharedCommunicationManager.shared.sendCommunication(
+            type: .transferError,
+            payload: payload
+        )
+        
+        self.cancelExtensionContext(with: message)
+    }
+
+    // MARK: - Folder Detection Methods
+    private func filterOutFolders(from urls: [URL]) -> [URL] {
+        return urls.filter { url in
+            guard url.startAccessingSecurityScopedResource() else {
+                return false
             }
-        } catch {
-            Logger.info("Error fetching file size: \(error)")
+            defer { url.stopAccessingSecurityScopedResource() }
+            
+            var isDirectory: ObjCBool = false
+            if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) {
+                return !isDirectory.boolValue
+            }
+            return false
         }
-        return nil
+    }
+
+    private func dismissFolderPopView(_ popView: ShareFilesPopView) {
+        UIView.animate(withDuration: 0.3, animations: {
+            popView.alpha = 0
+        }) { _ in
+            popView.removeFromSuperview()
+        }
     }
     
     private func dismissDevicePopView() {
@@ -361,8 +471,8 @@ class ShareViewController: UIViewController {
         }
     }
     
-    private func cancelExtensionContext(with errorMsg: String,duration: TimeInterval = 2.0) {
-        MBProgressHUD.showTips(.error,errorMsg, toView: self.view,duration: duration)
+    private func cancelExtensionContext(with errorMsg: String,duration: TimeInterval = 0.5) {
+        // MBProgressHUD.showTips(.error,errorMsg, toView: self.view,duration: duration)
         DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
             self.extensionContext?.cancelRequest(withError: NSError(domain: errorMsg, code: 500))
         }

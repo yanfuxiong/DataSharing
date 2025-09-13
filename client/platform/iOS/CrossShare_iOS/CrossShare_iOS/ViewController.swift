@@ -53,21 +53,6 @@ class ViewController: UIViewController {
                     }
                     
                     self.deviceView.refreshUI()
-//                    self.deviceView.dosomothingBlock = { [weak self] index in
-//                        guard let self = self else { return  }
-//                        switch index {
-//                        case 1:
-//                            self.aheadButton.isSelected = true
-//                            self.viewType = .config
-//                        case 2:
-//                            self.pickDocument()
-//                        case 3:
-//                            self.aheadButton.isSelected = true
-//                            self.viewType = .file
-//                        default:
-//                            Logger.info("do nothing but else")
-//                        }
-//                    }
                     self.view.setNeedsLayout()
                     self.view.layoutIfNeeded()
                 }

@@ -26,10 +26,8 @@ typedef struct { const char *p; ptrdiff_t n; } _GoString_;
 
 typedef void (*CallbackMethodText)(char*);
 typedef void (*CallbackMethodImage)(char* content);
-typedef void (*LogMessageCallback)(char* msg);
 typedef void (*EventCallback)(int event);
 typedef void (*CallbackMethodFileConfirm)(char* id, char* platform, char* fileName, long long fileSize);
-typedef void (*CallbackMethodFileDone)(char* name, long long fileSize);
 typedef void (*CallbackMethodFoundPeer)();
 typedef void (*CallbackMethodFileNotify)(char* ip, char* id, char* platform, char* fileName, unsigned long long fileSize,unsigned long long timestamp);
 typedef void (*CallbackMethodFileListNotify)(char* ip, char* id, char* platform,unsigned int fileCnt, unsigned long long totalSize,unsigned long long timestamp, char* firstFileName, unsigned long long firstFileSize);
@@ -39,13 +37,16 @@ typedef void (*CallbackFileError)(char* id, char* fileName, char* err);
 typedef void (*CallbackMethodStartBrowseMdns)(char* instance, char* serviceType);
 typedef void (*CallbackMethodStopBrowseMdns)();
 typedef char* (*CallbackAuthData)();
+typedef void (*CallbackSetDIASStatus)(unsigned int status);
+typedef void (*CallbackSetMonitorName)(char* monitorName);
+typedef void (*CallbackRequestUpdateClientVersion)(char* clientVer);
+typedef void (*CallbackNotifyErrEvent)(char* id, unsigned int errCode, char* arg1, char* arg2, char* arg3, char* arg4);
+typedef void (*CallbackNotifyBrowseResult)(char* monitorName, char* instance, char* ip, char* version, unsigned long long timestamp);
 
 static CallbackMethodText gCallbackMethodText = 0;
 static CallbackMethodImage gCallbackMethodImage = 0;
-static LogMessageCallback gLogMessageCallback = 0;
 static EventCallback gEventCallback = 0;
 static CallbackMethodFileConfirm gCallbackMethodFileConfirm = 0;
-static CallbackMethodFileDone gCallbackMethodFileDone = 0;
 static CallbackMethodFoundPeer gCallbackMethodFoundPeer = 0;
 static CallbackMethodFileNotify gCallbackMethodFileNotify = 0;
 static CallbackMethodFileListNotify gCallbackMethodFileListNotify = 0;
@@ -55,6 +56,11 @@ static CallbackFileError gCallbackFileError = 0;
 static CallbackMethodStartBrowseMdns gCallbackMethodStartBrowseMdns = 0;
 static CallbackMethodStopBrowseMdns gCallbackMethodStopBrowseMdns = 0;
 static CallbackAuthData gCallbackAuthData = 0;
+static CallbackSetDIASStatus gCallbackSetDIASStatus = 0;
+static CallbackSetMonitorName gCallbackSetMonitorName = 0;
+static CallbackRequestUpdateClientVersion gCallbackRequestUpdateClientVersion = 0;
+static CallbackNotifyErrEvent gCallbackNotifyErrEvent = 0;
+static CallbackNotifyBrowseResult gCallbackNotifyBrowseResult = 0;
 
 static void setCallbackMethodText(CallbackMethodText cb) {gCallbackMethodText = cb;}
 static void invokeCallbackMethodText(char* str) {
@@ -64,10 +70,6 @@ static void setCallbackMethodImage(CallbackMethodImage cb) {gCallbackMethodImage
 static void invokeCallbackMethodImage(char* str) {
 	if (gCallbackMethodImage) {gCallbackMethodImage(str);}
 }
-static void setLogMessageCallback(LogMessageCallback cb) {gLogMessageCallback = cb;}
-static void invokeLogMessageCallback(char* str) {
-	if (gLogMessageCallback) {gLogMessageCallback(str);}
-}
 static void setEventCallback(EventCallback cb) {gEventCallback = cb;}
 static void invokeEventCallback(int event) {
 	if (gEventCallback) {gEventCallback(event);}
@@ -75,10 +77,6 @@ static void invokeEventCallback(int event) {
 static void setCallbackMethodFileConfirm(CallbackMethodFileConfirm cb) {gCallbackMethodFileConfirm = cb;}
 static void invokeCallbackMethodFileConfirm(char* id, char* platform, char* fileName, long long fileSize) {
 	if (gCallbackMethodFileConfirm) {gCallbackMethodFileConfirm(id, platform, fileName, fileSize);}
-}
-static void setCallbackMethodFileDone(CallbackMethodFileDone cb) {gCallbackMethodFileDone = cb;}
-static void invokeCallbackMethodFileDone(char* name, long long fileSize) {
-	if (gCallbackMethodFileDone) {gCallbackMethodFileDone(name, fileSize);}
 }
 static void setCallbackMethodFoundPeer(CallbackMethodFoundPeer cb) {gCallbackMethodFoundPeer = cb;}
 static void invokeCallbackMethodFoundPeer() {
@@ -115,7 +113,27 @@ static void invokeCallbackMethodStopBrowseMdns() {
 static void setCallbackGetAuthData(CallbackAuthData cb) {gCallbackAuthData = cb;}
 static char* invokeCallbackGetAuthData() {
 	if (gCallbackAuthData) { return gCallbackAuthData();}
-	return NULL;
+    return NULL;
+}
+static void setCallbackSetDIASStatus(CallbackSetDIASStatus cb) {gCallbackSetDIASStatus = cb;}
+static void invokeCallbackSetDIASStatus(unsigned int status) {
+	if (gCallbackSetDIASStatus) { gCallbackSetDIASStatus(status);}
+}
+static void setCallbackSetMonitorName(CallbackSetMonitorName cb) {gCallbackSetMonitorName = cb;}
+static void invokeCallbackSetMonitorName(char* monitorName) {
+	if (gCallbackSetMonitorName) { gCallbackSetMonitorName(monitorName);}
+}
+static void setCallbackRequestUpdateClientVersion(CallbackRequestUpdateClientVersion cb) {gCallbackRequestUpdateClientVersion = cb;}
+static void invokeCallbackRequestUpdateClientVersion(char* clientVer) {
+	if (gCallbackRequestUpdateClientVersion) { gCallbackRequestUpdateClientVersion(clientVer);}
+}
+static void setCallbackNotifyErrEvent(CallbackNotifyErrEvent cb) {gCallbackNotifyErrEvent = cb;}
+static void invokeCallbackNotifyErrEvent(char* id, unsigned int errCode, char* arg1, char* arg2, char* arg3, char* arg4) {
+	if (gCallbackNotifyErrEvent) { gCallbackNotifyErrEvent(id,errCode,arg1,arg2,arg3,arg4);}
+}
+static void setCallbackNotifyBrowseResult(CallbackNotifyBrowseResult cb) {gCallbackNotifyBrowseResult = cb;}
+static void invokeCallbackNotifyBrowseResult(char* monitorName, char* instance, char* ip, char* version, unsigned long long timestamp) {
+	if (gCallbackNotifyBrowseResult) { gCallbackNotifyBrowseResult(monitorName, instance, ip, version, timestamp);}
 }
 
 #line 1 "cgo-generated-wrapper"
@@ -176,10 +194,8 @@ extern "C" {
 
 extern void SetCallbackMethodText(CallbackMethodText cb);
 extern void SetCallbackMethodImage(CallbackMethodImage cb);
-extern void SetLogMessageCallback(LogMessageCallback cb);
 extern void SetEventCallback(EventCallback cb);
 extern void SetCallbackMethodFileConfirm(CallbackMethodFileConfirm cb);
-extern void SetCallbackMethodFileDone(CallbackMethodFileDone cb);
 extern void SetCallbackMethodFoundPeer(CallbackMethodFoundPeer cb);
 extern void SetCallbackMethodFileNotify(CallbackMethodFileNotify cb);
 extern void SetCallbackMethodFileListNotify(CallbackMethodFileListNotify cb);
@@ -188,6 +204,12 @@ extern void SetCallbackUpdateMultipleProgressBar(CallbackUpdateMultipleProgressB
 extern void SetCallbackFileError(CallbackFileError cb);
 extern void SetCallbackMethodStartBrowseMdns(CallbackMethodStartBrowseMdns cb);
 extern void SetCallbackMethodStopBrowseMdns(CallbackMethodStopBrowseMdns cb);
+extern void SetCallbackGetAuthData(CallbackAuthData cb);
+extern void SetCallbackDIASStatus(CallbackSetDIASStatus cb);
+extern void SetCallbackMonitorName(CallbackSetMonitorName cb);
+extern void SetCallbackRequestUpdateClientVersion(CallbackRequestUpdateClientVersion cb);
+extern void SetCallbackNotifyErrEvent(CallbackNotifyErrEvent cb);
+extern void SetCallbackNotifyBrowseResult(CallbackNotifyBrowseResult cb);
 extern void MainInit(GoString deviceName, GoString serverId, GoString serverIpInfo, GoString listenHost, GoInt listenPort);
 extern void SendText(GoString s);
 extern char* GetClientList();
@@ -195,20 +217,22 @@ extern void SendImage(GoString content);
 extern void SendAddrsFromPlatform(GoString addrsList);
 extern void SendNetInterfaces(GoString name, GoString mac, GoInt mtu, GoInt index, GoUint flag);
 extern void SendFileDropRequest(GoString filePath, GoString id, GoInt64 fileSize);
-extern void SendMultiFilesDropRequest(GoString multiFilesData);
+extern GoInt SendMultiFilesDropRequest(GoString multiFilesData);
 extern void SetFileDropResponse(GoString fileName, GoString id, GoUint8 isReceive);
+extern void SetCancelFileTransfer(GoString ipPort, GoString clientID, GoUint64 timeStamp);
 extern void SetNetWorkConnected(GoUint8 isConnect);
 extern void SetHostListenAddr(GoString listenHost, GoInt listenPort);
 extern void SetDIASID(GoString DiasID);
 extern void SetDetectPluginEvent(GoUint8 isPlugin);
-extern void SetCallbackGetAuthData(CallbackAuthData cb);
 extern char* GetVersion();
 extern char* GetBuildDate();
 extern void SetupRootPath(GoString rootPath);
 extern void SetSrcAndPort(GoInt source, GoInt port);
-extern void SetBrowseMdnsResult(GoString instance, GoString ip, GoInt port);
+extern void SetBrowseMdnsResult(GoString instance, GoString ip, GoInt port, GoString productName, GoString mName, GoString timestamp, GoString version);
 extern void SetConfirmDocumentsAccept(GoUint8 ifConfirm);
 extern void FreeCString(char* p);
+extern void BrowseLanServer();
+extern void WorkerConnectLanServer(GoString instance);
 
 #ifdef __cplusplus
 }

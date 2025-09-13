@@ -54,10 +54,12 @@ class DeviceTransportView: UIView {
     }
     
     private var currentState: TransportViewState = .noFiles
-    private var currentFilterState: FileTransferState = .recorded
+    private var currentFilterState: FileTransferState = .inProgress
+    
+    private var fileCancelView: FileCancelPopView?
     
     private var inProgressData: [DownloadItem] {
-        return dataArray.filter { $0.receiveSize ?? 0 < $0.totalSize ?? 0 }
+        return dataArray.filter { $0.receiveSize ?? 0 < $0.totalSize ?? 0 && $0.error == nil }
     }
     
     private var recordedData: [DownloadItem] {
@@ -99,6 +101,20 @@ class DeviceTransportView: UIView {
             createEmptyView(for: state)
         }
     }()
+    
+    func switchToInProgress() {
+        let inProgressIndex = FileTransferState.inProgress.rawValue
+        if currentFilterState != .inProgress {
+            scrollToPage(inProgressIndex)
+            updateSegmentSelection(inProgressIndex)
+            currentFilterState = .inProgress
+            updateViewForCurrentState()
+        }
+    }
+    
+    func isCurrentlyOnInProgress() -> Bool {
+        return currentFilterState == .inProgress
+    }
     
     lazy var customSegmentView: UIView = {
         let view = UIView()
@@ -236,7 +252,7 @@ class DeviceTransportView: UIView {
         
         let indicatorView = UIView()
         indicatorView.backgroundColor = state.color
-        indicatorView.isHidden = state != .recorded // 默认选中 recorded
+        indicatorView.isHidden = state != .inProgress // 默认选中 recorded
         button.addSubview(indicatorView)
         
         indicatorView.snp.makeConstraints { make in
@@ -301,7 +317,6 @@ class DeviceTransportView: UIView {
         if let state = FileTransferState(rawValue: index) {
             currentFilterState = state
         }
-        
         updateViewForCurrentState()
     }
     
@@ -360,6 +375,16 @@ class DeviceTransportView: UIView {
                     tableView.reloadData()
                 }
             }
+        }
+    }
+    
+    func switchToFailed() {
+        let failedIndex = FileTransferState.failed.rawValue
+        if currentFilterState != .failed {
+            scrollToPage(failedIndex)
+            updateSegmentSelection(failedIndex)
+            currentFilterState = .failed
+            updateViewForCurrentState()
         }
     }
 }
@@ -461,6 +486,67 @@ extension DeviceTransportView {
             }
         }
     }
+    
+    @objc private func cancelFile(at index: Int, from tableView: UITableView) {
+        guard let currentWindow = UtilsHelper.shared.getTopWindow() else {
+            Logger.error("No active window found")
+            return
+        }
+        let popView = FileCancelPopView()
+        popView.frame = currentWindow.rootViewController?.view.bounds ?? CGRect.zero
+        popView.alpha = 0
+        self.fileCancelView = popView
+        popView.onCancel = { [weak self] in
+            guard let self = self else { return }
+            self.dismissDevicePopView()
+        }
+        popView.onSure = { [weak self] in
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self,
+                      let state = FileTransferState(rawValue: tableView.tag) else { return }
+                let filteredData = self.dataSource(for: state)
+                if index >= 0 && index < filteredData.count {
+                    let itemToCancel = filteredData[index]
+                    if let originalIndex = self.dataArray.firstIndex(where: { $0.uuid == itemToCancel.uuid }) {
+                        if state == .inProgress {
+                            self.dataArray[originalIndex].error = "Transfer cancelled by user"
+                            self.dataArray[originalIndex].finishTime = Date().timeIntervalSince1970
+                            Logger.info("file has been cancel: \(itemToCancel.currentfileName ?? "Unknown")")
+                        } else {
+                            self.dataArray.remove(at: originalIndex)
+                        }
+                        self.updateViewState()
+                        P2PManager.shared.setCancelFileTransfer(ipPort: itemToCancel.ip, clientID: itemToCancel.fileId, timeStamp: UInt64(itemToCancel.timestamp ?? Date().timeIntervalSince1970))
+                        
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            self.switchToFailed()
+                        }
+                    }
+                }
+                self.dismissDevicePopView()
+            }
+        }
+        currentWindow.addSubview(popView)
+        UIView.animate(withDuration: 0.3) {
+            popView.alpha = 1
+            if let contentView = popView.subviews.first {
+                contentView.transform = .identity
+            }
+        }
+    }
+    
+    private func dismissDevicePopView() {
+        guard let popView = self.fileCancelView else { return }
+        UIView.animate(withDuration: 0.3, animations: {
+            popView.alpha = 0
+            if let contentView = popView.subviews.first {
+                contentView.transform = CGAffineTransform(scaleX: 0.8, y: 0.8)
+            }
+        }) { _ in
+            popView.removeFromSuperview()
+            self.fileCancelView = nil
+        }
+    }
 }
 
 // MARK: - UITableViewDelegate, UITableViewDataSource
@@ -489,6 +575,10 @@ extension DeviceTransportView: UITableViewDelegate, UITableViewDataSource {
         cell.openBlock = { [weak self] in
             guard let self = self else { return }
             self.openFile(at: indexPath.row, from: tableView)
+        }
+        cell.cancelBlock = { [weak self] in
+            guard let self = self else { return }
+            self.cancelFile(at: indexPath.row, from: tableView)
         }
         return cell
     }

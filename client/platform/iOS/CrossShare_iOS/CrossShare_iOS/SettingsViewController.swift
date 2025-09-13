@@ -16,9 +16,35 @@ class SettingsViewController: BaseViewController {
         addNotifications()
     }
     
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+
+        setupVideoDisplayLayer()
+    }
+    
+    private func setupVideoDisplayLayer() {
+        self.videoView.setNeedsLayout()
+        self.videoView.layoutIfNeeded()
+
+        PictureInPictureManager.shared.setupDisplayLayer(for: self.videoView)
+    }
+    
     func setupUI() {
-        self.title = "Cross Share"
+        self.navigationItem.title = "Cross Share"
+        self.view.addSubview(videoContainerView)
         self.view.addSubview(self.deviceView)
+        
+        self.videoContainerView.snp.makeConstraints { make in
+            make.left.right.equalToSuperview()
+            make.top.equalTo(self.view.safeAreaLayoutGuide.snp.top).offset(10)
+            make.height.equalTo(1)
+        }
+
+        self.videoView.snp.makeConstraints { make in
+            make.edges.equalToSuperview()
+        }
+
+        setupVideoDisplayLayer()
         
         self.deviceView.snp.makeConstraints { make in
             make.left.right.equalToSuperview()
@@ -60,9 +86,25 @@ class SettingsViewController: BaseViewController {
         }
     }
     
+    
+    lazy var videoContainerView: UIView = {
+        let view = UIView(frame: .zero)
+        view.backgroundColor = UIColor.clear
+        view.isUserInteractionEnabled = true
+        return view
+    }()
+    
+    lazy var videoView: UIView = {
+        let view = UIView(frame: .zero)
+        view.backgroundColor = UIColor.white
+        view.isUserInteractionEnabled = true
+        videoContainerView.addSubview(view)
+        return view
+    }()
+    
     lazy var deviceView: DeviceMainView = {
         let view = DeviceMainView(frame: .zero)
-        view.backgroundColor = UIColor.clear
+        view.backgroundColor = UIColor.white
         view.isUserInteractionEnabled = true
         return view
     }()

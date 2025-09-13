@@ -117,15 +117,15 @@ class ScreenManager: NSObject {
             Logger.info(" (Current Mode): \(currentMode.size.width)x\(currentMode.size.height), Pixel Aspect Ratio: \(currentMode.pixelAspectRatio)")
         }
         Logger.info("---  (Available Modes) ---")
-        for (index, mode) in screen.availableModes.enumerated() {
-            Logger.info(" Mode \(index): \(mode.size.width)x\(mode.size.height), PAR: \(mode.pixelAspectRatio)")
-        }
+        // for (index, mode) in screen.availableModes.enumerated() {
+        //     Logger.info(" Mode \(index): \(mode.size.width)x\(mode.size.height), PAR: \(mode.pixelAspectRatio)")
+        // }
         
         if let preferredMode = screen.preferredMode {
             Logger.info("(Preferred Mode): \(preferredMode.size.width)x\(preferredMode.size.height)")
         }
         Logger.info("is (Mirrored): \(screen.mirrored != nil)")
-        Logger.info("(Brightness): \(screen.brightness)")
+        // Logger.info("(Brightness): \(screen.brightness)")
         
         let displayWidth = screen.bounds.width
         let displayHeight = screen.bounds.height

@@ -68,6 +68,8 @@ class ClipboardMonitor {
             if let copiedImage = pasteboard.image,let imageBase64 = copiedImage.imageToBase64() {
                 Logger.info("[Clipboard] Local copy image event")
                 SendImage(imageBase64.toGoString())
+                
+                PictureInPictureManager.shared.showImageReceived(copiedImage)
             } else {
                 Logger.info("[Clipboard][Err] Unknown image type")
             }
@@ -76,6 +78,8 @@ class ClipboardMonitor {
             if let copiedText = pasteboard.string {
                 Logger.info("[Clipboard] Local copy text event: \(copiedText)")
                 SendText(copiedText.toGoString())
+                
+                PictureInPictureManager.shared.showTextReceived(copiedText)
             } else {
                 Logger.info("[Clipboard][Err] Unknown text type")
             }

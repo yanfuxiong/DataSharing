@@ -13,6 +13,15 @@ class BaseTabbarViewController: UITabBarController {
         super.viewDidLoad()
         
         setupUI()
+        addNotifications()
+    }
+    
+    func addNotifications() {
+        FileTransferDataManager.shared.addObserver(self)
+    }
+    
+    deinit {
+        FileTransferDataManager.shared.removeObserver(self)
     }
     
     func  setupUI() {
@@ -64,5 +73,16 @@ class BaseTabbarViewController: UITabBarController {
         let resizedImage = UIGraphicsGetImageFromCurrentImageContext()
         UIGraphicsEndImageContext()
         return resizedImage?.withRenderingMode(.alwaysOriginal)
+    }
+}
+
+extension BaseTabbarViewController: FileTransferDataObserver {
+    func dataDidUpdate(_ data: [DownloadItem]) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            if self.selectedIndex != 1 && FileTransferDataManager.shared.isNewDataTransfering {
+                self.selectedIndex = 1
+            }
+        }
     }
 }

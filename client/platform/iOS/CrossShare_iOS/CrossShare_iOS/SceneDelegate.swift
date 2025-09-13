@@ -24,6 +24,9 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         // This occurs shortly after the scene enters the background, or when its session is discarded.
         // Release any resources associated with this scene that can be re-created the next time the scene connects.
         // The scene may re-connect later, as its session was not necessarily discarded (see `application:didDiscardSceneSessions` instead).
+        UserDefaults.setBool(forKey: .ISACTIVITY, value: false,type: .group)
+        let success = UserDefaults.synchronize(type: .group)
+        Logger.info("sceneDidDisconnect UserDefaults synchronize result: \(success)")
     }
     
     func sceneDidBecomeActive(_ scene: UIScene) {
@@ -31,11 +34,16 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         // Use this method to restart any tasks that were paused (or not yet started) when the scene was inactive.
         Logger.info("sceneDidBecomeActive")
         BackgroundTaskManager.shared.stopPlay()
+        UserDefaults.setBool(forKey: .ISACTIVITY, value: true, type: .group)
+        let success = UserDefaults.synchronize(type: .group)
+        Logger.info("UserDefaults synchronize result: \(success)")
+        UpgradeManager.shared.checkAndShowUpgradeIfNeeded()
     }
     
     func sceneWillResignActive(_ scene: UIScene) {
         // Called when the scene will move from an active state to an inactive state.
         // This may occur due to temporary interruptions (ex. an incoming phone call).
+        Logger.info("sceneWillResignActive")
     }
     
     func sceneWillEnterForeground(_ scene: UIScene) {
@@ -72,9 +80,6 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         
         var clientId: String?
         var clientIp: String?
-        var isMupString: String?
-        var filePath: String?
-        var fileSizeString: String?
         var pathsJsonString: String?
         
         for item in queryItems {
@@ -83,12 +88,6 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
                 clientId = item.value
             case "clientIp":
                 clientIp = item.value
-            case "isMup":
-                isMupString = item.value
-            case "filePath":
-                filePath = item.value?.removingPercentEncoding ?? item.value
-            case "fileSize":
-                fileSizeString = item.value
             case "paths":
                 pathsJsonString = item.value?.removingPercentEncoding ?? item.value
             default:
@@ -106,62 +105,39 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
             return
         }
         
-        let isMultipleFiles = (isMupString == "true")
+        guard let finalPathsJsonString = pathsJsonString else {
+            Logger.info("Error: Missing 'paths' parameter for multiple files (isMup=true) in URL: \(url.absoluteString)")
+            return
+        }
         
-        if isMultipleFiles {
-            guard let finalPathsJsonString = pathsJsonString else {
-                Logger.info("Error: Missing 'paths' parameter for multiple files (isMup=true) in URL: \(url.absoluteString)")
+        do {
+            guard let jsonData = finalPathsJsonString.data(using: .utf8) else {
+                Logger.info("Error: Could not convert paths JSON string to Data. String: \(finalPathsJsonString)")
                 return
             }
-
-            do {
-                guard let jsonData = finalPathsJsonString.data(using: .utf8) else {
-                    Logger.info("Error: Could not convert paths JSON string to Data. String: \(finalPathsJsonString)")
-                    return
-                }
-                guard let decodedPaths = try JSONSerialization.jsonObject(with: jsonData, options: []) as? [String] else {
-                    Logger.info("Error: Could not deserialize paths JSON string to [String]. JSON: \(finalPathsJsonString)")
-                    return
-                }
-                
-                if decodedPaths.isEmpty {
-                    Logger.info("Error: 'paths' array is empty for multiple files in URL: \(url.absoluteString)")
-                    return
-                }
-                
-                Logger.info("Processing Multiple Files: Client ID: \(finalClientId), Paths: \(decodedPaths)")
-                if let pathsJsonString = ["Id": finalClientId,"Ip": finalClientIp, "PathList": decodedPaths].toJsonString() {
-                    P2PManager.shared.setFileListsDropRequest(filePath: pathsJsonString)
-                    Logger.info("Successfully initiated multiple file drop for URL: \(url.absoluteString)")
-                }
-//                if let view = window?.rootViewController?.view {
-//                    MBProgressHUD.showSuccess("Received \(decodedPaths.count) files from \(finalClientId)", toView: view)
-//                }
-            } catch {
-                Logger.info("Error deserializing paths JSON string: \(error). JSON: \(finalPathsJsonString)")
+            guard let decodedPaths = try JSONSerialization.jsonObject(with: jsonData, options: []) as? [String] else {
+                Logger.info("Error: Could not deserialize paths JSON string to [String]. JSON: \(finalPathsJsonString)")
                 return
             }
             
-        } else {
-            guard let finalFilePath = filePath,
-                  let finalFileSizeString = fileSizeString,
-                  let finalFileSize = Int64(finalFileSizeString) else {
-                var missingParams: [String] = []
-                if filePath == nil { missingParams.append("'filePath'") }
-                if fileSizeString == nil { missingParams.append("'fileSize'") }
-                if filePath != nil && fileSizeString != nil && Int64(fileSizeString!) == nil {
-                    missingParams.append("valid 'fileSize'")
-                }
-                Logger.info("Error: Missing or invalid parameters (\(missingParams.joined(separator: ", "))) for single file in URL: \(url.absoluteString)")
+            if decodedPaths.isEmpty {
+                Logger.info("Error: 'paths' array is empty for multiple files in URL: \(url.absoluteString)")
                 return
             }
-            Logger.info("Processing Single File: Path: \(finalFilePath), Client ID: \(finalClientId), File Size: \(finalFileSize)")
-            P2PManager.shared.setFileDropRequest(filePath: finalFilePath, id: finalClientId, fileSize: finalFileSize)
-            Logger.info("Successfully processed single file URL: \(url.absoluteString)")
-//            if let view = window?.rootViewController?.view {
-//                MBProgressHUD.showSuccess("Sended file from \(finalClientId)", toView: view)
-//            }
+            
+            Logger.info("Processing Multiple Files: Client ID: \(finalClientId), Paths: \(decodedPaths)")
+            if let pathsJsonString = ["Id": finalClientId,"Ip": finalClientIp, "PathList": decodedPaths].toJsonString() {
+                P2PManager.shared.setFileListsDropRequest(filePath: pathsJsonString,taskId: "")
+                Logger.info("Successfully initiated multiple file drop for URL: \(url.absoluteString)")
+            }
+            //                if let view = window?.rootViewController?.view {
+            //                    MBProgressHUD.showSuccess("Received \(decodedPaths.count) files from \(finalClientId)", toView: view)
+            //                }
+        } catch {
+            Logger.info("Error deserializing paths JSON string: \(error). JSON: \(finalPathsJsonString)")
+            return
         }
+        
     }
 }
 
@@ -180,7 +156,7 @@ extension SceneDelegate {
             appearance.backgroundColor = UIColor.blue
             appearance.titleTextAttributes = [.foregroundColor: UIColor.white]
             appearance.largeTitleTextAttributes = [.foregroundColor: UIColor.white]
-
+            
             UINavigationBar.appearance().standardAppearance = appearance
             UINavigationBar.appearance().scrollEdgeAppearance = appearance
             UINavigationBar.appearance().compactAppearance = appearance

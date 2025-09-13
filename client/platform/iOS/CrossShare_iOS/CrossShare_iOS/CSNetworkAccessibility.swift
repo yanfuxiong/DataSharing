@@ -121,9 +121,9 @@ public class CSNetworkAccessibility {
         case .checking :
             completion(false)
         case .accessible, .accessibleWiFi, .accessibleCellular:
+            self.isInitialized = true
             initializeSDKs { success in
                 if success {
-                    self.isInitialized = true
                     completion(true)
                 } else {
                     completion(false)
@@ -203,7 +203,7 @@ public class CSNetworkAccessibility {
     }
     
     private func startReachabilityNotifier() {
-        Logger.info("CSNetworkAccessibility - setting up reachability notifier")
+        // Logger.info("CSNetworkAccessibility - setting up reachability notifier")
         
         var context = SCNetworkReachabilityContext(
             version: 0,
@@ -234,7 +234,7 @@ public class CSNetworkAccessibility {
     }
     
     private func startCellularDataNotifier() {
-        Logger.info("CSNetworkAccessibility - setting up cellular data notifier")
+        // Logger.info("CSNetworkAccessibility - setting up cellular data notifier")
         
         cellularData = CTCellularData()
         cellularData?.cellularDataRestrictionDidUpdateNotifier = { [weak self] state in
@@ -246,7 +246,7 @@ public class CSNetworkAccessibility {
     }
     
     private func startCheck() {
-        Logger.info("CSNetworkAccessibility - startCheck called")
+        // Logger.info("CSNetworkAccessibility - startCheck called")
         
         if currentReachable() {
             let networkType = getCurrentNetworkType()

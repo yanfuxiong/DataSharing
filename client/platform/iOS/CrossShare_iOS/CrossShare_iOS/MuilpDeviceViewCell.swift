@@ -103,6 +103,10 @@ class MuilpDeviceViewCell: UITableViewCell {
             imageName = "usb_c1"
         case SOURCE_USBC2:
             imageName = "usb_c2"
+        case SOURCE_DP1:
+            imageName = "dp1"
+        case SOURCE_DP2:
+            imageName = "dp2"
         case SOURCE_MIRACAST:
             imageName = "miracast"
         default:
