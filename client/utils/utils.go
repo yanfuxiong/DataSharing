@@ -216,6 +216,19 @@ func RemoveMySelfID(slice []string, s string) []string {
 	return slice[:i]
 }
 
+func RemoveChar(s string, c byte) string {
+	if len(s) == 0 {
+		return s
+	}
+	buf := make([]byte, 0, len(s))
+	for i := 0; i < len(s); i++ {
+		if s[i] != c {
+			buf = append(buf, s[i])
+		}
+	}
+	return string(buf)
+}
+
 func GetClientInfo(id string) (rtkMisc.ClientInfo, error) {
 	rtkGlobal.ClientListRWMutex.RLock()
 	defer rtkGlobal.ClientListRWMutex.RUnlock()

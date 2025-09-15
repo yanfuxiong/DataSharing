@@ -14,7 +14,6 @@ import (
 	rtkGlobal "rtk-cross-share/client/global"
 	rtkUtils "rtk-cross-share/client/utils"
 	rtkMisc "rtk-cross-share/misc"
-	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -22,7 +21,6 @@ import (
 )
 
 var (
-	isConnecting             atomic.Bool
 	imageData                bytes.Buffer
 	copyTextChan             = make(chan string, 100)
 	isNetWorkConnected       bool // Deprecated: unused
@@ -45,7 +43,6 @@ func initFilePath() {
 	lockFile = "singleton.lock"
 	crashLogFile = "crash.log"
 	downloadPath = ""
-	isConnecting.Store(false)
 }
 
 func GetRootPath() string {
@@ -108,20 +105,22 @@ type (
 )
 
 var (
-	callbackNetworkSwitch              CallbackNetworkSwitchFunc              = nil
-	callbackXClipCopyCB                CallbackXClipCopyFunc                  = nil
-	callbackMethodText                 CallbackMethodText                     = nil
-	callbackMethodImage                CallbackMethodImage                    = nil
-	eventCallback                      EventCallback                          = nil
-	callbackInstanceCopyImage          CallbackCopyImageFunc                  = nil
-	callbackInstancePasteImage         CallbackPasteImageFunc                 = nil
-	callbackMethodFileConfirm          CallbackMethodFileConfirm              = nil
-	callbackInstanceFileDropResponseCB CallbackFileDropResponseFunc           = nil
-	callbackDragFileListRequestCB      CallbackDragFileListRequestFunc        = nil
-	callbackFileListDragNotify         CallbackFileListDragNotify             = nil
-	callbackFileListDragFolderNotify   CallbackFileListDragFolderNotify       = nil
-	callbackFileListDropRequest        CallbackFileListDropRequestFunc        = nil
-	callbackMethodFoundPeer            CallbackMethodFoundPeer                = nil
+	callbackNetworkSwitch              CallbackNetworkSwitchFunc        = nil
+	callbackXClipCopyCB                CallbackXClipCopyFunc            = nil
+	callbackMethodText                 CallbackMethodText               = nil
+	callbackMethodImage                CallbackMethodImage              = nil
+	eventCallback                      EventCallback                    = nil
+	callbackInstanceCopyImage          CallbackCopyImageFunc            = nil
+	callbackInstancePasteImage         CallbackPasteImageFunc           = nil
+	callbackMethodFileConfirm          CallbackMethodFileConfirm        = nil
+	callbackInstanceFileDropResponseCB CallbackFileDropResponseFunc     = nil
+	callbackDragFileListRequestCB      CallbackDragFileListRequestFunc  = nil
+	callbackFileListDragNotify         CallbackFileListDragNotify       = nil
+	callbackFileListDragFolderNotify   CallbackFileListDragFolderNotify = nil
+	callbackFileListDropRequest        CallbackFileListDropRequestFunc  = nil
+	callbackUpdateClientStatus         CallbackUpdateClientStatusFunc   = nil
+	callbackMethodFoundPeer            CallbackMethodFoundPeer          = nil
+
 	callbackUpdateMultipleProgressBar  CallbackUpdateMultipleProgressBar      = nil
 	callbackCancelFileTrans            CallbackCancelFileTransFunc            = nil
 	callbackFileError                  CallbackFileError                      = nil
@@ -143,7 +142,6 @@ var (
 	callbackConnectLanServer           CallbackConnectLanServerFunc           = nil
 	callbackBrowseLanServer            CallbackBrowseLanServerFunc            = nil
 	callbackSetMsgEvent                CallbackSetMsgEventFunc                = nil
-	callbackUpdateClientStatus         CallbackUpdateClientStatusFunc         = nil
 )
 
 /*======================================= Used by main.go, set Callback =======================================*/
@@ -349,7 +347,7 @@ func GoSetMsgEventFunc(event uint32, arg1, arg2, arg3, arg4 string) {
 		log.Println("callbackSetMsgEvent is null!")
 		return
 	}
-	callbackSetMsgEvent(event, arg1, arg2, arg3, arg4)
+	rtkMisc.GoSafe(func() { callbackSetMsgEvent(event, arg1, arg2, arg3, arg4) })
 }
 
 func SetDeviceName(name string) {
@@ -384,20 +382,13 @@ func SetConfirmDocumentsAccept(ifConfirm bool) {
 	ifConfirmDocumentsAccept = ifConfirm
 }
 
-func IsConnecting() bool {
-	return isConnecting.Load()
-}
-
 func GoConnectLanServer(instance string) {
-	isConnecting.Store(true)
-	defer isConnecting.Store(false)
-
 	if callbackConnectLanServer == nil {
 		log.Println("callbackConnectLanServer is null!")
 		return
 	}
 
-	callbackConnectLanServer(instance)
+	rtkMisc.GoSafe(func() { callbackConnectLanServer(instance) })
 }
 
 func GoBrowseLanServer() {
@@ -405,7 +396,7 @@ func GoBrowseLanServer() {
 		return
 	}
 
-	callbackBrowseLanServer()
+	rtkMisc.GoSafe(func() { callbackBrowseLanServer() })
 }
 
 func GoCopyImage(imgHeader rtkCommon.ImgHeader, data []byte) {
@@ -535,7 +526,7 @@ func GoDragFileListFolderNotify(ip, id, folderName string, timestamp uint64) {
 		log.Println(" callbackFileListDragFolderNotify is null !")
 		return
 	}
-	log.Printf("(DST) GoDragFileListFolderNotify source:%s ip:[%s] folder:[%s] timestamp:%d", id, ip, folderName, timestamp)
+	log.Printf("(DST) GoDragFileListFolderNotify source id:%s ip:[%s] folder:[%s] timestamp:%d", id, ip, folderName, timestamp)
 	callbackFileListDragFolderNotify(ip, id, folderName, timestamp)
 }
 

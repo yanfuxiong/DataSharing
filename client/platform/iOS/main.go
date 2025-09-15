@@ -432,7 +432,7 @@ func SetCallbackNotifyBrowseResult(cb C.CallbackNotifyBrowseResult) {
 
 //export MainInit
 func MainInit(deviceName, serverId, serverIpInfo, listenHost string, listenPort int) {
-	rtkGlobal.NodeInfo.DeviceName = deviceName
+	rtkPlatform.SetDeviceName(deviceName)
 	rootPath := rtkPlatform.GetRootPath()
 	if rootPath == "" || !rtkMisc.FolderExists(rootPath) {
 		log.Fatalf("[%s] RootPath :[%s] is invalid!", rtkMisc.GetFuncInfo(), rootPath)
@@ -554,24 +554,6 @@ func SendMultiFilesDropRequest(multiFilesData string) int {
 	return int(rtkPlatform.GoMultiFilesDropRequest(multiFileInfo.Id, &fileList, &folderList, totalSize, timestamp, totalDesc))
 }
 
-//export SetFileDropResponse
-func SetFileDropResponse(fileName, id string, isReceive bool) {
-	FilePath := rtkPlatform.GetDownloadPath() + "/"
-	if fileName != "" {
-		FilePath += fileName
-	} else {
-		FilePath += fmt.Sprintf("recevieFrom-%s.file", id)
-	}
-
-	if isReceive {
-		rtkPlatform.GoFileDropResponse(id, rtkCommon.FILE_DROP_ACCEPT, FilePath)
-		log.Printf("(DST) FilePath:[%s] from id:[%s], confirm receipt", FilePath, id)
-	} else {
-		rtkPlatform.GoFileDropResponse(id, rtkCommon.FILE_DROP_REJECT, "")
-		log.Printf("(DST) FilePath:[%s] from id:[%s] reject", FilePath, id)
-	}
-}
-
 //export SetCancelFileTransfer
 func SetCancelFileTransfer(ipPort, clientID string, timeStamp uint64) {
 	log.Printf("[%s]  ID:[%s] IP:[%s]  timestamp[%d]", rtkMisc.GetFuncInfo(), clientID, ipPort, timeStamp)
@@ -664,10 +646,5 @@ func BrowseLanServer() {
 //export WorkerConnectLanServer
 func WorkerConnectLanServer(instance string) {
 	log.Printf("[%s]  instance:[%s]", rtkMisc.GetFuncInfo(), instance)
-
-	if !rtkPlatform.IsConnecting() {
-		rtkPlatform.GoConnectLanServer(instance)
-	} else {
-		log.Printf("[%s] connecting in progress, skip it!", rtkMisc.GetFuncInfo())
-	}
+	rtkPlatform.GoConnectLanServer(instance)
 }
