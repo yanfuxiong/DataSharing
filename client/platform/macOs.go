@@ -5,15 +5,16 @@ package platform
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
 	rtkCommon "rtk-cross-share/client/common"
 	rtkGlobal "rtk-cross-share/client/global"
 	rtkUtils "rtk-cross-share/client/utils"
 	rtkMisc "rtk-cross-share/misc"
 	"syscall"
+	"time"
 
 	"github.com/libp2p/go-libp2p/core/crypto"
 )
@@ -68,7 +69,6 @@ type (
 	CallbackXClipCopyFunc                  func(cbText, cbImage, cbHtml []byte)
 	CallbackMethodText                     func(string)
 	CallbackMethodImage                    func(string)
-	EventCallback                          func(int)
 	CallbackCopyImageFunc                  func(rtkCommon.ImgHeader, []byte)
 	CallbackPasteImageFunc                 func()
 	CallbackMethodFileConfirm              func(string, string, string, int64)
@@ -77,11 +77,9 @@ type (
 	CallbackFileListDragNotify             func(string, string, string, uint32, uint64, uint64, string, uint64)
 	CallbackFileListDragFolderNotify       func(string, string, string, uint64)
 	CallbackFileListDropRequestFunc        func(string, []rtkCommon.FileInfo, []string, uint64, uint64, string)
-	CallbackMethodFoundPeer                func()
 	CallbackUpdateClientStatusFunc         func(clientInfo string)
 	CallbackUpdateMultipleProgressBar      func(string, string, string, string, uint32, uint32, uint64, uint64, uint64, uint64)
 	CallbackCancelFileTransFunc            func(string, string, uint64)
-	CallbackFileError                      func(string, string, string)
 	CallbackNotifyErrEventFunc             func(id string, errCode uint32, arg1, arg2, arg3, arg4 string)
 	CallbackGetMacAddressFunc              func(string)
 	CallbackAuthStatusCodeFunc             func(uint8)
@@ -91,46 +89,50 @@ type (
 	CallbackMethodStopBrowseMdns           func()
 	CallbackMethodBrowseMdnsResultFunc     func(string, string, int, string, string, string, string)
 	CallbackDetectPluginEventFunc          func(isPlugin bool, productName string)
-	CallbackGetAuthDataFunc                func() string
+	CallbackReqSourceAndPortFunc           func()
 	CallbackDIASStatusFunc                 func(uint32)
+	CallbackAuthViaIndexFunc               func(uint32)
 	CallbackMonitorNameFunc                func(string)
 	CallbackGetFilesTransCodeFunc          func(id string) rtkCommon.SendFilesRequestErrCode
 	CallbackRequestUpdateClientVersionFunc func(string)
+	CallbackNotifyBrowseResultFunc         func(monitorName, instance, ipAddr, version string, timestamp int64)
+	CallbackConnectLanServerFunc           func(instance string)
+	CallbackBrowseLanServerFunc            func()
+	CallbackSetMsgEventFunc                func(event uint32, arg1, arg2, arg3, arg4 string)
 )
 
 var (
-	callbackNetworkSwitch              CallbackNetworkSwitchFunc        = nil
-	callbackXClipCopyCB                CallbackXClipCopyFunc            = nil
-	callbackMethodText                 CallbackMethodText               = nil
-	callbackMethodImage                CallbackMethodImage              = nil
-	eventCallback                      EventCallback                    = nil
-	callbackInstanceCopyImage          CallbackCopyImageFunc            = nil
-	callbackInstancePasteImage         CallbackPasteImageFunc           = nil
-	callbackMethodFileConfirm          CallbackMethodFileConfirm        = nil
-	callbackInstanceFileDropResponseCB CallbackFileDropResponseFunc     = nil
-	callbackDragFileListRequestCB      CallbackDragFileListRequestFunc  = nil
-	callbackFileListDragNotify         CallbackFileListDragNotify       = nil
-	callbackFileListDragFolderNotify   CallbackFileListDragFolderNotify = nil
-	callbackFileListDropRequest        CallbackFileListDropRequestFunc  = nil
-	callbackUpdateClientStatus         CallbackUpdateClientStatusFunc   = nil
-	callbackMethodFoundPeer            CallbackMethodFoundPeer          = nil
-
+	callbackNetworkSwitch              CallbackNetworkSwitchFunc              = nil
+	callbackXClipCopyData              CallbackXClipCopyFunc                  = nil
+	callbackMethodText                 CallbackMethodText                     = nil
+	callbackMethodImage                CallbackMethodImage                    = nil
+	callbackInstanceCopyImage          CallbackCopyImageFunc                  = nil
+	callbackInstancePasteImage         CallbackPasteImageFunc                 = nil
+	callbackMethodFileConfirm          CallbackMethodFileConfirm              = nil
+	callbackInstanceFileDropResponseCB CallbackFileDropResponseFunc           = nil
+	callbackDragFileListRequestCB      CallbackDragFileListRequestFunc        = nil
+	callbackFileListDragNotify         CallbackFileListDragNotify             = nil
+	callbackFileListDragFolderNotify   CallbackFileListDragFolderNotify       = nil
+	callbackFileListDropRequest        CallbackFileListDropRequestFunc        = nil
+	callbackUpdateClientStatus         CallbackUpdateClientStatusFunc         = nil
 	callbackUpdateMultipleProgressBar  CallbackUpdateMultipleProgressBar      = nil
 	callbackCancelFileTrans            CallbackCancelFileTransFunc            = nil
-	callbackFileError                  CallbackFileError                      = nil
 	callbackNotifyErrEvent             CallbackNotifyErrEventFunc             = nil
 	callbackGetMacAddress              CallbackGetMacAddressFunc              = nil
 	callbackAuthStatusCodeCB           CallbackAuthStatusCodeFunc             = nil
 	callbackExtractDIAS                CallbackExtractDIASFunc                = nil
+	callbackAuthViaIndex               CallbackAuthViaIndexFunc               = nil
 	callbackDIASSourceAndPortCB        CallbackDIASSourceAndPortFunc          = nil
 	callbackMethodStartBrowseMdns      CallbackMethodStartBrowseMdns          = nil
 	callbackMethodStopBrowseMdns       CallbackMethodStopBrowseMdns           = nil
 	callbackMethodBrowseMdnsResult     CallbackMethodBrowseMdnsResultFunc     = nil
 	callbackDetectPluginEvent          CallbackDetectPluginEventFunc          = nil
+	callbackReqSourceAndPort           CallbackReqSourceAndPortFunc           = nil
 	callbackDIASStatus                 CallbackDIASStatusFunc                 = nil
 	callbackMonitorName                CallbackMonitorNameFunc                = nil
 	callbackGetFilesTransCode          CallbackGetFilesTransCodeFunc          = nil
 	callbackRequestUpdateClientVersion CallbackRequestUpdateClientVersionFunc = nil
+	callbackSetMsgEvent                CallbackSetMsgEventFunc                = nil
 )
 
 /*======================================= Used by main.go, set Callback =======================================*/
@@ -141,10 +143,6 @@ func SetCallbackMethodText(cb CallbackMethodText) {
 
 func SetCallbackMethodImage(cb CallbackMethodImage) {
 	callbackMethodImage = cb
-}
-
-func SetEventCallback(cb EventCallback) {
-	eventCallback = cb
 }
 
 func SetCallbackMethodFileConfirm(cb CallbackMethodFileConfirm) {
@@ -163,16 +161,8 @@ func SetCallbackUpdateClientStatus(cb CallbackUpdateClientStatusFunc) {
 	callbackUpdateClientStatus = cb
 }
 
-func SetCallbackMethodFoundPeer(cb CallbackMethodFoundPeer) {
-	callbackMethodFoundPeer = cb
-}
-
 func SetCallbackUpdateMultipleProgressBar(cb CallbackUpdateMultipleProgressBar) {
 	callbackUpdateMultipleProgressBar = cb
-}
-
-func SetCallbackFileError(cb CallbackFileError) {
-	callbackFileError = cb
 }
 
 func SetCallbackMethodStartBrowseMdns(cb CallbackMethodStartBrowseMdns) {
@@ -185,6 +175,14 @@ func SetCallbackMethodStopBrowseMdns(cb CallbackMethodStopBrowseMdns) {
 
 func SetCallbackDIASStatus(cb CallbackDIASStatusFunc) {
 	callbackDIASStatus = cb
+}
+
+func SetCallbackAuthViaIndex(cb CallbackAuthViaIndexFunc) {
+	callbackAuthViaIndex = cb
+}
+
+func SetCallbackRequestSourceAndPort(cb CallbackReqSourceAndPortFunc) {
+	callbackReqSourceAndPort = cb
 }
 
 func SetCallbackMonitorName(cb CallbackMonitorNameFunc) {
@@ -207,7 +205,7 @@ func SetGoNetworkSwitchCallback(cb CallbackNetworkSwitchFunc) {
 
 // Notify to Clipboard/FileDrop
 func SetCopyXClipCallback(cb CallbackXClipCopyFunc) {
-	callbackXClipCopyCB = cb
+	callbackXClipCopyData = cb
 }
 
 func SetCopyImageCallback(cb CallbackCopyImageFunc) {
@@ -246,15 +244,8 @@ func SetDetectPluginEventCallback(cb CallbackDetectPluginEventFunc) {
 	callbackDetectPluginEvent = cb
 }
 
-func GoReqSourceAndPort() {
-}
-
 func SetGoAuthStatusCodeCallback(cb CallbackAuthStatusCodeFunc) {
 	callbackAuthStatusCodeCB = cb
-}
-
-func GoAuthViaIndex(clientIndex uint32) {
-
 }
 
 func SetGoDIASSourceAndPortCallback(cb CallbackDIASSourceAndPortFunc) {
@@ -269,6 +260,11 @@ func SetGetFilesTransCodeCallback(cb CallbackGetFilesTransCodeFunc) {
 	callbackGetFilesTransCode = cb
 }
 
+func SetGoConnectLanServerCallback(cb CallbackConnectLanServerFunc) {
+}
+
+func SetGoBrowseLanServerCallback(cb CallbackBrowseLanServerFunc) {
+}
 
 func SetGoSetMsgEventCallback(cb CallbackSetMsgEventFunc) {
 	callbackSetMsgEvent = cb
@@ -350,6 +346,26 @@ func GoGetMacAddressCallback(mac string) {
 
 func GoTriggerDetectPluginEvent(isPlugin bool) {
 	callbackDetectPluginEvent(isPlugin, "")
+}
+
+func GoExtractDIASCallback() {
+	callbackExtractDIAS()
+}
+
+func GoSetAuthStatusCode(status uint8) {
+	if callbackAuthStatusCodeCB == nil {
+		log.Println("callbackAuthStatusCodeCB is null!")
+		return
+	}
+	callbackAuthStatusCodeCB(status)
+}
+
+func GoSetDIASSourceAndPort(src, port uint8) {
+	if callbackDIASSourceAndPortCB == nil {
+		log.Println("callbackDIASSourceAndPortCB is null!")
+		return
+	}
+	callbackDIASSourceAndPortCB(src, port)
 }
 
 func SetConfirmDocumentsAccept(ifConfirm bool) {
@@ -531,12 +547,7 @@ func GoUpdateClientStatusEx(id string, status uint8) {
 }
 
 func FoundPeer() {
-	log.Println("CallbackMethodFoundPeer")
-	if callbackMethodFoundPeer == nil {
-		log.Println(" CallbackInstance is null !")
-		return
-	}
-	callbackMethodFoundPeer()
+
 }
 
 func GoSetupDstPasteXClipData(cbText, cbImage, cbHtml []byte) {
@@ -572,10 +583,6 @@ func GoUpdateMultipleProgressBar(ip, id, deviceName, currentFileName string, sen
 	callbackUpdateMultipleProgressBar(ip, id, deviceName, currentFileName, sentFileCnt, totalFileCnt, currentFileSize, totalSize, sentSize, timestamp)
 }
 
-func GoExtractDIASCallback() {
-
-}
-
 func GoUpdateSystemInfo(ip, serviceVer string) {
 
 }
@@ -589,18 +596,7 @@ func GoNotiMessageFileTransfer(fileName, clientName, platform string, timestamp 
 }
 
 func GoEventHandle(eventType rtkCommon.EventType, id, fileName string, timestamp uint64) {
-	if callbackFileError == nil {
-		log.Println("GoEventHandle CallbackInstance is null !")
-		return
-	}
-	if eventType == rtkCommon.EVENT_TYPE_OPEN_FILE_ERR {
-		strErr := "file datatransfer sender error"
-		callbackFileError(id, fileName, strErr)
-	} else if eventType == rtkCommon.EVENT_TYPE_RECV_TIMEOUT {
-		strErr := "file datatransfer receiving end error"
-		callbackFileError(id, fileName, strErr)
-	}
-	log.Printf("[%s %d]: id:%s, name:%s, error:%d", rtkMisc.GetFuncName(), rtkMisc.GetLine(), id, fileName, eventType)
+
 }
 
 func GoNotifyErrEvent(id string, errCode rtkMisc.CrossShareErr, arg1, arg2, arg3, arg4 string) {
@@ -691,6 +687,25 @@ func GetNetWorkConnected() bool {
 
 func GetConfirmDocumentsAccept() bool {
 	return ifConfirmDocumentsAccept
+}
+
+func GoNotifyBrowseResult(monitorName, instance, ipAddr, version string, timestamp int64) {
+
+}
+
+func GoAuthViaIndex(clientIndex uint32) {
+	if callbackAuthViaIndex == nil {
+		log.Printf("[%s] callbackAuthViaIndex is nil, GoAuthViaIndex failed!", rtkMisc.GetFuncInfo())
+		return
+	}
+	callbackAuthViaIndex(clientIndex)
+}
+
+func GoReqSourceAndPort() {
+	if callbackReqSourceAndPort == nil {
+		log.Printf("[%s] callbackReqSourceAndPort is nil, GoReqSourceAndPort failed!", rtkMisc.GetFuncInfo())
+	}
+	callbackReqSourceAndPort()
 }
 
 func GoMonitorNameNotify(name string) {

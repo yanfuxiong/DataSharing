@@ -14,6 +14,8 @@ typedef void (*CallbackMethodFileListNotify)(char* ip, char* id, char* platform,
 typedef void (*CallbackUpdateMultipleProgressBar)(char* ip,char* id, char* deviceName, char* currentfileName,unsigned int recvFileCnt, unsigned int totalFileCnt,unsigned long long currentFileSize,unsigned long long totalSize,unsigned long long recvSize,unsigned long long timestamp);
 typedef void (*CallbackMethodStartBrowseMdns)(char* instance, char* serviceType);
 typedef void (*CallbackMethodStopBrowseMdns)();
+typedef void (*CallbackRequestSourceAndPort)();
+typedef void (*CallbackAuthViaIndex)(unsigned int index);
 typedef void (*CallbackSetDIASStatus)(unsigned int status);
 typedef void (*CallbackSetMonitorName)(char* monitorName);
 typedef void (*CallbackRequestUpdateClientVersion)(char* clientVer);
@@ -28,6 +30,8 @@ static CallbackMethodFileListNotify gCallbackMethodFileListNotify = 0;
 static CallbackUpdateMultipleProgressBar gCallbackUpdateMultipleProgressBar = 0;
 static CallbackMethodStartBrowseMdns gCallbackMethodStartBrowseMdns = 0;
 static CallbackMethodStopBrowseMdns gCallbackMethodStopBrowseMdns = 0;
+static CallbackRequestSourceAndPort gCallbackRequestSourceAndPort = 0;
+static CallbackAuthViaIndex  gCallbackAuthViaIndex = 0;
 static CallbackSetDIASStatus gCallbackSetDIASStatus = 0;
 static CallbackSetMonitorName gCallbackSetMonitorName = 0;
 static CallbackRequestUpdateClientVersion gCallbackRequestUpdateClientVersion = 0;
@@ -65,6 +69,14 @@ static void invokeCallbackMethodStartBrowseMdns(char* instance, char* serviceTyp
 static void setCallbackMethodStopBrowseMdns(CallbackMethodStopBrowseMdns cb) {gCallbackMethodStopBrowseMdns = cb;}
 static void invokeCallbackMethodStopBrowseMdns() {
 	if (gCallbackMethodStopBrowseMdns) {gCallbackMethodStopBrowseMdns();}
+}
+static void setCallbackRequestSourceAndPort(CallbackRequestSourceAndPort cb) {gCallbackRequestSourceAndPort = cb;}
+static void invokeCallbackRequestSourceAndPort() {
+	if (gCallbackRequestSourceAndPort) { gCallbackRequestSourceAndPort();}
+}
+static void setCallbackAuthViaIndex(CallbackAuthViaIndex cb) {gCallbackAuthViaIndex = cb;}
+static void invokeCallbackAuthViaIndex(unsigned int index) {
+	if (gCallbackAuthViaIndex) { gCallbackAuthViaIndex(index);}
 }
 static void setCallbackSetDIASStatus(CallbackSetDIASStatus cb) {gCallbackSetDIASStatus = cb;}
 static void invokeCallbackSetDIASStatus(unsigned int status) {
@@ -118,6 +130,8 @@ func init() {
 	rtkPlatform.SetCallbackMethodStartBrowseMdns(GoTriggerCallbackMethodStartBrowseMdns)
 	rtkPlatform.SetCallbackMethodStopBrowseMdns(GoTriggerCallbackMethodStopBrowseMdns)
 	rtkPlatform.SetCallbackDIASStatus(GoTriggerCallbackSetDIASStatus)
+	rtkPlatform.SetCallbackAuthViaIndex(GoTriggerCallbackAuthViaIndex)
+	rtkPlatform.SetCallbackRequestSourceAndPort(GoTriggerCallbackRequestSourceAndPort)
 	rtkPlatform.SetCallbackMonitorName(GoTriggerCallbackSetMonitorName)
 	rtkPlatform.SetCallbackRequestUpdateClientVersion(GoTriggerCallbackReqClientUpdateVer)
 	rtkPlatform.SetCallbackNotifyErrEvent(GoTriggerCallbackNotifyErrEvent)
@@ -219,6 +233,17 @@ func GoTriggerCallbackMethodStopBrowseMdns() {
 	C.invokeCallbackMethodStopBrowseMdns()
 }
 
+func GoTriggerCallbackRequestSourceAndPort() {
+	log.Printf("[%s] request source and port", rtkMisc.GetFuncInfo())
+	C.invokeCallbackRequestSourceAndPort()
+}
+
+func GoTriggerCallbackAuthViaIndex(index uint32) {
+	cIndex := C.uint(index)
+	C.invokeCallbackAuthViaIndex(cIndex)
+	log.Printf("[%s] index:%d", rtkMisc.GetFuncInfo(), index)
+}
+
 func GoTriggerCallbackSetDIASStatus(status uint32) {
 	cStatus := C.uint(status)
 	C.invokeCallbackSetDIASStatus(cStatus)
@@ -317,6 +342,18 @@ func SetCallbackMethodStartBrowseMdns(cb C.CallbackMethodStartBrowseMdns) {
 //export SetCallbackMethodStopBrowseMdns
 func SetCallbackMethodStopBrowseMdns(cb C.CallbackMethodStopBrowseMdns) {
 	C.setCallbackMethodStopBrowseMdns(cb)
+}
+
+//export SetCallbackRequestSourceAndPort
+func SetCallbackRequestSourceAndPort(cb C.CallbackRequestSourceAndPort) {
+	log.Printf("[%s] SetCallbackRequestSourceAndPort", rtkMisc.GetFuncInfo())
+	C.setCallbackRequestSourceAndPort(cb)
+}
+
+//export SetCallbackAuthViaIndex
+func SetCallbackAuthViaIndex(cb C.CallbackAuthViaIndex) {
+	log.Printf("[%s] SetCallbackAuthViaIndex", rtkMisc.GetFuncInfo())
+	C.setCallbackAuthViaIndex(cb)
 }
 
 //export SetCallbackDIASStatus
@@ -511,10 +548,25 @@ func SetExtractDIAS() {
 	rtkPlatform.GoExtractDIASCallback()
 }
 
+//export SetAuthStatusCode
+func SetAuthStatusCode(authResult uint32) {
+	log.Printf("[%s] authResult[%d]\n", rtkMisc.GetFuncInfo(), authResult)
+	authStatus := uint8(authResult)
+	rtkPlatform.GoSetAuthStatusCode(authStatus)
+}
+
+//export SetDIASSourceAndPort
+func SetDIASSourceAndPort(cSource, cPort uint32) {
+	source := uint8(cSource)
+	port := uint8(cPort)
+	log.Printf("[%s] diasSourceAndPortCallback (src,port): (%d,%d)", rtkMisc.GetFuncInfo(), source, port)
+	rtkPlatform.GoSetDIASSourceAndPort(source, port)
+}
+
 //export SetDetectPluginEvent
 func SetDetectPluginEvent(isPlugin bool) {
 	log.Printf(" [%s] isPlugin:[%+v]", rtkMisc.GetFuncInfo(), isPlugin)
-	rtkPlatform.GoTriggerDetectPluginEvent(isPlugin)
+	//rtkPlatform.GoTriggerDetectPluginEvent(isPlugin)
 }
 
 //export GetVersion
