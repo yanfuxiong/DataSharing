@@ -8,10 +8,9 @@ package main
 
 typedef void (*CallbackMethodText)(char*);
 typedef void (*CallbackMethodImage)(char* content);
-typedef void (*CallbackMethodFileConfirm)(char* id, char* platform, char* fileName, long long fileSize);
 typedef void (*CallbackUpdateClientStatus)(char* clientJsonStr);
 typedef void (*CallbackMethodFileListNotify)(char* ip, char* id, char* platform,unsigned int fileCnt, unsigned long long totalSize,unsigned long long timestamp, char* firstFileName, unsigned long long firstFileSize);
-typedef void (*CallbackUpdateMultipleProgressBar)(char* ip,char* id, char* deviceName, char* currentfileName,unsigned int recvFileCnt, unsigned int totalFileCnt,unsigned long long currentFileSize,unsigned long long totalSize,unsigned long long recvSize,unsigned long long timestamp);
+typedef void (*CallbackUpdateMultipleProgressBar)(char* ip,char* id, char* currentfileName,unsigned int recvFileCnt, unsigned int totalFileCnt,unsigned long long currentFileSize,unsigned long long totalSize,unsigned long long recvSize,unsigned long long timestamp);
 typedef void (*CallbackMethodStartBrowseMdns)(char* instance, char* serviceType);
 typedef void (*CallbackMethodStopBrowseMdns)();
 typedef void (*CallbackRequestSourceAndPort)();
@@ -24,7 +23,6 @@ typedef void (*CallbackNotifyBrowseResult)(char* monitorName, char* instance, ch
 
 static CallbackMethodText gCallbackMethodText = 0;
 static CallbackMethodImage gCallbackMethodImage = 0;
-static CallbackMethodFileConfirm gCallbackMethodFileConfirm = 0;
 static CallbackUpdateClientStatus gCallbackUpdateClientStatus = 0;
 static CallbackMethodFileListNotify gCallbackMethodFileListNotify = 0;
 static CallbackUpdateMultipleProgressBar gCallbackUpdateMultipleProgressBar = 0;
@@ -46,10 +44,6 @@ static void setCallbackMethodImage(CallbackMethodImage cb) {gCallbackMethodImage
 static void invokeCallbackMethodImage(char* str) {
 	if (gCallbackMethodImage) {gCallbackMethodImage(str);}
 }
-static void setCallbackMethodFileConfirm(CallbackMethodFileConfirm cb) {gCallbackMethodFileConfirm = cb;}
-static void invokeCallbackMethodFileConfirm(char* id, char* platform, char* fileName, long long fileSize) {
-	if (gCallbackMethodFileConfirm) {gCallbackMethodFileConfirm(id, platform, fileName, fileSize);}
-}
 static void setCallbackUpdateClientStatus(CallbackUpdateClientStatus cb) {gCallbackUpdateClientStatus = cb;}
 static void invokeCallbackUpdateClientStatus(char* clientJsonStr) {
 	if (gCallbackUpdateClientStatus) {gCallbackUpdateClientStatus(clientJsonStr);}
@@ -59,8 +53,8 @@ static void invokeCallbackMethodFileListNotify(char* ip, char* id, char* platfor
 	if (gCallbackMethodFileListNotify) {gCallbackMethodFileListNotify(ip, id, platform, fileCnt, totalSize, timestamp, firstFileName, firstFileSize);}
 }
 static void setCallbackUpdateMultipleProgressBar(CallbackUpdateMultipleProgressBar cb) {gCallbackUpdateMultipleProgressBar = cb;}
-static void invokeCallbackUpdateMultipleProgressBar(char* ip,char* id, char* deviceName, char* currentfileName,unsigned int recvFileCnt, unsigned int totalFileCnt,unsigned long long currentFileSize,unsigned long long totalSize,unsigned long long recvSize,unsigned long long timestamp) {
-	if (gCallbackUpdateMultipleProgressBar) {gCallbackUpdateMultipleProgressBar(ip,id, deviceName,currentfileName,recvFileCnt,totalFileCnt,currentFileSize,totalSize, recvSize, timestamp);}
+static void invokeCallbackUpdateMultipleProgressBar(char* ip,char* id, char* currentfileName,unsigned int recvFileCnt, unsigned int totalFileCnt,unsigned long long currentFileSize,unsigned long long totalSize,unsigned long long recvSize,unsigned long long timestamp) {
+	if (gCallbackUpdateMultipleProgressBar) {gCallbackUpdateMultipleProgressBar(ip,id, currentfileName,recvFileCnt,totalFileCnt,currentFileSize,totalSize, recvSize, timestamp);}
 }
 static void setCallbackMethodStartBrowseMdns(CallbackMethodStartBrowseMdns cb) {gCallbackMethodStartBrowseMdns = cb;}
 static void invokeCallbackMethodStartBrowseMdns(char* instance, char* serviceType) {
@@ -113,6 +107,7 @@ import (
 	rtkUtils "rtk-cross-share/client/utils"
 	rtkMisc "rtk-cross-share/misc"
 	"strings"
+	"fmt"
 	"time"
 	"unsafe"
 )
@@ -123,7 +118,6 @@ func main() {
 func init() {
 	rtkPlatform.SetCallbackMethodText(GoTriggerCallbackMethodText)
 	rtkPlatform.SetCallbackMethodImage(GoTriggerCallbackMethodImage)
-	rtkPlatform.SetCallbackMethodFileConfirm(GoTriggerCallbackMethodFileConfirm)
 	rtkPlatform.SetCallbackFileListNotify(GoTriggerCallbackMethodFileListNotify)
 	rtkPlatform.SetCallbackUpdateClientStatus(GoTriggerCallbackUpdateClientStatus)
 	rtkPlatform.SetCallbackUpdateMultipleProgressBar(GoTriggerCallbackUpdateMultipleProgressBar)
@@ -158,17 +152,6 @@ func GoTriggerCallbackMethodImage(str string) {
 	C.invokeCallbackMethodImage(cstr)
 }
 
-func GoTriggerCallbackMethodFileConfirm(id, platform, fileName string, fileSize int64) {
-	cid := C.CString(id)
-	cplatform := C.CString(platform)
-	cfileName := C.CString(fileName)
-	cfileSize := C.longlong(fileSize)
-	defer C.free(unsafe.Pointer(cid))
-	defer C.free(unsafe.Pointer(cplatform))
-	defer C.free(unsafe.Pointer(cfileName))
-	C.invokeCallbackMethodFileConfirm(cid, cplatform, cfileName, cfileSize)
-}
-
 func GoTriggerCallbackUpdateClientStatus(clientInfo string) {
 	log.Printf("[%s] json Str:%s", rtkMisc.GetFuncInfo(), clientInfo)
 	cClientInfo := C.CString(clientInfo)
@@ -197,16 +180,14 @@ func GoTriggerCallbackMethodFileListNotify(ip, id, platform string, fileCnt uint
 	C.invokeCallbackMethodFileListNotify(cip, cid, cplatform, cFileCnt, ctotalSize, ctimeStamp, cfirstFileName, cfirstFileSize)
 }
 
-func GoTriggerCallbackUpdateMultipleProgressBar(ip, id, deviceName, currentFileName string, sentFileCnt, totalFileCnt uint32, currentFileSize, totalSize, sentSize, timestamp uint64) {
+func GoTriggerCallbackUpdateMultipleProgressBar(ip, id, currentFileName string, sentFileCnt, totalFileCnt uint32, currentFileSize, totalSize, sentSize, timestamp uint64) {
 	cip := C.CString(ip)
 	cid := C.CString(id)
-	cdeviceName := C.CString(deviceName)
 	ccurrentFileName := C.CString(currentFileName)
 
 	defer func() {
 		C.free(unsafe.Pointer(cip))
 		C.free(unsafe.Pointer(cid))
-		C.free(unsafe.Pointer(cdeviceName))
 		C.free(unsafe.Pointer(ccurrentFileName))
 	}()
 
@@ -218,7 +199,7 @@ func GoTriggerCallbackUpdateMultipleProgressBar(ip, id, deviceName, currentFileN
 	crecvSize := C.ulonglong(sentSize)
 	ctimeStamp := C.ulonglong(timestamp)
 
-	C.invokeCallbackUpdateMultipleProgressBar(cip, cid, cdeviceName, ccurrentFileName, crecvFileCnt, ctotalFileCnt, ccurrentFileSize, ctotalSize, crecvSize, ctimeStamp)
+	C.invokeCallbackUpdateMultipleProgressBar(cip, cid, ccurrentFileName, crecvFileCnt, ctotalFileCnt, ccurrentFileSize, ctotalSize, crecvSize, ctimeStamp)
 }
 
 func GoTriggerCallbackMethodStartBrowseMdns(instance, serviceType string) {
@@ -312,11 +293,6 @@ func SetCallbackMethodText(cb C.CallbackMethodText) {
 func SetCallbackMethodImage(cb C.CallbackMethodImage) {
 	log.Printf("[%s] SetCallbackMethodImage", rtkMisc.GetFuncInfo())
 	C.setCallbackMethodImage(cb)
-}
-
-//export SetCallbackMethodFileConfirm
-func SetCallbackMethodFileConfirm(cb C.CallbackMethodFileConfirm) {
-	C.setCallbackMethodFileConfirm(cb)
 }
 
 //export SetCallbackUpdateClientStatus
@@ -534,12 +510,21 @@ func SetHostListenAddr(listenHost string, listenPort int) {
 	}
 }
 
-//export SetDIASID
-func SetDIASID(cMacAddress string) {
-	log.Printf(" [%s]  cMacAddress:[%s]", rtkMisc.GetFuncInfo(), cMacAddress)
-	diasID := rtkUtils.RemoveChar(cMacAddress, ':')
+//export SetMacAddress
+func SetMacAddress(cMacAddress *C.char, length C.int) {
+	log.Printf("SetMacAddress(%q, %d)\n", C.GoString(cMacAddress), length)
+	if length != 6 {
+		log.Printf("[%s] SetMacAddress failed, invalid MAC length:%d", rtkMisc.GetFuncInfo(), length)
+		return
+	}
+	macBytes := C.GoBytes(unsafe.Pointer(cMacAddress), 6)
 
-	rtkPlatform.GoGetMacAddressCallback(diasID)
+	macAddress := fmt.Sprintf("%02X%02X%02X%02X%02X%02X",
+		macBytes[0], macBytes[1], macBytes[2],
+		macBytes[3], macBytes[4], macBytes[5])
+
+	log.Printf("[%s] MacAddress [%s]", rtkMisc.GetFuncInfo(), macAddress)
+	rtkPlatform.GoSetMacAddress(macAddress)
 }
 
 //export SetExtractDIAS
@@ -563,12 +548,6 @@ func SetDIASSourceAndPort(cSource, cPort uint32) {
 	rtkPlatform.GoSetDIASSourceAndPort(source, port)
 }
 
-//export SetDetectPluginEvent
-func SetDetectPluginEvent(isPlugin bool) {
-	log.Printf(" [%s] isPlugin:[%+v]", rtkMisc.GetFuncInfo(), isPlugin)
-	//rtkPlatform.GoTriggerDetectPluginEvent(isPlugin)
-}
-
 //export GetVersion
 func GetVersion() *C.char {
 	return C.CString(rtkGlobal.ClientVersion)
@@ -577,12 +556,6 @@ func GetVersion() *C.char {
 //export GetBuildDate
 func GetBuildDate() *C.char {
 	return C.CString(rtkBuildConfig.BuildDate)
-}
-
-//export SetSrcAndPort
-func SetSrcAndPort(source, port int) {
-	log.Printf("[%s] , source:[%d], port:[%d]", rtkMisc.GetFuncInfo(), source, port)
-	rtkPlatform.GoSetSrcAndPort(source, port)
 }
 
 //export SetBrowseMdnsResult
