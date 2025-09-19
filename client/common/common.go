@@ -27,6 +27,7 @@ type RegMessage struct {
 	GUEST string
 }
 
+// Only new fields can be added, old fields cannot be modified
 type RegistMdnsMessage struct {
 	Host           string
 	Id             string

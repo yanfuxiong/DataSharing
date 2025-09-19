@@ -292,7 +292,7 @@ func GoTriggerCallbackUpdateClientStatusEx(clientInfo string) {
 	cClientInfo := C.CString(clientInfo)
 	defer C.free(unsafe.Pointer(cClientInfo))
 
-	defer C.UpdateClientStatusExCallbackFunc(g_UpdateClientStatusExCallback, cClientInfo)
+	C.UpdateClientStatusExCallbackFunc(g_UpdateClientStatusExCallback, cClientInfo)
 }
 
 func GoTriggerCallbackUpdateClientStatus(status uint32, ip, id, deviceName, deviceType string) {

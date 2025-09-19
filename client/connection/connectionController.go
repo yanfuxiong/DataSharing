@@ -330,8 +330,6 @@ func BuildFmtTypeTalker(id string, fmtType rtkCommon.TransFmtType) rtkMisc.Cross
 
 func buildClientListTalker(ctx context.Context, clientList []rtkMisc.ClientInfo) {
 	if len(clientList) == 0 {
-		// DEBUG log
-		// log.Println("Self is the first login Client , no any other client to build talker")
 		return
 	}
 
@@ -357,10 +355,6 @@ func buildClientListTalker(ctx context.Context, clientList []rtkMisc.ClientInfo)
 }
 
 func WriteSocket(id string, data []byte) rtkMisc.CrossShareErr {
-	// FIXME: this cause dead lock
-	// mutex := getMutex(id)
-	// mutex.Lock()
-	// defer mutex.Unlock()
 	if len(data) == 0 {
 		log.Println("Write faile: empty data")
 		return rtkMisc.ERR_BIZ_P2P_WRITE_EMPTY_DATA
@@ -372,8 +366,7 @@ func WriteSocket(id string, data []byte) rtkMisc.CrossShareErr {
 		return rtkMisc.ERR_BIZ_GET_STREAM_EMPTY
 	}
 
-	s := rtkUtils.NewConnFromStream(sInfo.s)
-	if _, err := s.Write(data); err != nil {
+	if _, err := sInfo.s.Write(data); err != nil {
 		if CheckStreamReset(id, sInfo.timeStamp) {
 			return rtkMisc.ERR_BIZ_GET_STREAM_RESET
 		}
@@ -381,7 +374,6 @@ func WriteSocket(id string, data []byte) rtkMisc.CrossShareErr {
 		log.Printf("[%s][%s] Write failed:[%+v], and execute offlineEvent ", rtkMisc.GetFuncInfo(), sInfo.ipAddr, err)
 		offlineEvent(sInfo.s)
 
-		// TODO: check if necessary
 		if errors.Is(err, io.EOF) {
 			return rtkMisc.ERR_NETWORK_P2P_EOF
 		} else if netErr, ok := err.(net.Error); ok {
@@ -396,7 +388,7 @@ func WriteSocket(id string, data []byte) rtkMisc.CrossShareErr {
 		}
 	}
 
-	bufio.NewWriter(s).Flush()
+	bufio.NewWriter(sInfo.s).Flush()
 	log.Printf("[%s] DST ID:[%s] Write to socket successfully", rtkMisc.GetFuncInfo(), id)
 	return rtkMisc.SUCCESS
 }
@@ -407,8 +399,8 @@ func ReadSocket(id string, buffer []byte) (int, rtkMisc.CrossShareErr) {
 		return 0, rtkMisc.ERR_BIZ_GET_STREAM_EMPTY
 	}
 
-	s := rtkUtils.NewConnFromStream(sInfo.s)
-	n, err := s.Read(buffer)
+	sInfo.s.SetReadDeadline(time.Time{}) //Cancel timeout limit
+	n, err := sInfo.s.Read(buffer)
 	if err != nil {
 		if CheckStreamReset(id, sInfo.timeStamp) {
 			return 0, rtkMisc.ERR_BIZ_GET_STREAM_RESET
@@ -448,20 +440,19 @@ func onlineEvent(stream network.Stream, isFromListener bool, clientInfo *rtkMisc
 		resultCode := handleNotice(stream, &peerPlatForm, &peerDeviceName, &srcPortType, &peerVer)
 		if resultCode != rtkMisc.SUCCESS {
 			stream.Reset()
-			log.Printf("[%s] ID:[%s] IP:[%s] errCode:%d, so reset this stream, onlineEvent failed!", id, ipAddr, resultCode)
+			log.Printf("[%s] ID:[%s] IP:[%s] errCode:%d, so reset this stream, onlineEvent failed!", rtkMisc.GetFuncInfo(), id, ipAddr, resultCode)
 			return resultCode
 		}
 	} else {
-		resultCode := noticeToPeer(stream)
+		resultCode := noticeToPeer(stream, &peerVer)
 		if resultCode != rtkMisc.SUCCESS {
 			stream.Reset()
-			log.Printf("[%s] ID:[%s] IP:[%s] errCode:%d, so reset this stream, onlineEvent failed!", id, ipAddr, resultCode)
+			log.Printf("[%s] ID:[%s] IP:[%s] errCode:%d, so reset this stream, onlineEvent failed!", rtkMisc.GetFuncInfo(), id, ipAddr, resultCode)
 			return resultCode
 		}
 		peerDeviceName = clientInfo.DeviceName
 		peerPlatForm = clientInfo.Platform
 		srcPortType = clientInfo.SourcePortType
-		peerVer = clientInfo.Version
 	}
 
 	UpdateStream(id, stream)
@@ -471,7 +462,7 @@ func onlineEvent(stream network.Stream, isFromListener bool, clientInfo *rtkMisc
 	} else {
 		log.Println("Connected to ID:", id, " IP:", ipAddr)
 	}
-	log.Println("****************************************************************************************\n\n")
+	log.Println("****************************************************************************************")
 
 	updateUIOnlineStatus(true, id, ipAddr, peerPlatForm, peerDeviceName, srcPortType, peerVer)
 	return rtkMisc.SUCCESS
@@ -509,7 +500,7 @@ func OfflineEvent(id string) {
 
 func updateUIOnlineStatus(isOnline bool, id, ipAddr, platfrom, deviceName, srcPortType, ver string) {
 	if isOnline {
-		log.Printf("[%s] IP:[%s] Online: increase client count", rtkMisc.GetFuncInfo(), ipAddr)
+		log.Printf("[%s] IP:[%s] Online: increase client count\n\n", rtkMisc.GetFuncInfo(), ipAddr)
 		rtkPlatform.GoUpdateClientStatus(1, ipAddr, id, deviceName, srcPortType) // TODO: Deprecate , and replace with GoUpdateClientStatusEx
 		rtkUtils.InsertClientInfoMap(id, ipAddr, platfrom, deviceName, srcPortType, ver)
 		rtkPlatform.FoundPeer() // TODO: Deprecate , and replace with GoUpdateClientStatusEx
@@ -523,10 +514,9 @@ func updateUIOnlineStatus(isOnline bool, id, ipAddr, platfrom, deviceName, srcPo
 	}
 }
 
-func noticeToPeer(s network.Stream) rtkMisc.CrossShareErr {
-	write := bufio.NewWriter(s)
+func noticeToPeer(s network.Stream, ver *string) rtkMisc.CrossShareErr {
 	ipAddr := rtkUtils.GetRemoteAddrFromStream(s)
-
+	id := s.Conn().RemotePeer().String()
 	registMsg := rtkCommon.RegistMdnsMessage{
 		Host:           rtkPlatform.GetHostID(),
 		Id:             rtkGlobal.NodeInfo.ID,
@@ -535,8 +525,11 @@ func noticeToPeer(s network.Stream) rtkMisc.CrossShareErr {
 		SourcePortType: rtkGlobal.NodeInfo.SourcePortType,
 		Version:        rtkGlobal.ClientVersion,
 	}
-	if err := json.NewEncoder(write).Encode(registMsg); err != nil {
-		log.Printf("[%s] ID:[%s] Stream json.NewEncoder.Encode err:%+v", rtkMisc.GetFuncInfo(), s.Conn().RemotePeer().String(), err)
+
+	write := bufio.NewWriter(s)
+	err := json.NewEncoder(write).Encode(registMsg)
+	if err != nil {
+		log.Printf("[%s] ID:[%s] IP:[%s] Stream json.NewEncoder.Encode err:%+v", rtkMisc.GetFuncInfo(), id, ipAddr, err)
 		if errors.Is(err, context.DeadlineExceeded) {
 			return rtkMisc.ERR_NETWORK_P2P_WRITER_DEADLINE
 		} else if errors.Is(err, context.Canceled) {
@@ -546,22 +539,46 @@ func noticeToPeer(s network.Stream) rtkMisc.CrossShareErr {
 		}
 		return rtkMisc.ERR_NETWORK_P2P_WRITER
 	}
-	if err := write.Flush(); err != nil {
-		log.Printf("[%s] ID:[%s] Error flushing write buffer: %+v", rtkMisc.GetFuncInfo(), s.Conn().RemotePeer().String(), err)
+	if err = write.Flush(); err != nil {
+		log.Printf("[%s] ID:[%s] Error flushing write buffer: %+v", rtkMisc.GetFuncInfo(), id, err)
 		return rtkMisc.ERR_NETWORK_P2P_FLUSH
 	}
-	log.Printf("[%s] IP:[%s]noticeToPeer success!", rtkMisc.GetFuncInfo(), ipAddr)
+
+	reqMsg := rtkCommon.RegistMdnsMessage{Version: ""}
+	read := bufio.NewReader(s)
+	s.SetReadDeadline(time.Now().Add(1 * time.Second)) //Only valid for the current goroutine
+	err = json.NewDecoder(read).Decode(&reqMsg)
+	if err != nil {
+		log.Printf("[%s] ID:[%s] IP:[%s] Stream json.NewDecoder.Decode err:%+v", rtkMisc.GetFuncInfo(), id, ipAddr, err)
+		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+			*ver = rtkGlobal.ClientDefaultVersion
+			log.Printf("[%s] IP:[%s] handle decoder time out(1s)! use defalut value:%s", rtkMisc.GetFuncInfo(), ipAddr, rtkGlobal.ClientDefaultVersion)
+		} else if errors.Is(err, context.DeadlineExceeded) {
+			return rtkMisc.ERR_NETWORK_P2P_READER_DEADLINE
+		} else if errors.Is(err, context.Canceled) {
+			return rtkMisc.ERR_NETWORK_P2P_READER_CANCELED
+		} else if errors.Is(err, network.ErrReset) {
+			return rtkMisc.ERR_NETWORK_P2P_READER_RESET
+		} else {
+			return rtkMisc.ERR_NETWORK_P2P_READER
+		}
+	} else {
+		log.Printf("[%s] IP:[%s] handle decoder success! verison:%s", rtkMisc.GetFuncInfo(), ipAddr, reqMsg.Version)
+		*ver = reqMsg.Version
+	}
+
 	return rtkMisc.SUCCESS
 }
 
 func handleNotice(s network.Stream, platForm, name, srcPortType, ver *string) rtkMisc.CrossShareErr {
-	read := bufio.NewReader(s)
+	id := s.Conn().RemotePeer().String()
 	ipAddr := rtkUtils.GetRemoteAddrFromStream(s)
 
-	var regMsg rtkCommon.RegistMdnsMessage
+	regMsg := rtkCommon.RegistMdnsMessage{Version: ""}
+	read := bufio.NewReader(s)
 	err := json.NewDecoder(read).Decode(&regMsg)
 	if err != nil {
-		log.Printf("[%s] ID:[%s] Stream json.NewDecoder.Decode err:%+v", rtkMisc.GetFuncInfo(), s.Conn().RemotePeer().String(), err)
+		log.Printf("[%s] ID:[%s] IP:[%s] json.NewDecoder.Decode err:%+v", rtkMisc.GetFuncInfo(), id, ipAddr, err)
 		if errors.Is(err, context.DeadlineExceeded) {
 			return rtkMisc.ERR_NETWORK_P2P_READER_DEADLINE
 		} else if errors.Is(err, context.Canceled) {
@@ -575,9 +592,40 @@ func handleNotice(s network.Stream, platForm, name, srcPortType, ver *string) rt
 	*platForm = regMsg.Platform
 	*name = regMsg.DeviceName
 	*srcPortType = regMsg.SourcePortType
-	*ver = regMsg.Version
 
-	log.Printf("[%s] IP:[%s] handleNotice success!", rtkMisc.GetFuncInfo(), ipAddr)
+	if regMsg.Version == "" { // old version
+		*ver = rtkGlobal.ClientDefaultVersion
+		log.Printf("[%s] IP:[%s] handle decoder success! version is null, use defalut value:%s", rtkMisc.GetFuncInfo(), ipAddr, rtkGlobal.ClientDefaultVersion)
+	} else {
+		*ver = regMsg.Version
+		registMsg := rtkCommon.RegistMdnsMessage{
+			Host:           rtkPlatform.GetHostID(),
+			Id:             rtkGlobal.NodeInfo.ID,
+			Platform:       rtkGlobal.NodeInfo.Platform,
+			DeviceName:     rtkGlobal.NodeInfo.DeviceName,
+			SourcePortType: rtkGlobal.NodeInfo.SourcePortType,
+			Version:        rtkGlobal.ClientVersion,
+		}
+
+		write := bufio.NewWriter(s)
+		if err = json.NewEncoder(write).Encode(registMsg); err != nil {
+			log.Printf("[%s] ID:[%s] IP:[%s] json.NewDecoder.Decode err:%+v", rtkMisc.GetFuncInfo(), id, ipAddr, err)
+			if errors.Is(err, context.DeadlineExceeded) {
+				return rtkMisc.ERR_NETWORK_P2P_WRITER_DEADLINE
+			} else if errors.Is(err, context.Canceled) {
+				return rtkMisc.ERR_NETWORK_P2P_WRITER_CANCELED
+			} else if errors.Is(err, network.ErrReset) {
+				return rtkMisc.ERR_NETWORK_P2P_WRITER_RESET
+			}
+			return rtkMisc.ERR_NETWORK_P2P_WRITER
+		}
+		if err = write.Flush(); err != nil {
+			log.Printf("[%s] ID:[%s] Error flushing write buffer: %+v", rtkMisc.GetFuncInfo(), id, err)
+			return rtkMisc.ERR_NETWORK_P2P_FLUSH
+		}
+		log.Printf("[%s] IP:[%s] handle encoder success! version:%s", rtkMisc.GetFuncInfo(), ipAddr, regMsg.Version)
+	}
+
 	return rtkMisc.SUCCESS
 }
 
