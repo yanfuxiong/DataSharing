@@ -18,6 +18,8 @@ import (
 	rtkMisc "rtk-cross-share/misc"
 
 	"github.com/libp2p/go-libp2p"
+	"github.com/libp2p/go-libp2p/p2p/transport/quic"
+	"github.com/libp2p/go-libp2p/p2p/transport/tcp"
 
 	"sync"
 	"time"
@@ -48,28 +50,26 @@ func GetConnectNode() host.Host {
 func ConnectionInit(ctx context.Context) {
 	log.Printf("[%s] listen host[%s] port[%d] connection start init", rtkMisc.GetFuncInfo(), rtkGlobal.ListenHost, rtkGlobal.ListenPort)
 
-	if setupNode(rtkGlobal.ListenHost, rtkGlobal.ListenPort) != nil {
-		ticker := time.NewTicker(3 * time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				if setupNode(rtkGlobal.ListenHost, rtkGlobal.ListenPort) == nil {
-					goto setNodeSuccessFlag
-				}
-			}
+	ticker := time.NewTicker(3 * time.Second)
+	defer ticker.Stop()
+	for {
+		if setupNode(rtkGlobal.ListenHost, rtkGlobal.ListenPort) == nil {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
 		}
 	}
 
-setNodeSuccessFlag:
 	nodeMutex.RLock()
 	defer nodeMutex.RUnlock()
 	if node == nil {
 		log.Fatalf("[%s] node is nil!", rtkMisc.GetFuncInfo())
 	}
 	pingServer = ping.NewPingService(node)
+	log.Printf("[%s] connection init success!\n\n", rtkMisc.GetFuncInfo())
 }
 
 func cancelHostNode() {
@@ -82,7 +82,7 @@ func cancelHostNode() {
 		node.ConnManager().Close()
 		node.Close()
 		node = nil
-		log.Println("close p2p node info!")
+		log.Println("end close p2p node info!")
 	}
 }
 
@@ -116,11 +116,15 @@ func setupNode(ip string, port int) error {
 	priv := rtkPlatform.GenKey()
 
 	cancelHostNode()
-	sourceAddrStr := fmt.Sprintf("/ip4/%s/tcp/%d", ip, port)
-	sourceMultiAddr, err := ma.NewMultiaddr(sourceAddrStr)
+	tcpAddr, err := ma.NewMultiaddr(fmt.Sprintf("/ip4/%s/tcp/%d", ip, port))
 	if err != nil {
-		log.Printf("NewMultiaddr error:%+v, with addr:%s", err, sourceAddrStr)
-		panic(err)
+		log.Printf("NewMultiaddr tcp addr error:%+v", err)
+		return err
+	}
+	quicAddr, qErr := ma.NewMultiaddr(fmt.Sprintf("/ip4/%s/udp/%d/quic-v1", ip, port))
+	if qErr != nil {
+		log.Printf("NewMultiaddr quic addr error:%+v", qErr)
+		return qErr
 	}
 
 	if port <= 0 {
@@ -129,7 +133,9 @@ func setupNode(ip string, port int) error {
 
 	tempNode, err := libp2p.New(
 		//libp2p.ListenAddrStrings(listen_addrs(rtkMdns.MdnsCfg.ListenPort)...), // Add mdns port with different initialization
-		libp2p.ListenAddrs(sourceMultiAddr),
+		libp2p.ListenAddrs(tcpAddr, quicAddr),
+		libp2p.Transport(tcp.NewTCPTransport),     // TCP 传输
+		libp2p.Transport(libp2pquic.NewTransport), // QUIC 传输
 		libp2p.NATPortMap(),
 		libp2p.Identity(priv),
 		libp2p.ForceReachabilityPrivate(),
@@ -176,6 +182,7 @@ func setupNode(ip string, port int) error {
 	publicIp, publicPort := filterAddr(tempNode.Addrs())
 	rtkGlobal.NodeInfo.IPAddr.PublicIP = publicIp
 	rtkGlobal.NodeInfo.IPAddr.PublicPort = publicPort
+	serviceVer := "v" + rtkGlobal.ClientVersion + " (" + rtkBuildConfig.BuildDate + ")"
 
 	log.Println("=======================================================")
 	log.Println("Self ID: ", rtkGlobal.NodeInfo.ID)
@@ -184,10 +191,10 @@ func setupNode(ip string, port int) error {
 	log.Println("Self device name: ", rtkGlobal.NodeInfo.DeviceName)
 	log.Println("Self Platform: ", rtkGlobal.NodeInfo.Platform)
 	log.Printf("Self Public IP[%s], Public Port[%s], LocalPort[%s]", rtkGlobal.NodeInfo.IPAddr.PublicIP, rtkGlobal.NodeInfo.IPAddr.PublicPort, rtkGlobal.NodeInfo.IPAddr.LocalPort)
-	log.Println("=======================================================\n\n")
+	log.Println("Self version info: ", serviceVer)
+	log.Println("=======================================================")
 
 	ipAddr := rtkMisc.ConcatIP(rtkGlobal.NodeInfo.IPAddr.PublicIP, rtkGlobal.NodeInfo.IPAddr.PublicPort)
-	serviceVer := "v" + rtkGlobal.ClientVersion + " (" + rtkBuildConfig.BuildDate + ")"
 	rtkPlatform.GoUpdateSystemInfo(ipAddr, serviceVer)
 
 	nodeMutex.Lock()
@@ -233,8 +240,8 @@ func buildTalker(ctxMain context.Context, client rtkMisc.ClientInfo) rtkMisc.Cro
 		Addrs: []ma.Multiaddr{addr},
 	}
 
-	nodeMutex.RLock()
-	defer nodeMutex.RUnlock()
+	nodeMutex.Lock()
+	defer nodeMutex.Unlock()
 	if node == nil {
 		log.Printf("[%s] node is nil!", rtkMisc.GetFuncInfo())
 		return rtkMisc.ERR_BIZ_P2P_NODE_NULL
@@ -246,7 +253,7 @@ func buildTalker(ctxMain context.Context, client rtkMisc.ClientInfo) rtkMisc.Cro
 	if node.Network().Connectedness(peer.ID) != network.Connected {
 		node.Network().ClosePeer(peer.ID)
 		log.Printf("begin  to connect %+v ... \n\n", peer)
-		if err := node.Connect(ctx, peer); err != nil {
+		if err = node.Connect(ctx, peer); err != nil {
 			log.Printf("[%s] Connect peer%+v failed:%+v", rtkMisc.GetFuncInfo(), peer, err)
 			if errors.Is(err, context.DeadlineExceeded) {
 				return rtkMisc.ERR_NETWORK_P2P_CONNECT_DEADLINE
