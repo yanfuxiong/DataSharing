@@ -62,12 +62,14 @@ type ExtDataImg struct {
 }
 
 type ExtDataXClip struct {
-	Text     []byte // Text,UTF-8
-	Image    []byte // decode base64
-	Html     []byte // Html
-	TextLen  int64
-	ImageLen int64
-	HtmlLen  int64
+	Text      []byte // Text,UTF-8
+	Image     []byte // decode base64
+	Html      []byte // Html
+	TextLen   int64
+	ImageLen  int64
+	HtmlLen   int64
+	ImgSize   FileSize  // Deprecated: keep for compatibility
+	ImgHeader ImgHeader // Deprecated: keep for compatibility
 }
 
 type ClipBoardData struct {
@@ -75,5 +77,5 @@ type ClipBoardData struct {
 	Hash      string
 	TimeStamp uint64
 	FmtType   TransFmtType
-	ExtData   interface{} // ExtDataText, ExtDataImg, ExtDataFile(future), ExtDataXClip
+	ExtData   interface{} // ExtDataFile(future), ExtDataXClip
 }

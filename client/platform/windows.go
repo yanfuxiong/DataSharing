@@ -77,7 +77,7 @@ func InitPlatform(rootPath, downLoadPath, deviceName string) {
 
 type (
 	CallbackNetworkSwitchFunc          func()
-	CallbackCopyXClipFunc              func(cbText, cbImage, cbHtml []byte)
+	CallbackCopyXClipFunc              func(cbText, cbImage, cbHtml []byte, imgHeader rtkCommon.ImgHeader)
 	CallbackPasteXClipFunc             func(text, image, html string)
 	CallbackCopyImageFunc              func(rtkCommon.ImgHeader, []byte)
 	CallbackSetupDstImageFunc          func(id string, content []byte, imgHeader rtkCommon.ImgHeader, dataSize uint32)
@@ -296,13 +296,13 @@ func GoSetMsgEventFunc(event uint32, arg1, arg2, arg3, arg4 string) {
 	callbackSetMsgEvent(event, arg1, arg2, arg3, arg4)
 }
 
-func GoCopyXClipData(text, image, html []byte) {
+func GoCopyXClipData(text, image, html []byte, imgHeader rtkCommon.ImgHeader) {
 	if callbackCopyXClipDataCB == nil {
 		log.Println("callbackCopyXClipDataCB is null!")
 		return
 	}
 
-	callbackCopyXClipDataCB(text, image, html)
+	callbackCopyXClipDataCB(text, image, html, imgHeader)
 }
 
 func GoCopyImage(imgHeader rtkCommon.ImgHeader, data []byte) {
@@ -397,7 +397,7 @@ func GetLockFilePath() string {
 
 // Monitor
 func WatchClipboardText(ctx context.Context, resultChan chan<- string) {
-	changeText := clipboard.Watch(ctx, clipboard.FmtText)
+	/*changeText := clipboard.Watch(ctx, clipboard.FmtText)
 	isLastClipboardCopyText := false
 
 	for {
@@ -408,9 +408,7 @@ func WatchClipboardText(ctx context.Context, resultChan chan<- string) {
 		case <-chNotifyPasteText:
 			isLastClipboardCopyText = true
 		case contentText := <-changeText:
-			/*if string(contentText) == "" || len(contentText) == 0 {
-				continue
-			}*/
+
 			curClipboardCopyText := string(contentText) //we can copy a null text from local
 
 			if !isLastClipboardCopyText { // we can copy same text from local
@@ -421,7 +419,7 @@ func WatchClipboardText(ctx context.Context, resultChan chan<- string) {
 			}
 
 		}
-	}
+	}*/
 }
 
 func GoAuthViaIndex(clientIndex uint32) {
@@ -462,6 +460,15 @@ func GoDragFileListNotify(ip, id, platform string, fileCnt uint32, totalSize uin
 func GoDragFileListFolderNotify(ip, id, folderName string, timestamp uint64) {
 }
 
+func GoSetupDstPasteImage(id string, content []byte, imgHeader rtkCommon.ImgHeader, dataSize uint32) {
+	// TODO: consider setup JPG image to windows C++
+	bmpSize := uint32(imgHeader.Height) * uint32(imgHeader.Width) * uint32(imgHeader.BitCount) / 8
+	log.Printf("GoSetupDstPasteImage from ID %s, len:[%d] dataSize:[%d] bmpSize:[%d]\n\n", id, len(content), dataSize, bmpSize)
+
+	callbackSetupDstImageCB(id, content, imgHeader, bmpSize)
+	callbackInstancePasteImageCB()
+}
+
 func GoSetupDstPasteXClipData(cbText, cbImage, cbHtml []byte) {
 	if callbackPasteXClipDataCB == nil {
 		log.Printf("callbackPasteXClipDataCB is null!\n\n")
@@ -472,19 +479,20 @@ func GoSetupDstPasteXClipData(cbText, cbImage, cbHtml []byte) {
 	if len(cbImage) > 0 {
 		imageBase64 := rtkUtils.Base64Encode(cbImage)
 		imageStr = imageBase64
-		log.Printf("call back image data:[%s]", imageStr[:20])
 	}
 
 	callbackPasteXClipDataCB(string(cbText), imageStr, string(cbHtml))
 }
 
-func GoSetupDstPasteImage(id string, content []byte, imgHeader rtkCommon.ImgHeader, dataSize uint32) {
-	// TODO: consider setup JPG image to windows C++
-	bmpSize := uint32(imgHeader.Height) * uint32(imgHeader.Width) * uint32(imgHeader.BitCount) / 8
-	log.Printf("GoSetupDstPasteImage from ID %s, len:[%d] dataSize:[%d] bmpSize:[%d]\n\n", id, len(content), dataSize, bmpSize)
+func GoSetupDstPasteText(content []byte) {
+	log.Println("GoSetupDstPasteText :", string(content))
 
-	callbackSetupDstImageCB(id, content, imgHeader, bmpSize)
-	callbackInstancePasteImageCB()
+	nClientCount := rtkUtils.GetClientCount()
+	for i := 0; i < nClientCount; i++ {
+		chNotifyPasteText <- struct{}{}
+	}
+	time.Sleep(10 * time.Millisecond)
+	clipboard.Write(clipboard.FmtText, content)
 }
 
 func GoDataTransfer(data []byte) {
@@ -574,17 +582,6 @@ func GoRequestUpdateClientVersion(ver string) {
 
 func GoCleanClipboard() {
 	callbackCleanClipboard()
-}
-
-func GoSetupDstPasteText(content []byte) {
-	log.Println("GoSetupDstPasteText :", string(content))
-
-	nClientCount := rtkUtils.GetClientCount()
-	for i := 0; i < nClientCount; i++ {
-		chNotifyPasteText <- struct{}{}
-	}
-	time.Sleep(10 * time.Millisecond)
-	clipboard.Write(clipboard.FmtText, content)
 }
 
 func FoundPeer() {

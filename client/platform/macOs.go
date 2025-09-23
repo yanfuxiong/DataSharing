@@ -361,6 +361,15 @@ func SetConfirmDocumentsAccept(ifConfirm bool) {
 	ifConfirmDocumentsAccept = ifConfirm
 }
 
+func GoCopyXClipData(text, image, html []byte, imgHeader rtkCommon.ImgHeader) {
+	if callbackXClipCopyData == nil {
+		log.Println("callbackXClipCopyData is null!")
+		return
+	}
+
+	callbackXClipCopyData(text, image, html, imgHeader)
+}
+
 func GoCopyImage(imgHeader rtkCommon.ImgHeader, data []byte) {
 	callbackInstanceCopyImage(imgHeader, data)
 }
@@ -527,6 +536,7 @@ func FoundPeer() {
 
 }
 
+// TODO: implement XClipData
 func GoSetupDstPasteXClipData(cbText, cbImage, cbHtml []byte) {
 
 }

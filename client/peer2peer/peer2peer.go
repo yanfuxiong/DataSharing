@@ -16,54 +16,40 @@ import (
 	rtkMisc "rtk-cross-share/misc"
 	"strconv"
 	"time"
+	"unicode/utf8"
 )
 
 func HandleClipboardEvent(ctxMain context.Context, resultChan chan<- EventResult, id string) {
 	resultXClipChan := make(chan rtkCommon.ClipBoardData)
-	resultChanText := make(chan rtkCommon.ClipBoardData)
-	resultChanImg := make(chan rtkCommon.ClipBoardData)
-	resultChanPasteImg := make(chan struct{})
-
+	
 	rtkMisc.GoSafe(func() { rtkClipboard.WatchXClipData(ctxMain, id, resultXClipChan) })
-	rtkMisc.GoSafe(func() { rtkClipboard.WatchClipboardText(ctxMain, id, resultChanText) })
-	rtkMisc.GoSafe(func() { rtkClipboard.WatchClipboardImg(ctxMain, id, resultChanImg) })
-	rtkMisc.GoSafe(func() { rtkClipboard.WatchClipboardPasteImg(ctxMain, id, resultChanPasteImg) })
+
+
 	for {
 		select {
 		case <-ctxMain.Done():
 			close(resultChan)
 			return
 		case cbData := <-resultXClipChan:
-			resultChan <- EventResult{
-				Cmd: DispatchCmd{
-					FmtType: rtkCommon.XCLIP_CB,
-					State:   STATE_INIT,
-					Command: COMM_SRC,
-				},
-				Data: cbData,
+			isSupportXClip := rtkUtils.GetPeerClientIsSupportXClip(id)
+			var fmtType rtkCommon.TransFmtType
+			if isSupportXClip {
+				fmtType = rtkCommon.XCLIP_CB
+			} else {
+				if extData, ok := cbData.ExtData.(rtkCommon.ExtDataXClip); ok {
+					if extData.ImageLen > 0 {
+						fmtType = rtkCommon.IMAGE_CB
+					} else if extData.TextLen > 0 {
+						fmtType = rtkCommon.TEXT_CB
+					} else {
+						log.Printf("[%s] ID:[%s] is not support XClip,and Text and Image is all empty! so skip!", rtkMisc.GetFuncInfo(), id)
+						continue
+					}
+				}
 			}
-		case <-resultChanPasteImg:
 			resultChan <- EventResult{
 				Cmd: DispatchCmd{
-					FmtType: rtkCommon.IMAGE_CB,
-					State:   STATE_IO,
-					Command: COMM_DST,
-				},
-				Data: "",
-			}
-		case cbData := <-resultChanText:
-			resultChan <- EventResult{
-				Cmd: DispatchCmd{
-					FmtType: rtkCommon.TEXT_CB,
-					State:   STATE_INIT,
-					Command: COMM_SRC,
-				},
-				Data: cbData,
-			}
-		case cbData := <-resultChanImg:
-			resultChan <- EventResult{
-				Cmd: DispatchCmd{
-					FmtType: rtkCommon.IMAGE_CB,
+					FmtType: fmtType,
 					State:   STATE_INIT,
 					Command: COMM_SRC,
 				},
@@ -172,7 +158,18 @@ func processInbandRead(buffer []byte, len int, msg *Peer2PeerMessage) rtkMisc.Cr
 			log.Println("Err: decode ExtDataText:", err)
 			return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
 		}
-		msg.ExtData = extDataText
+
+		msg.ExtData = rtkCommon.ExtDataXClip{
+			Text:      []byte(extDataText.Text),
+			Image:     nil,
+			Html:      nil,
+			TextLen:   int64(utf8.RuneCountInString(extDataText.Text)),
+			ImageLen:  0,
+			HtmlLen:   0,
+			ImgSize:   rtkCommon.FileSize{},
+			ImgHeader: rtkCommon.ImgHeader{},
+		}
+		msg.FmtType = rtkCommon.XCLIP_CB
 	case rtkCommon.FILE_DROP:
 		// Response accept or reject
 		if msg.State == STATE_TRANS && msg.Command == COMM_DST {
@@ -216,7 +213,17 @@ func processInbandRead(buffer []byte, len int, msg *Peer2PeerMessage) rtkMisc.Cr
 				log.Printf("[%s] Err: decode ExtDataImg:%+v", rtkMisc.GetFuncInfo(), err)
 				return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
 			}
-			msg.ExtData = extDataImg
+			msg.ExtData = rtkCommon.ExtDataXClip{
+				Text:      nil,
+				Image:     nil,
+				Html:      nil,
+				TextLen:   0,
+				ImageLen:  int64(extDataImg.Size.SizeLow),
+				HtmlLen:   0,
+				ImgSize:   extDataImg.Size,
+				ImgHeader: extDataImg.Header,
+			}
+			msg.FmtType = rtkCommon.XCLIP_CB
 		}
 	case rtkCommon.XCLIP_CB:
 		var extDataXClip rtkCommon.ExtDataXClip
@@ -373,12 +380,25 @@ func buildMessage(msg *Peer2PeerMessage, id string, event EventResult) bool {
 	msg.Command = event.Cmd.Command
 	msg.TimeStamp = uint64(time.Now().UnixMilli())
 
+	if !rtkUtils.GetPeerClientIsSupportXClip(id) && event.Cmd.FmtType == rtkCommon.XCLIP_CB {
+		if extData, ok := event.Data.(rtkCommon.ExtDataXClip); ok {
+			if extData.ImageLen > 0 {
+				msg.FmtType = rtkCommon.IMAGE_CB
+			} else if extData.TextLen > 0 {
+				msg.FmtType = rtkCommon.TEXT_CB
+			}
+		} else {
+			log.Printf("[%s] Err: Import Clipboard - Image to msg failed", rtkMisc.GetFuncInfo())
+			return false
+		}
+	}
+
 	switch msg.FmtType {
 	case rtkCommon.TEXT_CB:
 		if cbData, ok := event.Data.(rtkCommon.ClipBoardData); ok {
-			if extData, ok := cbData.ExtData.(rtkCommon.ExtDataText); ok {
+			if extData, ok := cbData.ExtData.(rtkCommon.ExtDataXClip); ok {
 				msg.ExtData = rtkCommon.ExtDataText{
-					Text: extData.Text,
+					Text: string(extData.Text),
 				}
 				return true
 			} else {
@@ -394,10 +414,10 @@ func buildMessage(msg *Peer2PeerMessage, id string, event EventResult) bool {
 			msg.Command = COMM_DST
 			return true
 		} else if event.Cmd.Command == COMM_SRC {
-			if extData, ok := rtkClipboard.GetLastClipboardData().ExtData.(rtkCommon.ExtDataImg); ok {
+			if extData, ok := rtkClipboard.GetLastClipboardData().ExtData.(rtkCommon.ExtDataXClip); ok {
 				msg.ExtData = rtkCommon.ExtDataImg{
-					Size:   extData.Size,
-					Header: extData.Header,
+					Size:   extData.ImgSize,
+					Header: extData.ImgHeader,
 				}
 				return true
 			} else {
@@ -573,17 +593,13 @@ func processIoWrite(id, ipAddr string, fmtType rtkCommon.TransFmtType) {
 				rtkPlatform.GoNotifyErrEvent(id, resultCode, ipAddr, strconv.Itoa(fileTransferId), "", "")
 			}
 		}
-	} else if fmtType == rtkCommon.IMAGE_CB {
-		resultCode = writeImageToSocket(id)
-		if resultCode != rtkMisc.SUCCESS {
-			log.Printf("(SRC) ID[%s] IP[%s] Copy image To Socket failed, ERR code:[%d]", id, ipAddr, resultCode)
-			sendCmdMsgToPeer(id, COMM_CB_TRANSFER_SRC_INTERRUPT, fmtType, resultCode)
-		}
 	} else if fmtType == rtkCommon.XCLIP_CB {
 		resultCode = writeXClipDataToSocket(id)
 		if resultCode != rtkMisc.SUCCESS {
 			log.Printf("(SRC) ID[%s] IP[%s] Copy XClip data To Socket failed, ERR code:[%d]", id, ipAddr, resultCode)
 		}
+	} else {
+		log.Printf("[%s]Unknown FmtType:[%s]", rtkMisc.GetFuncInfo(), fmtType)
 	}
 }
 
@@ -612,18 +628,13 @@ func processIoRead(id, ipAddr, deviceName string, fmtType rtkCommon.TransFmtType
 				rtkPlatform.GoNotifyErrEvent(id, resultCode, ipAddr, strconv.Itoa(fileTransferId), "", "")
 			}
 		}
-	} else if fmtType == rtkCommon.IMAGE_CB {
-		resultCode = handleCopyImageFromSocket(id, ipAddr)
-		if resultCode != rtkMisc.SUCCESS {
-			log.Printf("(DST) ID[%s] IP[%s] Copy image From Socket failed, ERR code:[%d] ...", id, ipAddr, resultCode)
-			sendCmdMsgToPeer(id, COMM_CB_TRANSFER_DST_INTERRUPT, fmtType, resultCode)
-			HandleDataTransferError(COMM_CANCEL_DST, id, "", 0)
-		}
 	} else if fmtType == rtkCommon.XCLIP_CB {
 		resultCode = handleXClipDataFromSocket(id, ipAddr)
 		if resultCode != rtkMisc.SUCCESS {
 			log.Printf("(DST) ID[%s] IP[%s] Copy XClip data From Socket failed, ERR code:[%d] ...", id, ipAddr, resultCode)
 		}
+	} else {
+		log.Printf("[%s]Unknown FmtType:[%s]", rtkMisc.GetFuncInfo(), fmtType)
 	}
 }
 
@@ -636,76 +647,6 @@ func updateStateCommand(curState *StateType, curCommand *CommandType, updateStat
 		*curState = updateState
 	}
 	*curCommand = updateCommand
-}
-
-func processTextCB(id string, event EventResult) bool {
-	nextState := event.Cmd.State
-	nextCommand := event.Cmd.Command
-
-	if nextState == STATE_INFO && nextCommand == COMM_DST {
-		if extData, ok := event.Data.(rtkCommon.ExtDataText); ok {
-			log.Printf("[%s %d] Ready to paste text", rtkMisc.GetFuncName(), rtkMisc.GetLine())
-			// [Dst]: Setup clipboard and DO NOT send msg
-			rtkMisc.GoSafe(func() { rtkClipboard.SetupDstPasteText(id, []byte(extData.Text)) })
-		} else {
-			log.Printf("[%s %d] Err: Setup past text failed", rtkMisc.GetFuncName(), rtkMisc.GetLine())
-			return false
-		}
-	} else {
-		var msg Peer2PeerMessage
-		if buildMessage(&msg, id, event) {
-			writeToSocket(&msg, id)
-		} else {
-			log.Printf("[%s %d] Build message failed", rtkMisc.GetFuncName(), rtkMisc.GetLine())
-			return false
-		}
-	}
-	return true
-}
-
-func processImageCB(id string, event EventResult) bool {
-	nextState := event.Cmd.State
-	nextCommand := event.Cmd.Command
-
-	if nextState == STATE_IO && nextCommand == COMM_SRC {
-		// [Src]: Start to trans image
-		clientInfo, err := rtkUtils.GetClientInfo(id)
-		if err != nil {
-			log.Printf("[%s] %s", rtkMisc.GetFuncInfo(), err.Error())
-			return false
-		}
-		rtkMisc.GoSafe(func() { processIoWrite(id, clientInfo.IpAddr, event.Cmd.FmtType) })
-	} else if nextState == STATE_TRANS && nextCommand == COMM_DST {
-		if extData, ok := event.Data.(rtkCommon.ExtDataImg); ok {
-			log.Printf("[%s %d] Ready to paste image", rtkMisc.GetFuncName(), rtkMisc.GetLine())
-			// [Dst]: Setup clipboard and DO NOT send msg
-			rtkMisc.GoSafe(func() { rtkClipboard.SetupDstPasteImage(id, "", extData.Data, extData.Header, extData.Size.SizeLow) })
-		} else {
-			log.Printf("[%s %d] Err: Setup past image failed", rtkMisc.GetFuncName(), rtkMisc.GetLine())
-			return false
-		}
-	} else {
-		if nextState == STATE_IO && nextCommand == COMM_DST {
-			ipAddr, ok := rtkUtils.GetClientIp(id)
-			if !ok {
-				//return rtkMisc.ERR_BIZ_GET_CLIENT_INFO_EMPTY
-				return false
-			}
-			if errCode := rtkConnection.BuildFmtTypeTalker(id, event.Cmd.FmtType); errCode != rtkMisc.SUCCESS {
-				log.Printf("[%s]BuildFmtTypeTalker errCode:%+v ", rtkMisc.GetFuncInfo(), errCode)
-				return false
-			}
-			rtkMisc.GoSafe(func() { processIoRead(id, ipAddr, "", event.Cmd.FmtType) })
-		}
-		var msg Peer2PeerMessage
-		if buildMessage(&msg, id, event) {
-			writeToSocket(&msg, id)
-		} else {
-			log.Printf("[%s %d] Build message failed", rtkMisc.GetFuncName(), rtkMisc.GetLine())
-			return false
-		}
-	}
-	return true
 }
 
 func processFileDrop(id string, event EventResult) bool {
@@ -797,7 +738,7 @@ func processXClip(id string, event EventResult) bool {
 	} else {
 		if nextState == STATE_TRANS && nextCommand == COMM_DST {
 			if extData, ok := event.Data.(rtkCommon.ExtDataXClip); ok {
-				rtkClipboard.SetupDstPasteXClipHead(id, extData.TextLen, extData.ImageLen, extData.HtmlLen)
+				rtkClipboard.SetupDstPasteXClipHead(id, extData.TextLen, extData.ImageLen, extData.HtmlLen, extData.ImgHeader)
 			} else {
 				log.Printf("[%s] Err: Setup past XClip failed", rtkMisc.GetFuncInfo())
 				return false
@@ -831,12 +772,6 @@ func processXClip(id string, event EventResult) bool {
 func processTask(curState *StateType, curCommand *CommandType, id string, event EventResult) {
 	ret := true
 	switch event.Cmd.FmtType {
-	case rtkCommon.TEXT_CB:
-		log.Println("ProcessTextCB triggered")
-		ret = processTextCB(id, event)
-	case rtkCommon.IMAGE_CB:
-		log.Println("ProcessImageCB triggered")
-		ret = processImageCB(id, event)
 	case rtkCommon.FILE_DROP:
 		log.Println("ProcessFileDrop triggered")
 		ret = processFileDrop(id, event)

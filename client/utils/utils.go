@@ -216,19 +216,6 @@ func RemoveMySelfID(slice []string, s string) []string {
 	return slice[:i]
 }
 
-func RemoveChar(s string, c byte) string {
-	if len(s) == 0 {
-		return s
-	}
-	buf := make([]byte, 0, len(s))
-	for i := 0; i < len(s); i++ {
-		if s[i] != c {
-			buf = append(buf, s[i])
-		}
-	}
-	return string(buf)
-}
-
 func GetClientInfo(id string) (rtkMisc.ClientInfo, error) {
 	rtkGlobal.ClientListRWMutex.RLock()
 	defer rtkGlobal.ClientListRWMutex.RUnlock()
@@ -329,6 +316,23 @@ func GetClientMap() map[string]rtkMisc.ClientInfo {
 	defer rtkGlobal.ClientListRWMutex.RUnlock()
 
 	return rtkGlobal.ClientInfoMap
+}
+
+func GetPeerClientIsSupportXClip(id string) bool {
+	rtkGlobal.ClientListRWMutex.RLock()
+	defer rtkGlobal.ClientListRWMutex.RUnlock()
+	clientInfo, ok := rtkGlobal.ClientInfoMap[id]
+	if !ok {
+		log.Printf("[%s] not found ClientInfo by id:%s", rtkMisc.GetFuncInfo(), id)
+		return false
+	}
+
+	peerVer := rtkMisc.GetVersionSerialValue(clientInfo.Version)
+	if peerVer >= int(rtkGlobal.XClipVersionSerial) {
+		log.Printf("ID:[%s] version:[%s] serial is equal or larger than %d, so support XClip!", clientInfo.Version, rtkGlobal.XClipVersionSerial)
+		return true
+	}
+	return false
 }
 
 func WalkPath(dirPath string, pathList *[]string, fileInfoList *[]rtkCommon.FileInfo, totalSize *uint64) error {

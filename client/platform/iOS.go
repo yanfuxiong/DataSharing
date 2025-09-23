@@ -67,7 +67,7 @@ func GetLockFilePath() string {
 
 type (
 	CallbackNetworkSwitchFunc              func()
-	CallbackXClipCopyFunc                  func(cbText, cbImage, cbHtml []byte)
+	CallbackXClipCopyFunc                  func(cbText, cbImage, cbHtml []byte, imgHeader rtkCommon.ImgHeader)
 	CallbackMethodText                     func(string)
 	CallbackMethodImage                    func(string)
 	EventCallback                          func(int)
@@ -106,7 +106,7 @@ type (
 
 var (
 	callbackNetworkSwitch              CallbackNetworkSwitchFunc        = nil
-	callbackXClipCopyCB                CallbackXClipCopyFunc            = nil
+	callbackXClipCopyData              CallbackXClipCopyFunc            = nil
 	callbackMethodText                 CallbackMethodText               = nil
 	callbackMethodImage                CallbackMethodImage              = nil
 	eventCallback                      EventCallback                    = nil
@@ -226,7 +226,7 @@ func SetGoNetworkSwitchCallback(cb CallbackNetworkSwitchFunc) {
 
 // Notify to Clipboard/FileDrop
 func SetCopyXClipCallback(cb CallbackXClipCopyFunc) {
-	callbackXClipCopyCB = cb
+	callbackXClipCopyData = cb
 }
 
 func SetCopyImageCallback(cb CallbackCopyImageFunc) {
@@ -397,6 +397,15 @@ func GoBrowseLanServer() {
 	}
 
 	rtkMisc.GoSafe(func() { callbackBrowseLanServer() })
+}
+
+func GoCopyXClipData(text, image, html []byte, imgHeader rtkCommon.ImgHeader) {
+	if callbackXClipCopyData == nil {
+		log.Println("callbackXClipCopyData is null!")
+		return
+	}
+
+	callbackXClipCopyData(text, image, html, imgHeader)
 }
 
 func GoCopyImage(imgHeader rtkCommon.ImgHeader, data []byte) {
@@ -582,6 +591,7 @@ func FoundPeer() {
 	callbackMethodFoundPeer()
 }
 
+// TODO: implement XClipData
 func GoSetupDstPasteXClipData(cbText, cbImage, cbHtml []byte) {
 
 }
