@@ -221,7 +221,7 @@ func GetClientInfo(id string) (rtkMisc.ClientInfo, error) {
 	defer rtkGlobal.ClientListRWMutex.RUnlock()
 
 	if val, ok := rtkGlobal.ClientInfoMap[id]; ok {
-		return val, nil
+		return val.ClientInfo, nil
 	}
 	return rtkMisc.ClientInfo{}, errors.New(fmt.Sprintf("not found ClientInfo by id:%s", id))
 }
@@ -241,8 +241,26 @@ func InsertClientInfoMap(id, ipAddr, platform, name, srcPortType, ver string) {
 	rtkGlobal.ClientListRWMutex.Lock()
 	defer rtkGlobal.ClientListRWMutex.Unlock()
 
-	if _, ok := rtkGlobal.ClientInfoMap[id]; !ok {
-		rtkGlobal.ClientInfoMap[id] = rtkMisc.ClientInfo{ID: id, IpAddr: ipAddr, Platform: platform, DeviceName: name, SourcePortType: srcPortType, Version: ver}
+	var isSupportXClip bool
+	peerVerSerial := rtkMisc.GetVersionSerialValue(ver)
+	if peerVerSerial >= int(rtkGlobal.XClipVersionSerial) {
+		isSupportXClip = true
+		log.Printf("ID:[%s] version:[%s] serial is equal or larger than %d, so support XClip!", id, ver, rtkGlobal.XClipVersionSerial)
+	} else {
+		isSupportXClip = false
+		log.Printf("ID:[%s] version:[%s] serial is smaller than %d, so not support XClip!", id, ver, rtkGlobal.XClipVersionSerial)
+	}
+
+	rtkGlobal.ClientInfoMap[id] = rtkCommon.ClientInfoEx{
+		ClientInfo: rtkMisc.ClientInfo{
+			ID:             id,
+			IpAddr:         ipAddr,
+			Platform:       platform,
+			DeviceName:     name,
+			SourcePortType: srcPortType,
+			Version:        ver,
+		},
+		IsSupportXClip: isSupportXClip,
 	}
 }
 
@@ -311,7 +329,7 @@ func GetClientCount() int {
 	return len(rtkGlobal.ClientInfoMap)
 }
 
-func GetClientMap() map[string]rtkMisc.ClientInfo {
+func GetClientMap() map[string]rtkCommon.ClientInfoEx {
 	rtkGlobal.ClientListRWMutex.RLock()
 	defer rtkGlobal.ClientListRWMutex.RUnlock()
 
@@ -327,12 +345,7 @@ func GetPeerClientIsSupportXClip(id string) bool {
 		return false
 	}
 
-	peerVer := rtkMisc.GetVersionSerialValue(clientInfo.Version)
-	if peerVer >= int(rtkGlobal.XClipVersionSerial) {
-		log.Printf("ID:[%s] version:[%s] serial is equal or larger than %d, so support XClip!", clientInfo.Version, rtkGlobal.XClipVersionSerial)
-		return true
-	}
-	return false
+	return clientInfo.IsSupportXClip
 }
 
 func WalkPath(dirPath string, pathList *[]string, fileInfoList *[]rtkCommon.FileInfo, totalSize *uint64) error {

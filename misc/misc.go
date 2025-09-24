@@ -302,6 +302,22 @@ func GetVersionValue(ver string) int {
 	}
 }
 
+// Take the third version number (serial number)
+func GetVersionSerialValue(ver string) int {
+	if !CheckFullVersionVaild(ver) {
+		log.Printf("version:%s is invalid!", ver)
+		return -1
+	}
+
+	verIdList := strings.Split(ver, ".")
+	verVal, err := strconv.Atoi(verIdList[2])
+	if err != nil {
+		return -1
+	} else {
+		return verVal
+	}
+}
+
 func GetShortVersion(fullVersion string) string {
 	verIdList := strings.Split(fullVersion, ".")
 	if len(verIdList) > 2 {

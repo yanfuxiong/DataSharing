@@ -9,6 +9,7 @@ import (
 	rtkClipboard "rtk-cross-share/client/clipboard"
 	rtkCommon "rtk-cross-share/client/common"
 	rtkConnection "rtk-cross-share/client/connection"
+	rtkUtils "rtk-cross-share/client/utils"
 	rtkMisc "rtk-cross-share/misc"
 	"time"
 )
@@ -36,13 +37,19 @@ func writeXClipDataToSocket(id string) rtkMisc.CrossShareErr {
 	}
 
 	log.Printf("(SRC) Start to copy XClip data, text:[%d] image:[%d] html:[%d]...", extData.TextLen, extData.ImageLen, extData.HtmlLen)
-	_, err := io.Copy(sXClip, bytes.NewReader(append(append(extData.Text, extData.Image...), extData.Html...)))
+	var reader io.Reader
+	if !rtkUtils.GetPeerClientIsSupportXClip(id) {
+		reader = bytes.NewReader(extData.Image)
+	} else {
+		reader = bytes.NewReader(append(append(extData.Text, extData.Image...), extData.Html...))
+	}
+	_, err := io.Copy(sXClip, reader)
 	if err != nil {
 		log.Printf("(SRC) Copy XClip data err:%+v", err)
 		return rtkMisc.ERR_BIZ_CB_SRC_COPY_IMAGE
 	}
 
-	log.Printf("(SRC) End to copy XClip data, use [%d] ms ...", time.Now().UnixMilli()-startTime)
+	log.Printf("(SRC) End to copy XClip data, use [%d] ms", time.Now().UnixMilli()-startTime)
 	bufio.NewWriter(sXClip).Flush()
 	return rtkMisc.SUCCESS
 }
@@ -105,7 +112,7 @@ func handleXClipDataFromSocket(id, ipAddr string) rtkMisc.CrossShareErr {
 			io.ReadFull(bytes.NewReader(xClipBuffer.Bytes()[(extData.TextLen+extData.ImageLen):]), htmlData)
 		}
 
-		log.Printf("(DST) IP[%s] End to Copy XClip data success, Total size:[%d] use [%d] ms...", ipAddr, nDstWrite, time.Now().UnixMilli()-startTime)
+		log.Printf("(DST) IP[%s] End to Copy XClip data success, Total size:[%d] use [%d] ms", ipAddr, nDstWrite, time.Now().UnixMilli()-startTime)
 		rtkClipboard.SetupDstPasteXClipData(id, textData, imageData, htmlData)
 		xClipBuffer.Reset()
 		return rtkMisc.SUCCESS

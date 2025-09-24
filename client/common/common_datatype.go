@@ -62,14 +62,12 @@ type ExtDataImg struct {
 }
 
 type ExtDataXClip struct {
-	Text      []byte // Text,UTF-8
-	Image     []byte // decode base64
-	Html      []byte // Html
-	TextLen   int64
-	ImageLen  int64
-	HtmlLen   int64
-	ImgSize   FileSize  // Deprecated: keep for compatibility
-	ImgHeader ImgHeader // Deprecated: keep for compatibility
+	Text     []byte // Text,UTF-8
+	Image    []byte // decode base64
+	Html     []byte // Html
+	TextLen  int64
+	ImageLen int64
+	HtmlLen  int64
 }
 
 type ClipBoardData struct {

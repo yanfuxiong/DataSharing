@@ -1,13 +1,13 @@
 package global
 
 const (
-	ClientVersion = "2.3.45"
+	ClientVersion = "2.3.46"
 
 	ClientDefaultVersion = "2.3.0" // when the other client is an old version and cannot obtain the version number, use this default version
+	XClipVersionSerial   = 46      // the client support XClip since third version(serial number) 46
 
-	XClipVersionSerial = 45 // the client support XClip since third version(serial number) 45
-	ProtocolID         = "/libp2p/dcutr"
-	HostProtocolID     = "host_register"
+	ProtocolID     = "/libp2p/dcutr"
+	HostProtocolID = "host_register"
 
 	HOST_ID                   = "12345" // This HOST ID is pseudo to test
 	ProtocolDirectID          = "/instruction/cross_share/1.0.0"

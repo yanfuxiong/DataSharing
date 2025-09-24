@@ -21,9 +21,7 @@ import (
 
 func HandleClipboardEvent(ctxMain context.Context, resultChan chan<- EventResult, id string) {
 	resultXClipChan := make(chan rtkCommon.ClipBoardData)
-	
 	rtkMisc.GoSafe(func() { rtkClipboard.WatchXClipData(ctxMain, id, resultXClipChan) })
-
 
 	for {
 		select {
@@ -31,25 +29,9 @@ func HandleClipboardEvent(ctxMain context.Context, resultChan chan<- EventResult
 			close(resultChan)
 			return
 		case cbData := <-resultXClipChan:
-			isSupportXClip := rtkUtils.GetPeerClientIsSupportXClip(id)
-			var fmtType rtkCommon.TransFmtType
-			if isSupportXClip {
-				fmtType = rtkCommon.XCLIP_CB
-			} else {
-				if extData, ok := cbData.ExtData.(rtkCommon.ExtDataXClip); ok {
-					if extData.ImageLen > 0 {
-						fmtType = rtkCommon.IMAGE_CB
-					} else if extData.TextLen > 0 {
-						fmtType = rtkCommon.TEXT_CB
-					} else {
-						log.Printf("[%s] ID:[%s] is not support XClip,and Text and Image is all empty! so skip!", rtkMisc.GetFuncInfo(), id)
-						continue
-					}
-				}
-			}
 			resultChan <- EventResult{
 				Cmd: DispatchCmd{
-					FmtType: fmtType,
+					FmtType: rtkCommon.XCLIP_CB,
 					State:   STATE_INIT,
 					Command: COMM_SRC,
 				},
@@ -160,14 +142,12 @@ func processInbandRead(buffer []byte, len int, msg *Peer2PeerMessage) rtkMisc.Cr
 		}
 
 		msg.ExtData = rtkCommon.ExtDataXClip{
-			Text:      []byte(extDataText.Text),
-			Image:     nil,
-			Html:      nil,
-			TextLen:   int64(utf8.RuneCountInString(extDataText.Text)),
-			ImageLen:  0,
-			HtmlLen:   0,
-			ImgSize:   rtkCommon.FileSize{},
-			ImgHeader: rtkCommon.ImgHeader{},
+			Text:     []byte(extDataText.Text),
+			Image:    nil,
+			Html:     nil,
+			TextLen:  int64(utf8.RuneCountInString(extDataText.Text)),
+			ImageLen: 0,
+			HtmlLen:  0,
 		}
 		msg.FmtType = rtkCommon.XCLIP_CB
 	case rtkCommon.FILE_DROP:
@@ -214,17 +194,15 @@ func processInbandRead(buffer []byte, len int, msg *Peer2PeerMessage) rtkMisc.Cr
 				return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
 			}
 			msg.ExtData = rtkCommon.ExtDataXClip{
-				Text:      nil,
-				Image:     nil,
-				Html:      nil,
-				TextLen:   0,
-				ImageLen:  int64(extDataImg.Size.SizeLow),
-				HtmlLen:   0,
-				ImgSize:   extDataImg.Size,
-				ImgHeader: extDataImg.Header,
+				Text:     nil,
+				Image:    nil,
+				Html:     nil,
+				TextLen:  0,
+				ImageLen: int64(extDataImg.Size.SizeLow),
+				HtmlLen:  0,
 			}
-			msg.FmtType = rtkCommon.XCLIP_CB
 		}
+		msg.FmtType = rtkCommon.XCLIP_CB
 	case rtkCommon.XCLIP_CB:
 		var extDataXClip rtkCommon.ExtDataXClip
 		err = json.Unmarshal(temp.ExtData, &extDataXClip)
@@ -381,32 +359,33 @@ func buildMessage(msg *Peer2PeerMessage, id string, event EventResult) bool {
 	msg.TimeStamp = uint64(time.Now().UnixMilli())
 
 	if !rtkUtils.GetPeerClientIsSupportXClip(id) && event.Cmd.FmtType == rtkCommon.XCLIP_CB {
-		if extData, ok := event.Data.(rtkCommon.ExtDataXClip); ok {
-			if extData.ImageLen > 0 {
-				msg.FmtType = rtkCommon.IMAGE_CB
-			} else if extData.TextLen > 0 {
-				msg.FmtType = rtkCommon.TEXT_CB
+		if event.Cmd.Command == COMM_SRC {
+			if extData, ok := rtkClipboard.GetLastClipboardData().ExtData.(rtkCommon.ExtDataXClip); ok {
+				if extData.ImageLen > 0 {
+					msg.FmtType = rtkCommon.IMAGE_CB
+				} else if extData.TextLen > 0 {
+					msg.FmtType = rtkCommon.TEXT_CB
+				}
+			} else {
+				log.Printf("[%s] Err: Import Clipboard data failed", rtkMisc.GetFuncInfo())
+				return false
 			}
-		} else {
-			log.Printf("[%s] Err: Import Clipboard - Image to msg failed", rtkMisc.GetFuncInfo())
-			return false
+		} else if event.Cmd.Command == COMM_DST { // only image have COMM_DST msg
+			msg.FmtType = rtkCommon.IMAGE_CB
 		}
 	}
 
 	switch msg.FmtType {
 	case rtkCommon.TEXT_CB:
-		if cbData, ok := event.Data.(rtkCommon.ClipBoardData); ok {
-			if extData, ok := cbData.ExtData.(rtkCommon.ExtDataXClip); ok {
-				msg.ExtData = rtkCommon.ExtDataText{
-					Text: string(extData.Text),
-				}
-				return true
-			} else {
-				log.Printf("[%s %d] Err: Import Clipboard - Text to msg failed", rtkMisc.GetFuncName(), rtkMisc.GetLine())
-				return false
+		if extData, ok := rtkClipboard.GetLastClipboardData().ExtData.(rtkCommon.ExtDataXClip); ok {
+			msg.ExtData = rtkCommon.ExtDataText{
+				Text: string(extData.Text),
 			}
+			return true
+		} else {
+			log.Printf("[%s] Err: Import ExtDataXClip - Text to msg failed", rtkMisc.GetFuncInfo())
+			return false
 		}
-
 	case rtkCommon.IMAGE_CB:
 		// Paste image and require data
 		if event.Cmd.State == STATE_IO && event.Cmd.Command == COMM_DST {
@@ -415,9 +394,19 @@ func buildMessage(msg *Peer2PeerMessage, id string, event EventResult) bool {
 			return true
 		} else if event.Cmd.Command == COMM_SRC {
 			if extData, ok := rtkClipboard.GetLastClipboardData().ExtData.(rtkCommon.ExtDataXClip); ok {
+				_, width, height := rtkUtils.GetByteImageInfo(extData.Image)
 				msg.ExtData = rtkCommon.ExtDataImg{
-					Size:   extData.ImgSize,
-					Header: extData.ImgHeader,
+					Size: rtkCommon.FileSize{
+						SizeHigh: uint32(0),
+						SizeLow:  uint32(extData.ImageLen),
+					},
+					Header: rtkCommon.ImgHeader{
+						Width:       int32(width),
+						Height:      int32(height),
+						Planes:      1,
+						BitCount:    32,
+						Compression: 0,
+					},
 				}
 				return true
 			} else {
@@ -457,7 +446,7 @@ func buildMessage(msg *Peer2PeerMessage, id string, event EventResult) bool {
 			return true
 		}
 	case rtkCommon.XCLIP_CB:
-		//
+		// Accept XClip and require data
 		if event.Cmd.State == STATE_IO && event.Cmd.Command == COMM_DST {
 			msg.State = STATE_TRANS
 			msg.Command = COMM_DST
@@ -736,9 +725,16 @@ func processXClip(id string, event EventResult) bool {
 		}
 		rtkMisc.GoSafe(func() { processIoWrite(id, clientInfo.IpAddr, event.Cmd.FmtType) })
 	} else {
-		if nextState == STATE_TRANS && nextCommand == COMM_DST {
+		if nextState == STATE_INFO && nextCommand == COMM_DST && !rtkUtils.GetPeerClientIsSupportXClip(id) { // not support XClip
 			if extData, ok := event.Data.(rtkCommon.ExtDataXClip); ok {
-				rtkClipboard.SetupDstPasteXClipHead(id, extData.TextLen, extData.ImageLen, extData.HtmlLen, extData.ImgHeader)
+				if extData.TextLen > 0 {
+					rtkClipboard.SetupDstPasteXClipData(id, extData.Text, nil, nil)
+					return true
+				}
+			}
+		} else if nextState == STATE_TRANS && nextCommand == COMM_DST {
+			if extData, ok := event.Data.(rtkCommon.ExtDataXClip); ok {
+				rtkClipboard.SetupDstPasteXClipHead(id, extData.TextLen, extData.ImageLen, extData.HtmlLen)
 			} else {
 				log.Printf("[%s] Err: Setup past XClip failed", rtkMisc.GetFuncInfo())
 				return false

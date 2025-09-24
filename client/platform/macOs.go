@@ -3,8 +3,6 @@
 package platform
 
 import (
-	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -20,8 +18,6 @@ import (
 )
 
 var (
-	imageData                bytes.Buffer
-	copyTextChan             = make(chan string, 100)
 	isNetWorkConnected       bool // Deprecated: unused
 	ifConfirmDocumentsAccept bool
 	privKeyFile              string
@@ -67,10 +63,6 @@ func GetLockFilePath() string {
 type (
 	CallbackNetworkSwitchFunc              func()
 	CallbackXClipCopyFunc                  func(cbText, cbImage, cbHtml []byte)
-	CallbackMethodText                     func(string)
-	CallbackMethodImage                    func(string)
-	CallbackCopyImageFunc                  func(rtkCommon.ImgHeader, []byte)
-	CallbackPasteImageFunc                 func()
 	CallbackFileDropResponseFunc           func(string, rtkCommon.FileDropCmd, string)
 	CallbackDragFileListRequestFunc        func([]rtkCommon.FileInfo, []string, uint64, uint64, string)
 	CallbackFileListDragNotify             func(string, string, string, uint32, uint64, uint64, string, uint64)
@@ -103,10 +95,6 @@ type (
 var (
 	callbackNetworkSwitch              CallbackNetworkSwitchFunc              = nil
 	callbackXClipCopyData              CallbackXClipCopyFunc                  = nil
-	callbackMethodText                 CallbackMethodText                     = nil
-	callbackMethodImage                CallbackMethodImage                    = nil
-	callbackInstanceCopyImage          CallbackCopyImageFunc                  = nil
-	callbackInstancePasteImage         CallbackPasteImageFunc                 = nil
 	callbackInstanceFileDropResponseCB CallbackFileDropResponseFunc           = nil
 	callbackDragFileListRequestCB      CallbackDragFileListRequestFunc        = nil
 	callbackFileListDragNotify         CallbackFileListDragNotify             = nil
@@ -134,14 +122,6 @@ var (
 )
 
 /*======================================= Used by main.go, set Callback =======================================*/
-
-func SetCallbackMethodText(cb CallbackMethodText) {
-	callbackMethodText = cb
-}
-
-func SetCallbackMethodImage(cb CallbackMethodImage) {
-	callbackMethodImage = cb
-}
 
 func SetCallbackFileListNotify(cb CallbackFileListDragNotify) {
 	callbackFileListDragNotify = cb
@@ -200,14 +180,6 @@ func SetGoNetworkSwitchCallback(cb CallbackNetworkSwitchFunc) {
 // Notify to Clipboard/FileDrop
 func SetCopyXClipCallback(cb CallbackXClipCopyFunc) {
 	callbackXClipCopyData = cb
-}
-
-func SetCopyImageCallback(cb CallbackCopyImageFunc) {
-	callbackInstanceCopyImage = cb
-}
-
-func SetPasteImageCallback(cb CallbackPasteImageFunc) {
-	callbackInstancePasteImage = cb
 }
 
 func SetGoFileDropResponseCallback(cb CallbackFileDropResponseFunc) {
@@ -341,6 +313,10 @@ func GoExtractDIASCallback() {
 	callbackExtractDIAS()
 }
 
+func SetConfirmDocumentsAccept(ifConfirm bool) {
+	ifConfirmDocumentsAccept = ifConfirm
+}
+
 func GoSetAuthStatusCode(status uint8) {
 	if callbackAuthStatusCodeCB == nil {
 		log.Println("callbackAuthStatusCodeCB is null!")
@@ -357,25 +333,13 @@ func GoSetDIASSourceAndPort(src, port uint8) {
 	callbackDIASSourceAndPortCB(src, port)
 }
 
-func SetConfirmDocumentsAccept(ifConfirm bool) {
-	ifConfirmDocumentsAccept = ifConfirm
-}
-
-func GoCopyXClipData(text, image, html []byte, imgHeader rtkCommon.ImgHeader) {
+func GoCopyXClipData(text, image, html []byte) {
 	if callbackXClipCopyData == nil {
 		log.Println("callbackXClipCopyData is null!")
 		return
 	}
 
-	callbackXClipCopyData(text, image, html, imgHeader)
-}
-
-func GoCopyImage(imgHeader rtkCommon.ImgHeader, data []byte) {
-	callbackInstanceCopyImage(imgHeader, data)
-}
-
-func GoPasteImage() {
-	callbackInstancePasteImage()
+	callbackXClipCopyData(text, image, html)
 }
 
 func GoFileDropResponse(id string, fileCmd rtkCommon.FileDropCmd, fileName string) {
@@ -425,34 +389,7 @@ func GoCancelFileTrans(ip, id string, timestamp uint64) {
 	callbackCancelFileTrans(id, ip, timestamp)
 }
 
-func SendMessage(strText string) {
-	log.Printf("SendMessage:[%s] ", strText)
-	if strText == "" || len(strText) == 0 {
-		return
-	}
-
-	nCount := rtkUtils.GetClientCount()
-	for i := 0; i < nCount; i++ {
-		copyTextChan <- strText
-	}
-}
-
 /*======================================= Used  by GO business =======================================*/
-
-func WatchClipboardText(ctx context.Context, resultChan chan<- string) {
-	for {
-		select {
-		case <-ctx.Done():
-			close(resultChan)
-			return
-		case curCopyText := <-copyTextChan:
-			if len(curCopyText) > 0 {
-				log.Println("DEBUG: watchClipboardText - got new message: ", curCopyText)
-				resultChan <- curCopyText
-			}
-		}
-	}
-}
 
 func GoSetupDstPasteFile(desc, fileName, platform string, fileSizeHigh uint32, fileSizeLow uint32) {
 
@@ -487,20 +424,6 @@ func GoDragFileListFolderNotify(ip, id, folderName string, timestamp uint64) {
 	}
 	log.Printf("(DST) GoDragFileListFolderNotify source id:%s ip:[%s] folder:[%s] timestamp:%d", id, ip, folderName, timestamp)
 	callbackFileListDragFolderNotify(ip, id, folderName, timestamp)
-}
-
-func ReceiveImageCopyDataDone(fileSize int64, imgHeader rtkCommon.ImgHeader) {
-	log.Printf("[%s]: size:%d, (width, height):(%d,%d)", rtkMisc.GetFuncInfo(), fileSize, imgHeader.Width, imgHeader.Height)
-	if callbackMethodImage == nil {
-		log.Println(" CallbackInstance is null !")
-		return
-	}
-	rtkMisc.GoSafe(func() {
-		imageBase64 := rtkUtils.Base64Encode(imageData.Bytes())
-		// log.Printf("len[%d][%d][%d][%+v]", len(ImageData), len(imageBase64), rtkGlobal.Handler.CopyImgHeader.Width, imageBase64)
-		callbackMethodImage(imageBase64)
-		imageData.Reset()
-	})
 }
 
 func GoUpdateClientStatusEx(id string, status uint8) {
@@ -541,32 +464,12 @@ func GoSetupDstPasteXClipData(cbText, cbImage, cbHtml []byte) {
 
 }
 
-func GoSetupDstPasteText(content []byte) {
-	log.Printf("GoSetupDstPasteText:%s \n\n", string(content))
-	if callbackMethodText == nil {
-		log.Println("GoSetupDstPasteText - failed - callbackMethodText is nil")
-		return
-	}
-	callbackMethodText(string(content))
-}
-
-func GoSetupDstPasteImage(desc string, content []byte, imgHeader rtkCommon.ImgHeader, dataSize uint32) {
-	log.Printf("GoSetupDstPasteImage from ID %s, len:[%d] dataSize:[%d]\n\n", desc, len(content), dataSize)
-	imageData.Reset()
-	imageData.Grow(int(dataSize))
-	callbackInstancePasteImage()
-}
-
-func GoDataTransfer(data []byte) {
-	imageData.Write(data)
-}
-
 func GoUpdateMultipleProgressBar(ip, id, deviceName, currentFileName string, sentFileCnt, totalFileCnt uint32, currentFileSize, totalSize, sentSize, timestamp uint64) {
 	if callbackUpdateMultipleProgressBar == nil {
 		log.Println("CallbackUpdateMultipleProgressBar is null !")
 		return
 	}
-	//log.Printf("GoUpdateMultipleProgressBar ip:[%s] [%s] currentFileName:[%s] recvSize:[%d] total:[%d]", ip, deviceName, currentFileName, sentSize, totalSize)
+	//log.Printf("GoUpdateMultipleProgressBar ip:[%s] currentFileName:[%s] recvSize:[%d] total:[%d]", ip, currentFileName, sentSize, totalSize)
 	callbackUpdateMultipleProgressBar(ip, id, currentFileName, sentFileCnt, totalFileCnt, currentFileSize, totalSize, sentSize, timestamp)
 }
 

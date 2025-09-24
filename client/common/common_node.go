@@ -29,3 +29,8 @@ type ClientListInfo struct {
 	IpAddr     string // self node IpAddr
 	ClientList []rtkMisc.ClientInfo
 }
+
+type ClientInfoEx struct {
+	rtkMisc.ClientInfo
+	IsSupportXClip bool
+}

@@ -7,12 +7,8 @@ package main
 #include <stdlib.h>
 #include <stdint.h>
 
-typedef void (*CallbackMethodText)(char*);
-typedef void (*CallbackMethodImage)(char* content);
-typedef void (*EventCallback)(int event);
-typedef void (*CallbackMethodFileConfirm)(char* id, char* platform, char* fileName, long long fileSize);
-typedef void (*CallbackMethodFoundPeer)();
 typedef void (*CallbackUpdateClientStatus)(char* clientJsonStr);
+typedef void (*CallbackMethodFoundPeer)();
 typedef void (*CallbackMethodFileListNotify)(char* ip, char* id, char* platform,unsigned int fileCnt, unsigned long long totalSize,unsigned long long timestamp, char* firstFileName, unsigned long long firstFileSize);
 typedef void (*CallbackUpdateMultipleProgressBar)(char* ip,char* id, char* deviceName, char* currentfileName,unsigned int recvFileCnt, unsigned int totalFileCnt,unsigned long long currentFileSize,unsigned long long totalSize,unsigned long long recvSize,unsigned long long timestamp);
 typedef void (*CallbackFileError)(char* id, char* fileName, char* err);
@@ -25,10 +21,6 @@ typedef void (*CallbackRequestUpdateClientVersion)(char* clientVer);
 typedef void (*CallbackNotifyErrEvent)(char* id, unsigned int errCode, char* arg1, char* arg2, char* arg3, char* arg4);
 typedef void (*CallbackNotifyBrowseResult)(char* monitorName, char* instance, char* ip, char* version, unsigned long long timestamp);
 
-static CallbackMethodText gCallbackMethodText = 0;
-static CallbackMethodImage gCallbackMethodImage = 0;
-static EventCallback gEventCallback = 0;
-static CallbackMethodFileConfirm gCallbackMethodFileConfirm = 0;
 static CallbackMethodFoundPeer gCallbackMethodFoundPeer = 0;
 static CallbackUpdateClientStatus gCallbackUpdateClientStatus = 0;
 static CallbackMethodFileListNotify gCallbackMethodFileListNotify = 0;
@@ -43,22 +35,7 @@ static CallbackRequestUpdateClientVersion gCallbackRequestUpdateClientVersion = 
 static CallbackNotifyErrEvent gCallbackNotifyErrEvent = 0;
 static CallbackNotifyBrowseResult gCallbackNotifyBrowseResult = 0;
 
-static void setCallbackMethodText(CallbackMethodText cb) {gCallbackMethodText = cb;}
-static void invokeCallbackMethodText(char* str) {
-	if (gCallbackMethodText) {gCallbackMethodText(str);}
-}
-static void setCallbackMethodImage(CallbackMethodImage cb) {gCallbackMethodImage = cb;}
-static void invokeCallbackMethodImage(char* str) {
-	if (gCallbackMethodImage) {gCallbackMethodImage(str);}
-}
-static void setEventCallback(EventCallback cb) {gEventCallback = cb;}
-static void invokeEventCallback(int event) {
-	if (gEventCallback) {gEventCallback(event);}
-}
-static void setCallbackMethodFileConfirm(CallbackMethodFileConfirm cb) {gCallbackMethodFileConfirm = cb;}
-static void invokeCallbackMethodFileConfirm(char* id, char* platform, char* fileName, long long fileSize) {
-	if (gCallbackMethodFileConfirm) {gCallbackMethodFileConfirm(id, platform, fileName, fileSize);}
-}
+
 static void setCallbackUpdateClientStatus(CallbackUpdateClientStatus cb) {gCallbackUpdateClientStatus = cb;}
 static void invokeCallbackUpdateClientStatus(char* clientJsonStr) {
 	if (gCallbackUpdateClientStatus) {gCallbackUpdateClientStatus(clientJsonStr);}
@@ -135,10 +112,6 @@ func main() {
 }
 
 func init() {
-	rtkPlatform.SetCallbackMethodText(GoTriggerCallbackMethodText)
-	rtkPlatform.SetCallbackMethodImage(GoTriggerCallbackMethodImage)
-	rtkPlatform.SetEventCallback(GoTriggerEventCallback)
-	rtkPlatform.SetCallbackMethodFileConfirm(GoTriggerCallbackMethodFileConfirm)
 	rtkPlatform.SetCallbackFileListNotify(GoTriggerCallbackMethodFileListNotify)
 	rtkPlatform.SetCallbackUpdateClientStatus(GoTriggerCallbackUpdateClientStatus)
 	rtkPlatform.SetCallbackMethodFoundPeer(GoTriggerCallbackMethodFoundPeer)
@@ -160,35 +133,6 @@ type MultiFilesDropRequestInfo struct {
 	Id       string
 	Ip       string
 	PathList []string
-}
-
-func GoTriggerCallbackMethodText(str string) {
-	cstr := C.CString(str)
-	defer C.free(unsafe.Pointer(cstr))
-	C.invokeCallbackMethodText(cstr)
-}
-
-func GoTriggerCallbackMethodImage(str string) {
-	log.Printf("[%s] GoTriggerCallbackMethodImage", rtkMisc.GetFuncInfo())
-	cstr := C.CString(str)
-	defer C.free(unsafe.Pointer(cstr))
-	C.invokeCallbackMethodImage(cstr)
-}
-
-func GoTriggerEventCallback(event int) {
-	cevent := C.int(event)
-	C.invokeEventCallback(cevent)
-}
-
-func GoTriggerCallbackMethodFileConfirm(id, platform, fileName string, fileSize int64) {
-	cid := C.CString(id)
-	cplatform := C.CString(platform)
-	cfileName := C.CString(fileName)
-	cfileSize := C.longlong(fileSize)
-	defer C.free(unsafe.Pointer(cid))
-	defer C.free(unsafe.Pointer(cplatform))
-	defer C.free(unsafe.Pointer(cfileName))
-	C.invokeCallbackMethodFileConfirm(cid, cplatform, cfileName, cfileSize)
 }
 
 func GoTriggerCallbackUpdateClientStatus(clientInfo string) {
@@ -337,28 +281,6 @@ func GoTriggerCallbackNotifyBrowseResult(monitorName, instance, ipAddr, version 
 	C.invokeCallbackNotifyBrowseResult(cMonitorName, cInstance, cIpAddr, cVersion, cTimeStamp)
 }
 
-//export SetCallbackMethodText
-func SetCallbackMethodText(cb C.CallbackMethodText) {
-	log.Printf("[%s] SetCallbackMethodText", rtkMisc.GetFuncInfo())
-	C.setCallbackMethodText(cb)
-}
-
-//export SetCallbackMethodImage
-func SetCallbackMethodImage(cb C.CallbackMethodImage) {
-	log.Printf("[%s] SetCallbackMethodImage", rtkMisc.GetFuncInfo())
-	C.setCallbackMethodImage(cb)
-}
-
-//export SetEventCallback
-func SetEventCallback(cb C.EventCallback) {
-	C.setEventCallback(cb)
-}
-
-//export SetCallbackMethodFileConfirm
-func SetCallbackMethodFileConfirm(cb C.CallbackMethodFileConfirm) {
-	C.setCallbackMethodFileConfirm(cb)
-}
-
 //export SetCallbackUpdateClientStatus
 func SetCallbackUpdateClientStatus(cb C.CallbackUpdateClientStatus) {
 	C.setCallbackUpdateClientStatus(cb)
@@ -448,11 +370,6 @@ func SetMsgEventFunc(event int, arg1, arg2, arg3, arg4 string) {
 	rtkPlatform.GoSetMsgEventFunc(uint32(event), arg1, arg2, arg3, arg4)
 }
 
-//export SendText
-func SendText(s string) {
-	rtkPlatform.SendMessage(s)
-}
-
 //export GetClientListEx
 func GetClientListEx() *C.char {
 	clientList := rtkUtils.GetClientListEx()
@@ -465,39 +382,6 @@ func GetClientList() *C.char {
 	clientList := rtkUtils.GetClientList()
 	log.Printf("GetClientList :[%s]", clientList)
 	return C.CString(clientList)
-}
-
-//export SendImage
-func SendImage(content string) {
-	if content == "" || len(content) == 0 {
-		return
-	}
-	data := rtkUtils.Base64Decode(content)
-	if data == nil {
-		log.Printf("[%s] Image base64 decode error", rtkMisc.GetFuncInfo())
-		return
-	}
-
-	format, width, height := rtkUtils.GetByteImageInfo(data)
-	jpegData, err := rtkUtils.ImageToJpeg(format, data)
-	if err != nil {
-		return
-	}
-	if len(jpegData) == 0 {
-		log.Printf("[CopyImage] Error: jpeg data is empty")
-		return
-	}
-	log.Printf("SendImage:[%d][%d]", len(content), len(jpegData))
-
-	imgHeader := rtkCommon.ImgHeader{
-		Width:       int32(width),
-		Height:      int32(height),
-		Planes:      1,
-		BitCount:    32,
-		Compression: 0,
-	}
-
-	rtkPlatform.GoCopyImage(imgHeader, jpegData)
 }
 
 //export SendAddrsFromPlatform
@@ -611,12 +495,6 @@ func GetBuildDate() *C.char {
 func SetupRootPath(rootPath string) {
 	log.Printf("[%s] rootPath:[%s]", rtkMisc.GetFuncInfo(), rootPath)
 	rtkPlatform.SetupRootPath(rootPath)
-}
-
-//export SetSrcAndPort
-func SetSrcAndPort(source, port int) {
-	log.Printf("[%s] , source:[%d], port:[%d]", rtkMisc.GetFuncInfo(), source, port)
-	rtkPlatform.GoSetSrcAndPort(source, port)
 }
 
 //export SetBrowseMdnsResult

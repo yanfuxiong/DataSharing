@@ -50,15 +50,11 @@ static void UpdateMultipleProgressBarCallbackFunc(UpdateMultipleProgressBarCallb
     if (cb) cb(ipPort, clientID, currentFileName, sentFilesCnt, totalFilesCnt, currentFileSize, totalSize, sentSize, timestamp);
 }
 
-typedef void (*DataTransferCallback)(const unsigned char *data, uint32_t size);
-static void DataTransferCallbackFunc(DataTransferCallback cb, const unsigned char *data, uint32_t size) {
-    if (cb) cb(data, size);
-}
-
 typedef void (*UpdateClientStatusExCallback)(const char *clientJson);
 static void UpdateClientStatusExCallbackFunc(UpdateClientStatusExCallback cb, const char *clientJson) {
     if (cb) cb(clientJson);
 }
+
 typedef void (*UpdateClientStatusCallback)(uint32_t status, const char *ipPort, const char *id, const wchar_t *name, const char *deviceType);
 static void UpdateClientStatusCallbackFunc(UpdateClientStatusCallback cb, uint32_t status, const char *ipPort, const char *id, const wchar_t *name, const char *deviceType) {
     if (cb) cb(status, ipPort, id, name, deviceType);
@@ -97,11 +93,6 @@ static void RequestSourceAndPortCallbackFunc(RequestSourceAndPortCallback cb) {
 typedef void (*SetupDstPasteXClipDataCallback)(const char *text,const char *image,const char *html);
 static void SetupDstPasteXClipDataCallbackFunc(SetupDstPasteXClipDataCallback cb, const char *text,const char *image,const char *html) {
     if (cb) cb(text, image, html);
-}
-
-typedef void (*SetupDstPasteImageCallback)(const wchar_t* desc, IMAGE_HEADER imgHeader, uint32_t dataSize);
-static void SetupDstPasteImageCallbackFunc(SetupDstPasteImageCallback cb, const wchar_t* desc, IMAGE_HEADER imgHeader, uint32_t dataSize) {
-    if (cb) cb(desc, imgHeader, dataSize);
 }
 
 typedef void (*RequestUpdateClientVersionCallback)(const char *clienVersion);
@@ -200,7 +191,6 @@ var (
 	g_DragFileListNotifyCallback         C.DragFileListNotifyCallback         = nil
 	g_MultiFilesDropNotifyCallback       C.MultiFilesDropNotifyCallback       = nil
 	g_UpdateMultipleProgressBarCallback  C.UpdateMultipleProgressBarCallback  = nil
-	g_DataTransferCallback               C.DataTransferCallback               = nil
 	g_UpdateClientStatusExCallback       C.UpdateClientStatusExCallback       = nil
 	g_UpdateClientStatusCallback         C.UpdateClientStatusCallback         = nil
 	g_UpdateSystemInfoCallback           C.UpdateSystemInfoCallback           = nil
@@ -210,7 +200,6 @@ var (
 	g_DIASStatusCallback                 C.DIASStatusCallback                 = nil
 	g_RequestSourceAndPortCallback       C.RequestSourceAndPortCallback       = nil
 	g_SetupDstPasteXClipDataCallback     C.SetupDstPasteXClipDataCallback     = nil
-	g_SetupDstPasteImageCallback         C.SetupDstPasteImageCallback         = nil
 	g_RequestUpdateClientVersionCallback C.RequestUpdateClientVersionCallback = nil
 	g_NotifyErrEventCallback             C.NotifyErrEventCallback             = nil
 )
@@ -224,8 +213,6 @@ func init() {
 	rtkPlatform.SetUpdateSystemInfoCallback(GoTriggerCallbackUpdateSystemInfo)
 	rtkPlatform.SetUpdateClientStatusCallback(GoTriggerCallbackUpdateClientStatus)
 	rtkPlatform.SetUpdateClientStatusExCallback(GoTriggerCallbackUpdateClientStatusEx)
-	rtkPlatform.SetImageDataTransferCallback(GoTriggerCallbackImageDataTransfer)
-	rtkPlatform.SetSetupDstImageCallback(GoTriggerCallbackSetupDstPasteImage)
 	rtkPlatform.SetPasteXClipCallback(GoTriggerCallbackSetupDstPasteXClipData)
 	rtkPlatform.SetCleanClipboardCallback(GoTriggerCallbackCleanClipboard)
 	rtkPlatform.SetDragFileListNotifyCallback(GoTriggerCallbackDragFileListNotify)
@@ -333,41 +320,6 @@ func GoTriggerCallbackSetupDstPasteXClipData(text, image, html string) {
 
 	log.Printf("[%s] text len:%d , image len:%d, html len:%d\n\n", rtkMisc.GetFuncInfo(), len(text), len(image), len(html))
 	C.SetupDstPasteXClipDataCallbackFunc(g_SetupDstPasteXClipDataCallback, cText, cImage, cHtml)
-}
-
-func GoTriggerCallbackSetupDstPasteImage(Id string, content []byte, imgHeader rtkCommon.ImgHeader, dataSize uint32) {
-	if g_SetupDstPasteImageCallback == nil {
-		log.Printf("%s g_SetupDstPasteImageCallback is not set!", rtkMisc.GetFuncInfo())
-		return
-	}
-
-	log.Printf("[Windows] SetupDstPasteImage with compression, height=%d, width=%d, bitCount=%d, size=%d",
-		imgHeader.Height, imgHeader.Width, imgHeader.BitCount, dataSize)
-
-	cId := GoStringToWChar(Id)
-	defer C.free(unsafe.Pointer(cId))
-
-	cImgHeader := C.IMAGE_HEADER{
-		width:       C.int(imgHeader.Width),
-		height:      C.int(imgHeader.Height),
-		planes:      C.ushort(imgHeader.Planes),
-		bitCount:    C.ushort(imgHeader.BitCount),
-		compression: C.ulong(imgHeader.Compression),
-	}
-	cDataSize := C.uint32_t(dataSize)
-
-	C.SetupDstPasteImageCallbackFunc(g_SetupDstPasteImageCallback, cId, cImgHeader, cDataSize)
-}
-
-func GoTriggerCallbackImageDataTransfer(data []byte) {
-	if g_DataTransferCallback == nil {
-		log.Printf("%s g_DataTransferCallback is not set!", rtkMisc.GetFuncInfo())
-		return
-	}
-
-	cLen := C.uint32_t(len(data))
-	log.Printf("[%s] len:%d", rtkMisc.GetFuncInfo(), cLen)
-	C.DataTransferCallbackFunc(g_DataTransferCallback, (*C.uchar)(unsafe.Pointer(&data[0])), cLen)
 }
 
 func GoTriggerCallbackCleanClipboard() {
@@ -525,32 +477,13 @@ func InitGoServer(cRootPath, cDownloadPath, cDeviceName *C.wchar_t) {
 	rtkCmd.Run()
 }
 
-//export SetClipboardCopyImg
-func SetClipboardCopyImg(cHeader C.IMAGE_HEADER, bitmapData *C.uchar, cDataSize C.ulong) {
-
-	imgHeader := rtkCommon.ImgHeader{
-		Width:       int32(cHeader.width),
-		Height:      int32(cHeader.height),
-		Planes:      uint16(cHeader.planes),
-		BitCount:    uint16(cHeader.bitCount),
-		Compression: uint32(cHeader.compression),
-	}
-
-	data := C.GoBytes(unsafe.Pointer(bitmapData), C.int(cDataSize))
-	jpgData, err := rtkUtils.BmpToJpg(data, int(imgHeader.Width), int(imgHeader.Height), int(imgHeader.BitCount))
-	if err != nil {
-		return
-	}
-
-	rtkPlatform.GoCopyImage(imgHeader, jpgData)
-	log.Printf("Clipboard image content, width[%d] height[%d] data size[%d] \n", imgHeader.Width, imgHeader.Height, len(jpgData))
-}
-
 //export SendXClipData
 func SendXClipData(cText, cImage, cHtml *C.char) {
 	text := C.GoString(cText)
 	image := C.GoString(cImage)
 	html := C.GoString(cHtml)
+	log.Printf("[%s] text:%d, image:%d, html:%d\n\n", rtkMisc.GetFuncInfo(), len(text), len(image), len(html))
+
 	imgData := []byte(nil)
 	if image != "" {
 		startTime := time.Now().UnixMilli()
@@ -804,12 +737,6 @@ func SetUpdateMultipleProgressBarCallback(callback C.UpdateMultipleProgressBarCa
 	g_UpdateMultipleProgressBarCallback = callback
 }
 
-//export SetDataTransferCallback
-func SetDataTransferCallback(callback C.DataTransferCallback) {
-	log.Println("SetDataTransferCallback")
-	g_DataTransferCallback = callback
-}
-
 //export SetUpdateClientStatusExCallback
 func SetUpdateClientStatusExCallback(callback C.UpdateClientStatusExCallback) {
 	log.Println("SetUpdateClientStatusExCallback")
@@ -862,12 +789,6 @@ func SetRequestSourceAndPortCallback(callback C.RequestSourceAndPortCallback) {
 func SetSetupDstPasteXClipDataCallback(cb C.SetupDstPasteXClipDataCallback) {
 	log.Println("SetSetupDstPasteXClipDataCallback")
 	g_SetupDstPasteXClipDataCallback = cb
-}
-
-//export SetSetupDstPasteImageCallback
-func SetSetupDstPasteImageCallback(cb C.SetupDstPasteImageCallback) {
-	log.Println("SetSetupDstPasteImageCallback")
-	g_SetupDstPasteImageCallback = cb
 }
 
 //export SetRequestUpdateClientVersionCallback

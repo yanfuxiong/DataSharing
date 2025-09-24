@@ -88,47 +88,10 @@ func SendXClipData(text, image, html string) {
 	rtkPlatform.GoCopyXClipData([]byte(text), imgData, []byte(html))
 }
 
-func SendMessage(s string) {
-	rtkPlatform.SendMessage(s)
-}
-
 func GetClientListEx() string {
 	clientList := rtkUtils.GetClientListEx()
 	log.Printf("[%s] json Str:%s", rtkMisc.GetFuncInfo(), clientList)
 	return clientList
-}
-
-func SendImage(content string) {
-	if content == "" || len(content) == 0 {
-		log.Printf("[%s] content is null!", rtkMisc.GetFuncInfo())
-		return
-	}
-	data := rtkUtils.Base64Decode(content)
-	if data == nil {
-		log.Printf("[%s] Image base64 decode error", rtkMisc.GetFuncInfo())
-		return
-	}
-
-	format, width, height := rtkUtils.GetByteImageInfo(data)
-	jpegData, err := rtkUtils.ImageToJpeg(format, data)
-	if err != nil {
-		return
-	}
-	if len(jpegData) == 0 {
-		log.Printf("[CopyImage] Error: jpeg data is empty")
-		return
-	}
-	log.Printf("SendImage:[%d][%d]", len(content), len(jpegData))
-
-	imgHeader := rtkCommon.ImgHeader{
-		Width:       int32(width),
-		Height:      int32(height),
-		Planes:      1,
-		BitCount:    32,
-		Compression: 0,
-	}
-
-	rtkPlatform.GoCopyImage(imgHeader, jpegData)
 }
 
 func SendAddrsFromPlatform(addrsList string) {

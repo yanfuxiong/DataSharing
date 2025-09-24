@@ -2,7 +2,6 @@ package global
 
 import (
 	rtkCommon "rtk-cross-share/client/common"
-	rtkMisc "rtk-cross-share/misc"
 	"sync"
 	"time"
 )
@@ -25,7 +24,7 @@ var (
 	ListenHost        string
 	ListenPort        int
 	GuestList         []string
-	ClientInfoMap     = make(map[string]rtkMisc.ClientInfo)
+	ClientInfoMap     = make(map[string]rtkCommon.ClientInfoEx)
 	ClientListRWMutex = sync.RWMutex{}
 
 	RTT map[string]time.Duration = make(map[string]time.Duration)

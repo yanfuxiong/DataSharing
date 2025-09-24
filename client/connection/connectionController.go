@@ -155,7 +155,6 @@ func setupNode(ip string, port int) error {
 		return fmt.Errorf("addr is null!")
 	}
 
-	tempNode.Network().Listen(tempNode.Addrs()...)
 	for _, p := range tempNode.Peerstore().Peers() {
 		tempNode.Peerstore().ClearAddrs(p)
 	}
