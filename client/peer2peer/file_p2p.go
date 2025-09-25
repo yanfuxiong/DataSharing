@@ -22,6 +22,11 @@ import (
 	"github.com/libp2p/go-yamux/v5"
 )
 
+const (
+	copyBufSize      = 4 << 20 // 4MB
+	copyBufShortSize = 1 << 20 // 1MB
+)
+
 var (
 	fileTransferInfoMap sync.Map //key: ID
 )
@@ -224,23 +229,29 @@ func writeFileDataToSocket(id, ipAddr string, fileDropReqData *rtkFileDrop.FileD
 		ctx:        ctx,
 	}
 
-	log.Printf("(SRC) Start Copy file data to IP:[%s], file count:[%d] folder count:[%d] totalSize:[%d] TotalDescribe:[%s] ...", ipAddr, fileCount, folderCount, fileDropReqData.TotalSize, fileDropReqData.TotalDescribe)
+	copyBuffer := make([]byte, copyBufSize)
+	log.Printf("(SRC) Start Copy file data to IP:[%s], id:[%d] file count:[%d] folder count:[%d] totalSize:[%d] TotalDescribe:[%s]...", ipAddr, fileDropReqData.TimeStamp, fileCount, folderCount, fileDropReqData.TotalSize, fileDropReqData.TotalDescribe)
 
 	for _, file := range fileDropReqData.SrcFileList {
 		fileSize := uint64(file.FileSize_.SizeHigh)<<32 | uint64(file.FileSize_.SizeLow)
-		errCode := writeFileToSocket(id, ipAddr, &cancelableWrite, &cancelableRead, &progressBar, file.FileName, file.FilePath, fileSize)
+		if fileSize < uint64(copyBufSize) {
+			copyBuffer = copyBuffer[:copyBufShortSize]
+		} else {
+			copyBuffer = copyBuffer[:copyBufSize]
+		}
+		errCode := writeFileToSocket(id, ipAddr, &cancelableWrite, &cancelableRead, &progressBar, file.FileName, file.FilePath, fileSize, &copyBuffer)
 		if errCode != rtkMisc.SUCCESS {
 			return errCode
 		}
 	}
 
-	log.Printf("(SRC) End to Copy all file data to IP:[%s] success,TotalDescribe:[%s], total use [%d] ms", ipAddr, fileDropReqData.TotalDescribe, time.Now().UnixMilli()-startTime)
+	log.Printf("(SRC) End Copy all file data to IP:[%s] success, id:[%d] file count:[%d] TotalDescribe:[%s], total use [%d] ms", ipAddr, fileDropReqData.TimeStamp, fileCount, fileDropReqData.TotalDescribe, time.Now().UnixMilli()-startTime)
 
 	ShowNotiMessageSendFileTransferDone(fileDropReqData, id)
 	return rtkMisc.SUCCESS
 }
 
-func writeFileToSocket(id, ip string, write *cancelableWriter, read *cancelableReader, totalBar **ProgressBar, fileName, filePath string, filesize uint64) rtkMisc.CrossShareErr {
+func writeFileToSocket(id, ip string, write *cancelableWriter, read *cancelableReader, totalBar **ProgressBar, fileName, filePath string, fileSize uint64, buf *[]byte) rtkMisc.CrossShareErr {
 	startTime := time.Now().UnixMilli()
 	var srcFile *os.File
 	errCode := OpenSrcFile(&srcFile, filePath)
@@ -251,11 +262,11 @@ func writeFileToSocket(id, ip string, write *cancelableWriter, read *cancelableR
 	defer CloseFile(&srcFile)
 	read.realReader = srcFile
 
-	log.Printf("(SRC) Start to copy file:[%s] size:[%d] ...", fileName, filesize)
+	log.Printf("(SRC) Start to copy file:[%s] size:[%d] ...", fileName, fileSize)
 	nCopy := int64(0)
 	var err error
-	if filesize > 0 {
-		nCopy, err = io.Copy(io.MultiWriter(write, *totalBar), read)
+	if fileSize > 0 {
+		nCopy, err = io.CopyBuffer(io.MultiWriter(write, *totalBar), read, *buf)
 		if err != nil {
 			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 				log.Println("Error sending file timeout:", netErr)
@@ -318,7 +329,6 @@ func handleFileDataFromSocket(id, ipAddr, deviceName string, fileDropData *rtkFi
 	if nFolderCount > 0 {
 		log.Printf("(DST) Create  %d dir success!", nFolderCount)
 	}
-	log.Printf("(DST) Start Copy file list, count:[%d], totalSize:[%d], TotalDescribe:[%s]", nSrcFileCount, fileDropData.TotalSize, fileDropData.TotalDescribe)
 
 	progressBar := New64(int64(fileDropData.TotalSize))
 	ctx, cancel := context.WithCancel(context.Background())
@@ -369,7 +379,7 @@ func handleFileDataFromSocket(id, ipAddr, deviceName string, fileDropData *rtkFi
 	SetFileTransferInfo(id, cancel)                   //Used when there is an exception on the sending end
 	rtkFileDrop.SetCancelFileTransferFunc(id, cancel) //Used when the recipient cancels
 	cancelableRead := cancelableReader{
-		realReader: sFileDrop,
+		realReader: nil,
 		ctx:        ctx,
 	}
 	cancelableWrite := cancelableWriter{
@@ -377,12 +387,24 @@ func handleFileDataFromSocket(id, ipAddr, deviceName string, fileDropData *rtkFi
 		ctx:        ctx,
 	}
 
+	log.Printf("(DST) Start Copy file data from IP:[%s], id:[%d], count:[%d], totalSize:[%d], TotalDescribe:[%s]...", ipAddr, fileDropData.TimeStamp, nSrcFileCount, fileDropData.TotalSize, fileDropData.TotalDescribe)
+
+	copyBuffer := make([]byte, copyBufSize)
 	for i, fileInfo := range fileDropData.SrcFileList {
 		currentFileSize = uint64(fileInfo.FileSize_.SizeHigh)<<32 | uint64(fileInfo.FileSize_.SizeLow)
 		fileName := rtkMisc.AdaptationPath(fileInfo.FileName)
 		dstFileName, fileName = rtkUtils.GetTargetDstPathName(filepath.Join(fileDropData.DstFilePath, fileName), fileName)
 
-		dstTransResult := handleFileFromSocket(ipAddr, id, &cancelableWrite, &cancelableRead, &progressBar, currentFileSize, fileName, dstFileName)
+		
+		cancelableRead.realReader = io.LimitReader(sFileDrop, int64(currentFileSize))
+
+		if currentFileSize < uint64(copyBufSize) {
+			copyBuffer = copyBuffer[:copyBufShortSize]
+		} else {
+			copyBuffer = copyBuffer[:copyBufSize]
+		}
+
+		dstTransResult := handleFileFromSocket(ipAddr, id, &cancelableWrite, &cancelableRead, &progressBar, currentFileSize, fileName, dstFileName, &copyBuffer)
 		if dstTransResult != rtkMisc.SUCCESS {
 			return dstFileName, dstTransResult
 		}
@@ -398,7 +420,7 @@ func handleFileDataFromSocket(id, ipAddr, deviceName string, fileDropData *rtkFi
 	return dstFileName, rtkMisc.SUCCESS
 }
 
-func handleFileFromSocket(ipAddr, id string, write *cancelableWriter, read *cancelableReader, totalBar **ProgressBar, fileSize uint64, filename, dstFullPath string) rtkMisc.CrossShareErr {
+func handleFileFromSocket(ipAddr, id string, write *cancelableWriter, read *cancelableReader, totalBar **ProgressBar, fileSize uint64, filename, dstFullPath string, buf *[]byte) rtkMisc.CrossShareErr {
 	var dstFile *os.File
 	startTime := time.Now().UnixMilli()
 	err := OpenDstFile(&dstFile, dstFullPath)
@@ -411,7 +433,7 @@ func handleFileFromSocket(ipAddr, id string, write *cancelableWriter, read *canc
 	log.Printf("(DST) IP[%s] Start to copy file:[%s], size:[%d] ...", ipAddr, filename, fileSize)
 	nDstWrite := int64(0)
 	if fileSize > 0 {
-		nDstWrite, err = io.CopyN(io.MultiWriter(write, *totalBar), read, int64(fileSize))
+		nDstWrite, err = io.CopyBuffer(io.MultiWriter(write, *totalBar), read, *buf)
 		if err != nil {
 			CloseFile(&dstFile)
 			DeleteFile(dstFullPath)
