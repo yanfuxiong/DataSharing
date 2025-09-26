@@ -331,7 +331,7 @@ func GoTriggerCallbackCleanClipboard() {
 	C.CleanClipboardCallbackFunc(g_CleanClipboardCallback)
 }
 
-func GoTriggerCallbackMultipleProgressBar(ip, id, deviceName, currentFileName string, sentFileCnt, totalFileCnt uint32, currentFileSize, totalSize, sentSize, timestamp uint64) {
+func GoTriggerCallbackMultipleProgressBar(ip, id, currentFileName string, sentFileCnt, totalFileCnt uint32, currentFileSize, totalSize, sentSize, timestamp uint64) {
 	if g_UpdateMultipleProgressBarCallback == nil {
 		log.Printf("%s g_UpdateMultipleProgressBarCallback is not set!", rtkMisc.GetFuncInfo())
 		return

@@ -187,6 +187,31 @@ func GetLocalPort(Addrs []ma.Multiaddr) string {
 	return localPort
 }
 
+func GetQuicPort(Addrs []ma.Multiaddr) string {
+	for _, maddr := range Addrs {
+		protocols := maddr.Protocols()
+		hasUDP := false
+		hasQuic := false
+		for _, protocol := range protocols {
+			if protocol.Code == ma.P_UDP {
+				hasUDP = true
+			}
+			if protocol.Code == ma.P_QUIC || protocol.Code == ma.P_QUIC_V1 {
+				hasQuic = true
+			}
+		}
+
+		if hasUDP && hasQuic {
+			port, err := maddr.ValueForProtocol(ma.P_UDP)
+			if err != nil {
+				return ""
+			}
+			return port
+		}
+	}
+	return ""
+}
+
 func ExtractTCPIPandPort(maddr ma.Multiaddr) (string, string) {
 	ip, err := maddr.ValueForProtocol(ma.P_IP4)
 	if err != nil {

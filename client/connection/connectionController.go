@@ -551,8 +551,8 @@ func noticeToPeer(s network.Stream, ver *string) rtkMisc.CrossShareErr {
 	}
 
 	reqMsg := rtkCommon.RegistMdnsMessage{Version: ""}
-	read := bufio.NewReader(s)
 	s.SetReadDeadline(time.Now().Add(1 * time.Second)) //Only valid for the current goroutine
+	read := bufio.NewReader(s)
 	err = json.NewDecoder(read).Decode(&reqMsg)
 	if err != nil {
 		log.Printf("[%s] ID:[%s] IP:[%s] Stream json.NewDecoder.Decode err:%+v", rtkMisc.GetFuncInfo(), id, ipAddr, err)
