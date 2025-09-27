@@ -16,6 +16,7 @@ import (
 	rtkPlatform "rtk-cross-share/client/platform"
 	rtkUtils "rtk-cross-share/client/utils"
 	rtkMisc "rtk-cross-share/misc"
+	"strconv"
 	"sync"
 	"time"
 
@@ -134,13 +135,17 @@ func SetFileTransferInfo(id string, fn func()) {
 	})
 }
 
-func CancelSrcFileTransfer(id string) {
-	if value, ok := fileTransferInfoMap.Load(id); ok {
-		fileInfo := value.(fileTransferInfo)
-		fileInfo.isCancelByPeer = true
-		fileTransferInfoMap.Store(id, fileInfo)
-		log.Printf("[%s] (SRC) ID:[%s] Cancel FileTransfer success!", rtkMisc.GetFuncInfo(), id)
-		fileInfo.cancelFn()
+func CancelSrcFileTransfer(id string, timestamp uint64) {
+	if rtkFileDrop.IsFileTransInProgress(id, timestamp) {
+		if value, ok := fileTransferInfoMap.Load(id); ok {
+			fileInfo := value.(fileTransferInfo)
+			fileInfo.isCancelByPeer = true
+			fileTransferInfoMap.Store(id, fileInfo)
+			log.Printf("[%s] (SRC) ID:[%s] Cancel FileTransfer success, timestamp:%d", rtkMisc.GetFuncInfo(), id, timestamp)
+			fileInfo.cancelFn()
+		}
+	} else {
+		rtkFileDrop.CancelFileTransFromCacheMap(id, timestamp)
 	}
 }
 
@@ -162,16 +167,54 @@ func IsInterruptByPeer(id string) bool {
 	return false
 }
 
-func writeFileDataToSocket(id, ipAddr string, fileDropReqData *rtkFileDrop.FileDropData) rtkMisc.CrossShareErr {
+func dealFilesCacheDataProcess(id, ipAddr string) {
+	resultCode := rtkMisc.SUCCESS
+
+	for rtkFileDrop.GetFilesTransferDataCacheCount(id) > 0 {
+		cacheData := rtkFileDrop.GetFilesTransferDataItem(id)
+		if cacheData == nil {
+			break
+		}
+
+		if cacheData.FileTransDirection == rtkFileDrop.FilesTransfer_As_Src {
+			resultCode = writeFileDataToSocket(id, ipAddr, cacheData)
+			if resultCode != rtkMisc.SUCCESS {
+				log.Printf("(SRC) ID[%s] IP[%s] Copy file data To Socket failed, timestamp:%d, ERR code:[%d]", id, ipAddr, cacheData.TimeStamp, resultCode)
+				if resultCode != rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_CANCEL && resultCode != rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_TIMEOUT {
+					sendFileTransInterruptMsgToPeer(id, COMM_FILE_TRANSFER_SRC_INTERRUPT, resultCode, cacheData.TimeStamp)
+					rtkPlatform.GoNotifyErrEvent(id, resultCode, ipAddr, strconv.Itoa(int(cacheData.TimeStamp)), "", "")
+				}
+			}
+		} else if cacheData.FileTransDirection == rtkFileDrop.FilesTransfer_As_Dst {
+			resultCode = handleFileDataFromSocket(id, ipAddr, cacheData)
+			if resultCode != rtkMisc.SUCCESS {
+				log.Printf("(DST) ID[%s] IP[%s] Copy file data To Socket failed, timestamp:%d, ERR code:[%d]", id, ipAddr, cacheData.TimeStamp, resultCode)
+
+				// any exceptions and user cancellation need to Notify to platfrom
+				if resultCode != rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL && resultCode != rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_TIMEOUT {
+					sendFileTransInterruptMsgToPeer(id, COMM_FILE_TRANSFER_DST_INTERRUPT, resultCode, cacheData.TimeStamp)
+					rtkPlatform.GoNotifyErrEvent(id, resultCode, ipAddr, strconv.Itoa(int(cacheData.TimeStamp)), "", "")
+				}
+			}
+		} else {
+			log.Printf("[%s] ID:[%s] Unknown direction type:[%s], skit it!", rtkMisc.GetFuncInfo(), id, cacheData.FileTransDirection)
+		}
+
+		rtkFileDrop.SetFilesCacheItemComplete(id, cacheData.TimeStamp)
+	}
+}
+
+func writeFileDataToSocket(id, ipAddr string, fileDropReqData *rtkFileDrop.FilesTransferDataItem) rtkMisc.CrossShareErr {
 	startTime := time.Now().UnixMilli()
 
 	rtkConnection.HandleFmtTypeStreamReady(id, rtkCommon.FILE_DROP) // wait for file drop stream Ready
-	sFileDrop, ok := rtkConnection.GetFmtTypeStream(id, rtkCommon.FILE_DROP)
+	sFileDrop, ok := rtkConnection.GetFileDropItemStream(id, fileDropReqData.TimeStamp)
 	if !ok {
 		log.Printf("[%s] Err: Not found file stream by ID:[%s]", rtkMisc.GetFuncInfo(), id)
 		return rtkMisc.ERR_BIZ_FD_GET_STREAM_EMPTY
 	}
-	defer rtkConnection.CloseFmtTypeStream(id, rtkCommon.FILE_DROP)
+	defer rtkConnection.RemoveFileDropItemStreamListener(fileDropReqData.TimeStamp)
+	defer rtkConnection.CloseFileDropItemStream(id, fileDropReqData.TimeStamp)
 
 	fileCount := len(fileDropReqData.SrcFileList)
 	folderCount := len(fileDropReqData.FolderList)
@@ -196,7 +239,7 @@ func writeFileDataToSocket(id, ipAddr string, fileDropReqData *rtkFileDrop.FileD
 				//cancel by (DST) maybe block at stream Write, so need interrupt by close stream
 				if IsInterruptByPeer(id) {
 					time.Sleep(1 * time.Millisecond)
-					rtkConnection.CloseFmtTypeStream(id, rtkCommon.FILE_DROP)
+					rtkConnection.CloseFileDropItemStream(id, fileDropReqData.TimeStamp)
 				}
 				return
 			// TODO: Update sender progress bar
@@ -207,7 +250,7 @@ func writeFileDataToSocket(id, ipAddr string, fileDropReqData *rtkFileDrop.FileD
 
 					//TODO:Need to handle timeout
 					//io.Copy maybe block Exceeding 10 seconds, and the reason may be congestion control, packet loss retransmission, or disk I/O lag
-					//rtkConnection.CloseFmtTypeStream(id, rtkCommon.FILE_DROP)
+					//rtkConnection.CloseFileDropItemStream(id, fileDropReqData.TimeStamp)
 					//return
 				}
 				//log.Printf("[%s] barCurrentBytes: %d", rtkMisc.GetFuncInfo(), barCurrentBytes)
@@ -292,27 +335,26 @@ func writeFileToSocket(id, ip string, write *cancelableWriter, read *cancelableR
 	return rtkMisc.SUCCESS
 }
 
-func handleFileDataFromSocket(id, ipAddr, deviceName string, fileDropData *rtkFileDrop.FileDropData) (string, rtkMisc.CrossShareErr) {
+func handleFileDataFromSocket(id, ipAddr string, fileDropData *rtkFileDrop.FilesTransferDataItem) rtkMisc.CrossShareErr {
 	startTime := time.Now().UnixMilli()
 
-	dstFileName := fileDropData.DstFilePath
-	sFileDrop, ok := rtkConnection.GetFmtTypeStream(id, rtkCommon.FILE_DROP)
+	sFileDrop, ok := rtkConnection.GetFileDropItemStream(id, fileDropData.TimeStamp)
 	if !ok {
 		log.Printf("[%s] Err: Not found FileDrop stream by ID: %s", rtkMisc.GetFuncInfo(), id)
-		return dstFileName, rtkMisc.ERR_BIZ_FD_GET_STREAM_EMPTY
+		return rtkMisc.ERR_BIZ_FD_GET_STREAM_EMPTY
 	}
-	defer rtkConnection.CloseFmtTypeStream(id, rtkCommon.FILE_DROP)
+	defer rtkConnection.CloseFileDropItemStream(id, fileDropData.TimeStamp)
 
 	if fileDropData.Cmd != rtkCommon.FILE_DROP_ACCEPT {
 		log.Printf("[%s] Invalid fildDrop cmd state:%s", rtkMisc.GetFuncInfo(), fileDropData.Cmd)
-		return dstFileName, rtkMisc.ERR_BIZ_FD_UNKNOWN_CMD
+		return rtkMisc.ERR_BIZ_FD_UNKNOWN_CMD
 	}
 
 	nSrcFileCount := uint32(len(fileDropData.SrcFileList))
 	folderCount := uint32(len(fileDropData.FolderList))
 	if (nSrcFileCount == 0 && folderCount == 0) || fileDropData.TimeStamp == 0 {
 		log.Printf("[%s] get file data is invalid! fileCount:[%d] folderCount:[%d] TimeStamp:[%d] ", rtkMisc.GetFuncInfo(), nSrcFileCount, folderCount, fileDropData.TimeStamp)
-		return dstFileName, rtkMisc.ERR_BIZ_FD_DATA_INVALID
+		return rtkMisc.ERR_BIZ_FD_DATA_INVALID
 	}
 
 	nFolderCount := 0
@@ -336,6 +378,7 @@ func handleFileDataFromSocket(id, ipAddr, deviceName string, fileDropData *rtkFi
 
 	currentFileSize := uint64(0)
 	sentCount := uint32(0)
+	dstFileName := fileDropData.DstFilePath
 	rtkMisc.GoSafe(func() {
 		barTicker := time.NewTicker(100 * time.Millisecond)
 		defer barTicker.Stop()
@@ -349,13 +392,13 @@ func handleFileDataFromSocket(id, ipAddr, deviceName string, fileDropData *rtkFi
 				//cancel by (SRC) maybe block at stream Read, so need interrupt by close stream
 				if IsInterruptByPeer(id) {
 					time.Sleep(1 * time.Millisecond)
-					rtkConnection.CloseFmtTypeStream(id, rtkCommon.FILE_DROP)
+					rtkConnection.CloseFileDropItemStream(id, fileDropData.TimeStamp)
 				}
 				return
 			case <-barTicker.C:
 				barCurrentBytes := progressBar.GetCurrentBytes()
 				if barLastBytes != barCurrentBytes {
-					rtkPlatform.GoUpdateMultipleProgressBar(ipAddr, id, deviceName, dstFileName, sentCount, nSrcFileCount, currentFileSize, fileDropData.TotalSize, uint64(barCurrentBytes), fileDropData.TimeStamp)
+					rtkPlatform.GoUpdateMultipleProgressBar(ipAddr, id, dstFileName, sentCount, nSrcFileCount, currentFileSize, fileDropData.TotalSize, uint64(barCurrentBytes), fileDropData.TimeStamp)
 					barLastBytes = barCurrentBytes
 					timeoutBarCnt = 0
 				} else {
@@ -363,7 +406,7 @@ func handleFileDataFromSocket(id, ipAddr, deviceName string, fileDropData *rtkFi
 					if timeoutBarCnt >= 100 { // copy file data timeout: 10s
 						log.Printf("[%s] (DST) IP[%s] Copy file data time out!", rtkMisc.GetFuncInfo(), ipAddr)
 						//TODO:Need to handle timeout
-						//rtkConnection.CloseFmtTypeStream(id, rtkCommon.FILE_DROP)
+						//rtkConnection.CloseFileDropItemStream(id, fileDropData.TimeStamp)
 						//return
 						timeoutBarCnt = 0
 					}
@@ -390,12 +433,15 @@ func handleFileDataFromSocket(id, ipAddr, deviceName string, fileDropData *rtkFi
 	log.Printf("(DST) Start Copy file data from IP:[%s], id:[%d], count:[%d], totalSize:[%d], TotalDescribe:[%s]...", ipAddr, fileDropData.TimeStamp, nSrcFileCount, fileDropData.TotalSize, fileDropData.TotalDescribe)
 
 	copyBuffer := make([]byte, copyBufSize)
+	isLastFile := false
 	for i, fileInfo := range fileDropData.SrcFileList {
 		currentFileSize = uint64(fileInfo.FileSize_.SizeHigh)<<32 | uint64(fileInfo.FileSize_.SizeLow)
 		fileName := rtkMisc.AdaptationPath(fileInfo.FileName)
 		dstFileName, fileName = rtkUtils.GetTargetDstPathName(filepath.Join(fileDropData.DstFilePath, fileName), fileName)
 
-		
+		if uint32(i) == (nSrcFileCount - 1) {
+			isLastFile = true
+		}
 		cancelableRead.realReader = io.LimitReader(sFileDrop, int64(currentFileSize))
 
 		if currentFileSize < uint64(copyBufSize) {
@@ -406,18 +452,18 @@ func handleFileDataFromSocket(id, ipAddr, deviceName string, fileDropData *rtkFi
 
 		dstTransResult := handleFileFromSocket(ipAddr, id, &cancelableWrite, &cancelableRead, &progressBar, currentFileSize, fileName, dstFileName, &copyBuffer)
 		if dstTransResult != rtkMisc.SUCCESS {
-			return dstFileName, dstTransResult
+			return dstTransResult
 		}
 		sentCount++
-		if uint32(i) != (nSrcFileCount - 1) {
-			rtkPlatform.GoUpdateMultipleProgressBar(ipAddr, id, deviceName, dstFileName, sentCount, nSrcFileCount, currentFileSize, fileDropData.TotalSize, uint64(progressBar.GetCurrentBytes()), fileDropData.TimeStamp)
+		if !isLastFile {
+			rtkPlatform.GoUpdateMultipleProgressBar(ipAddr, id, dstFileName, sentCount, nSrcFileCount, currentFileSize, fileDropData.TotalSize, uint64(progressBar.GetCurrentBytes()), fileDropData.TimeStamp)
 		}
 	}
 
-	rtkPlatform.GoUpdateMultipleProgressBar(ipAddr, id, deviceName, dstFileName, sentCount, nSrcFileCount, currentFileSize, fileDropData.TotalSize, fileDropData.TotalSize, fileDropData.TimeStamp)
-	log.Printf("(DST) End Copy file list success, count:[%d] totalSize:[%d] total use:[%d]ms", nSrcFileCount, fileDropData.TotalSize, time.Now().UnixMilli()-startTime)
+	rtkPlatform.GoUpdateMultipleProgressBar(ipAddr, id, dstFileName, sentCount, nSrcFileCount, currentFileSize, fileDropData.TotalSize, fileDropData.TotalSize, fileDropData.TimeStamp)
+	log.Printf("(DST) End Copy file data from IP:[%s] success, id:[%d] count:[%d] totalSize:[%d] totalDescribe:[%s] total use:[%d]ms", ipAddr, fileDropData.TimeStamp, nSrcFileCount, fileDropData.TotalSize, fileDropData.TotalDescribe, time.Now().UnixMilli()-startTime)
 	ShowNotiMessageRecvFileTransferDone(fileDropData, id)
-	return dstFileName, rtkMisc.SUCCESS
+	return rtkMisc.SUCCESS
 }
 
 func handleFileFromSocket(ipAddr, id string, write *cancelableWriter, read *cancelableReader, totalBar **ProgressBar, fileSize uint64, filename, dstFullPath string, buf *[]byte) rtkMisc.CrossShareErr {
@@ -469,7 +515,7 @@ func handleFileFromSocket(ipAddr, id string, write *cancelableWriter, read *canc
 	}
 }
 
-func ShowNotiMessageSendFileTransferDone(fileDropData *rtkFileDrop.FileDropData, id string) {
+func ShowNotiMessageSendFileTransferDone(fileDropData *rtkFileDrop.FilesTransferDataItem, id string) {
 	clientInfo, err := rtkUtils.GetClientInfo(id)
 	if err != nil {
 		log.Printf("[%s] %s", rtkMisc.GetFuncInfo(), err.Error())
@@ -485,7 +531,7 @@ func ShowNotiMessageSendFileTransferDone(fileDropData *rtkFileDrop.FileDropData,
 	rtkPlatform.GoNotiMessageFileTransfer(filename, clientInfo.DeviceName, clientInfo.Platform, fileDropData.TimeStamp, true)
 }
 
-func ShowNotiMessageRecvFileTransferDone(fileDropData *rtkFileDrop.FileDropData, id string) {
+func ShowNotiMessageRecvFileTransferDone(fileDropData *rtkFileDrop.FilesTransferDataItem, id string) {
 	clientInfo, err := rtkUtils.GetClientInfo(id)
 	if err != nil {
 		log.Printf("[%s] %s", rtkMisc.GetFuncInfo(), err.Error())

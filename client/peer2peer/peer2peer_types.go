@@ -29,8 +29,6 @@ const (
 	COMM_INIT                        CommandType = "COMM_INIT"
 	COMM_SRC                         CommandType = "COMM_SRC"
 	COMM_DST                         CommandType = "COMM_DST"
-	COMM_CANCEL_SRC                  CommandType = "COMM_CANCEL_SRC"
-	COMM_CANCEL_DST                  CommandType = "COMM_CANCEL_DST"
 	COMM_DISCONNECT                  CommandType = "COMM_DISCONNECT"
 	COMM_CB_TRANSFER_SRC_INTERRUPT   CommandType = "COMM_CB_TRANSFER_SRC_INTERRUPT"
 	COMM_CB_TRANSFER_DST_INTERRUPT   CommandType = "COMM_CB_TRANSFER_DST_INTERRUPT"

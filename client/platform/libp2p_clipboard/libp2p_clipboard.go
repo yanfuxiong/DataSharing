@@ -19,9 +19,10 @@ import (
 )
 
 type MultiFilesDropRequestInfo struct {
-	Id       string
-	Ip       string
-	PathList []string
+	TimeStamp int64
+	Id        string
+	Ip        string
+	PathList  []string
 }
 
 type Callback interface {
@@ -111,7 +112,7 @@ func SendMultiFilesDropRequest(multiFilesData string) int {
 		log.Printf("[%s] Unmarshal[%s] err:%+v", rtkMisc.GetFuncInfo(), multiFilesData, err)
 		return int(rtkCommon.SendFilesRequestParameterErr)
 	}
-	log.Printf("id:[%s] ip:[%s] len:[%d]", multiFileInfo.Id, multiFileInfo.Ip, len(multiFileInfo.PathList))
+	log.Printf("id:[%s] ip:[%s] len:[%d] timestamp:[%d]", multiFileInfo.Id, multiFileInfo.Ip, len(multiFileInfo.PathList), multiFileInfo.TimeStamp)
 
 	fileList := make([]rtkCommon.FileInfo, 0)
 	folderList := make([]string, 0)
@@ -140,7 +141,8 @@ func SendMultiFilesDropRequest(multiFilesData string) int {
 		}
 	}
 	totalDesc := rtkMisc.FileSizeDesc(totalSize)
-	timestamp := uint64(time.Now().UnixMilli())
+	//timestamp := uint64(time.Now().UnixMilli())
+	timestamp := uint64(multiFileInfo.TimeStamp)
 	log.Printf("[%s] ID[%s] IP:[%s] get file count:[%d] folder count:[%d], totalSize:[%d] totalDesc:[%s] timestamp:[%d]", rtkMisc.GetFuncInfo(), multiFileInfo.Id, multiFileInfo.Ip, len(fileList), len(folderList), totalSize, totalDesc, timestamp)
 	return int(rtkPlatform.GoMultiFilesDropRequest(multiFileInfo.Id, &fileList, &folderList, totalSize, timestamp, totalDesc))
 }

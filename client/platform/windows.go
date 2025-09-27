@@ -302,14 +302,20 @@ func GoMultiFilesDropRequest(id string, fileList *[]rtkCommon.FileInfo, folderLi
 		return rtkCommon.SendFilesRequestCallbackNotSet
 	}
 
-	if callbackGetFilesTransCode == nil {
-		log.Println("callbackGetFilesTransCode is null!")
+	if callbackGetFilesCacheSendCount == nil {
+		log.Println("callbackGetFilesCacheSendCount is null!")
 		return rtkCommon.SendFilesRequestCallbackNotSet
 	}
 
-	filesTransCode := callbackGetFilesTransCode(id)
-	if filesTransCode != rtkCommon.SendFilesRequestSuccess {
-		return filesTransCode
+	nCacheCount := callbackGetFilesCacheSendCount(id)
+	if nCacheCount >= rtkGlobal.SendFilesRequestMaxQueueSize {
+		log.Printf("[%s] ID[%s] this user file drop cache count:[%d] is too large and over range !", rtkMisc.GetFuncInfo(), id, nCacheCount)
+		return rtkCommon.SendFilesRequestCacheOverRange
+	}
+
+	if totalSize > uint64(rtkGlobal.SendFilesRequestMaxSize) {
+		log.Printf("[%s] ID[%s] this file drop total size:[%d] [%s] is too large and over range !", rtkMisc.GetFuncInfo(), id, totalSize, totalDesc)
+		return rtkCommon.SendFilesRequestSizeOverRange
 	}
 
 	nMsgLength := int(rtkGlobal.P2PMsgMagicLength) //p2p null msg length
@@ -323,12 +329,12 @@ func GoMultiFilesDropRequest(id string, fileList *[]rtkCommon.FileInfo, folderLi
 	}
 
 	if nMsgLength >= rtkGlobal.P2PMsgMaxLength {
-		log.Printf("[%s] ID[%s] get file count:[%d] folder count:[%d], the p2p message is too long and over range!", rtkMisc.GetFuncInfo(), id, len(*fileList), len(*folderList))
-		return rtkCommon.SendFilesRequestOverRange
+		log.Printf("[%s] ID[%s] file count:[%d] folder count:[%d], the p2p message is too long and over range!", rtkMisc.GetFuncInfo(), id, len(*fileList), len(*folderList))
+		return rtkCommon.SendFilesRequestLengthOverRange
 	}
 
 	callbackFileListDropRequestCB(id, *fileList, *folderList, totalSize, timestamp, totalDesc)
-	return filesTransCode
+	return rtkCommon.SendFilesRequestSuccess
 }
 
 func GoDragFileListRequest(fileList *[]rtkCommon.FileInfo, folderList *[]string, totalSize, timestamp uint64, totalDesc string) {
@@ -436,7 +442,7 @@ func GoUpdateClientStatusEx(id string, status uint8) {
 			log.Printf("[%s] err:%+v", rtkMisc.GetFuncInfo(), err)
 			return
 		}
-		clientInfo.ClientInfo = info
+		clientInfo.ClientInfo = info.ClientInfo
 	} else {
 		clientInfo.ID = id
 	}

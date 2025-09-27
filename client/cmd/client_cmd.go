@@ -173,7 +173,7 @@ func MainInit(serverId, serverIpInfo, listenHost string, listentPort int) {
 
 	err = rtkPlatform.LockFile(file)
 	if err != nil {
-		log.Println("Another instance is already running.")
+		log.Println("Another instance is already running.\n\n")
 		return
 	}
 	defer rtkPlatform.UnlockFile(file)*/

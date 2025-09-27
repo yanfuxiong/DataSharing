@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	libp2pquic "github.com/libp2p/go-libp2p/p2p/transport/quic"
+	"github.com/libp2p/go-libp2p/p2p/transport/tcp"
 	"io"
 	"log"
 	"net"
@@ -18,8 +20,6 @@ import (
 	rtkMisc "rtk-cross-share/misc"
 
 	"github.com/libp2p/go-libp2p"
-	"github.com/libp2p/go-libp2p/p2p/transport/quic"
-	"github.com/libp2p/go-libp2p/p2p/transport/tcp"
 
 	"sync"
 	"time"
@@ -81,7 +81,9 @@ func cancelHostNode() {
 		node.Network().Close()
 		node.ConnManager().Close()
 		node.Close()
+		fileTransNode.Close()
 		node = nil
+		fileTransNode = nil
 		log.Println("end close p2p node info!")
 	}
 }
@@ -116,6 +118,7 @@ func setupNode(ip string, port int) error {
 	priv := rtkPlatform.GenKey()
 
 	cancelHostNode()
+
 	tcpAddr, err := ma.NewMultiaddr(fmt.Sprintf("/ip4/%s/tcp/%d", ip, port))
 	if err != nil {
 		log.Printf("NewMultiaddr tcp addr error:%+v", err)
@@ -133,9 +136,8 @@ func setupNode(ip string, port int) error {
 
 	tempNode, err := libp2p.New(
 		//libp2p.ListenAddrStrings(listen_addrs(rtkMdns.MdnsCfg.ListenPort)...), // Add mdns port with different initialization
-		libp2p.ListenAddrs(tcpAddr, quicAddr),
-		libp2p.Transport(tcp.NewTCPTransport),     // TCP 传输
-		libp2p.Transport(libp2pquic.NewTransport), // QUIC 传输
+		libp2p.ListenAddrs(tcpAddr),
+		libp2p.Transport(tcp.NewTCPTransport),
 		libp2p.NATPortMap(),
 		libp2p.Identity(priv),
 		libp2p.ForceReachabilityPrivate(),
@@ -146,6 +148,15 @@ func setupNode(ip string, port int) error {
 	)
 	if err != nil {
 		log.Printf("Failed to create node: %v", err)
+		return err
+	}
+
+	tempFileNode, err := libp2p.New(
+		libp2p.ListenAddrs(quicAddr),
+		libp2p.Transport(libp2pquic.NewTransport),
+	)
+	if err != nil {
+		log.Printf("Failed to create file node: %v", err)
 		return err
 	}
 
@@ -167,6 +178,9 @@ func setupNode(ip string, port int) error {
 
 	rtkGlobal.NodeInfo.IPAddr.LocalPort = rtkUtils.GetLocalPort(tempNode.Addrs())
 	rtkGlobal.NodeInfo.ID = tempNode.ID().String()
+
+	rtkGlobal.NodeInfo.IPAddr.UpdPort = rtkUtils.GetQuicPort(tempFileNode.Addrs())
+	rtkGlobal.NodeInfo.FileTransNodeID = tempFileNode.ID().String()
 
 	// filter IP by skip [0.0.0.0, 127.0.0.1]
 	filterAddr := func(addrs []ma.Multiaddr) (string, string) {
@@ -191,6 +205,10 @@ func setupNode(ip string, port int) error {
 	log.Println("Self Platform: ", rtkGlobal.NodeInfo.Platform)
 	log.Printf("Self Public IP[%s], Public Port[%s], LocalPort[%s]", rtkGlobal.NodeInfo.IPAddr.PublicIP, rtkGlobal.NodeInfo.IPAddr.PublicPort, rtkGlobal.NodeInfo.IPAddr.LocalPort)
 	log.Println("Self version info: ", serviceVer)
+	log.Println("Self file node ID: ", rtkGlobal.NodeInfo.FileTransNodeID)
+	log.Println("Self file node Addr: ", tempFileNode.Addrs())
+	log.Println("Self file listen Addr: ", tempFileNode.Network().ListenAddresses())
+	log.Println("Self file node port: ", rtkGlobal.NodeInfo.IPAddr.UpdPort)
 	log.Println("=======================================================")
 
 	ipAddr := rtkMisc.ConcatIP(rtkGlobal.NodeInfo.IPAddr.PublicIP, rtkGlobal.NodeInfo.IPAddr.PublicPort)
@@ -198,6 +216,7 @@ func setupNode(ip string, port int) error {
 
 	nodeMutex.Lock()
 	node = tempNode
+	fileTransNode = tempFileNode
 	nodeMutex.Unlock()
 
 	return nil
@@ -223,6 +242,124 @@ func buildListener() {
 		updateFmtTypeStreamSrc(stream, rtkCommon.FILE_DROP)
 		noticeFmtTypeStreamReady(stream.Conn().RemotePeer().String(), rtkCommon.FILE_DROP)
 	})
+
+}
+
+func BuildFileDropItemStreamListener(timestamp uint64) {
+	nodeMutex.Lock()
+	defer nodeMutex.Unlock()
+	if fileTransNode == nil {
+		log.Printf("[%s] node is nil! set protocol handler failed!, timestamp:[%d]", rtkMisc.GetFuncInfo(), timestamp)
+		return
+	}
+	fileTransNode.SetStreamHandler(protocol.ID(getFileDropStreamProtocol(timestamp)), handlerFileDropStream)
+	log.Printf("[%s] set protocol handler success, timestamp:[%d]", rtkMisc.GetFuncInfo(), timestamp)
+}
+
+func RemoveFileDropItemStreamListener(timestamp uint64) {
+	nodeMutex.Lock()
+	defer nodeMutex.Unlock()
+	if fileTransNode == nil {
+		log.Printf("[%s] node is nil! remove protocol handler failed!, timestamp:[%d]", rtkMisc.GetFuncInfo(), timestamp)
+		return
+	}
+	fileTransNode.RemoveStreamHandler(protocol.ID(getFileDropStreamProtocol(timestamp)))
+	log.Printf("[%s] remove protocol handler success, timestamp:[%d]", rtkMisc.GetFuncInfo(), timestamp)
+}
+
+func handlerFileDropStream(stream network.Stream) {
+	Reader := bufio.NewReader(stream)
+	var reqMsg FileDropItemStreamInfo
+	err := json.NewDecoder(Reader).Decode(&reqMsg)
+	if err != nil {
+		log.Printf("[%s] ID:[%s] Stream ID:[%s] json.NewDecoder.Decode err:%+v", rtkMisc.GetFuncInfo(), stream.Conn().RemotePeer().String(), stream.ID(), err)
+		return
+	}
+	reqMsg.StreamId = stream.ID()
+	reqMsg.Stream = stream
+
+	addFileDropItemStreamAsSrc(reqMsg.ID, reqMsg.Timestamp, reqMsg.Stream)
+	noticeFmtTypeStreamReady(reqMsg.ID, rtkCommon.FILE_DROP)
+}
+
+func NewFileDropItemStream(id string, timestamp uint64) rtkMisc.CrossShareErr {
+	// TODO: how to set time out,  5s
+	ctx, cancel := context.WithTimeout(context.Background(), ctxTimeout_normal)
+	defer cancel()
+
+	clientInfo, err := rtkUtils.GetClientInfo(id)
+	if err != nil {
+		log.Printf("[%s] ID:[%s] Not found Client Info data", rtkMisc.GetFuncInfo(), id)
+		return rtkMisc.ERR_BIZ_GET_CLIENT_INFO_EMPTY
+	}
+	ip, _ := rtkUtils.SplitIPAddr(clientInfo.IpAddr)
+	quicAddr := fmt.Sprintf("/ip4/%s/udp/%s/quic-v1", ip, clientInfo.UpdPort)
+	addr := ma.StringCast(quicAddr)
+	idB58, err := peer.Decode(clientInfo.FileTransNodeID)
+	if err != nil {
+		log.Printf("[%s] ID decode failed: %s", rtkMisc.GetFuncInfo(), clientInfo.ID)
+		return rtkMisc.ERR_BIZ_P2P_PEER_DECODE
+	}
+	fileTransPeer := peer.AddrInfo{
+		ID:    idB58,
+		Addrs: []ma.Multiaddr{addr},
+	}
+
+	nodeMutex.RLock()
+	defer nodeMutex.RUnlock()
+	if fileTransNode.Network().Connectedness(fileTransPeer.ID) != network.Connected {
+		fileTransNode.Network().ClosePeer(fileTransPeer.ID)
+		log.Printf("begin  to connect %+v ...", fileTransPeer)
+		if err = fileTransNode.Connect(ctx, fileTransPeer); err != nil {
+			log.Printf("[%s] Connect peer%+v failed:%+v", rtkMisc.GetFuncInfo(), fileTransPeer, err)
+			if errors.Is(err, context.DeadlineExceeded) {
+				return rtkMisc.ERR_NETWORK_P2P_CONNECT_DEADLINE
+			} else if errors.Is(err, context.Canceled) {
+				return rtkMisc.ERR_NETWORK_P2P_CONNECT_CANCEL
+			} else if netErr, ok := err.(net.Error); ok {
+				log.Printf("[Socket][%s] Err: Read fail network error(%v)", rtkMisc.GetFuncInfo(), netErr.Error())
+				if netErr.Timeout() {
+					return rtkMisc.ERR_NETWORK_P2P_TIMEOUT
+				}
+			}
+			return rtkMisc.ERR_NETWORK_P2P_CONNECT
+		}
+		log.Printf("connect %+v success!\n\n", fileTransPeer)
+	}
+
+	protocolId := getFileDropStreamProtocol(timestamp)
+	stream, err := fileTransNode.NewStream(ctx, fileTransPeer.ID, protocol.ID(protocolId))
+	if err != nil {
+		log.Printf("[%s] ID:[%s] IP:[%+v] open protocolId:%s stream failed:%+v", rtkMisc.GetFuncInfo(), id, fileTransPeer.Addrs, protocolId, err)
+		if errors.Is(err, context.DeadlineExceeded) {
+			return rtkMisc.ERR_NETWORK_P2P_OPEN_STREAM_DEADLINE
+		} else if errors.Is(err, context.Canceled) {
+			return rtkMisc.ERR_NETWORK_P2P_OPEN_STREAM_CANCEL
+		}
+		return rtkMisc.ERR_NETWORK_P2P_OPEN_STREAM
+	}
+	Writer := bufio.NewWriter(stream)
+	registMsg := FileDropItemStreamInfo{
+		Timestamp: timestamp,
+		ID:        rtkGlobal.NodeInfo.ID,
+		StreamId:  stream.ID(),
+		Stream:    nil,
+	}
+	if err = json.NewEncoder(Writer).Encode(registMsg); err != nil {
+		log.Println("failed to send register message: %w", err)
+		return rtkMisc.ERR_NETWORK_P2P_WRITER
+	}
+	if err = Writer.Flush(); err != nil {
+		log.Printf("[%s] ID:[%s] Error flushing write buffer: %+v", rtkMisc.GetFuncInfo(), id, err)
+		return rtkMisc.ERR_NETWORK_P2P_FLUSH
+	}
+
+	addFileDropItemStreamAsDst(id, timestamp, stream)
+	return rtkMisc.SUCCESS
+}
+
+func getFileDropStreamProtocol(timestamp uint64) string {
+	return fmt.Sprintf("%s%d", rtkGlobal.ProtocolFileTransQueue, timestamp)
 }
 
 func buildTalker(ctxMain context.Context, client rtkMisc.ClientInfo) rtkMisc.CrossShareErr {
@@ -441,16 +578,16 @@ func onlineEvent(stream network.Stream, isFromListener bool, clientInfo *rtkMisc
 	defer mutex.Unlock()
 
 	ipAddr := rtkUtils.GetRemoteAddrFromStream(stream)
-	var peerDeviceName, peerPlatForm, srcPortType, peerVer string
+	var peerDeviceName, peerPlatForm, srcPortType, peerVer, peerFileTransID, peerUdpPort string
 	if isFromListener {
-		resultCode := handleNotice(stream, &peerPlatForm, &peerDeviceName, &srcPortType, &peerVer)
+		resultCode := handleNotice(stream, &peerPlatForm, &peerDeviceName, &srcPortType, &peerVer, &peerFileTransID, &peerUdpPort)
 		if resultCode != rtkMisc.SUCCESS {
 			stream.Reset()
 			log.Printf("[%s] ID:[%s] IP:[%s] errCode:%d, so reset this stream, onlineEvent failed!", rtkMisc.GetFuncInfo(), id, ipAddr, resultCode)
 			return resultCode
 		}
 	} else {
-		resultCode := noticeToPeer(stream, &peerVer)
+		resultCode := noticeToPeer(stream, &peerVer, &peerFileTransID, &peerUdpPort)
 		if resultCode != rtkMisc.SUCCESS {
 			stream.Reset()
 			log.Printf("[%s] ID:[%s] IP:[%s] errCode:%d, so reset this stream, onlineEvent failed!", rtkMisc.GetFuncInfo(), id, ipAddr, resultCode)
@@ -470,7 +607,7 @@ func onlineEvent(stream network.Stream, isFromListener bool, clientInfo *rtkMisc
 	}
 	log.Println("****************************************************************************************")
 
-	updateUIOnlineStatus(true, id, ipAddr, peerPlatForm, peerDeviceName, srcPortType, peerVer)
+	updateUIOnlineStatus(true, id, ipAddr, peerPlatForm, peerDeviceName, srcPortType, peerVer, peerFileTransID, peerUdpPort)
 	return rtkMisc.SUCCESS
 }
 
@@ -482,7 +619,7 @@ func offlineEvent(stream network.Stream) {
 
 	clientInfo, err := rtkUtils.GetClientInfo(id)
 	if err == nil {
-		updateUIOnlineStatus(false, id, clientInfo.IpAddr, clientInfo.Platform, clientInfo.DeviceName, clientInfo.SourcePortType, "")
+		updateUIOnlineStatus(false, id, clientInfo.IpAddr, clientInfo.Platform, clientInfo.DeviceName, clientInfo.SourcePortType, "", "", "")
 	} else {
 		log.Printf("[%s] %s, so not need updateUIOnlineStatus!", rtkMisc.GetFuncInfo(), err.Error())
 	}
@@ -504,11 +641,11 @@ func OfflineEvent(id string) {
 	offlineEvent(s)
 }
 
-func updateUIOnlineStatus(isOnline bool, id, ipAddr, platfrom, deviceName, srcPortType, ver string) {
+func updateUIOnlineStatus(isOnline bool, id, ipAddr, platfrom, deviceName, srcPortType, ver, fileTransId, udpPort string) {
 	if isOnline {
 		log.Printf("[%s] IP:[%s] Online: increase client count\n\n", rtkMisc.GetFuncInfo(), ipAddr)
 		rtkPlatform.GoUpdateClientStatus(1, ipAddr, id, deviceName, srcPortType) // TODO: Deprecate , and replace with GoUpdateClientStatusEx
-		rtkUtils.InsertClientInfoMap(id, ipAddr, platfrom, deviceName, srcPortType, ver)
+		rtkUtils.InsertClientInfoMap(id, ipAddr, platfrom, deviceName, srcPortType, ver, fileTransId, udpPort)
 		rtkPlatform.FoundPeer() // TODO: Deprecate , and replace with GoUpdateClientStatusEx
 		rtkPlatform.GoUpdateClientStatusEx(id, 1)
 	} else {
@@ -520,16 +657,18 @@ func updateUIOnlineStatus(isOnline bool, id, ipAddr, platfrom, deviceName, srcPo
 	}
 }
 
-func noticeToPeer(s network.Stream, ver *string) rtkMisc.CrossShareErr {
+func noticeToPeer(s network.Stream, ver, fileTransId, udpPort *string) rtkMisc.CrossShareErr {
 	ipAddr := rtkUtils.GetRemoteAddrFromStream(s)
 	id := s.Conn().RemotePeer().String()
 	registMsg := rtkCommon.RegistMdnsMessage{
-		Host:           rtkPlatform.GetHostID(),
-		Id:             rtkGlobal.NodeInfo.ID,
-		Platform:       rtkGlobal.NodeInfo.Platform,
-		DeviceName:     rtkGlobal.NodeInfo.DeviceName,
-		SourcePortType: rtkGlobal.NodeInfo.SourcePortType,
-		Version:        rtkGlobal.ClientVersion,
+		Host:            rtkPlatform.GetHostID(),
+		Id:              rtkGlobal.NodeInfo.ID,
+		Platform:        rtkGlobal.NodeInfo.Platform,
+		DeviceName:      rtkGlobal.NodeInfo.DeviceName,
+		SourcePortType:  rtkGlobal.NodeInfo.SourcePortType,
+		Version:         rtkGlobal.ClientVersion,
+		FileTransNodeID: rtkGlobal.NodeInfo.FileTransNodeID,
+		UdpPort:         rtkGlobal.NodeInfo.IPAddr.UpdPort,
 	}
 
 	write := bufio.NewWriter(s)
@@ -571,12 +710,14 @@ func noticeToPeer(s network.Stream, ver *string) rtkMisc.CrossShareErr {
 	} else {
 		log.Printf("[%s] IP:[%s] handle decoder success! verison:%s", rtkMisc.GetFuncInfo(), ipAddr, reqMsg.Version)
 		*ver = reqMsg.Version
+		*fileTransId = reqMsg.FileTransNodeID
+		*udpPort = reqMsg.UdpPort
 	}
 
 	return rtkMisc.SUCCESS
 }
 
-func handleNotice(s network.Stream, platForm, name, srcPortType, ver *string) rtkMisc.CrossShareErr {
+func handleNotice(s network.Stream, platForm, name, srcPortType, ver, fileTransId, udpPort *string) rtkMisc.CrossShareErr {
 	id := s.Conn().RemotePeer().String()
 	ipAddr := rtkUtils.GetRemoteAddrFromStream(s)
 
@@ -598,6 +739,8 @@ func handleNotice(s network.Stream, platForm, name, srcPortType, ver *string) rt
 	*platForm = regMsg.Platform
 	*name = regMsg.DeviceName
 	*srcPortType = regMsg.SourcePortType
+	*fileTransId = regMsg.FileTransNodeID
+	*udpPort = regMsg.UdpPort
 
 	if regMsg.Version == "" { // old version
 		*ver = rtkGlobal.ClientDefaultVersion
@@ -605,12 +748,14 @@ func handleNotice(s network.Stream, platForm, name, srcPortType, ver *string) rt
 	} else {
 		*ver = regMsg.Version
 		registMsg := rtkCommon.RegistMdnsMessage{
-			Host:           rtkPlatform.GetHostID(),
-			Id:             rtkGlobal.NodeInfo.ID,
-			Platform:       rtkGlobal.NodeInfo.Platform,
-			DeviceName:     rtkGlobal.NodeInfo.DeviceName,
-			SourcePortType: rtkGlobal.NodeInfo.SourcePortType,
-			Version:        rtkGlobal.ClientVersion,
+			Host:            rtkPlatform.GetHostID(),
+			Id:              rtkGlobal.NodeInfo.ID,
+			Platform:        rtkGlobal.NodeInfo.Platform,
+			DeviceName:      rtkGlobal.NodeInfo.DeviceName,
+			SourcePortType:  rtkGlobal.NodeInfo.SourcePortType,
+			Version:         rtkGlobal.ClientVersion,
+			FileTransNodeID: rtkGlobal.NodeInfo.FileTransNodeID,
+			UdpPort:         rtkGlobal.NodeInfo.IPAddr.UpdPort,
 		}
 
 		write := bufio.NewWriter(s)

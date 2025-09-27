@@ -161,13 +161,13 @@ func processInbandRead(buffer []byte, len int, msg *Peer2PeerMessage) rtkMisc.Cr
 			}
 			msg.ExtData = extDataCmd
 		} else if msg.Command == COMM_FILE_TRANSFER_SRC_INTERRUPT || msg.Command == COMM_FILE_TRANSFER_DST_INTERRUPT {
-			var resultCode rtkMisc.CrossShareErr
-			err = json.Unmarshal(temp.ExtData, &resultCode)
+			var extData rtkCommon.ExtDataFilesTransferInterrupt
+			err = json.Unmarshal(temp.ExtData, &extData)
 			if err != nil {
 				log.Printf("[%s] Err: decode ExtDataFile:%+v", rtkMisc.GetFuncInfo(), err)
 				return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
 			}
-			msg.ExtData = resultCode
+			msg.ExtData = extData
 		} else {
 			var extDataFile rtkCommon.ExtDataFile
 			err = json.Unmarshal(temp.ExtData, &extDataFile)
@@ -250,36 +250,25 @@ func HandleReadInbandFromSocket(ctxMain context.Context, resultChan chan<- Event
 				rtkConnection.OfflineEvent(id)
 				continue
 			} else if msg.Command == COMM_FILE_TRANSFER_SRC_INTERRUPT {
-				fileTransferId := int(0)
-				fileDropData, ok := rtkFileDrop.GetFileDropData(id)
-				if ok {
-					HandleDataTransferError(COMM_CANCEL_SRC, id, fileDropData.DstFilePath, fileDropData.TimeStamp)
-					fileTransferId = int(fileDropData.TimeStamp)
-				}
-
-				CancelDstFileTransfer(id) // Dst: Copy need cancel
-				if fileTransCode, ok := msg.ExtData.(rtkMisc.CrossShareErr); ok {
-					log.Printf("[%s] (DST) Copy operation was canceled by src errCode:%d!", rtkMisc.GetFuncInfo(), fileTransCode)
+				if fileTransInfo, ok := msg.ExtData.(rtkCommon.ExtDataFilesTransferInterrupt); ok {
+					fileTransferId := int(fileTransInfo.TimeStamp)
+					CancelDstFileTransfer(id) // Dst: Copy need cancel
+					log.Printf("[%s] (DST) Copy operation was canceled by src errCode:%d!", rtkMisc.GetFuncInfo(), fileTransInfo.Code)
 					// notice  errCode to platform
-					rtkPlatform.GoNotifyErrEvent(id, fileTransCode, ipAddr, strconv.Itoa(fileTransferId), "", "")
+					rtkPlatform.GoNotifyErrEvent(id, fileTransInfo.Code, ipAddr, strconv.Itoa(fileTransferId), "", "")
 				}
 				continue
 			} else if msg.Command == COMM_FILE_TRANSFER_DST_INTERRUPT {
-				fileTransferId := int(0)
-				fileDropData, ok := rtkFileDrop.GetFileDropData(id)
-				if ok {
-					HandleDataTransferError(COMM_CANCEL_SRC, id, fileDropData.DstFilePath, fileDropData.TimeStamp)
-					fileTransferId = int(fileDropData.TimeStamp)
-				}
+				if fileTransInfo, ok := msg.ExtData.(rtkCommon.ExtDataFilesTransferInterrupt); ok {
+					CancelSrcFileTransfer(id, fileTransInfo.TimeStamp) // Src: Copy need cancel
 
-				CancelSrcFileTransfer(id) // Src: Copy need cancel
-				if fileTransCode, ok := msg.ExtData.(rtkMisc.CrossShareErr); ok {
 					// notice  errCode to platform
-					rtkPlatform.GoNotifyErrEvent(id, fileTransCode, ipAddr, strconv.Itoa(fileTransferId), "", "")
-					if fileTransCode == rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL_GUI {
+					fileTransferId := int(fileTransInfo.TimeStamp)
+					rtkPlatform.GoNotifyErrEvent(id, fileTransInfo.Code, ipAddr, strconv.Itoa(fileTransferId), "", "")
+					if fileTransInfo.Code == rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL_GUI {
 						log.Printf("[%s](SRC) ID:[%s] Copy file operation was canceled by dst GUI !", rtkMisc.GetFuncInfo(), id)
 					} else {
-						log.Printf("[%s](SRC) ID:[%s] Copy file operation was canceled by dst errCode:%d!", rtkMisc.GetFuncInfo(), id, fileTransCode)
+						log.Printf("[%s](SRC) ID:[%s] Copy file operation was canceled by dst errCode:%d!", rtkMisc.GetFuncInfo(), id, fileTransInfo.Code)
 					}
 				}
 				continue
@@ -531,7 +520,7 @@ func writeToSocket(msg *Peer2PeerMessage, id string) rtkMisc.CrossShareErr {
 	return errCode
 }
 
-func HandleDataTransferError(inbandCmd CommandType, id, fileName string, timestamp uint64) {
+/*func HandleDataTransferError(inbandCmd CommandType, id, fileName string, timestamp uint64) {
 	switch inbandCmd {
 	case COMM_CANCEL_SRC:
 		rtkPlatform.GoEventHandle(rtkCommon.EVENT_TYPE_OPEN_FILE_ERR, id, fileName, timestamp)
@@ -559,29 +548,12 @@ func IsTransferError(buffer []byte) bool {
 		return true
 	}
 	return false
-}
+}*/
 
 func processIoWrite(id, ipAddr string, fmtType rtkCommon.TransFmtType) {
 	resultCode := rtkMisc.SUCCESS
 	if fmtType == rtkCommon.FILE_DROP {
-		fileTransferId := int(0)
-		fileDropReqData, ok := rtkFileDrop.GetFileDropData(id)
-		if ok {
-			fileTransferId = int(fileDropReqData.TimeStamp)
-			resultCode = writeFileDataToSocket(id, ipAddr, &fileDropReqData)
-		} else {
-			log.Printf("[%s] Err: Not found fileDrop data", rtkMisc.GetFuncInfo())
-			resultCode = rtkMisc.ERR_BIZ_FD_DATA_EMPTY
-		}
-		defer rtkFileDrop.ResetFileDropData(id)
-
-		if resultCode != rtkMisc.SUCCESS {
-			log.Printf("(SRC) ID[%s] IP[%s] Copy file list To Socket failed, ERR code:[%d]", id, ipAddr, resultCode)
-			if resultCode != rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_CANCEL && resultCode != rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_TIMEOUT {
-				sendCmdMsgToPeer(id, COMM_FILE_TRANSFER_SRC_INTERRUPT, fmtType, resultCode)
-				rtkPlatform.GoNotifyErrEvent(id, resultCode, ipAddr, strconv.Itoa(fileTransferId), "", "")
-			}
-		}
+		dealFilesCacheDataProcess(id, ipAddr)
 	} else if fmtType == rtkCommon.XCLIP_CB {
 		resultCode = writeXClipDataToSocket(id)
 		if resultCode != rtkMisc.SUCCESS {
@@ -592,31 +564,10 @@ func processIoWrite(id, ipAddr string, fmtType rtkCommon.TransFmtType) {
 	}
 }
 
-func processIoRead(id, ipAddr, deviceName string, fmtType rtkCommon.TransFmtType) {
+func processIoRead(id, ipAddr string, fmtType rtkCommon.TransFmtType) {
 	resultCode := rtkMisc.SUCCESS
 	if fmtType == rtkCommon.FILE_DROP {
-		fileTransferId := int(0)
-		dstFileName := ""
-		fileDropData, ok := rtkFileDrop.GetFileDropData(id)
-		if ok {
-			fileTransferId = int(fileDropData.TimeStamp)
-			dstFileName, resultCode = handleFileDataFromSocket(id, ipAddr, deviceName, &fileDropData)
-		} else {
-			log.Printf("[%s] Not found fileDrop data", rtkMisc.GetFuncInfo())
-			resultCode = rtkMisc.ERR_BIZ_FD_DATA_EMPTY
-		}
-		defer rtkFileDrop.ResetFileDropData(id)
-
-		if resultCode != rtkMisc.SUCCESS {
-			log.Printf("(DST) ID[%s] IP[%s] Copy file [%s] From Socket failed, ERR code:[%d]", id, ipAddr, dstFileName, resultCode)
-
-			// any exceptions and user cancellation need to Notify to platfrom
-			HandleDataTransferError(COMM_CANCEL_DST, id, dstFileName, fileDropData.TimeStamp)
-			if resultCode != rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL && resultCode != rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_TIMEOUT {
-				sendCmdMsgToPeer(id, COMM_FILE_TRANSFER_DST_INTERRUPT, fmtType, resultCode)
-				rtkPlatform.GoNotifyErrEvent(id, resultCode, ipAddr, strconv.Itoa(fileTransferId), "", "")
-			}
-		}
+		dealFilesCacheDataProcess(id, ipAddr)
 	} else if fmtType == rtkCommon.XCLIP_CB {
 		resultCode = handleXClipDataFromSocket(id, ipAddr)
 		if resultCode != rtkMisc.SUCCESS {
@@ -651,7 +602,11 @@ func processFileDrop(id string, event EventResult) bool {
 					log.Printf("[%s] %s", rtkMisc.GetFuncInfo(), err.Error())
 					return false
 				}
-				rtkMisc.GoSafe(func() { processIoWrite(id, clientInfo.IpAddr, event.Cmd.FmtType) }) // [Src]: Start to trans file
+
+				rtkFileDrop.SetFilesDataToCacheAsSrc(id)
+				if !rtkFileDrop.GetFileTransIsInProgress(id) {
+					rtkMisc.GoSafe(func() { processIoWrite(id, clientInfo.IpAddr, event.Cmd.FmtType) }) // [Src]: Start to trans file
+				}
 			} else if extData == rtkCommon.FILE_DROP_REJECT {
 				// TODO: send response to platform (accept or reject)
 				rtkFileDrop.ResetFileDropData(id)
@@ -689,17 +644,34 @@ func processFileDrop(id string, event EventResult) bool {
 			return false
 		}
 	} else {
-		if nextState == STATE_IO && nextCommand == COMM_DST { // [Dst]: build fmtType Stream first
+		if nextState == STATE_TRANS && nextCommand == COMM_SRC {
+			if fileDropInfo, ok := rtkFileDrop.GetFileDropData(id); ok {
+				rtkConnection.BuildFileDropItemStreamListener(fileDropInfo.TimeStamp)
+			} else {
+				log.Printf("[%s] ID:[%s] Not found fileDrop data", rtkMisc.GetFuncInfo(), id)
+				return false
+			}
+		} else if nextState == STATE_IO && nextCommand == COMM_DST {
 			clientInfo, err := rtkUtils.GetClientInfo(id)
 			if err != nil {
-				//return rtkMisc.ERR_BIZ_GET_CLIENT_INFO_EMPTY
+				log.Printf("[%s] ID:[%s] Not found Client Info data", rtkMisc.GetFuncInfo(), id)
 				return false
 			}
-			if errCode := rtkConnection.BuildFmtTypeTalker(id, event.Cmd.FmtType); errCode != rtkMisc.SUCCESS {
-				log.Printf("[%s]BuildFmtTypeTalker errCode:%+v ", rtkMisc.GetFuncInfo(), errCode)
+
+			rtkFileDrop.SetFilesDataToCacheAsDst(id)
+			if fileDropInfo, ok := rtkFileDrop.GetFileDropData(id); ok { // [Dst]: every FileDropData need build a new stream
+				if errCode := rtkConnection.NewFileDropItemStream(id, fileDropInfo.TimeStamp); errCode != rtkMisc.SUCCESS {
+					log.Printf("[%s] new File Drop Item stream errCode:%+v ", rtkMisc.GetFuncInfo(), errCode)
+					return false
+				}
+			} else {
+				log.Printf("[%s] ID:[%s] Not found fileDrop data", rtkMisc.GetFuncInfo(), id)
 				return false
 			}
-			rtkMisc.GoSafe(func() { processIoRead(id, clientInfo.IpAddr, clientInfo.DeviceName, event.Cmd.FmtType) }) // [Dst]: be ready to receive file drop raw data
+
+			if !rtkFileDrop.GetFileTransIsInProgress(id) {
+				rtkMisc.GoSafe(func() { processIoRead(id, clientInfo.IpAddr, event.Cmd.FmtType) }) // [Dst]: be ready to receive file drop raw data
+			}
 		}
 		var msg Peer2PeerMessage
 		if buildMessage(&msg, id, event) {

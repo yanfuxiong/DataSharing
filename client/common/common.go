@@ -29,12 +29,14 @@ type RegMessage struct {
 
 // Only new fields can be added, old fields cannot be modified
 type RegistMdnsMessage struct {
-	Host           string
-	Id             string
-	Platform       string
-	DeviceName     string
-	SourcePortType string
-	Version        string
+	Host            string
+	Id              string
+	Platform        string
+	DeviceName      string
+	SourcePortType  string
+	Version         string
+	FileTransNodeID string
+	UdpPort         string
 }
 
 type RegResponseMessage struct {
@@ -58,7 +60,9 @@ const (
 	SendFilesRequestInProgressBySrc
 	SendFilesRequestInProgressByDst
 	SendFilesRequestCallbackNotSet
-	SendFilesRequestOverRange
+	SendFilesRequestLengthOverRange
+	SendFilesRequestSizeOverRange
+	SendFilesRequestCacheOverRange
 )
 
 type CancelBusinessSource int

@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	rtkCommon "rtk-cross-share/client/common"
+	rtkGlobal "rtk-cross-share/client/global"
 	rtkPlatform "rtk-cross-share/client/platform"
 	rtkUtils "rtk-cross-share/client/utils"
 	rtkMisc "rtk-cross-share/misc"
@@ -31,6 +32,8 @@ type streamInfo struct {
 	transFileState TransFileStateType
 
 	cancelFn func()
+
+	sFileDataQueueMap map[uint64]network.Stream
 }
 
 var (
@@ -104,14 +107,15 @@ func UpdateStream(id string, stream network.Stream) {
 	}
 
 	streamPoolMap[id] = streamInfo{
-		s:              stream,
-		ipAddr:         ipAddr,
-		timeStamp:      time.Now().UnixMilli(),
-		pingErrCnt:     0,
-		sFileDrop:      nil,
-		sImage:         nil,
-		transFileState: TRANS_FILE_NOT_PREFORMED,
-		cancelFn:       callbackStartProcessForPeer(id, ipAddr), // StartProcessForPeer
+		s:                 stream,
+		ipAddr:            ipAddr,
+		timeStamp:         time.Now().UnixMilli(),
+		pingErrCnt:        0,
+		sFileDrop:         nil,
+		sImage:            nil,
+		transFileState:    TRANS_FILE_NOT_PREFORMED,
+		cancelFn:          callbackStartProcessForPeer(id, ipAddr), // StartProcessForPeer
+		sFileDataQueueMap: make(map[uint64]network.Stream),
 	}
 	log.Printf("UpdateStream ID:[%s] IP:[%s] streamID:[%s]", id, ipAddr, stream.ID())
 }
@@ -147,6 +151,62 @@ func CheckStreamReset(id string, oldStamp int64) bool {
 		}
 	}
 	return false
+}
+
+func addFileDropItemStreamAsSrc(id string, timestamp uint64, stream network.Stream) {
+	addFileDropItemStream(id, timestamp, stream, false)
+}
+
+func addFileDropItemStreamAsDst(id string, timestamp uint64, stream network.Stream) {
+	addFileDropItemStream(id, timestamp, stream, true)
+}
+
+func addFileDropItemStream(id string, timestamp uint64, stream network.Stream, isDst bool) {
+	streamPoolMutex.Lock()
+	defer streamPoolMutex.Unlock()
+	if sInfo, ok := streamPoolMap[id]; ok {
+		sInfo.sFileDataQueueMap[timestamp] = stream
+		if isDst {
+			sInfo.transFileState = TRANS_FILE_IN_PROGRESS_DST
+		} else {
+			sInfo.transFileState = TRANS_FILE_IN_PROGRESS_SRC
+		}
+		streamPoolMap[id] = sInfo
+	}
+
+	log.Printf("[%s] ID:[%s] add file drop Item stream success! timestamp:%d ID:[%s]", rtkMisc.GetFuncInfo(), id, timestamp, stream.ID())
+}
+
+func GetFileDropItemStream(id string, timestamp uint64) (network.Stream, bool) {
+	streamPoolMutex.RLock()
+	defer streamPoolMutex.RUnlock()
+	if sInfo, ok := streamPoolMap[id]; ok {
+		itemStream, bOk := sInfo.sFileDataQueueMap[timestamp]
+		return itemStream, bOk
+	}
+
+	return nil, false
+}
+
+func CloseFileDropItemStream(id string, timestamp uint64) {
+	streamPoolMutex.Lock()
+	defer streamPoolMutex.Unlock()
+	if sInfo, ok := streamPoolMap[id]; ok {
+		if itemStream, bOk := sInfo.sFileDataQueueMap[timestamp]; bOk {
+			itemStream.Close()
+			delete(sInfo.sFileDataQueueMap, timestamp)
+			nCount := len(sInfo.sFileDataQueueMap)
+			if nCount == 0 {
+				sInfo.transFileState = TRANS_FILE_NOT_PREFORMED
+				log.Printf("[%s] ID:[%s] IP:[%s] close file drop Item stream success! timestamp:%d ID:[%s], and all file drop Item stream done!", rtkMisc.GetFuncInfo(), id, sInfo.ipAddr, timestamp, itemStream.ID())
+			} else {
+				log.Printf("[%s] ID:[%s] IP:[%s] close file drop Item stream success! timestamp:%d ID:[%s], and still %s records left!", rtkMisc.GetFuncInfo(), id, sInfo.ipAddr, timestamp, itemStream.ID(), nCount)
+			}
+			streamPoolMap[id] = sInfo
+			return
+		}
+	}
+	log.Printf("[%s] ID:[%s] Unknown file drop Item stream, timestamp:%d", rtkMisc.GetFuncInfo(), id, timestamp)
 }
 
 func updateFmtTypeStreamInternal(stream network.Stream, fmtType rtkCommon.TransFmtType, isDst bool) {
@@ -230,13 +290,21 @@ func GetFileTransErrCode(id string) rtkCommon.SendFilesRequestErrCode {
 
 func noticeFmtTypeStreamReady(id string, fmtType rtkCommon.TransFmtType) {
 	key := id + string(fmtType)
-	noticeChan, _ := noticeFmtTypeSteamReadyChanMap.LoadOrStore(key, make(chan struct{}, 1))
+	nReadyChanQueueCount := int(1)
+	if fmtType == rtkCommon.FILE_DROP {
+		nReadyChanQueueCount = rtkGlobal.SendFilesRequestMaxQueueSize - 1
+	}
+	noticeChan, _ := noticeFmtTypeSteamReadyChanMap.LoadOrStore(key, make(chan struct{}, nReadyChanQueueCount))
 	noticeChan.(chan struct{}) <- struct{}{}
 }
 
 func HandleFmtTypeStreamReady(id string, fmtType rtkCommon.TransFmtType) {
 	key := id + string(fmtType)
-	noticeChan, _ := noticeFmtTypeSteamReadyChanMap.LoadOrStore(key, make(chan struct{}, 1))
+	nReadyChanQueueCount := int(1)
+	if fmtType == rtkCommon.FILE_DROP {
+		nReadyChanQueueCount = rtkGlobal.SendFilesRequestMaxQueueSize - 1
+	}
+	noticeChan, _ := noticeFmtTypeSteamReadyChanMap.LoadOrStore(key, make(chan struct{}, nReadyChanQueueCount))
 	<-noticeChan.(chan struct{})
 }
 
@@ -355,7 +423,7 @@ func CancelStreamPool() {
 
 	nCount := uint8(0)
 	for id, sInfo := range tempStreamMap {
-		updateUIOnlineStatus(false, id, sInfo.ipAddr, "", "", "", "")
+		updateUIOnlineStatus(false, id, sInfo.ipAddr, "", "", "", "", "", "")
 		callbackSendDisconnectMsgToPeer(id)
 
 		if sInfo.sFileDrop != nil {

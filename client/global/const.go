@@ -13,6 +13,7 @@ const (
 	ProtocolDirectID          = "/instruction/cross_share/1.0.0"
 	ProtocolImageTransmission = "/ipfs/protocol/cross_share/1.0.0"
 	ProtocolFileTransmission  = "/ipfs/protocol/cross_share/1.0.1"
+	ProtocolFileTransQueue    = "/ipfs/protocol/cross_share/fileDataTransfer/"
 	DefaultPort               = 0
 
 	// This is the maximum length of messages between clients,    32KB
@@ -26,4 +27,10 @@ const (
 
 	//This is the length of content removed from String Array
 	StringArrayMagicLength = 5
+
+	//The maximum size for sending documents each time,   10GB
+	SendFilesRequestMaxSize = 10 * 1024 * 1024 * 1024
+
+	//The maximum size for cache queue size 5
+	SendFilesRequestMaxQueueSize = 5
 )

@@ -5,16 +5,18 @@ import rtkMisc "rtk-cross-share/misc"
 type IPAddrInfo struct {
 	LocalPort  string
 	PublicPort string
+	UpdPort    string
 	PublicIP   string
 }
 
 type NodeInfo struct {
-	IPAddr         IPAddrInfo
-	ClientIndex    uint32
-	ID             string
-	DeviceName     string
-	Platform       string
-	SourcePortType string
+	IPAddr          IPAddrInfo
+	ClientIndex     uint32
+	ID              string
+	DeviceName      string
+	Platform        string
+	SourcePortType  string
+	FileTransNodeID string
 }
 
 type ClientStatusInfo struct {
@@ -32,5 +34,7 @@ type ClientListInfo struct {
 
 type ClientInfoEx struct {
 	rtkMisc.ClientInfo
-	IsSupportXClip bool
+	IsSupportXClip  bool
+	FileTransNodeID string
+	UpdPort         string
 }

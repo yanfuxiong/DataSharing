@@ -268,14 +268,21 @@ func GoMultiFilesDropRequest(id string, fileList *[]rtkCommon.FileInfo, folderLi
 		log.Println("CallbackFileListDropRequestCB is null!")
 		return rtkCommon.SendFilesRequestCallbackNotSet
 	}
-	if callbackGetFilesTransCode == nil {
-		log.Println("callbackGetFilesTransCode is null!")
+
+	if callbackGetFilesSendCacheCount == nil {
+		log.Println("callbackGetFilesSendCacheCount is null!")
 		return rtkCommon.SendFilesRequestCallbackNotSet
 	}
 
-	filesTransCode := callbackGetFilesTransCode(id)
-	if filesTransCode != rtkCommon.SendFilesRequestSuccess {
-		return filesTransCode
+	nCacheCount := callbackGetFilesSendCacheCount(id)
+	if nCacheCount >= rtkGlobal.SendFilesRequestMaxQueueSize {
+		log.Printf("[%s] ID[%s] this user file drop cache count:[%d] is too large and over range !", rtkMisc.GetFuncInfo(), id, nCacheCount)
+		return rtkCommon.SendFilesRequestCacheOverRange
+	}
+
+	if totalSize > uint64(rtkGlobal.SendFilesRequestMaxSize) {
+		log.Printf("[%s] ID[%s] this file drop total size:[%d] [%s] is too large and over range !", rtkMisc.GetFuncInfo(), id, totalSize, totalDesc)
+		return rtkCommon.SendFilesRequestSizeOverRange
 	}
 
 	nMsgLength := int(rtkGlobal.P2PMsgMagicLength)
@@ -289,12 +296,12 @@ func GoMultiFilesDropRequest(id string, fileList *[]rtkCommon.FileInfo, folderLi
 	}
 
 	if nMsgLength >= rtkGlobal.P2PMsgMaxLength {
-		log.Printf("[%s] ID[%s] get file count:[%d] folder count:[%d], the p2p message is too long and over range!", rtkMisc.GetFuncInfo(), id, len(*fileList), len(*folderList))
-		return rtkCommon.SendFilesRequestOverRange
+		log.Printf("[%s] ID[%s] file count:[%d] folder count:[%d], the p2p message is too long and over range!", rtkMisc.GetFuncInfo(), id, len(*fileList), len(*folderList))
+		return rtkCommon.SendFilesRequestLengthOverRange
 	}
 
 	callbackFileListDropRequestCB(id, *fileList, *folderList, totalSize, timestamp, totalDesc)
-	return filesTransCode
+	return rtkCommon.SendFilesRequestSuccess
 }
 
 func GoGetMacAddress(mac string) {
@@ -357,7 +364,7 @@ func GoMultiFilesDropNotify(ip, id, platform string, fileCnt uint32, totalSize, 
 		log.Println(" CallbackInstance is null !")
 		return
 	}
-	log.Printf("(DST) GoMultiFilesDropNotify  source:%s ip:[%s]fileCnt:%d  totalSize:%d", id, ip, fileCnt, totalSize)
+	log.Printf("(DST) GoMultiFilesDropNotify  source:%s ip:[%s] timestamp:%d fileCnt:%d  totalSize:%d", id, ip, timestamp, fileCnt, totalSize)
 	CallbackInstance.CallbackFileListDragNotify(ip, id, platform, int(fileCnt), int64(totalSize), int64(timestamp), firstFileName, int64(firstFileSize))
 }
 
@@ -396,7 +403,7 @@ func GoUpdateClientStatusEx(id string, status uint8) {
 			log.Printf("[%s] err:%+v", rtkMisc.GetFuncInfo(), err)
 			return
 		}
-		clientInfo.ClientInfo = info
+		clientInfo.ClientInfo = info.ClientInfo
 	} else {
 		clientInfo.ID = id
 	}
@@ -430,7 +437,7 @@ func GoSetupDstPasteXClipData(cbText, cbImage, cbHtml []byte) {
 	CallbackInstance.CallbackPasteXClipData(string(cbText), imageStr, string(cbHtml))
 }
 
-func GoUpdateMultipleProgressBar(ip, id, deviceName, currentFileName string, sentFileCnt, totalFileCnt uint32, currentFileSize, totalSize, sentSize, timestamp uint64) {
+func GoUpdateMultipleProgressBar(ip, id, currentFileName string, sentFileCnt, totalFileCnt uint32, currentFileSize, totalSize, sentSize, timestamp uint64) {
 	if CallbackInstance == nil {
 		log.Println("CallbackUpdateMultipleProgressBar CallbackInstance is null !")
 		return

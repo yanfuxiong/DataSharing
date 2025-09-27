@@ -241,14 +241,14 @@ func RemoveMySelfID(slice []string, s string) []string {
 	return slice[:i]
 }
 
-func GetClientInfo(id string) (rtkMisc.ClientInfo, error) {
+func GetClientInfo(id string) (rtkCommon.ClientInfoEx, error) {
 	rtkGlobal.ClientListRWMutex.RLock()
 	defer rtkGlobal.ClientListRWMutex.RUnlock()
 
 	if val, ok := rtkGlobal.ClientInfoMap[id]; ok {
-		return val.ClientInfo, nil
+		return val, nil
 	}
-	return rtkMisc.ClientInfo{}, errors.New(fmt.Sprintf("not found ClientInfo by id:%s", id))
+	return rtkCommon.ClientInfoEx{}, errors.New(fmt.Sprintf("not found ClientInfo by id:%s", id))
 }
 
 func GetClientIp(id string) (string, bool) {
@@ -262,7 +262,7 @@ func GetClientIp(id string) (string, bool) {
 	return "", false
 }
 
-func InsertClientInfoMap(id, ipAddr, platform, name, srcPortType, ver string) {
+func InsertClientInfoMap(id, ipAddr, platform, name, srcPortType, ver, fileTransId, udpPort string) {
 	rtkGlobal.ClientListRWMutex.Lock()
 	defer rtkGlobal.ClientListRWMutex.Unlock()
 
@@ -286,6 +286,8 @@ func InsertClientInfoMap(id, ipAddr, platform, name, srcPortType, ver string) {
 			Version:        ver,
 		},
 		IsSupportXClip: isSupportXClip,
+		FileTransNodeID: fileTransId,
+		UpdPort:         udpPort,
 	}
 }
 

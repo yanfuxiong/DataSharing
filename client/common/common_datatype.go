@@ -1,5 +1,7 @@
 package common
 
+import rtkMisc "rtk-cross-share/misc"
+
 type FileActionType string
 
 const (
@@ -76,4 +78,9 @@ type ClipBoardData struct {
 	TimeStamp uint64
 	FmtType   TransFmtType
 	ExtData   interface{} // ExtDataFile(future), ExtDataXClip
+}
+
+type ExtDataFilesTransferInterrupt struct {
+	Code      rtkMisc.CrossShareErr
+	TimeStamp uint64
 }

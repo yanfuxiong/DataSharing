@@ -1,6 +1,7 @@
 package connection
 
 import (
+	"github.com/libp2p/go-libp2p/core/network"
 	"sync"
 	"time"
 
@@ -17,14 +18,22 @@ const (
 	ctxTimeout_short  = 2 * time.Second
 )
 
+type FileDropItemStreamInfo struct {
+	Timestamp uint64
+	ID        string
+	StreamId  string // stream ID
+	Stream    network.Stream
+}
+
 type (
 	callbackStartProcessForPeerFunc     func(id, ipAddr string) func()
 	callbackSendDisconnectMsgToPeerFunc func(id string)
 )
 
 var (
-	node      host.Host
-	nodeMutex sync.RWMutex
+	node          host.Host
+	fileTransNode host.Host
+	nodeMutex     sync.RWMutex
 
 	pingServer *ping.PingService
 
