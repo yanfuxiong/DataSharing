@@ -168,12 +168,12 @@ func ConnectLanServerRun(ctx context.Context) {
 		g_lookupByUnicast = true
 		computerInitLanServer(ctx)
 	} else {
+		lanServerRunning.Store(true)
 		serverInstanceMap.Range(func(k, v any) bool {
 			param := v.(browseParam)
 			rtkPlatform.GoNotifyBrowseResult(param.monitorName, param.instance, param.ip, param.ver, param.timeStamp)
 			return true
 		})
-		lanServerRunning.Store(true)
 	}
 
 	readResult := make(chan struct {

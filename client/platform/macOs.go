@@ -62,7 +62,8 @@ func GetLockFilePath() string {
 
 type (
 	CallbackNetworkSwitchFunc              func()
-	CallbackXClipCopyFunc                  func(cbText, cbImage, cbHtml []byte)
+	CallbackCopyXClipFunc                  func(cbText, cbImage, cbHtml []byte)
+	CallbackPasteXClipFunc                 func(text, image, html string)
 	CallbackFileDropResponseFunc           func(string, rtkCommon.FileDropCmd, string)
 	CallbackDragFileListRequestFunc        func([]rtkCommon.FileInfo, []string, uint64, uint64, string)
 	CallbackFileListDragNotify             func(string, string, string, uint32, uint64, uint64, string, uint64)
@@ -94,7 +95,8 @@ type (
 
 var (
 	callbackNetworkSwitch              CallbackNetworkSwitchFunc              = nil
-	callbackXClipCopyData              CallbackXClipCopyFunc                  = nil
+	callbackCopyXClipDataCB            CallbackCopyXClipFunc                  = nil
+	callbackPasteXClipDataCB           CallbackPasteXClipFunc                 = nil
 	callbackInstanceFileDropResponseCB CallbackFileDropResponseFunc           = nil
 	callbackDragFileListRequestCB      CallbackDragFileListRequestFunc        = nil
 	callbackFileListDragNotify         CallbackFileListDragNotify             = nil
@@ -122,6 +124,10 @@ var (
 )
 
 /*======================================= Used by main.go, set Callback =======================================*/
+
+func SetCallbackPasteXClip(cb CallbackPasteXClipFunc) {
+	callbackPasteXClipDataCB = cb
+}
 
 func SetCallbackFileListNotify(cb CallbackFileListDragNotify) {
 	callbackFileListDragNotify = cb
@@ -178,8 +184,8 @@ func SetGoNetworkSwitchCallback(cb CallbackNetworkSwitchFunc) {
 }
 
 // Notify to Clipboard/FileDrop
-func SetCopyXClipCallback(cb CallbackXClipCopyFunc) {
-	callbackXClipCopyData = cb
+func SetCopyXClipCallback(cb CallbackCopyXClipFunc) {
+	callbackCopyXClipDataCB = cb
 }
 
 func SetGoFileDropResponseCallback(cb CallbackFileDropResponseFunc) {
@@ -334,12 +340,12 @@ func GoSetDIASSourceAndPort(src, port uint8) {
 }
 
 func GoCopyXClipData(text, image, html []byte) {
-	if callbackXClipCopyData == nil {
-		log.Println("callbackXClipCopyData is null!")
+	if callbackCopyXClipDataCB == nil {
+		log.Println("callbackCopyXClipDataCB is null!")
 		return
 	}
 
-	callbackXClipCopyData(text, image, html)
+	callbackCopyXClipDataCB(text, image, html)
 }
 
 func GoFileDropResponse(id string, fileCmd rtkCommon.FileDropCmd, fileName string) {
@@ -459,9 +465,19 @@ func FoundPeer() {
 
 }
 
-// TODO: implement XClipData
 func GoSetupDstPasteXClipData(cbText, cbImage, cbHtml []byte) {
+	if callbackPasteXClipDataCB == nil {
+		log.Printf("callbackPasteXClipDataCB is null!\n\n")
+		return
+	}
 
+	imageStr := ""
+	if len(cbImage) > 0 {
+		imageBase64 := rtkUtils.Base64Encode(cbImage)
+		imageStr = imageBase64
+	}
+
+	callbackPasteXClipDataCB(string(cbText), imageStr, string(cbHtml))
 }
 
 func GoUpdateMultipleProgressBar(ip, id, deviceName, currentFileName string, sentFileCnt, totalFileCnt uint32, currentFileSize, totalSize, sentSize, timestamp uint64) {
