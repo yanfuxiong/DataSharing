@@ -71,7 +71,7 @@ type (
 	CallbackFileListDropRequestFunc        func(string, []rtkCommon.FileInfo, []string, uint64, uint64, string)
 	CallbackMethodFoundPeer                func()
 	CallbackUpdateClientStatusFunc         func(clientInfo string)
-	CallbackUpdateMultipleProgressBar      func(string, string, string, string, uint32, uint32, uint64, uint64, uint64, uint64)
+	CallbackUpdateMultipleProgressBar      func(string, string, string, uint32, uint32, uint64, uint64, uint64, uint64)
 	CallbackCancelFileTransFunc            func(string, string, uint64)
 	CallbackFileError                      func(string, string, string)
 	CallbackNotifyErrEventFunc             func(id string, errCode uint32, arg1, arg2, arg3, arg4 string)
@@ -87,6 +87,7 @@ type (
 	CallbackDIASStatusFunc                 func(uint32)
 	CallbackMonitorNameFunc                func(string)
 	CallbackGetFilesTransCodeFunc          func(id string) rtkCommon.SendFilesRequestErrCode
+	CallbackGetFilesCacheSendCountFunc     func(id string) int
 	CallbackRequestUpdateClientVersionFunc func(string)
 	CallbackNotifyBrowseResultFunc         func(monitorName, instance, ipAddr, version string, timestamp int64)
 	CallbackConnectLanServerFunc           func(instance string)
@@ -121,6 +122,7 @@ var (
 	callbackDIASStatus                 CallbackDIASStatusFunc                 = nil
 	callbackMonitorName                CallbackMonitorNameFunc                = nil
 	callbackGetFilesTransCode          CallbackGetFilesTransCodeFunc          = nil
+	callbackGetFilesCacheSendCount     CallbackGetFilesCacheSendCountFunc     = nil
 	callbackRequestUpdateClientVersion CallbackRequestUpdateClientVersionFunc = nil
 	callbackNotifyBrowseResult         CallbackNotifyBrowseResultFunc         = nil
 	callbackConnectLanServer           CallbackConnectLanServerFunc           = nil
@@ -243,6 +245,10 @@ func SetGoBrowseMdnsResultCallback(cb CallbackMethodBrowseMdnsResultFunc) {
 
 func SetGetFilesTransCodeCallback(cb CallbackGetFilesTransCodeFunc) {
 	callbackGetFilesTransCode = cb
+}
+
+func SetGetFilesCacheSendCountCallback(cb CallbackGetFilesCacheSendCountFunc) {
+	callbackGetFilesCacheSendCount = cb
 }
 
 func SetGoConnectLanServerCallback(cb CallbackConnectLanServerFunc) {
@@ -396,8 +402,8 @@ func GoMultiFilesDropRequest(id string, fileList *[]rtkCommon.FileInfo, folderLi
 	}
 
 	if nMsgLength >= rtkGlobal.P2PMsgMaxLength {
-		log.Printf("[%s] ID[%s] get file count:[%d] folder count:[%d], the p2p message is too long and over range!", rtkMisc.GetFuncInfo(), id, len(*fileList), len(*folderList))
-		return rtkCommon.SendFilesRequestOverRange
+		log.Printf("[%s] ID[%s] file count:[%d] folder count:[%d], the p2p message is too long and over range!", rtkMisc.GetFuncInfo(), id, len(*fileList), len(*folderList))
+		return rtkCommon.SendFilesRequestLengthOverRange
 	}
 
 	callbackFileListDropRequest(id, *fileList, *folderList, totalSize, timestamp, totalDesc)
@@ -462,7 +468,7 @@ func GoUpdateClientStatusEx(id string, status uint8) {
 			log.Printf("[%s] err:%+v", rtkMisc.GetFuncInfo(), err)
 			return
 		}
-		clientInfo.ClientInfo = info
+		clientInfo.ClientInfo = info.ClientInfo
 	} else {
 		clientInfo.ID = id
 	}
@@ -492,14 +498,16 @@ func GoSetupDstPasteXClipData(cbText, cbImage, cbHtml []byte) {
 
 }
 
-func GoUpdateMultipleProgressBar(ip, id, deviceName, currentFileName string, sentFileCnt, totalFileCnt uint32, currentFileSize, totalSize, sentSize, timestamp uint64) {
+func GoUpdateMultipleProgressBar(ip, id, currentFileName string, sentFileCnt, totalFileCnt uint32, currentFileSize, totalSize, sentSize, timestamp uint64) {
 	if callbackUpdateMultipleProgressBar == nil {
 		log.Println("CallbackUpdateMultipleProgressBar is null !")
 		return
 	}
-	//log.Printf("GoUpdateMultipleProgressBar ip:[%s] [%s] currentFileName:[%s] recvSize:[%d] total:[%d]", ip, deviceName, currentFileName, sentSize, totalSize)
-	callbackUpdateMultipleProgressBar(ip, id, deviceName, currentFileName, sentFileCnt, totalFileCnt, currentFileSize, totalSize, sentSize, timestamp)
+	//log.Printf("GoUpdateMultipleProgressBar ip:[%s] currentFileName:[%s] recvSize:[%d] total:[%d]", ip, currentFileName, sentSize, totalSize)
+	callbackUpdateMultipleProgressBar(ip, id, currentFileName, sentFileCnt, totalFileCnt, currentFileSize, totalSize, sentSize, timestamp)
 }
+
+
 
 func GoUpdateSystemInfo(ip, serviceVer string) {
 

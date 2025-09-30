@@ -99,6 +99,7 @@ type (
 	CallbackUpdateClientStatusExFunc   func(clientInfo string)
 	CallbackDetectPluginEventFunc      func(isPlugin bool, productName string)
 	CallbackGetFilesTransCodeFunc      func(id string) rtkCommon.SendFilesRequestErrCode
+	CallbackGetFilesCacheSendCountFunc func(id string) int
 	CallbackReqClientUpdateVerFunc     func(clientVer string)
 	CallbackNotifyErrEventFunc         func(id string, errCode uint32, arg1, arg2, arg3, arg4 string)
 	CallbackConnectLanServerFunc       func(instance string)
@@ -137,6 +138,7 @@ var (
 	callbackUpdateClientStatusEx CallbackUpdateClientStatusExFunc = nil
 	callbackCleanClipboard       CallbackCleanClipboardFunc       = nil
 	callbackGetFilesTransCode    CallbackGetFilesTransCodeFunc    = nil
+	callbackGetFilesCacheSendCount CallbackGetFilesCacheSendCountFunc = nil
 )
 
 /*======================================= Used  by GO set Callback =======================================*/
@@ -195,6 +197,10 @@ func SetGoBrowseMdnsResultCallback(cb CallbackMethodBrowseMdnsResultFunc) {
 
 func SetGetFilesTransCodeCallback(cb CallbackGetFilesTransCodeFunc) {
 	callbackGetFilesTransCode = cb
+}
+
+func SetGetFilesCacheSendCountCallback(cb CallbackGetFilesCacheSendCountFunc) {
+	callbackGetFilesCacheSendCount = cb
 }
 
 func SetGoConnectLanServerCallback(cb CallbackConnectLanServerFunc) {

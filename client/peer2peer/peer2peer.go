@@ -723,7 +723,7 @@ func processXClip(id string, event EventResult) bool {
 				return false
 			}
 			// [Dst]: Start to trans XClip
-			rtkMisc.GoSafe(func() { processIoRead(id, ipAddr, "", event.Cmd.FmtType) })
+			rtkMisc.GoSafe(func() { processIoRead(id, ipAddr, event.Cmd.FmtType) })
 		}
 
 		var msg Peer2PeerMessage

@@ -168,10 +168,10 @@ func GoTriggerCallbackMethodFileListNotify(ip, id, platform string, fileCnt uint
 	C.invokeCallbackMethodFileListNotify(cip, cid, cplatform, cFileCnt, ctotalSize, ctimeStamp, cfirstFileName, cfirstFileSize)
 }
 
-func GoTriggerCallbackUpdateMultipleProgressBar(ip, id, deviceName, currentFileName string, sentFileCnt, totalFileCnt uint32, currentFileSize, totalSize, sentSize, timestamp uint64) {
+func GoTriggerCallbackUpdateMultipleProgressBar(ip, id, currentFileName string, sentFileCnt, totalFileCnt uint32, currentFileSize, totalSize, sentSize, timestamp uint64) {
 	cip := C.CString(ip)
 	cid := C.CString(id)
-	cdeviceName := C.CString(deviceName)
+	cdeviceName := C.CString("")
 	ccurrentFileName := C.CString(currentFileName)
 
 	defer func() {

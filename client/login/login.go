@@ -384,8 +384,9 @@ func connectToLanServer(ctx context.Context, bPrintErr bool) rtkMisc.CrossShareE
 			}
 			return rtkMisc.ERR_NETWORK_C2S_DIAL
 		}
+
 		pSafeConnect.Reset(pConnectLanServer)
-		log.Printf("Connect LanServerAddr:[%s] success!", lanServerAddr)
+		log.Printf("Connect LanServerAddr:[%s] success! LocalAddr:[%s]", lanServerAddr, pConnectLanServer.LocalAddr().String())
 
 		stopBrowseInstance() // mobile need stop Browse
 	}

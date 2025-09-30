@@ -103,6 +103,7 @@ type (
 	CallbackExtractDIASFunc            func()
 	CallbackMethodBrowseMdnsResultFunc func(string, string, int, string, string, string, string)
 	CallbackGetFilesTransCodeFunc      func(id string) rtkCommon.SendFilesRequestErrCode
+	CallbackGetFilesSendCacheCountFunc func(id string) int
 	CallbackConnectLanServerFunc       func(instance string)
 	CallbackBrowseLanServerFunc        func()
 	CallbackSetMsgEventFunc            func(event uint32, arg1, arg2, arg3, arg4 string)
@@ -122,6 +123,7 @@ var (
 	callbackExtractDIASCB              CallbackExtractDIASFunc            = nil
 	callbackMethodBrowseMdnsResult     CallbackMethodBrowseMdnsResultFunc = nil
 	callbackGetFilesTransCode          CallbackGetFilesTransCodeFunc      = nil
+	callbackGetFilesSendCacheCount     CallbackGetFilesSendCacheCountFunc = nil
 	callbackConnectLanServer           CallbackConnectLanServerFunc       = nil
 	callbackBrowseLanServer            CallbackBrowseLanServerFunc        = nil
 	callbackSetMsgEvent                CallbackSetMsgEventFunc            = nil
@@ -178,6 +180,10 @@ func SetGoCancelFileTransCallback(cb CallbackCancelFileTransFunc) {
 
 func SetGetFilesTransCodeCallback(cb CallbackGetFilesTransCodeFunc) {
 	callbackGetFilesTransCode = cb
+}
+
+func SetGetFilesCacheSendCountCallback(cb CallbackGetFilesSendCacheCountFunc) {
+	callbackGetFilesSendCacheCount = cb
 }
 
 func SetGoConnectLanServerCallback(cb CallbackConnectLanServerFunc) {
