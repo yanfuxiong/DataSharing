@@ -23,3 +23,8 @@ const (
 	PlatformMac     = "macOs"
 	PlatformiOS     = "iOS"
 )
+
+var (
+	AppLink = ""
+)
+

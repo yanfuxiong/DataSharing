@@ -39,6 +39,7 @@ type InitClientMessageReq struct {
 	DeviceName    string
 	IPAddr        string
 	ClientVersion string
+	AppStoreLink  string
 }
 
 type PlatformMsgEventResponse struct {

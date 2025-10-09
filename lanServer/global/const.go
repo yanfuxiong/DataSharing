@@ -1,7 +1,7 @@
 package global
 
 const (
-	LanServerVersion  = "2.2.16" // it must notify client and update client version and VersionReadme.txt  when intermediate version is update
+	LanServerVersion  = "2.2.18" // it must notify client and update client version and VersionReadme.txt  when intermediate version is update
 	ClientBaseVersion = "2.3"
 
 	LOG_PATH         = "/data/vendor/realtek/cross_share/"
@@ -23,4 +23,13 @@ const (
 	DP_SRC_TYPE_DP      DpSrcType = 1
 	DP_SRC_TYPE_MINI_DP DpSrcType = 2
 	DP_SRC_TYPE_USBC    DpSrcType = 3
+)
+
+
+type ClientEventMsgType int
+
+const (
+	CLIENT_EVENT_MSG_RESERVED   ClientEventMsgType = 0
+	CLIENT_EVENT_MSG_SHOW_TOAST ClientEventMsgType = 1
+	CLIENT_EVENT_MSG_OPEN_GUIDE ClientEventMsgType = 2
 )

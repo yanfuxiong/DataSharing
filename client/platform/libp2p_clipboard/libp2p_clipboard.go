@@ -213,3 +213,8 @@ func GetVersion() string {
 func GetBuildDate() string {
 	return rtkBuildConfig.BuildDate
 }
+
+func SetupAppLink(link string) {
+	log.Printf("[%s] link:[%s]", rtkMisc.GetFuncInfo(), link)
+	rtkPlatform.GoSetupAppLink(link)
+}

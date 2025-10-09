@@ -526,3 +526,9 @@ func WorkerConnectLanServer(instance string) {
 	log.Printf("[%s]  instance:[%s]", rtkMisc.GetFuncInfo(), instance)
 	rtkPlatform.GoConnectLanServer(instance)
 }
+
+//export SetupAppLink
+func SetupAppLink(link string) {
+	log.Printf("[%s] link:[%s]", rtkMisc.GetFuncInfo(), link)
+	rtkPlatform.GoSetupAppLink(link)
+}

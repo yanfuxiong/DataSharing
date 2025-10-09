@@ -152,6 +152,12 @@ func dealC2SMsgInitClient(ext *json.RawMessage) (uint32, interface{}) {
 		return 0, initClientRsp
 	}
 
+	errCode = rtkdbManager.UpsertLinkInfo(pkIndex, extData.AppStoreLink)
+	if errCode != rtkMisc.SUCCESS {
+		initClientRsp.Response = rtkMisc.GetResponse(errCode)
+		return 0, initClientRsp
+	}
+
 	initClientRsp.ClientIndex = uint32(pkIndex)
 	return initClientRsp.ClientIndex, initClientRsp
 }

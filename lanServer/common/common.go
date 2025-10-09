@@ -8,19 +8,20 @@ import (
 
 // sqlite table struct
 type ClientInfoTb struct {
-	Index      int
-	ClientId   string
-	Host       string
-	IpAddr     string
-	Source     int
-	Port       int
-	DeviceName string
-	Platform   string
-	Version    string
-	Online     bool
-	AuthStatus bool
-	UpdateTime string
-	CreateTime string
+	Index        int
+	ClientId     string
+	Host         string
+	IpAddr       string
+	Source       int
+	Port         int
+	DeviceName   string
+	Platform     string
+	Version      string
+	Online       bool
+	AuthStatus   bool
+	UpdateTime   string
+	CreateTime   string
+	LastAuthTime string
 }
 
 func (c *ClientInfoTb) Dump() {
@@ -96,4 +97,16 @@ func GetClientSourcePortType(src, port int) string {
 	}
 
 	return string(srcPortType)
+}
+
+type SrcPortTiming struct {
+	Source    int
+	Port      int
+	Width     int
+	Height    int
+	Framerate int
+}
+
+func (s *SrcPortTiming) IsSingal() bool {
+	return s.Width > 0 && s.Height > 0 && s.Framerate > 0
 }

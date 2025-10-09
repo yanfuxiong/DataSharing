@@ -409,6 +409,7 @@ func Run() {
 
 	rtkMisc.GoSafe(func() { browseOtherServer(ctx) })
 	rtkMisc.GoSafe(func() { rtkClientManager.ReconnClientListHandler(ctx) })
+	rtkMisc.GoSafe(func() { rtkClientManager.HandleClientSignalChecking(ctx) })
 
 	rtkMisc.GoSafe(func() {
 		for {

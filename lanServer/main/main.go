@@ -36,6 +36,7 @@ typedef void (*UpdateDeviceNameCb)(int source, int port, const char* name);
 typedef void (*DragFileStartCb)(int source, int port, int horzSize, int vertSize, int posX, int posY);
 typedef void (*UpdateClientInfoCb)(const CLIENT_INFO_DATA clientInfo);
 typedef void (*GetTimingDataCb)(TIMING_DATA** list, int* size);
+typedef void (*GetTimingDataBySrcPortCb)(int source, int port, TIMING_DATA* timingData);
 typedef void (*DisplayMonitorNameCb)();
 typedef void (*GetDpSrcTypeCb)(int source, int port, int* dpSrcType);
 typedef void (*SendMsgEventCb)(int event, const char* arg1, const char* arg2, const char* arg3, const char* arg4);
@@ -45,6 +46,7 @@ static UpdateDeviceNameCb g_updateDeviceNameCb = 0;
 static DragFileStartCb g_dragFileStartCb = 0;
 static UpdateClientInfoCb g_updateClientInfoCb = 0;
 static GetTimingDataCb g_getTimingDataCb = 0;
+static GetTimingDataBySrcPortCb g_getTimingDataBySrcPortCb = 0;
 static DisplayMonitorNameCb g_displayMonitorNameCb = 0;
 static GetDpSrcTypeCb g_getDpSrcTypeCb = 0;
 static SendMsgEventCb g_sendMsgEventCb = 0;
@@ -72,6 +74,12 @@ static void setGetTimingDataCb(GetTimingDataCb cb) {g_getTimingDataCb = cb;}
 static void onGetTimingDataCb(TIMING_DATA** list, int* size) {
 	if (g_getTimingDataCb) {
 		g_getTimingDataCb(list, size);
+	}
+}
+static void setGetTimingDataBySrcPortCb(GetTimingDataBySrcPortCb cb) {g_getTimingDataBySrcPortCb = cb;}
+static void onGetTimingDataBySrcPortCb(int source, int port, TIMING_DATA* timingData) {
+	if (g_getTimingDataBySrcPortCb) {
+		g_getTimingDataBySrcPortCb(source, port, timingData);
 	}
 }
 static void setDisplayMonitorNameCb(DisplayMonitorNameCb cb) {g_displayMonitorNameCb = cb;}
@@ -121,6 +129,11 @@ func SetUpdateClientInfoCb(cb C.UpdateClientInfoCb) {
 //export SetGetTimingDataCb
 func SetGetTimingDataCb(cb C.GetTimingDataCb) {
 	C.setGetTimingDataCb(cb)
+}
+
+//export SetGetTimingDataBySrcPortCb
+func SetGetTimingDataBySrcPortCb(cb C.GetTimingDataBySrcPortCb) {
+	C.setGetTimingDataBySrcPortCb(cb)
 }
 
 //export SetDisplayMonitorNameCb
@@ -208,6 +221,23 @@ func UpdateProductName(cName *C.char) {
 	rtkIfaceMgr.GetInterfaceMgr().UpdateProductName(name)
 }
 
+//export UpdateSrcPortTiming
+func UpdateSrcPortTiming(cSource, cPort, cWidth, cHeight, cFramerate C.int) {
+	source := int(cSource)
+	port := int(cPort)
+	width := int(cWidth)
+	height := int(cHeight)
+	framerate := int(cFramerate)
+	rtkIfaceMgr.GetInterfaceMgr().UpdateSrcPortTiming(source, port, width, height, framerate)
+}
+
+//export EnableCrossShare
+func EnableCrossShare(cEnable C.int) {
+	intEnable := int(cEnable)
+	enable := intEnable != 0
+	rtkIfaceMgr.GetInterfaceMgr().EnableCrossShare(enable)
+}
+
 //export Init
 func Init() {
 	initFunc()
@@ -227,6 +257,7 @@ func initFunc() {
 		goDisplayMonitorNameCb,
 		goGetDpSrcTypeCb,
 		goGetTimingDataCb,
+		goGetTimingDataBySrcPortCb,
 		goSendMsgEventCb)
 
 	rtkMisc.GoSafe(func() {
@@ -296,6 +327,27 @@ func goGetTimingDataCb() []rtkCommon.TimingData {
 	}
 
 	return result
+}
+
+func goGetTimingDataBySrcPortCb(source, port int) rtkCommon.TimingData {
+	cSource := C.int(source)
+	cPort := C.int(port)
+	var cTimingData C.TIMING_DATA
+	C.onGetTimingDataBySrcPortCb(cSource, cPort, &cTimingData)
+
+	ret := rtkCommon.TimingData{
+		Source:      int(cTimingData.source),
+		Port:        int(cTimingData.port),
+		Width:       int(cTimingData.width),
+		Height:      int(cTimingData.height),
+		Framerate:   int(cTimingData.framerate),
+		DisplayMode: int(cTimingData.displayMode),
+		DisplayName: C.GoString(cTimingData.displayName),
+		DeviceName:  C.GoString(cTimingData.deviceName),
+	}
+	C.free(unsafe.Pointer(cTimingData.displayName))
+	C.free(unsafe.Pointer(cTimingData.deviceName))
+	return ret
 }
 
 func goSendMsgEventCb(event int, arg1, arg2, arg3, arg4 string) {

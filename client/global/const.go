@@ -1,7 +1,7 @@
 package global
 
 const (
-	ClientVersion = "2.3.46"
+	ClientVersion = "2.3.47"
 
 	ClientDefaultVersion = "2.3.0" // when the other client is an old version and cannot obtain the version number, use this default version
 	XClipVersionSerial   = 46      // the client support XClip since third version(serial number) 46

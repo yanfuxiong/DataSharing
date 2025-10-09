@@ -176,6 +176,7 @@ func HandleClient(ctx context.Context, conn net.Conn, timestamp int64) {
 	defer func() {
 		if closeConn(clientID, timestamp) {
 			rtkdbManager.UpdateClientOffline(int(clientIndex))
+			handleOfflineClientSignalChecking(int(clientIndex))
 		}
 	}()
 

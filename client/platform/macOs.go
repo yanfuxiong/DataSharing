@@ -660,3 +660,7 @@ func GoStartBrowseMdns(instance, serviceType string) {
 func GoStopBrowseMdns() {
 	callbackMethodStopBrowseMdns()
 }
+
+func GoSetupAppLink(link string) {
+	rtkMisc.AppLink = link
+}

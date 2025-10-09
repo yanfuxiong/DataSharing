@@ -254,3 +254,14 @@ func (mgr *InterfaceMgr) UpdateProductName(name string) {
 	log.Printf("[%s][%s] ProductName: %s", tag, rtkMisc.GetFuncInfo(), name)
 	rtkGlobal.ServerProductName = name
 }
+
+func (mgr *InterfaceMgr) UpdateSrcPortTiming(source, port, width, height, framerate int) {
+	log.Printf("[%s][%s] (Source,Port): (%d,%d), timing: %dx%d@%d", tag, rtkMisc.GetFuncInfo(), source, port, width, height, framerate)
+	// TODO: implement
+}
+
+func (mgr *InterfaceMgr) EnableCrossShare(enable bool) {
+	log.Printf("[%s][%s] Enable: %t", tag, rtkMisc.GetFuncInfo(), enable)
+	// TODO: implement
+}
+

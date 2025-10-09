@@ -84,6 +84,7 @@ func buildMessageReq(msg *rtkMisc.C2SMessage, extData ...interface{}) rtkMisc.Cr
 			DeviceName:    rtkGlobal.NodeInfo.DeviceName,
 			IPAddr:        rtkMisc.ConcatIP(rtkGlobal.NodeInfo.IPAddr.PublicIP, rtkGlobal.NodeInfo.IPAddr.PublicPort),
 			ClientVersion: rtkGlobal.ClientVersion,
+			AppStoreLink:  rtkMisc.AppLink,
 		}
 		msg.ExtData = reqData
 
