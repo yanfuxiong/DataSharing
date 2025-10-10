@@ -96,8 +96,8 @@ type (
 
 var (
 	callbackNetworkSwitch              CallbackNetworkSwitchFunc              = nil
-	callbackCopyXClipDataCB            CallbackCopyXClipFunc                  = nil
-	callbackPasteXClipDataCB           CallbackPasteXClipFunc                 = nil
+	callbackCopyXClipData              CallbackCopyXClipFunc                  = nil
+	callbackPasteXClipData             CallbackPasteXClipFunc                 = nil
 	callbackInstanceFileDropResponseCB CallbackFileDropResponseFunc           = nil
 	callbackDragFileListRequestCB      CallbackDragFileListRequestFunc        = nil
 	callbackFileListDragNotify         CallbackFileListDragNotify             = nil
@@ -126,10 +126,6 @@ var (
 )
 
 /*======================================= Used by main.go, set Callback =======================================*/
-
-func SetCallbackPasteXClip(cb CallbackPasteXClipFunc) {
-	callbackPasteXClipDataCB = cb
-}
 
 func SetCallbackFileListNotify(cb CallbackFileListDragNotify) {
 	callbackFileListDragNotify = cb
@@ -171,6 +167,10 @@ func SetCallbackMonitorName(cb CallbackMonitorNameFunc) {
 	callbackMonitorName = cb
 }
 
+func SetCallbackPasteXClipData(cb CallbackPasteXClipFunc) {
+	callbackPasteXClipData = cb
+}
+
 func SetCallbackRequestUpdateClientVersion(cb CallbackRequestUpdateClientVersionFunc) {
 	callbackRequestUpdateClientVersion = cb
 }
@@ -187,7 +187,7 @@ func SetGoNetworkSwitchCallback(cb CallbackNetworkSwitchFunc) {
 
 // Notify to Clipboard/FileDrop
 func SetCopyXClipCallback(cb CallbackCopyXClipFunc) {
-	callbackCopyXClipDataCB = cb
+	callbackCopyXClipData = cb
 }
 
 func SetGoFileDropResponseCallback(cb CallbackFileDropResponseFunc) {
@@ -346,12 +346,12 @@ func GoSetDIASSourceAndPort(src, port uint8) {
 }
 
 func GoCopyXClipData(text, image, html []byte) {
-	if callbackCopyXClipDataCB == nil {
-		log.Println("callbackCopyXClipDataCB is null!")
+	if callbackCopyXClipData == nil {
+		log.Println("callbackCopyXClipData is null!")
 		return
 	}
 
-	callbackCopyXClipDataCB(text, image, html)
+	callbackCopyXClipData(text, image, html)
 }
 
 func GoFileDropResponse(id string, fileCmd rtkCommon.FileDropCmd, fileName string) {
@@ -367,6 +367,18 @@ func GoMultiFilesDropRequest(id string, fileList *[]rtkCommon.FileInfo, folderLi
 	if callbackGetFilesCacheSendCount == nil {
 		log.Println("callbackGetFilesCacheSendCount is null!")
 		return rtkCommon.SendFilesRequestCallbackNotSet
+	}
+
+	if !rtkUtils.GetPeerClientIsSupportQueueTrans(id) {
+		if callbackGetFilesTransCode == nil {
+			log.Println("callbackGetFilesTransCode is null!")
+			return rtkCommon.SendFilesRequestCallbackNotSet
+		}
+
+		filesTransCode := callbackGetFilesTransCode(id)
+		if filesTransCode != rtkCommon.SendFilesRequestSuccess {
+			return filesTransCode
+		}
 	}
 
 	nCacheCount := callbackGetFilesCacheSendCount(id)
@@ -426,7 +438,7 @@ func GoMultiFilesDropNotify(ip, id, platform string, fileCnt uint32, totalSize, 
 	callbackFileListDragNotify(ip, id, platform, fileCnt, totalSize, timestamp, firstFileName, firstFileSize)
 }
 
-func GoDragFileListNotify(ip, id, platform string, fileCnt uint32, totalSize uint64, timestamp uint64, firstFileName string, firstFileSize uint64) {
+func GoDragFileListNotify(ip, id, platform string, fileCnt uint32, totalSize, timestamp uint64, firstFileName string, firstFileSize uint64) {
 	if callbackFileListDragNotify == nil {
 		log.Println(" callbackFileListDragNotify is null !")
 		return
@@ -478,8 +490,8 @@ func FoundPeer() {
 }
 
 func GoSetupDstPasteXClipData(cbText, cbImage, cbHtml []byte) {
-	if callbackPasteXClipDataCB == nil {
-		log.Printf("callbackPasteXClipDataCB is null!\n\n")
+	if callbackPasteXClipData == nil {
+		log.Printf("callbackPasteXClipData is null!\n\n")
 		return
 	}
 
@@ -489,7 +501,7 @@ func GoSetupDstPasteXClipData(cbText, cbImage, cbHtml []byte) {
 		imageStr = imageBase64
 	}
 
-	callbackPasteXClipDataCB(string(cbText), imageStr, string(cbHtml))
+	callbackPasteXClipData(string(cbText), imageStr, string(cbHtml))
 }
 
 func GoUpdateMultipleProgressBar(ip, id, currentFileName string, sentFileCnt, totalFileCnt uint32, currentFileSize, totalSize, sentSize, timestamp uint64) {

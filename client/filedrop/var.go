@@ -52,7 +52,6 @@ type FilesTransferDataItem struct {
 
 type filesDataTransferCache struct {
 	filesTransferDataQueue []FilesTransferDataItem
-	isTransferInProgress   bool
 	cancelFn               func()
 	isCancelByGui          bool
 }

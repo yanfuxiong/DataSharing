@@ -63,17 +63,16 @@ func GetLockFilePath() string {
 
 type (
 	CallbackNetworkSwitchFunc              func()
-	CallbackXClipCopyFunc                  func(cbText, cbImage, cbHtml []byte)
+	CallbackCopyXClipFunc                  func(cbText, cbImage, cbHtml []byte)
+	CallbackPasteXClipFunc                 func(text, image, html string)
 	CallbackFileDropResponseFunc           func(string, rtkCommon.FileDropCmd, string)
 	CallbackDragFileListRequestFunc        func([]rtkCommon.FileInfo, []string, uint64, uint64, string)
 	CallbackFileListDragNotify             func(string, string, string, uint32, uint64, uint64, string, uint64)
 	CallbackFileListDragFolderNotify       func(string, string, string, uint64)
 	CallbackFileListDropRequestFunc        func(string, []rtkCommon.FileInfo, []string, uint64, uint64, string)
-	CallbackMethodFoundPeer                func()
 	CallbackUpdateClientStatusFunc         func(clientInfo string)
 	CallbackUpdateMultipleProgressBar      func(string, string, string, uint32, uint32, uint64, uint64, uint64, uint64)
 	CallbackCancelFileTransFunc            func(string, string, uint64)
-	CallbackFileError                      func(string, string, string)
 	CallbackNotifyErrEventFunc             func(id string, errCode uint32, arg1, arg2, arg3, arg4 string)
 	CallbackGetMacAddressFunc              func(string)
 	CallbackAuthStatusCodeFunc             func(uint8)
@@ -96,19 +95,17 @@ type (
 )
 
 var (
-	callbackNetworkSwitch              CallbackNetworkSwitchFunc        = nil
-	callbackXClipCopyData              CallbackXClipCopyFunc            = nil
-	callbackInstanceFileDropResponseCB CallbackFileDropResponseFunc     = nil
-	callbackDragFileListRequestCB      CallbackDragFileListRequestFunc  = nil
-	callbackFileListDragNotify         CallbackFileListDragNotify       = nil
-	callbackFileListDragFolderNotify   CallbackFileListDragFolderNotify = nil
-	callbackFileListDropRequest        CallbackFileListDropRequestFunc  = nil
-	callbackUpdateClientStatus         CallbackUpdateClientStatusFunc   = nil
-	callbackMethodFoundPeer            CallbackMethodFoundPeer          = nil
-
+	callbackNetworkSwitch              CallbackNetworkSwitchFunc              = nil
+	callbackCopyXClipData              CallbackCopyXClipFunc                  = nil
+	callbackPasteXClipData             CallbackPasteXClipFunc                 = nil
+	callbackInstanceFileDropResponseCB CallbackFileDropResponseFunc           = nil
+	callbackDragFileListRequestCB      CallbackDragFileListRequestFunc        = nil
+	callbackFileListDragNotify         CallbackFileListDragNotify             = nil
+	callbackFileListDragFolderNotify   CallbackFileListDragFolderNotify       = nil
+	callbackFileListDropRequest        CallbackFileListDropRequestFunc        = nil
+	callbackUpdateClientStatus         CallbackUpdateClientStatusFunc         = nil
 	callbackUpdateMultipleProgressBar  CallbackUpdateMultipleProgressBar      = nil
 	callbackCancelFileTrans            CallbackCancelFileTransFunc            = nil
-	callbackFileError                  CallbackFileError                      = nil
 	callbackNotifyErrEvent             CallbackNotifyErrEventFunc             = nil
 	callbackGetMacAddress              CallbackGetMacAddressFunc              = nil
 	callbackAuthStatusCodeCB           CallbackAuthStatusCodeFunc             = nil
@@ -144,16 +141,8 @@ func SetCallbackUpdateClientStatus(cb CallbackUpdateClientStatusFunc) {
 	callbackUpdateClientStatus = cb
 }
 
-func SetCallbackMethodFoundPeer(cb CallbackMethodFoundPeer) {
-	callbackMethodFoundPeer = cb
-}
-
 func SetCallbackUpdateMultipleProgressBar(cb CallbackUpdateMultipleProgressBar) {
 	callbackUpdateMultipleProgressBar = cb
-}
-
-func SetCallbackFileError(cb CallbackFileError) {
-	callbackFileError = cb
 }
 
 func SetCallbackMethodStartBrowseMdns(cb CallbackMethodStartBrowseMdns) {
@@ -176,6 +165,10 @@ func SetCallbackMonitorName(cb CallbackMonitorNameFunc) {
 	callbackMonitorName = cb
 }
 
+func SetCallbackPasteXClipData(cb CallbackPasteXClipFunc) {
+	callbackPasteXClipData = cb
+}
+
 func SetCallbackRequestUpdateClientVersion(cb CallbackRequestUpdateClientVersionFunc) {
 	callbackRequestUpdateClientVersion = cb
 }
@@ -195,8 +188,8 @@ func SetGoNetworkSwitchCallback(cb CallbackNetworkSwitchFunc) {
 }
 
 // Notify to Clipboard/FileDrop
-func SetCopyXClipCallback(cb CallbackXClipCopyFunc) {
-	callbackXClipCopyData = cb
+func SetCopyXClipCallback(cb CallbackCopyXClipFunc) {
+	callbackCopyXClipData = cb
 }
 
 func SetGoFileDropResponseCallback(cb CallbackFileDropResponseFunc) {
@@ -363,12 +356,12 @@ func GoBrowseLanServer() {
 }
 
 func GoCopyXClipData(text, image, html []byte) {
-	if callbackXClipCopyData == nil {
-		log.Println("callbackXClipCopyData is null!")
+	if callbackCopyXClipData == nil {
+		log.Println("callbackCopyXClipData is null!")
 		return
 	}
 
-	callbackXClipCopyData(text, image, html)
+	callbackCopyXClipData(text, image, html)
 }
 
 func GoFileDropResponse(id string, fileCmd rtkCommon.FileDropCmd, fileName string) {
@@ -381,14 +374,32 @@ func GoMultiFilesDropRequest(id string, fileList *[]rtkCommon.FileInfo, folderLi
 		return rtkCommon.SendFilesRequestCallbackNotSet
 	}
 
-	if callbackGetFilesTransCode == nil {
-		log.Println("callbackGetFilesTransCode is null!")
+	if callbackGetFilesCacheSendCount == nil {
+		log.Println("callbackGetFilesCacheSendCount is null!")
 		return rtkCommon.SendFilesRequestCallbackNotSet
 	}
 
-	filesTransCode := callbackGetFilesTransCode(id)
-	if filesTransCode != rtkCommon.SendFilesRequestSuccess {
-		return filesTransCode
+	if !rtkUtils.GetPeerClientIsSupportQueueTrans(id) {
+		if callbackGetFilesTransCode == nil {
+			log.Println("callbackGetFilesTransCode is null!")
+			return rtkCommon.SendFilesRequestCallbackNotSet
+		}
+
+		filesTransCode := callbackGetFilesTransCode(id)
+		if filesTransCode != rtkCommon.SendFilesRequestSuccess {
+			return filesTransCode
+		}
+	}
+
+	nCacheCount := callbackGetFilesCacheSendCount(id)
+	if nCacheCount >= rtkGlobal.SendFilesRequestMaxQueueSize {
+		log.Printf("[%s] ID[%s] this user file drop cache count:[%d] is too large and over range !", rtkMisc.GetFuncInfo(), id, nCacheCount)
+		return rtkCommon.SendFilesRequestCacheOverRange
+	}
+
+	if totalSize > uint64(rtkGlobal.SendFilesRequestMaxSize) {
+		log.Printf("[%s] ID[%s] this file drop total size:[%d] [%s] is too large and over range !", rtkMisc.GetFuncInfo(), id, totalSize, totalDesc)
+		return rtkCommon.SendFilesRequestSizeOverRange
 	}
 
 	nMsgLength := int(rtkGlobal.P2PMsgMagicLength) //p2p null msg length
@@ -402,12 +413,12 @@ func GoMultiFilesDropRequest(id string, fileList *[]rtkCommon.FileInfo, folderLi
 	}
 
 	if nMsgLength >= rtkGlobal.P2PMsgMaxLength {
-		log.Printf("[%s] ID[%s] file count:[%d] folder count:[%d], the p2p message is too long and over range!", rtkMisc.GetFuncInfo(), id, len(*fileList), len(*folderList))
+		log.Printf("[%s] ID[%s] get file count:[%d] folder count:[%d], the p2p message is too long and over range!", rtkMisc.GetFuncInfo(), id, len(*fileList), len(*folderList))
 		return rtkCommon.SendFilesRequestLengthOverRange
 	}
 
 	callbackFileListDropRequest(id, *fileList, *folderList, totalSize, timestamp, totalDesc)
-	return filesTransCode
+	return rtkCommon.SendFilesRequestSuccess
 }
 
 func GoCancelFileTrans(ip, id string, timestamp uint64) {
@@ -437,7 +448,7 @@ func GoMultiFilesDropNotify(ip, id, platform string, fileCnt uint32, totalSize, 
 	callbackFileListDragNotify(ip, id, platform, fileCnt, totalSize, timestamp, firstFileName, firstFileSize)
 }
 
-func GoDragFileListNotify(ip, id, platform string, fileCnt uint32, totalSize uint64, timestamp uint64, firstFileName string, firstFileSize uint64) {
+func GoDragFileListNotify(ip, id, platform string, fileCnt uint32, totalSize, timestamp uint64, firstFileName string, firstFileSize uint64) {
 	if callbackFileListDragNotify == nil {
 		log.Println(" callbackFileListDragNotify is null !")
 		return
@@ -480,7 +491,7 @@ func GoUpdateClientStatusEx(id string, status uint8) {
 		log.Println("Failed to Marshal ClientStatusInfo data, err:", err)
 		return
 	}
-
+	log.Printf("[%s] Str:%s", rtkMisc.GetFuncInfo(), string(encodedData))
 	callbackUpdateClientStatus(string(encodedData))
 }
 
@@ -493,9 +504,19 @@ func FoundPeer() {
 	callbackMethodFoundPeer()
 }
 
-// TODO: implement XClipData
 func GoSetupDstPasteXClipData(cbText, cbImage, cbHtml []byte) {
+	if callbackPasteXClipData == nil {
+		log.Printf("callbackPasteXClipData is null!\n\n")
+		return
+	}
 
+	imageStr := ""
+	if len(cbImage) > 0 {
+		imageBase64 := rtkUtils.Base64Encode(cbImage)
+		imageStr = imageBase64
+	}
+
+	callbackPasteXClipData(string(cbText), imageStr, string(cbHtml))
 }
 
 func GoUpdateMultipleProgressBar(ip, id, currentFileName string, sentFileCnt, totalFileCnt uint32, currentFileSize, totalSize, sentSize, timestamp uint64) {
@@ -506,8 +527,6 @@ func GoUpdateMultipleProgressBar(ip, id, currentFileName string, sentFileCnt, to
 	//log.Printf("GoUpdateMultipleProgressBar ip:[%s] currentFileName:[%s] recvSize:[%d] total:[%d]", ip, currentFileName, sentSize, totalSize)
 	callbackUpdateMultipleProgressBar(ip, id, currentFileName, sentFileCnt, totalFileCnt, currentFileSize, totalSize, sentSize, timestamp)
 }
-
-
 
 func GoUpdateSystemInfo(ip, serviceVer string) {
 

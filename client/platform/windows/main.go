@@ -115,6 +115,7 @@ import (
 	rtkPlatform "rtk-cross-share/client/platform"
 	rtkUtils "rtk-cross-share/client/utils"
 	rtkMisc "rtk-cross-share/misc"
+	"strings"
 	"time"
 	"unicode/utf16"
 	"unsafe"
@@ -577,6 +578,8 @@ func SetDragFileListRequest(filePathArry **C.wchar_t, arryLength C.uint32_t, tim
 	for i := uint32(0); i < fileCount; i++ {
 		wcharPtr := *(**C.wchar_t)(unsafe.Pointer(uintptr(unsafe.Pointer(filePathArry)) + uintptr(i)*unsafe.Sizeof(*filePathArry)))
 		file := WCharToGoString(wcharPtr)
+		file = strings.ReplaceAll(file, "/", "\\")
+
 		if rtkMisc.FolderExists(file) {
 			nFileCnt = len(fileList)
 			nFolderCnt = len(folderList)
@@ -640,10 +643,13 @@ func SetMultiFilesDropRequest(ipPort *C.char, clientID *C.char, timeStamp C.uint
 	for i := uint32(0); i < fileCount; i++ {
 		wcharPtr := *(**C.wchar_t)(unsafe.Pointer(uintptr(unsafe.Pointer(filePathArry)) + uintptr(i)*unsafe.Sizeof(*filePathArry)))
 		file := WCharToGoString(wcharPtr)
+		file = strings.ReplaceAll(file, "/", "\\")
+
 		if rtkMisc.FolderExists(file) {
 			nFileCnt = len(fileList)
 			nFolderCnt = len(folderList)
 			nPathSize = totalSize
+
 			rtkUtils.WalkPath(file, &folderList, &fileList, &totalSize)
 			log.Printf("[%s] walk a path:[%s], get [%d] files and [%d] folders , total size:[%d] ", rtkMisc.GetFuncInfo(), file, len(fileList)-nFileCnt, len(folderList)-nFolderCnt, totalSize-nPathSize)
 		} else if rtkMisc.FileExists(file) {

@@ -130,14 +130,14 @@ var (
 	callbackSetMsgEvent                CallbackSetMsgEventFunc            = nil
 
 	// main.go Callback
-	callbackAuthViaIndex         CallbackAuthViaIndexCallbackFunc = nil
-	callbackDIASStatus           CallbackDIASStatusFunc           = nil
-	callbackReqSourceAndPort     CallbackReqSourceAndPortFunc     = nil
-	callbackUpdateSystemInfo     CallbackUpdateSystemInfoFunc     = nil
-	callbackUpdateClientStatus   CallbackUpdateClientStatusFunc   = nil
-	callbackUpdateClientStatusEx CallbackUpdateClientStatusExFunc = nil
-	callbackCleanClipboard       CallbackCleanClipboardFunc       = nil
-	callbackGetFilesTransCode    CallbackGetFilesTransCodeFunc    = nil
+	callbackAuthViaIndex           CallbackAuthViaIndexCallbackFunc   = nil
+	callbackDIASStatus             CallbackDIASStatusFunc             = nil
+	callbackReqSourceAndPort       CallbackReqSourceAndPortFunc       = nil
+	callbackUpdateSystemInfo       CallbackUpdateSystemInfoFunc       = nil
+	callbackUpdateClientStatus     CallbackUpdateClientStatusFunc     = nil
+	callbackUpdateClientStatusEx   CallbackUpdateClientStatusExFunc   = nil
+	callbackCleanClipboard         CallbackCleanClipboardFunc         = nil
+	callbackGetFilesTransCode      CallbackGetFilesTransCodeFunc      = nil
 	callbackGetFilesCacheSendCount CallbackGetFilesCacheSendCountFunc = nil
 )
 
@@ -149,10 +149,6 @@ func SetGoNetworkSwitchCallback(cb CallbackNetworkSwitchFunc) {
 
 func SetCopyXClipCallback(cb CallbackCopyXClipFunc) {
 	callbackCopyXClipDataCB = cb
-}
-
-func SetPasteXClipCallback(cb CallbackPasteXClipFunc) {
-	callbackPasteXClipDataCB = cb
 }
 
 func SetGoFileListDropRequestCallback(cb CallbackFileListDropRequestFunc) {
@@ -215,6 +211,10 @@ func SetGoSetMsgEventCallback(cb CallbackSetMsgEventFunc) {
 }
 
 /*======================================= Used by main.go, set Callback =======================================*/
+
+func SetPasteXClipCallback(cb CallbackPasteXClipFunc) {
+	callbackPasteXClipDataCB = cb
+}
 
 func SetAuthViaIndexCallback(cb CallbackAuthViaIndexCallbackFunc) {
 	callbackAuthViaIndex = cb
@@ -311,6 +311,18 @@ func GoMultiFilesDropRequest(id string, fileList *[]rtkCommon.FileInfo, folderLi
 	if callbackGetFilesCacheSendCount == nil {
 		log.Println("callbackGetFilesCacheSendCount is null!")
 		return rtkCommon.SendFilesRequestCallbackNotSet
+	}
+
+	if !rtkUtils.GetPeerClientIsSupportQueueTrans(id) {
+		if callbackGetFilesTransCode == nil {
+			log.Println("callbackGetFilesTransCode is null!")
+			return rtkCommon.SendFilesRequestCallbackNotSet
+		}
+
+		filesTransCode := callbackGetFilesTransCode(id)
+		if filesTransCode != rtkCommon.SendFilesRequestSuccess {
+			return filesTransCode
+		}
 	}
 
 	nCacheCount := callbackGetFilesCacheSendCount(id)

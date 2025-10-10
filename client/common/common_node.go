@@ -34,7 +34,8 @@ type ClientListInfo struct {
 
 type ClientInfoEx struct {
 	rtkMisc.ClientInfo
-	IsSupportXClip  bool
-	FileTransNodeID string
-	UpdPort         string
+	IsSupportXClip      bool
+	IsSupportQueueTrans bool
+	FileTransNodeID     string
+	UpdPort             string
 }

@@ -198,9 +198,9 @@ func CloseFileDropItemStream(id string, timestamp uint64) {
 			nCount := len(sInfo.sFileDataQueueMap)
 			if nCount == 0 {
 				sInfo.transFileState = TRANS_FILE_NOT_PREFORMED
-				log.Printf("[%s] ID:[%s] IP:[%s] close file drop Item stream success! timestamp:%d ID:[%s], and all file drop Item stream done!", rtkMisc.GetFuncInfo(), id, sInfo.ipAddr, timestamp, itemStream.ID())
+				log.Printf("[%s] ID:[%s] IP:[%s] close file drop Item stream success! timestamp:%d ID:[%s], all file drop Item stream done!", rtkMisc.GetFuncInfo(), id, sInfo.ipAddr, timestamp, itemStream.ID())
 			} else {
-				log.Printf("[%s] ID:[%s] IP:[%s] close file drop Item stream success! timestamp:%d ID:[%s], and still %s records left!", rtkMisc.GetFuncInfo(), id, sInfo.ipAddr, timestamp, itemStream.ID(), nCount)
+				log.Printf("[%s] ID:[%s] IP:[%s] close file drop Item stream success! timestamp:%d ID:[%s], still %d records left!", rtkMisc.GetFuncInfo(), id, sInfo.ipAddr, timestamp, itemStream.ID(), nCount)
 			}
 			streamPoolMap[id] = sInfo
 			return
@@ -214,12 +214,10 @@ func updateFmtTypeStreamInternal(stream network.Stream, fmtType rtkCommon.TransF
 	defer streamPoolMutex.Unlock()
 	id := stream.Conn().RemotePeer().String()
 	if sInfo, ok := streamPoolMap[id]; ok {
-		if fmtType == rtkCommon.IMAGE_CB {
+		if fmtType == rtkCommon.XCLIP_CB {
 			if sInfo.sImage != nil {
-				log.Printf("[%s] ID:[%s] IP:[%s]  found old image stream is alive, stop it !", rtkMisc.GetFuncInfo(), id, sInfo.ipAddr)
-				if isDst {
-					sInfo.sImage.Reset() // cover the last image
-				}
+				log.Printf("[%s] ID:[%s] IP:[%s]  found old XClip stream is alive, not close it !", rtkMisc.GetFuncInfo(), id, sInfo.ipAddr)
+				//sInfo.sFileDrop.Close()
 			}
 			sInfo.sImage = stream
 		} else if fmtType == rtkCommon.FILE_DROP {
@@ -252,11 +250,27 @@ func updateFmtTypeStreamDst(stream network.Stream, fmtType rtkCommon.TransFmtTyp
 	updateFmtTypeStreamInternal(stream, fmtType, true)
 }
 
+func clearOldFmtStream(id string, fmtType rtkCommon.TransFmtType) {
+	streamPoolMutex.Lock()
+	defer streamPoolMutex.Unlock()
+
+	if sInfo, ok := streamPoolMap[id]; ok {
+		if fmtType == rtkCommon.XCLIP_CB {
+			if sInfo.sImage != nil {
+				log.Printf("[%s] ID:[%s] IP:[%s] found old XClip stream is alive, Reset it !", rtkMisc.GetFuncInfo(), id, sInfo.ipAddr)
+				sInfo.sImage.Reset()
+				sInfo.sImage = nil
+				streamPoolMap[id] = sInfo
+			}
+		}
+	}
+}
+
 func GetFmtTypeStream(id string, fmtType rtkCommon.TransFmtType) (network.Stream, bool) {
 	streamPoolMutex.RLock()
 	defer streamPoolMutex.RUnlock()
 	if sInfo, ok := streamPoolMap[id]; ok {
-		if fmtType == rtkCommon.IMAGE_CB {
+		if fmtType == rtkCommon.XCLIP_CB {
 			if sInfo.sImage != nil {
 				return sInfo.sImage, true
 			}
@@ -359,7 +373,7 @@ func CloseFmtTypeStream(id string, fmtType rtkCommon.TransFmtType) {
 				streamPoolMap[id] = sInfo
 				log.Printf("[%s] ID:[%s] IP:[%s] fmtType:[%s] CloseFmtTypeStream success!", rtkMisc.GetFuncInfo(), id, sInfo.ipAddr, fmtType)
 			}
-		} else if fmtType == rtkCommon.IMAGE_CB {
+		} else if fmtType == rtkCommon.XCLIP_CB {
 			if sInfo.sImage != nil {
 				sInfo.sImage.Close()
 				sInfo.sImage = nil

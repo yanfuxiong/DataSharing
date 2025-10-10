@@ -280,6 +280,18 @@ func GoMultiFilesDropRequest(id string, fileList *[]rtkCommon.FileInfo, folderLi
 		return rtkCommon.SendFilesRequestCallbackNotSet
 	}
 
+	if !rtkUtils.GetPeerClientIsSupportQueueTrans(id) {
+		if callbackGetFilesTransCode == nil {
+			log.Println("callbackGetFilesTransCode is null!")
+			return rtkCommon.SendFilesRequestCallbackNotSet
+		}
+
+		filesTransCode := callbackGetFilesTransCode(id)
+		if filesTransCode != rtkCommon.SendFilesRequestSuccess {
+			return filesTransCode
+		}
+	}
+
 	nCacheCount := callbackGetFilesSendCacheCount(id)
 	if nCacheCount >= rtkGlobal.SendFilesRequestMaxQueueSize {
 		log.Printf("[%s] ID[%s] this user file drop cache count:[%d] is too large and over range !", rtkMisc.GetFuncInfo(), id, nCacheCount)
@@ -449,7 +461,7 @@ func GoUpdateMultipleProgressBar(ip, id, currentFileName string, sentFileCnt, to
 		return
 	}
 	//log.Printf("GoUpdateMultipleProgressBar ip:[%s] [%s] currentFileName:[%s] recvSize:[%d] total:[%d] timestamp:[%d]", ip, deviceName, currentFileName, sentSize, totalSize, timestamp)
-	CallbackInstance.CallbackUpdateMultipleProgressBar(ip, id, deviceName, currentFileName, int(sentFileCnt), int(totalFileCnt), int64(currentFileSize), int64(totalSize), int64(sentSize), int64(timestamp))
+	CallbackInstance.CallbackUpdateMultipleProgressBar(ip, id, “”, currentFileName, int(sentFileCnt), int(totalFileCnt), int64(currentFileSize), int64(totalSize), int64(sentSize), int64(timestamp))
 }
 
 func GoUpdateSystemInfo(ip, serviceVer string) {

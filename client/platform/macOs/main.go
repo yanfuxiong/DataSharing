@@ -6,7 +6,6 @@ package main
 #include <stdlib.h>
 #include <stdint.h>
 
-typedef void (*CallbackPasteXClipData)(char* text,char* image,char* html);
 typedef void (*CallbackUpdateClientStatus)(char* clientJsonStr);
 typedef void (*CallbackMethodFileListNotify)(char* ip, char* id, char* platform,unsigned int fileCnt, unsigned long long totalSize,unsigned long long timestamp, char* firstFileName, unsigned long long firstFileSize);
 typedef void (*CallbackUpdateMultipleProgressBar)(char* ip,char* id, char* currentfileName,unsigned int recvFileCnt, unsigned int totalFileCnt,unsigned long long currentFileSize,unsigned long long totalSize,unsigned long long recvSize,unsigned long long timestamp);
@@ -16,11 +15,11 @@ typedef void (*CallbackRequestSourceAndPort)();
 typedef void (*CallbackAuthViaIndex)(unsigned int index);
 typedef void (*CallbackSetDIASStatus)(unsigned int status);
 typedef void (*CallbackSetMonitorName)(char* monitorName);
+typedef void (*CallbackPasteXClipData)(char *text, char *image, char *html);
 typedef void (*CallbackRequestUpdateClientVersion)(char* clientVer);
 typedef void (*CallbackNotifyErrEvent)(char* id, unsigned int errCode, char* arg1, char* arg2, char* arg3, char* arg4);
 typedef void (*CallbackNotifyBrowseResult)(char* monitorName, char* instance, char* ip, char* version, unsigned long long timestamp);
 
-static CallbackPasteXClipData gCallbackPasteXClipData = 0;
 static CallbackUpdateClientStatus gCallbackUpdateClientStatus = 0;
 static CallbackMethodFileListNotify gCallbackMethodFileListNotify = 0;
 static CallbackUpdateMultipleProgressBar gCallbackUpdateMultipleProgressBar = 0;
@@ -30,15 +29,12 @@ static CallbackRequestSourceAndPort gCallbackRequestSourceAndPort = 0;
 static CallbackAuthViaIndex  gCallbackAuthViaIndex = 0;
 static CallbackSetDIASStatus gCallbackSetDIASStatus = 0;
 static CallbackSetMonitorName gCallbackSetMonitorName = 0;
+static CallbackPasteXClipData gCallbackPasteXClipData = 0;
 static CallbackRequestUpdateClientVersion gCallbackRequestUpdateClientVersion = 0;
 static CallbackNotifyErrEvent gCallbackNotifyErrEvent = 0;
 static CallbackNotifyBrowseResult gCallbackNotifyBrowseResult = 0;
 
 
-static void setCallbackPasteXClipData(CallbackPasteXClipData cb) {gCallbackPasteXClipData = cb;}
-static void invokeCallbackPasteXClipData(char* text,char* image,char* html) {
-	if (gCallbackPasteXClipData) {gCallbackPasteXClipData(text, image, html);}
-}
 static void setCallbackUpdateClientStatus(CallbackUpdateClientStatus cb) {gCallbackUpdateClientStatus = cb;}
 static void invokeCallbackUpdateClientStatus(char* clientJsonStr) {
 	if (gCallbackUpdateClientStatus) {gCallbackUpdateClientStatus(clientJsonStr);}
@@ -74,6 +70,10 @@ static void invokeCallbackSetDIASStatus(unsigned int status) {
 static void setCallbackSetMonitorName(CallbackSetMonitorName cb) {gCallbackSetMonitorName = cb;}
 static void invokeCallbackSetMonitorName(char* monitorName) {
 	if (gCallbackSetMonitorName) { gCallbackSetMonitorName(monitorName);}
+}
+static void setCallbackPasteXClipData(CallbackPasteXClipData cb) {gCallbackPasteXClipData = cb;}
+static void invokeCallbackPasteXClipData(char *text, char *image, char *html) {
+	if (gCallbackPasteXClipData) { gCallbackPasteXClipData(text, image, html);}
 }
 static void setCallbackRequestUpdateClientVersion(CallbackRequestUpdateClientVersion cb) {gCallbackRequestUpdateClientVersion = cb;}
 static void invokeCallbackRequestUpdateClientVersion(char* clientVer) {
@@ -111,7 +111,6 @@ func main() {
 }
 
 func init() {
-	rtkPlatform.SetCallbackPasteXClip(GoTriggerCallbackSetupDstPasteXClipData)
 	rtkPlatform.SetCallbackFileListNotify(GoTriggerCallbackMethodFileListNotify)
 	rtkPlatform.SetCallbackUpdateClientStatus(GoTriggerCallbackUpdateClientStatus)
 	rtkPlatform.SetCallbackUpdateMultipleProgressBar(GoTriggerCallbackUpdateMultipleProgressBar)
@@ -121,6 +120,7 @@ func init() {
 	rtkPlatform.SetCallbackAuthViaIndex(GoTriggerCallbackAuthViaIndex)
 	rtkPlatform.SetCallbackRequestSourceAndPort(GoTriggerCallbackRequestSourceAndPort)
 	rtkPlatform.SetCallbackMonitorName(GoTriggerCallbackSetMonitorName)
+	rtkPlatform.SetCallbackPasteXClipData(GoTriggerCallbackPasteXClipData)
 	rtkPlatform.SetCallbackRequestUpdateClientVersion(GoTriggerCallbackReqClientUpdateVer)
 	rtkPlatform.SetCallbackNotifyErrEvent(GoTriggerCallbackNotifyErrEvent)
 
@@ -131,21 +131,6 @@ type MultiFilesDropRequestInfo struct {
 	Id       string
 	Ip       string
 	PathList []string
-}
-
-func GoTriggerCallbackSetupDstPasteXClipData(text, image, html string) {
-	cText := C.CString(text)
-	cImage := C.CString(image)
-	cHtml := C.CString(html)
-
-	defer func() {
-		C.free(unsafe.Pointer(cText))
-		C.free(unsafe.Pointer(cImage))
-		C.free(unsafe.Pointer(cHtml))
-	}()
-
-	log.Printf("[%s] text len:%d , image len:%d, html len:%d\n\n", rtkMisc.GetFuncInfo(), len(text), len(image), len(html))
-	C.invokeCallbackPasteXClipData(cText, cImage, cHtml)
 }
 
 func GoTriggerCallbackUpdateClientStatus(clientInfo string) {
@@ -234,6 +219,18 @@ func GoTriggerCallbackSetMonitorName(name string) {
 	log.Printf("[%s] MonitorName:[%s]", rtkMisc.GetFuncInfo(), name)
 }
 
+func GoTriggerCallbackPasteXClipData(text, image, html string) {
+	cText := C.CString(text)
+	cImage := C.CString(image)
+	cHtml := C.CString(html)
+	defer C.free(unsafe.Pointer(cText))
+	defer C.free(unsafe.Pointer(cImage))
+	defer C.free(unsafe.Pointer(cHtml))
+
+	log.Printf("[%s] text len:%d , image len:%d, html:%d\n\n", rtkMisc.GetFuncInfo(), len(text), len(image), len(html))
+	C.invokeCallbackPasteXClipData(cText, cImage, cHtml)
+}
+
 func GoTriggerCallbackReqClientUpdateVer(ver string) {
 	cVer := C.CString(ver)
 	defer C.free(unsafe.Pointer(cVer))
@@ -277,11 +274,6 @@ func GoTriggerCallbackNotifyBrowseResult(monitorName, instance, ipAddr, version 
 
 	log.Printf("[%s] name:%s, instance:%s, ip:%s, version:%s, timestamp:%d", rtkMisc.GetFuncInfo(), monitorName, instance, ipAddr, version, timestamp)
 	C.invokeCallbackNotifyBrowseResult(cMonitorName, cInstance, cIpAddr, cVersion, cTimeStamp)
-}
-
-//export SetCallbackPasteXClipData
-func SetCallbackPasteXClipData(cb C.CallbackPasteXClipData) {
-	C.setCallbackPasteXClipData(cb)
 }
 
 //export SetCallbackUpdateClientStatus
@@ -333,6 +325,12 @@ func SetCallbackMonitorName(cb C.CallbackSetMonitorName) {
 	C.setCallbackSetMonitorName(cb)
 }
 
+//export SetCallbackPasteXClipData
+func SetCallbackPasteXClipData(cb C.CallbackPasteXClipData) {
+	log.Printf("[%s] SetCallbackPasteXClipData", rtkMisc.GetFuncInfo())
+	C.setCallbackPasteXClipData(cb)
+}
+
 //export SetCallbackRequestUpdateClientVersion
 func SetCallbackRequestUpdateClientVersion(cb C.CallbackRequestUpdateClientVersion) {
 	log.Printf("[%s] SetCallbackRequestUpdateClientVersion", rtkMisc.GetFuncInfo())
@@ -369,25 +367,6 @@ func SetMsgEventFunc(event int, arg1, arg2, arg3, arg4 string) {
 	rtkPlatform.GoSetMsgEventFunc(uint32(event), arg1, arg2, arg3, arg4)
 }
 
-//export GetClientList
-func GetClientList() *C.char {
-	clientList := rtkUtils.GetClientListEx()
-	log.Printf("[%s] json Str:%s", rtkMisc.GetFuncInfo(), clientList)
-	return C.CString(clientList)
-}
-
-//export SendAddrsFromPlatform
-func SendAddrsFromPlatform(addrsList string) {
-	parts := strings.Split(addrsList, "#")
-	rtkUtils.GetAddrsFromPlatform(parts)
-}
-
-//export SendNetInterfaces
-func SendNetInterfaces(name, mac string, mtu, index int, flag uint) {
-	log.Printf("SendNetInterfaces [%s][%s][%d][%d][%d]", name, mac, mtu, index, flag)
-	rtkUtils.SetNetInterfaces(name, index)
-}
-
 //export SendXClipData
 func SendXClipData(text, image, html string) {
 	log.Printf("[%s] text:%d, image:%d, html:%d\n\n", rtkMisc.GetFuncInfo(), len(text), len(image), len(html))
@@ -417,6 +396,25 @@ func SendXClipData(text, image, html string) {
 	rtkPlatform.GoCopyXClipData([]byte(text), imgData, []byte(html))
 }
 
+//export GetClientList
+func GetClientList() *C.char {
+	clientList := rtkUtils.GetClientListEx()
+	log.Printf("[%s] json Str:%s", rtkMisc.GetFuncInfo(), clientList)
+	return C.CString(clientList)
+}
+
+//export SendAddrsFromPlatform
+func SendAddrsFromPlatform(addrsList string) {
+	parts := strings.Split(addrsList, "#")
+	rtkUtils.GetAddrsFromPlatform(parts)
+}
+
+//export SendNetInterfaces
+func SendNetInterfaces(name, mac string, mtu, index int, flag uint) {
+	log.Printf("SendNetInterfaces [%s][%s][%d][%d][%d]", name, mac, mtu, index, flag)
+	rtkUtils.SetNetInterfaces(name, index)
+}
+
 //export SendMultiFilesDropRequest
 func SendMultiFilesDropRequest(multiFilesData string) int {
 	var multiFileInfo MultiFilesDropRequestInfo
@@ -430,10 +428,18 @@ func SendMultiFilesDropRequest(multiFilesData string) int {
 	fileList := make([]rtkCommon.FileInfo, 0)
 	folderList := make([]string, 0)
 	totalSize := uint64(0)
+	nFileCnt := 0
+	nFolderCnt := 0
+	nPathSize := uint64(0)
 
 	for _, file := range multiFileInfo.PathList {
+		file = strings.ReplaceAll(file, "\\", "/")
 		if rtkMisc.FolderExists(file) {
+			nFileCnt = len(fileList)
+			nFolderCnt = len(folderList)
+			nPathSize = totalSize
 			rtkUtils.WalkPath(file, &folderList, &fileList, &totalSize)
+			log.Printf("[%s] walk a path:[%s], get [%d] files and [%d] folders, path total size:[%d]", rtkMisc.GetFuncInfo(), file, len(fileList)-nFileCnt, len(folderList)-nFolderCnt, totalSize-nPathSize)
 		} else if rtkMisc.FileExists(file) {
 			fileSize, err := rtkMisc.FileSize(file)
 			if err != nil {

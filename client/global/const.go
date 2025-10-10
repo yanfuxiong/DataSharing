@@ -1,10 +1,11 @@
 package global
 
 const (
-	ClientVersion = "2.3.47"
+	ClientVersion = "2.3.48"
 
-	ClientDefaultVersion = "2.3.0" // when the other client is an old version and cannot obtain the version number, use this default version
-	XClipVersionSerial   = 46      // the client support XClip since third version(serial number) 46
+	ClientDefaultVersion        = "2.3.0" // when the other client is an old version and cannot obtain the version number, use this default version
+	XClipVersionSerial          = 46      // the client support XClip since third version(serial number) 46
+	QueueFileTransVersionSerial = 48      // the client support file drop queue transfer since third version(serial number) 48
 
 	ProtocolID     = "/libp2p/dcutr"
 	HostProtocolID = "host_register"

@@ -16,13 +16,13 @@ import (
 
 func writeXClipDataToSocket(id string) rtkMisc.CrossShareErr {
 	startTime := time.Now().UnixMilli()
-	rtkConnection.HandleFmtTypeStreamReady(id, rtkCommon.IMAGE_CB) // wait for fmtType stream Ready
-	sXClip, ok := rtkConnection.GetFmtTypeStream(id, rtkCommon.IMAGE_CB)
+	rtkConnection.HandleFmtTypeStreamReady(id, rtkCommon.XCLIP_CB) // wait for fmtType stream Ready
+	sXClip, ok := rtkConnection.GetFmtTypeStream(id, rtkCommon.XCLIP_CB)
 	if !ok {
 		log.Printf("[%s] Err: Not found  stream by ID:[%s]", rtkMisc.GetFuncInfo(), id)
 		return rtkMisc.ERR_BIZ_CB_GET_STREAM_EMPTY
 	}
-	defer rtkConnection.CloseFmtTypeStream(id, rtkCommon.IMAGE_CB)
+	defer rtkConnection.CloseFmtTypeStream(id, rtkCommon.XCLIP_CB)
 
 	cbData := rtkClipboard.GetLastClipboardData()
 	if cbData.FmtType != rtkCommon.XCLIP_CB {
@@ -69,12 +69,12 @@ func handleXClipDataFromSocket(id, ipAddr string) rtkMisc.CrossShareErr {
 		return rtkMisc.ERR_BIZ_CB_INVALID_DATA
 	}
 
-	sXClip, ok := rtkConnection.GetFmtTypeStream(id, rtkCommon.IMAGE_CB)
+	sXClip, ok := rtkConnection.GetFmtTypeStream(id, rtkCommon.XCLIP_CB)
 	if !ok {
 		log.Printf("[%s] Err: Not found Image stream by ID: %s", rtkMisc.GetFuncInfo(), id)
 		return rtkMisc.ERR_BIZ_CB_GET_STREAM_EMPTY
 	}
-	defer rtkConnection.CloseFmtTypeStream(id, rtkCommon.IMAGE_CB)
+	defer rtkConnection.CloseFmtTypeStream(id, rtkCommon.XCLIP_CB)
 
 	var xClipBuffer bytes.Buffer
 	xClipBuffer.Reset()

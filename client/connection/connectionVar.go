@@ -1,7 +1,6 @@
 package connection
 
 import (
-	"github.com/libp2p/go-libp2p/core/network"
 	"sync"
 	"time"
 
@@ -22,7 +21,6 @@ type FileDropItemStreamInfo struct {
 	Timestamp uint64
 	ID        string
 	StreamId  string // stream ID
-	Stream    network.Stream
 }
 
 type (

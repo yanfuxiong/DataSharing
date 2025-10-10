@@ -635,7 +635,7 @@ func browseLanServerAndroid(ctx context.Context, serviceType, domain string, res
 				resultChan <- browseParam{entry.Instance, lanServerIp, textRecordmName, textRecordKeyVersion, int64(stamp)}
 			}
 		}
-		log.Printf("Stop Browse service instances...")
+		log.Printf("Stop Browse service instances")
 		close(resultChan)
 	})
 

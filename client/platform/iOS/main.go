@@ -8,29 +8,28 @@ package main
 #include <stdint.h>
 
 typedef void (*CallbackUpdateClientStatus)(char* clientJsonStr);
-typedef void (*CallbackMethodFoundPeer)();
 typedef void (*CallbackMethodFileListNotify)(char* ip, char* id, char* platform,unsigned int fileCnt, unsigned long long totalSize,unsigned long long timestamp, char* firstFileName, unsigned long long firstFileSize);
 typedef void (*CallbackUpdateMultipleProgressBar)(char* ip,char* id, char* deviceName, char* currentfileName,unsigned int recvFileCnt, unsigned int totalFileCnt,unsigned long long currentFileSize,unsigned long long totalSize,unsigned long long recvSize,unsigned long long timestamp);
-typedef void (*CallbackFileError)(char* id, char* fileName, char* err);
 typedef void (*CallbackMethodStartBrowseMdns)(char* instance, char* serviceType);
 typedef void (*CallbackMethodStopBrowseMdns)();
 typedef char* (*CallbackAuthData)();
 typedef void (*CallbackSetDIASStatus)(unsigned int status);
 typedef void (*CallbackSetMonitorName)(char* monitorName);
+typedef void (*CallbackPasteXClipData)(char *text, char *image, char *html);
 typedef void (*CallbackRequestUpdateClientVersion)(char* clientVer);
 typedef void (*CallbackNotifyErrEvent)(char* id, unsigned int errCode, char* arg1, char* arg2, char* arg3, char* arg4);
 typedef void (*CallbackNotifyBrowseResult)(char* monitorName, char* instance, char* ip, char* version, unsigned long long timestamp);
 
-static CallbackMethodFoundPeer gCallbackMethodFoundPeer = 0;
+
 static CallbackUpdateClientStatus gCallbackUpdateClientStatus = 0;
 static CallbackMethodFileListNotify gCallbackMethodFileListNotify = 0;
 static CallbackUpdateMultipleProgressBar gCallbackUpdateMultipleProgressBar = 0;
-static CallbackFileError gCallbackFileError = 0;
 static CallbackMethodStartBrowseMdns gCallbackMethodStartBrowseMdns = 0;
 static CallbackMethodStopBrowseMdns gCallbackMethodStopBrowseMdns = 0;
 static CallbackAuthData gCallbackAuthData = 0;
 static CallbackSetDIASStatus gCallbackSetDIASStatus = 0;
 static CallbackSetMonitorName gCallbackSetMonitorName = 0;
+static CallbackPasteXClipData gCallbackPasteXClipData = 0;
 static CallbackRequestUpdateClientVersion gCallbackRequestUpdateClientVersion = 0;
 static CallbackNotifyErrEvent gCallbackNotifyErrEvent = 0;
 static CallbackNotifyBrowseResult gCallbackNotifyBrowseResult = 0;
@@ -40,10 +39,6 @@ static void setCallbackUpdateClientStatus(CallbackUpdateClientStatus cb) {gCallb
 static void invokeCallbackUpdateClientStatus(char* clientJsonStr) {
 	if (gCallbackUpdateClientStatus) {gCallbackUpdateClientStatus(clientJsonStr);}
 }
-static void setCallbackMethodFoundPeer(CallbackMethodFoundPeer cb) {gCallbackMethodFoundPeer = cb;}
-static void invokeCallbackMethodFoundPeer() {
-	if (gCallbackMethodFoundPeer) {gCallbackMethodFoundPeer();}
-}
 static void setCallbackMethodFileListNotify(CallbackMethodFileListNotify cb) {gCallbackMethodFileListNotify = cb;}
 static void invokeCallbackMethodFileListNotify(char* ip, char* id, char* platform,unsigned int fileCnt, unsigned long long totalSize,unsigned long long timestamp, char* firstFileName, unsigned long long firstFileSize) {
 	if (gCallbackMethodFileListNotify) {gCallbackMethodFileListNotify(ip, id, platform, fileCnt, totalSize, timestamp, firstFileName, firstFileSize);}
@@ -51,10 +46,6 @@ static void invokeCallbackMethodFileListNotify(char* ip, char* id, char* platfor
 static void setCallbackUpdateMultipleProgressBar(CallbackUpdateMultipleProgressBar cb) {gCallbackUpdateMultipleProgressBar = cb;}
 static void invokeCallbackUpdateMultipleProgressBar(char* ip,char* id, char* deviceName, char* currentfileName,unsigned int recvFileCnt, unsigned int totalFileCnt,unsigned long long currentFileSize,unsigned long long totalSize,unsigned long long recvSize,unsigned long long timestamp) {
 	if (gCallbackUpdateMultipleProgressBar) {gCallbackUpdateMultipleProgressBar(ip,id, deviceName,currentfileName,recvFileCnt,totalFileCnt,currentFileSize,totalSize, recvSize, timestamp);}
-}
-static void setCallbackFileError(CallbackFileError cb) {gCallbackFileError = cb;}
-static void invokeCallbackFileError(char* id, char* fileName, char* err) {
-	if (gCallbackFileError) {gCallbackFileError(id, fileName, err);}
 }
 static void setCallbackMethodStartBrowseMdns(CallbackMethodStartBrowseMdns cb) {gCallbackMethodStartBrowseMdns = cb;}
 static void invokeCallbackMethodStartBrowseMdns(char* instance, char* serviceType) {
@@ -76,6 +67,10 @@ static void invokeCallbackSetDIASStatus(unsigned int status) {
 static void setCallbackSetMonitorName(CallbackSetMonitorName cb) {gCallbackSetMonitorName = cb;}
 static void invokeCallbackSetMonitorName(char* monitorName) {
 	if (gCallbackSetMonitorName) { gCallbackSetMonitorName(monitorName);}
+}
+static void setCallbackPasteXClipData(CallbackPasteXClipData cb) {gCallbackPasteXClipData = cb;}
+static void invokeCallbackPasteXClipData(char *text, char *image, char *html) {
+	if (gCallbackPasteXClipData) { gCallbackPasteXClipData(text, image, html);}
 }
 static void setCallbackRequestUpdateClientVersion(CallbackRequestUpdateClientVersion cb) {gCallbackRequestUpdateClientVersion = cb;}
 static void invokeCallbackRequestUpdateClientVersion(char* clientVer) {
@@ -114,14 +109,13 @@ func main() {
 func init() {
 	rtkPlatform.SetCallbackFileListNotify(GoTriggerCallbackMethodFileListNotify)
 	rtkPlatform.SetCallbackUpdateClientStatus(GoTriggerCallbackUpdateClientStatus)
-	rtkPlatform.SetCallbackMethodFoundPeer(GoTriggerCallbackMethodFoundPeer)
 	rtkPlatform.SetCallbackUpdateMultipleProgressBar(GoTriggerCallbackUpdateMultipleProgressBar)
-	rtkPlatform.SetCallbackFileError(GoTriggerCallbackFileError)
 	rtkPlatform.SetCallbackMethodStartBrowseMdns(GoTriggerCallbackMethodStartBrowseMdns)
 	rtkPlatform.SetCallbackMethodStopBrowseMdns(GoTriggerCallbackMethodStopBrowseMdns)
 	rtkPlatform.SetCallbackGetAuthData(GoTriggerCallbackGetAuthData)
 	rtkPlatform.SetCallbackDIASStatus(GoTriggerCallbackSetDIASStatus)
 	rtkPlatform.SetCallbackMonitorName(GoTriggerCallbackSetMonitorName)
+	rtkPlatform.SetCallbackPasteXClipData(GoTriggerCallbackPasteXClipData)
 	rtkPlatform.SetCallbackRequestUpdateClientVersion(GoTriggerCallbackReqClientUpdateVer)
 	rtkPlatform.SetCallbackNotifyErrEvent(GoTriggerCallbackNotifyErrEvent)
 	rtkPlatform.SetCallbackNotifyBrowseResult(GoTriggerCallbackNotifyBrowseResult)
@@ -141,11 +135,6 @@ func GoTriggerCallbackUpdateClientStatus(clientInfo string) {
 	defer C.free(unsafe.Pointer(cClientInfo))
 
 	C.invokeCallbackUpdateClientStatus(cClientInfo)
-}
-
-func GoTriggerCallbackMethodFoundPeer() {
-	log.Printf("[%s] FoundPeer Trigger!", rtkMisc.GetFuncInfo())
-	C.invokeCallbackMethodFoundPeer()
 }
 
 func GoTriggerCallbackMethodFileListNotify(ip, id, platform string, fileCnt uint32, totalSize uint64, timestamp uint64, firstFileName string, firstFileSize uint64) {
@@ -192,16 +181,6 @@ func GoTriggerCallbackUpdateMultipleProgressBar(ip, id, currentFileName string, 
 	C.invokeCallbackUpdateMultipleProgressBar(cip, cid, cdeviceName, ccurrentFileName, crecvFileCnt, ctotalFileCnt, ccurrentFileSize, ctotalSize, crecvSize, ctimeStamp)
 }
 
-func GoTriggerCallbackFileError(id, filename, err string) {
-	cid := C.CString(id)
-	cfilename := C.CString(filename)
-	cerr := C.CString(err)
-	defer C.free(unsafe.Pointer(cid))
-	defer C.free(unsafe.Pointer(cfilename))
-	defer C.free(unsafe.Pointer(cerr))
-	C.invokeCallbackFileError(cid, cfilename, cerr)
-}
-
 func GoTriggerCallbackMethodStartBrowseMdns(instance, serviceType string) {
 	cinstance := C.CString(instance)
 	cserviceType := C.CString(serviceType)
@@ -234,6 +213,18 @@ func GoTriggerCallbackSetMonitorName(name string) {
 	defer C.free(unsafe.Pointer(cMonitorName))
 	C.invokeCallbackSetMonitorName(cMonitorName)
 	log.Printf("[%s] MonitorName:[%s]", rtkMisc.GetFuncInfo(), name)
+}
+
+func GoTriggerCallbackPasteXClipData(text, image, html string) {
+	cText := C.CString(text)
+	cImage := C.CString(image)
+	cHtml := C.CString(html)
+	defer C.free(unsafe.Pointer(cText))
+	defer C.free(unsafe.Pointer(cImage))
+	defer C.free(unsafe.Pointer(cHtml))
+
+	log.Printf("[%s] text len:%d , image len:%d, html:%d\n\n", rtkMisc.GetFuncInfo(), len(text), len(image), len(html))
+	C.invokeCallbackPasteXClipData(cText, cImage, cHtml)
 }
 
 func GoTriggerCallbackReqClientUpdateVer(ver string) {
@@ -286,11 +277,6 @@ func SetCallbackUpdateClientStatus(cb C.CallbackUpdateClientStatus) {
 	C.setCallbackUpdateClientStatus(cb)
 }
 
-//export SetCallbackMethodFoundPeer
-func SetCallbackMethodFoundPeer(cb C.CallbackMethodFoundPeer) {
-	C.setCallbackMethodFoundPeer(cb)
-}
-
 //export SetCallbackMethodFileListNotify
 func SetCallbackMethodFileListNotify(cb C.CallbackMethodFileListNotify) {
 	C.setCallbackMethodFileListNotify(cb)
@@ -299,11 +285,6 @@ func SetCallbackMethodFileListNotify(cb C.CallbackMethodFileListNotify) {
 //export SetCallbackUpdateMultipleProgressBar
 func SetCallbackUpdateMultipleProgressBar(cb C.CallbackUpdateMultipleProgressBar) {
 	C.setCallbackUpdateMultipleProgressBar(cb)
-}
-
-//export SetCallbackFileError
-func SetCallbackFileError(cb C.CallbackFileError) {
-	C.setCallbackFileError(cb)
 }
 
 //export SetCallbackMethodStartBrowseMdns
@@ -332,6 +313,12 @@ func SetCallbackDIASStatus(cb C.CallbackSetDIASStatus) {
 func SetCallbackMonitorName(cb C.CallbackSetMonitorName) {
 	log.Printf("[%s] SetCallbackMonitorName", rtkMisc.GetFuncInfo())
 	C.setCallbackSetMonitorName(cb)
+}
+
+//export SetCallbackPasteXClipData
+func SetCallbackPasteXClipData(cb C.CallbackPasteXClipData) {
+	log.Printf("[%s] SetCallbackPasteXClipData", rtkMisc.GetFuncInfo())
+	C.setCallbackPasteXClipData(cb)
 }
 
 //export SetCallbackRequestUpdateClientVersion
@@ -368,6 +355,35 @@ func MainInit(deviceName, serverId, serverIpInfo, listenHost string, listenPort 
 func SetMsgEventFunc(event int, arg1, arg2, arg3, arg4 string) {
 	log.Printf("[%s] event:[%d], arg1:%s, arg2:%s, arg3:%s, arg4:%s\n", rtkMisc.GetFuncInfo(), event, arg1, arg2, arg3, arg4)
 	rtkPlatform.GoSetMsgEventFunc(uint32(event), arg1, arg2, arg3, arg4)
+}
+
+//export SendXClipData
+func SendXClipData(text, image, html string) {
+	log.Printf("[%s] text:%d, image:%d, html:%d\n\n", rtkMisc.GetFuncInfo(), len(text), len(image), len(html))
+
+	imgData := []byte(nil)
+	if image != "" {
+		startTime := time.Now().UnixMilli()
+		data := rtkUtils.Base64Decode(image)
+		if data == nil {
+			return
+		}
+
+		format, width, height := rtkUtils.GetByteImageInfo(data)
+		jpegData, err := rtkUtils.ImageToJpeg(format, data)
+		if err != nil {
+			return
+		}
+		if len(jpegData) == 0 {
+			log.Printf("[CopyXClip] Error: jpeg data is empty")
+			return
+		}
+
+		imgData = jpegData
+		log.Printf("image get jpg size:[%d](%d,%d),decode use:[%d]ms", len(imgData), width, height, time.Now().UnixMilli()-startTime)
+	}
+
+	rtkPlatform.GoCopyXClipData([]byte(text), imgData, []byte(html))
 }
 
 //export GetClientListEx
@@ -447,7 +463,7 @@ func SetCancelFileTransfer(ipPort, clientID string, timeStamp uint64) {
 //export SetNetWorkConnected
 func SetNetWorkConnected(isConnect bool) {
 	log.Printf("[%s] SetNetWorkConnected:[%v]", rtkMisc.GetFuncInfo(), isConnect)
-	rtkPlatform.SetNetWorkConnected(isConnect)
+	//rtkPlatform.SetNetWorkConnected(isConnect)
 }
 
 //export SetHostListenAddr

@@ -141,8 +141,11 @@ func SendMultiFilesDropRequest(multiFilesData string) int {
 		}
 	}
 	totalDesc := rtkMisc.FileSizeDesc(totalSize)
-	//timestamp := uint64(time.Now().UnixMilli())
-	timestamp := uint64(multiFileInfo.TimeStamp)
+
+	timestamp := multiFileInfo.TimeStamp
+	if multiFileInfo.TimeStamp == 0 {
+		timestamp = uint64(time.Now().UnixMilli())
+	}
 	log.Printf("[%s] ID[%s] IP:[%s] get file count:[%d] folder count:[%d], totalSize:[%d] totalDesc:[%s] timestamp:[%d]", rtkMisc.GetFuncInfo(), multiFileInfo.Id, multiFileInfo.Ip, len(fileList), len(folderList), totalSize, totalDesc, timestamp)
 	return int(rtkPlatform.GoMultiFilesDropRequest(multiFileInfo.Id, &fileList, &folderList, totalSize, timestamp, totalDesc))
 }

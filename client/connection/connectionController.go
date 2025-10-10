@@ -75,16 +75,21 @@ func ConnectionInit(ctx context.Context) {
 func cancelHostNode() {
 	nodeMutex.Lock()
 	defer nodeMutex.Unlock()
+
 	if node != nil {
-		log.Println("begin close p2p node info!")
 		node.Peerstore().Close()
 		node.Network().Close()
 		node.ConnManager().Close()
 		node.Close()
-		fileTransNode.Close()
 		node = nil
+		log.Println("close p2p node info success!")
+	}
+	if fileTransNode != nil {
+		fileTransNode.Peerstore().Close()
+		fileTransNode.Network().Close()
+		fileTransNode.Close()
 		fileTransNode = nil
-		log.Println("end close p2p node info!")
+		log.Println("close p2p file Node info success!")
 	}
 }
 
@@ -124,10 +129,12 @@ func setupNode(ip string, port int) error {
 		log.Printf("NewMultiaddr tcp addr error:%+v", err)
 		return err
 	}
-	quicAddr, qErr := ma.NewMultiaddr(fmt.Sprintf("/ip4/%s/udp/%d/quic-v1", ip, port))
-	if qErr != nil {
-		log.Printf("NewMultiaddr quic addr error:%+v", qErr)
-		return qErr
+
+	// UDP listen ip must be 0.0.0.0, Otherwise it will cause the android talker end to crash
+	quicAddr, err := ma.NewMultiaddr(fmt.Sprintf("/ip4/%s/udp/%d/quic-v1", rtkMisc.DefaultIp, rtkGlobal.DefaultPort))
+	if err != nil {
+		log.Printf("NewMultiaddr quic addr error:%+v", err)
+		return err
 	}
 
 	if port <= 0 {
@@ -154,6 +161,8 @@ func setupNode(ip string, port int) error {
 	tempFileNode, err := libp2p.New(
 		libp2p.ListenAddrs(quicAddr),
 		libp2p.Transport(libp2pquic.NewTransport),
+		libp2p.ResourceManager(&network.NullResourceManager{}),
+		libp2p.DisableRelay(),
 	)
 	if err != nil {
 		log.Printf("Failed to create file node: %v", err)
@@ -207,7 +216,7 @@ func setupNode(ip string, port int) error {
 	log.Println("Self version info: ", serviceVer)
 	log.Println("Self file node ID: ", rtkGlobal.NodeInfo.FileTransNodeID)
 	log.Println("Self file node Addr: ", tempFileNode.Addrs())
-	log.Println("Self file listen Addr: ", tempFileNode.Network().ListenAddresses())
+	log.Println("Self file node listen Addr: ", tempFileNode.Network().ListenAddresses())
 	log.Println("Self file node port: ", rtkGlobal.NodeInfo.IPAddr.UpdPort)
 	log.Println("=======================================================")
 
@@ -234,8 +243,8 @@ func buildListener() {
 	})
 
 	node.SetStreamHandler(protocol.ID(rtkGlobal.ProtocolImageTransmission), func(stream network.Stream) {
-		updateFmtTypeStreamSrc(stream, rtkCommon.IMAGE_CB)
-		noticeFmtTypeStreamReady(stream.Conn().RemotePeer().String(), rtkCommon.IMAGE_CB)
+		updateFmtTypeStreamSrc(stream, rtkCommon.XCLIP_CB)
+		noticeFmtTypeStreamReady(stream.Conn().RemotePeer().String(), rtkCommon.XCLIP_CB)
 	})
 
 	node.SetStreamHandler(protocol.ID(rtkGlobal.ProtocolFileTransmission), func(stream network.Stream) {
@@ -252,7 +261,7 @@ func BuildFileDropItemStreamListener(timestamp uint64) {
 		log.Printf("[%s] node is nil! set protocol handler failed!, timestamp:[%d]", rtkMisc.GetFuncInfo(), timestamp)
 		return
 	}
-	fileTransNode.SetStreamHandler(protocol.ID(getFileDropStreamProtocol(timestamp)), handlerFileDropStream)
+	fileTransNode.SetStreamHandler(protocol.ID(getFileDropStreamProtocol(timestamp)), handlerFileDropItemStream)
 	log.Printf("[%s] set protocol handler success, timestamp:[%d]", rtkMisc.GetFuncInfo(), timestamp)
 }
 
@@ -267,7 +276,7 @@ func RemoveFileDropItemStreamListener(timestamp uint64) {
 	log.Printf("[%s] remove protocol handler success, timestamp:[%d]", rtkMisc.GetFuncInfo(), timestamp)
 }
 
-func handlerFileDropStream(stream network.Stream) {
+func handlerFileDropItemStream(stream network.Stream) {
 	Reader := bufio.NewReader(stream)
 	var reqMsg FileDropItemStreamInfo
 	err := json.NewDecoder(Reader).Decode(&reqMsg)
@@ -276,15 +285,12 @@ func handlerFileDropStream(stream network.Stream) {
 		return
 	}
 	reqMsg.StreamId = stream.ID()
-	reqMsg.Stream = stream
-
-	addFileDropItemStreamAsSrc(reqMsg.ID, reqMsg.Timestamp, reqMsg.Stream)
+	addFileDropItemStreamAsSrc(reqMsg.ID, reqMsg.Timestamp, stream)
 	noticeFmtTypeStreamReady(reqMsg.ID, rtkCommon.FILE_DROP)
 }
 
 func NewFileDropItemStream(id string, timestamp uint64) rtkMisc.CrossShareErr {
-	// TODO: how to set time out,  5s
-	ctx, cancel := context.WithTimeout(context.Background(), ctxTimeout_normal)
+	ctx, cancel := context.WithTimeout(context.Background(), ctxTimeout_short)
 	defer cancel()
 
 	clientInfo, err := rtkUtils.GetClientInfo(id)
@@ -305,6 +311,7 @@ func NewFileDropItemStream(id string, timestamp uint64) rtkMisc.CrossShareErr {
 		Addrs: []ma.Multiaddr{addr},
 	}
 
+	startTime := time.Now().UnixMilli()
 	nodeMutex.RLock()
 	defer nodeMutex.RUnlock()
 	if fileTransNode.Network().Connectedness(fileTransPeer.ID) != network.Connected {
@@ -324,7 +331,7 @@ func NewFileDropItemStream(id string, timestamp uint64) rtkMisc.CrossShareErr {
 			}
 			return rtkMisc.ERR_NETWORK_P2P_CONNECT
 		}
-		log.Printf("connect %+v success!\n\n", fileTransPeer)
+		log.Printf("connect %s success! use [%d] ms", fileTransPeer.ID.String(), time.Now().UnixMilli()-startTime)
 	}
 
 	protocolId := getFileDropStreamProtocol(timestamp)
@@ -343,7 +350,6 @@ func NewFileDropItemStream(id string, timestamp uint64) rtkMisc.CrossShareErr {
 		Timestamp: timestamp,
 		ID:        rtkGlobal.NodeInfo.ID,
 		StreamId:  stream.ID(),
-		Stream:    nil,
 	}
 	if err = json.NewEncoder(Writer).Encode(registMsg); err != nil {
 		log.Println("failed to send register message: %w", err)
@@ -355,6 +361,7 @@ func NewFileDropItemStream(id string, timestamp uint64) rtkMisc.CrossShareErr {
 	}
 
 	addFileDropItemStreamAsDst(id, timestamp, stream)
+	log.Printf("ID:[%s] new a file drop stream success! use [%d] ms", id, time.Now().UnixMilli()-startTime)
 	return rtkMisc.SUCCESS
 }
 
@@ -387,8 +394,9 @@ func buildTalker(ctxMain context.Context, client rtkMisc.ClientInfo) rtkMisc.Cro
 	defer cancel()
 
 	if node.Network().Connectedness(peer.ID) != network.Connected {
+		startTime := time.Now().UnixMilli()
 		node.Network().ClosePeer(peer.ID)
-		log.Printf("begin  to connect %+v ... \n\n", peer)
+		log.Printf("begin to connect %+v ...", peer)
 		if err = node.Connect(ctx, peer); err != nil {
 			log.Printf("[%s] Connect peer%+v failed:%+v", rtkMisc.GetFuncInfo(), peer, err)
 			if errors.Is(err, context.DeadlineExceeded) {
@@ -403,7 +411,7 @@ func buildTalker(ctxMain context.Context, client rtkMisc.ClientInfo) rtkMisc.Cro
 			}
 			return rtkMisc.ERR_NETWORK_P2P_CONNECT
 		}
-		log.Printf("connect %+v end\n", peer)
+		log.Printf("connect %s success! use [%d] ms", peer.ID.String(), time.Now().UnixMilli()-startTime)
 	}
 
 	if IsStreamExisted(peer.ID.String()) {
@@ -435,6 +443,7 @@ func BuildFmtTypeTalker(id string, fmtType rtkCommon.TransFmtType) rtkMisc.Cross
 		log.Printf("[%s] ID:[%s] IP[%s] get no stream info or stream is closed", rtkMisc.GetFuncInfo(), id, sInfo.ipAddr)
 		return rtkMisc.ERR_BIZ_GET_STREAM_EMPTY
 	}
+	clearOldFmtStream(id, fmtType)
 
 	nodeMutex.RLock()
 	defer nodeMutex.RUnlock()
@@ -451,7 +460,7 @@ func BuildFmtTypeTalker(id string, fmtType rtkCommon.TransFmtType) rtkMisc.Cross
 			}
 			return rtkMisc.ERR_NETWORK_P2P_OPEN_STREAM
 		}
-	} else if fmtType == rtkCommon.IMAGE_CB {
+	} else if fmtType == rtkCommon.XCLIP_CB {
 		fmtTypeStream, err = node.NewStream(ctx, sInfo.s.Conn().RemotePeer(), protocol.ID(rtkGlobal.ProtocolImageTransmission))
 		if err != nil {
 			log.Printf("[%s] ID:[%s] IP:[%s] open %s stream failed:%+v", rtkMisc.GetFuncInfo(), id, sInfo.ipAddr, fmtType, err)

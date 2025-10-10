@@ -266,15 +266,25 @@ func InsertClientInfoMap(id, ipAddr, platform, name, srcPortType, ver, fileTrans
 	rtkGlobal.ClientListRWMutex.Lock()
 	defer rtkGlobal.ClientListRWMutex.Unlock()
 
-	var isSupportXClip bool
+	isSupportXClip := false
+	isSupportQueueFileTrans := false
+	var logSuffix string
+
 	peerVerSerial := rtkMisc.GetVersionSerialValue(ver)
 	if peerVerSerial >= int(rtkGlobal.XClipVersionSerial) {
 		isSupportXClip = true
-		log.Printf("ID:[%s] version:[%s] serial is equal or larger than %d, so support XClip!", id, ver, rtkGlobal.XClipVersionSerial)
+		logSuffix = " support XClip,"
+		if peerVerSerial >= int(rtkGlobal.QueueFileTransVersionSerial) {
+			isSupportQueueFileTrans = true
+			logSuffix = logSuffix + " and support file drop queue transfer!"
+		} else {
+			logSuffix = logSuffix + " and not support file drop queue transfer!"
+		}
 	} else {
-		isSupportXClip = false
-		log.Printf("ID:[%s] version:[%s] serial is smaller than %d, so not support XClip!", id, ver, rtkGlobal.XClipVersionSerial)
+		logSuffix = " not support XClip and file drop queue transfer!"
 	}
+
+	log.Printf("ID:[%s] version:[%s] serial threshold XClip:[%d] file drop queue:[%d], so %s", id, ver, rtkGlobal.XClipVersionSerial, rtkGlobal.QueueFileTransVersionSerial, logSuffix)
 
 	rtkGlobal.ClientInfoMap[id] = rtkCommon.ClientInfoEx{
 		ClientInfo: rtkMisc.ClientInfo{
@@ -285,9 +295,10 @@ func InsertClientInfoMap(id, ipAddr, platform, name, srcPortType, ver, fileTrans
 			SourcePortType: srcPortType,
 			Version:        ver,
 		},
-		IsSupportXClip: isSupportXClip,
-		FileTransNodeID: fileTransId,
-		UpdPort:         udpPort,
+		IsSupportXClip:      isSupportXClip,
+		IsSupportQueueTrans: isSupportQueueFileTrans,
+		FileTransNodeID:     fileTransId,
+		UpdPort:             udpPort,
 	}
 }
 
@@ -375,11 +386,20 @@ func GetPeerClientIsSupportXClip(id string) bool {
 	return clientInfo.IsSupportXClip
 }
 
+func GetPeerClientIsSupportQueueTrans(id string) bool {
+	rtkGlobal.ClientListRWMutex.RLock()
+	defer rtkGlobal.ClientListRWMutex.RUnlock()
+	clientInfo, ok := rtkGlobal.ClientInfoMap[id]
+	if !ok {
+		log.Printf("[%s] not found ClientInfo by id:%s", rtkMisc.GetFuncInfo(), id)
+		return false
+	}
+
+	return clientInfo.IsSupportQueueTrans
+}
+
 func WalkPath(dirPath string, pathList *[]string, fileInfoList *[]rtkCommon.FileInfo, totalSize *uint64) error {
 	rootPath := filepath.Dir(dirPath)
-
-	// TODO: Need to be compatible with incompatible system separators
-	dirPath = strings.ReplaceAll(dirPath, "/", "\\")
 
 	err := filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
