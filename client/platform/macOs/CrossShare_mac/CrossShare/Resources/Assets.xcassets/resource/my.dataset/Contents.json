@@ -1,0 +1,12 @@
+{
+  "data" : [
+    {
+      "filename" : "my.qss",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

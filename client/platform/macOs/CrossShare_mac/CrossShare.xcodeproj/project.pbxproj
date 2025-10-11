@@ -1,0 +1,883 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		5156D2F12E65C0140019CF0A /* DdcciHelper.app in Copy Files */ = {isa = PBXBuildFile; fileRef = 5156D2E22E65BF980019CF0A /* DdcciHelper.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		5177EBDA2E8A62AE009115F7 /* CSFileInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5177EBD82E8A62AE009115F7 /* CSFileInfo.swift */; };
+		5177EDBC2E8A6E80009115F7 /* RealmModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5177EDBB2E8A6E80009115F7 /* RealmModels.swift */; };
+		5187C1132E6679C000F9A557 /* OSD.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5187C10F2E6679C000F9A557 /* OSD.framework */; };
+		5187C1142E6679C000F9A557 /* DisplayServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5187C1112E6679C000F9A557 /* DisplayServices.framework */; };
+		5187C1152E6679C000F9A557 /* CoreDisplay.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5187C1102E6679C000F9A557 /* CoreDisplay.framework */; };
+		51BF198F2E4F177E00941BA1 /* CrossShareHelper.app in Copy Files */ = {isa = PBXBuildFile; fileRef = 51BF19852E4F143B00941BA1 /* CrossShareHelper.app */; };
+		51D407B62E7A62520087C6C3 /* OSD.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5187C10F2E6679C000F9A557 /* OSD.framework */; };
+		51D407B72E7A62520087C6C3 /* OSD.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 5187C10F2E6679C000F9A557 /* OSD.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		51D407B82E7A62520087C6C3 /* CoreDisplay.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5187C1102E6679C000F9A557 /* CoreDisplay.framework */; };
+		51D407B92E7A62520087C6C3 /* CoreDisplay.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 5187C1102E6679C000F9A557 /* CoreDisplay.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		51D407BA2E7A62520087C6C3 /* DisplayServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5187C1112E6679C000F9A557 /* DisplayServices.framework */; };
+		51D407BB2E7A62520087C6C3 /* DisplayServices.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 5187C1112E6679C000F9A557 /* DisplayServices.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		51E288EB2E73C50A00524FF7 /* UnifiedHelperProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51E288E82E73C50A00524FF7 /* UnifiedHelperProtocol.swift */; };
+		51E288EE2E73C50A00524FF7 /* UnifiedHelperProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51E288E82E73C50A00524FF7 /* UnifiedHelperProtocol.swift */; };
+		51E288F02E73C69400524FF7 /* P2PConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51E288E62E73C50A00524FF7 /* P2PConfig.swift */; };
+		51E288F12E73C69400524FF7 /* P2PConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51E288E62E73C50A00524FF7 /* P2PConfig.swift */; };
+		51E288F22E73C69800524FF7 /* SharedModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51E288E72E73C50A00524FF7 /* SharedModels.swift */; };
+		51E288F32E73C69800524FF7 /* SharedModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51E288E72E73C50A00524FF7 /* SharedModels.swift */; };
+		5BB5C7732D8126C700483C4A /* libresolv.9.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 5BB5C7722D8126C700483C4A /* libresolv.9.tbd */; };
+		7BADE4CE3D5773B7E3FD7643 /* Pods_CrossShare.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 86DE888E0333961B75742671 /* Pods_CrossShare.framework */; };
+		A231865D863CFAE36D0F787D /* Pods_CrossShare.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8A412451BA15FA69FB1A3ABC /* Pods_CrossShare.framework */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		511BC83A2E6A7FA000659DBD /* Embed XPC Services */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/XPCServices";
+			dstSubfolderSpec = 16;
+			files = (
+			);
+			name = "Embed XPC Services";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5156D2F62E65C2CC0019CF0A /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 8;
+			dstPath = /usr/share/man/man1;
+			dstSubfolderSpec = 0;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 1;
+		};
+		51BF19832E4F143B00941BA1 /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = /usr/share/man/man1;
+			dstSubfolderSpec = 0;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 1;
+		};
+		51BF198E2E4F176B00941BA1 /* Copy Files */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = Contents/Library/LoginItems;
+			dstSubfolderSpec = 1;
+			files = (
+				5156D2F12E65C0140019CF0A /* DdcciHelper.app in Copy Files */,
+				51BF198F2E4F177E00941BA1 /* CrossShareHelper.app in Copy Files */,
+			);
+			name = "Copy Files";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		51D407BC2E7A62520087C6C3 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				51D407B92E7A62520087C6C3 /* CoreDisplay.framework in Embed Frameworks */,
+				51D407B72E7A62520087C6C3 /* OSD.framework in Embed Frameworks */,
+				51D407BB2E7A62520087C6C3 /* DisplayServices.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		5156D2E22E65BF980019CF0A /* DdcciHelper.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DdcciHelper.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		5177EBD82E8A62AE009115F7 /* CSFileInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSFileInfo.swift; sourceTree = "<group>"; };
+		5177EDBB2E8A6E80009115F7 /* RealmModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealmModels.swift; sourceTree = "<group>"; };
+		5187C10F2E6679C000F9A557 /* OSD.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = OSD.framework; path = /System/Library/PrivateFrameworks/OSD.framework; sourceTree = "<absolute>"; };
+		5187C1102E6679C000F9A557 /* CoreDisplay.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreDisplay.framework; path = /System/Library/Frameworks/CoreDisplay.framework; sourceTree = "<absolute>"; };
+		5187C1112E6679C000F9A557 /* DisplayServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = DisplayServices.framework; path = /System/Library/PrivateFrameworks/DisplayServices.framework; sourceTree = "<absolute>"; };
+		51BF19852E4F143B00941BA1 /* CrossShareHelper.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CrossShareHelper.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		51E288E62E73C50A00524FF7 /* P2PConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = P2PConfig.swift; sourceTree = "<group>"; };
+		51E288E72E73C50A00524FF7 /* SharedModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedModels.swift; sourceTree = "<group>"; };
+		51E288E82E73C50A00524FF7 /* UnifiedHelperProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnifiedHelperProtocol.swift; sourceTree = "<group>"; };
+		5B74C3342D78207300A623E0 /* CrossShare.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CrossShare.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		5BB5C7702D8126C300483C4A /* libresolv.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libresolv.tbd; path = usr/lib/libresolv.tbd; sourceTree = SDKROOT; };
+		5BB5C7722D8126C700483C4A /* libresolv.9.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libresolv.9.tbd; path = usr/lib/libresolv.9.tbd; sourceTree = SDKROOT; };
+		86DE888E0333961B75742671 /* Pods_CrossShare.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_CrossShare.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		8A412451BA15FA69FB1A3ABC /* Pods_CrossShare.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_CrossShare.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		8E91A26C470CFC2F319E5602 /* Pods-CrossShare.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-CrossShare.debug.xcconfig"; path = "Target Support Files/Pods-CrossShare/Pods-CrossShare.debug.xcconfig"; sourceTree = "<group>"; };
+		E3CDB12F57EDD6E690CED7D3 /* Pods-CrossShare.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-CrossShare.release.xcconfig"; path = "Target Support Files/Pods-CrossShare/Pods-CrossShare.release.xcconfig"; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		5150DCE92E6EC317007A52DB /* Exceptions for "CrossShare" folder in "CrossShareHelper" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				"Extensions/NSNotification+Extension.swift",
+				"Extensions/NSScreen+Extension.swift",
+				Models/Command.swift,
+				Models/PrefKey.swift,
+				Support/DDC/Arm64DDC.swift,
+				Support/DDC/CrossShareVcpCtrl.swift,
+				Support/DDC/IntelDDC.swift,
+				Support/DDC/OptimizedDisplayMacQuery.swift,
+				Support/DDC/ScreenMonitor.swift,
+				Support/DDC/UniversalDDC.swift,
+				Support/Display/AppleDisplay.swift,
+				Support/Display/Display.swift,
+				Support/Display/DisplayManager.swift,
+				Support/Display/OtherDisplay.swift,
+				Utilities/BundleIdentifiers.swift,
+			);
+			target = 51BF19842E4F143B00941BA1 /* CrossShareHelper */;
+		};
+		5150DCEA2E6EC317007A52DB /* Exceptions for "CrossShare" folder in "DdcciHelper" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Utilities/BundleIdentifiers.swift,
+			);
+			target = 5156D2E12E65BF980019CF0A /* DdcciHelper */;
+		};
+		51D407CB2E7A65C40087C6C3 /* Exceptions for "CrossShare" folder in "CrossShare" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				"Extensions/NSScreen+Extension.swift",
+				Models/Command.swift,
+				Models/PrefKey.swift,
+				Support/DDC/Arm64DDC.swift,
+				Support/DDC/CrossShareVcpCtrl.swift,
+				Support/DDC/IntelDDC.swift,
+				Support/DDC/OptimizedDisplayMacQuery.swift,
+				Support/DDC/ScreenMonitor.swift,
+				Support/DDC/UniversalDDC.swift,
+				Support/Display/AppleDisplay.swift,
+				Support/Display/Display.swift,
+				Support/Display/DisplayManager.swift,
+				Support/Display/OtherDisplay.swift,
+			);
+			target = 5B74C3332D78207300A623E0 /* CrossShare */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		5156D2E32E65BF980019CF0A /* DdcciHelper */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = DdcciHelper;
+			sourceTree = "<group>";
+		};
+		51BF19862E4F143B00941BA1 /* CrossShareHelper */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = CrossShareHelper;
+			sourceTree = "<group>";
+		};
+		5B74C3362D78207300A623E0 /* CrossShare */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				51D407CB2E7A65C40087C6C3 /* Exceptions for "CrossShare" folder in "CrossShare" target */,
+				5150DCE92E6EC317007A52DB /* Exceptions for "CrossShare" folder in "CrossShareHelper" target */,
+				5150DCEA2E6EC317007A52DB /* Exceptions for "CrossShare" folder in "DdcciHelper" target */,
+			);
+			path = CrossShare;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		5156D2DF2E65BF980019CF0A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		51BF19822E4F143B00941BA1 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				51D407B82E7A62520087C6C3 /* CoreDisplay.framework in Frameworks */,
+				51D407B62E7A62520087C6C3 /* OSD.framework in Frameworks */,
+				51D407BA2E7A62520087C6C3 /* DisplayServices.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5B74C3312D78207300A623E0 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5187C1132E6679C000F9A557 /* OSD.framework in Frameworks */,
+				5187C1142E6679C000F9A557 /* DisplayServices.framework in Frameworks */,
+				5187C1152E6679C000F9A557 /* CoreDisplay.framework in Frameworks */,
+				5BB5C7732D8126C700483C4A /* libresolv.9.tbd in Frameworks */,
+				7BADE4CE3D5773B7E3FD7643 /* Pods_CrossShare.framework in Frameworks */,
+				A231865D863CFAE36D0F787D /* Pods_CrossShare.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		044A36D15EC0A8C54F68A2FF /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				5BB5C7722D8126C700483C4A /* libresolv.9.tbd */,
+				5BB5C7702D8126C300483C4A /* libresolv.tbd */,
+				86DE888E0333961B75742671 /* Pods_CrossShare.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		5187C1122E6679C000F9A557 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				5187C10F2E6679C000F9A557 /* OSD.framework */,
+				5187C1102E6679C000F9A557 /* CoreDisplay.framework */,
+				5187C1112E6679C000F9A557 /* DisplayServices.framework */,
+				8A412451BA15FA69FB1A3ABC /* Pods_CrossShare.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		51E288E92E73C50A00524FF7 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				51E288E62E73C50A00524FF7 /* P2PConfig.swift */,
+				51E288E72E73C50A00524FF7 /* SharedModels.swift */,
+				51E288E82E73C50A00524FF7 /* UnifiedHelperProtocol.swift */,
+				5177EBD82E8A62AE009115F7 /* CSFileInfo.swift */,
+				5177EDBB2E8A6E80009115F7 /* RealmModels.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		5B74C32B2D78207300A623E0 = {
+			isa = PBXGroup;
+			children = (
+				51E288E92E73C50A00524FF7 /* Shared */,
+				5187C1122E6679C000F9A557 /* Frameworks */,
+				5B74C3362D78207300A623E0 /* CrossShare */,
+				51BF19862E4F143B00941BA1 /* CrossShareHelper */,
+				5156D2E32E65BF980019CF0A /* DdcciHelper */,
+				5B74C3352D78207300A623E0 /* Products */,
+				B6D09BD484F06FA0B60784CB /* Pods */,
+				044A36D15EC0A8C54F68A2FF /* Frameworks */,
+			);
+			sourceTree = "<group>";
+		};
+		5B74C3352D78207300A623E0 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				5B74C3342D78207300A623E0 /* CrossShare.app */,
+				51BF19852E4F143B00941BA1 /* CrossShareHelper.app */,
+				5156D2E22E65BF980019CF0A /* DdcciHelper.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		B6D09BD484F06FA0B60784CB /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				8E91A26C470CFC2F319E5602 /* Pods-CrossShare.debug.xcconfig */,
+				E3CDB12F57EDD6E690CED7D3 /* Pods-CrossShare.release.xcconfig */,
+			);
+			path = Pods;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		5156D2E12E65BF980019CF0A /* DdcciHelper */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5156D2F02E65BF990019CF0A /* Build configuration list for PBXNativeTarget "DdcciHelper" */;
+			buildPhases = (
+				5156D2DE2E65BF980019CF0A /* Sources */,
+				5156D2DF2E65BF980019CF0A /* Frameworks */,
+				5156D2E02E65BF980019CF0A /* Resources */,
+				5156D2F62E65C2CC0019CF0A /* CopyFiles */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				5156D2E32E65BF980019CF0A /* DdcciHelper */,
+			);
+			name = DdcciHelper;
+			productName = DdcciHelper;
+			productReference = 5156D2E22E65BF980019CF0A /* DdcciHelper.app */;
+			productType = "com.apple.product-type.application";
+		};
+		51BF19842E4F143B00941BA1 /* CrossShareHelper */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 51BF19892E4F143B00941BA1 /* Build configuration list for PBXNativeTarget "CrossShareHelper" */;
+			buildPhases = (
+				51BF19812E4F143B00941BA1 /* Sources */,
+				51BF19822E4F143B00941BA1 /* Frameworks */,
+				51BF19832E4F143B00941BA1 /* CopyFiles */,
+				51D407BC2E7A62520087C6C3 /* Embed Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				51BF19862E4F143B00941BA1 /* CrossShareHelper */,
+			);
+			name = CrossShareHelper;
+			productName = CrossShareHelper;
+			productReference = 51BF19852E4F143B00941BA1 /* CrossShareHelper.app */;
+			productType = "com.apple.product-type.application";
+		};
+		5B74C3332D78207300A623E0 /* CrossShare */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5B74C3432D78207500A623E0 /* Build configuration list for PBXNativeTarget "CrossShare" */;
+			buildPhases = (
+				F66375755D18CABBB9264C45 /* [CP] Check Pods Manifest.lock */,
+				5B74C3302D78207300A623E0 /* Sources */,
+				5B74C3312D78207300A623E0 /* Frameworks */,
+				5B74C3322D78207300A623E0 /* Resources */,
+				02D3912BE587061643FF0FAD /* [CP] Embed Pods Frameworks */,
+				51BF198E2E4F176B00941BA1 /* Copy Files */,
+				511BC83A2E6A7FA000659DBD /* Embed XPC Services */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				5B74C3362D78207300A623E0 /* CrossShare */,
+			);
+			name = CrossShare;
+			packageProductDependencies = (
+			);
+			productName = CrossShare;
+			productReference = 5B74C3342D78207300A623E0 /* CrossShare.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		5B74C32C2D78207300A623E0 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1620;
+				LastUpgradeCheck = 1620;
+				TargetAttributes = {
+					5156D2E12E65BF980019CF0A = {
+						CreatedOnToolsVersion = 16.2;
+					};
+					51BF19842E4F143B00941BA1 = {
+						CreatedOnToolsVersion = 16.2;
+					};
+					5B74C3332D78207300A623E0 = {
+						CreatedOnToolsVersion = 16.2;
+						LastSwiftMigration = 1620;
+					};
+				};
+			};
+			buildConfigurationList = 5B74C32F2D78207300A623E0 /* Build configuration list for PBXProject "CrossShare" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 5B74C32B2D78207300A623E0;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 5B74C3352D78207300A623E0 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				5B74C3332D78207300A623E0 /* CrossShare */,
+				51BF19842E4F143B00941BA1 /* CrossShareHelper */,
+				5156D2E12E65BF980019CF0A /* DdcciHelper */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		5156D2E02E65BF980019CF0A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5B74C3322D78207300A623E0 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		02D3912BE587061643FF0FAD /* [CP] Embed Pods Frameworks */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-CrossShare/Pods-CrossShare-frameworks-${CONFIGURATION}-input-files.xcfilelist",
+			);
+			inputPaths = (
+			);
+			name = "[CP] Embed Pods Frameworks";
+			outputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-CrossShare/Pods-CrossShare-frameworks-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-CrossShare/Pods-CrossShare-frameworks.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+		F66375755D18CABBB9264C45 /* [CP] Check Pods Manifest.lock */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
+				"${PODS_ROOT}/Manifest.lock",
+			);
+			name = "[CP] Check Pods Manifest.lock";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/Pods-CrossShare-checkManifestLockResult.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		5156D2DE2E65BF980019CF0A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		51BF19812E4F143B00941BA1 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				51E288EE2E73C50A00524FF7 /* UnifiedHelperProtocol.swift in Sources */,
+				51E288F12E73C69400524FF7 /* P2PConfig.swift in Sources */,
+				51E288F32E73C69800524FF7 /* SharedModels.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5B74C3302D78207300A623E0 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				51E288F02E73C69400524FF7 /* P2PConfig.swift in Sources */,
+				51E288EB2E73C50A00524FF7 /* UnifiedHelperProtocol.swift in Sources */,
+				5177EDBC2E8A6E80009115F7 /* RealmModels.swift in Sources */,
+				51E288F22E73C69800524FF7 /* SharedModels.swift in Sources */,
+				5177EBDA2E8A62AE009115F7 /* CSFileInfo.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		5156D2EE2E65BF990019CF0A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = DdcciHelper/DdcciHelper.entitlements;
+				CODE_SIGN_IDENTITY = "Mac Developer: Wei Cheng Lin (DBC29LJ7XP)";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Mac Developer: Wei Cheng Lin (DBC29LJ7XP)";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = JZKQ3RMSQL;
+				"DEVELOPMENT_TEAM[sdk=macosx*]" = JZKQ3RMSQL;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSMainStoryboardFile = Main;
+				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 12.4;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.realtek.crossshare.macos.ddcci;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = "RTK ddcci App dev";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		5156D2EF2E65BF990019CF0A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = DdcciHelper/DdcciHelper.entitlements;
+				CODE_SIGN_IDENTITY = "Developer ID Application: Wei Cheng Lin (JZKQ3RMSQL)";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = JZKQ3RMSQL;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSMainStoryboardFile = Main;
+				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 12.4;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.realtek.crossshare.macos.ddcci;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		51BF198A2E4F143B00941BA1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "Mac Developer: Wei Cheng Lin (DBC29LJ7XP)";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Mac Developer: Wei Cheng Lin (DBC29LJ7XP)";
+				CODE_SIGN_STYLE = Manual;
+				DEVELOPMENT_TEAM = JZKQ3RMSQL;
+				"DEVELOPMENT_TEAM[sdk=macosx*]" = JZKQ3RMSQL;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				INFOPLIST_FILE = CrossShareHelper/Info.plist;
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/CrossShareHelper",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 12.4;
+				PRODUCT_BUNDLE_IDENTIFIER = com.realtek.crossshare.macos.helper;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = "RTK Helper App dev";
+				SWIFT_OBJC_BRIDGING_HEADER = "$(SRCROOT)/CrossShareHelper/CrossShareHelper-Bridging-Header.h";
+				SWIFT_VERSION = 5.0;
+				SYSTEM_FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SYSTEM_LIBRARY_DIR)/PrivateFrameworks",
+				);
+			};
+			name = Debug;
+		};
+		51BF198B2E4F143B00941BA1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "Developer ID Application: Wei Cheng Lin (JZKQ3RMSQL)";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Developer ID Application: Wei Cheng Lin (JZKQ3RMSQL)";
+				CODE_SIGN_STYLE = Manual;
+				DEVELOPMENT_TEAM = JZKQ3RMSQL;
+				"DEVELOPMENT_TEAM[sdk=macosx*]" = JZKQ3RMSQL;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				INFOPLIST_FILE = CrossShareHelper/Info.plist;
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/CrossShareHelper",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 12.4;
+				PRODUCT_BUNDLE_IDENTIFIER = com.realtek.crossshare.macos.helper;
+				"PRODUCT_BUNDLE_IDENTIFIER[sdk=macosx*]" = com.realtek.crossshare.macos.helper;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = "";
+				SWIFT_OBJC_BRIDGING_HEADER = "$(SRCROOT)/CrossShareHelper/CrossShareHelper-Bridging-Header.h";
+				SWIFT_VERSION = 5.0;
+				SYSTEM_FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SYSTEM_LIBRARY_DIR)/PrivateFrameworks",
+				);
+			};
+			name = Release;
+		};
+		5B74C3412D78207500A623E0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.6;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		5B74C3422D78207500A623E0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.6;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		5B74C3442D78207500A623E0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 8E91A26C470CFC2F319E5602 /* Pods-CrossShare.debug.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = CrossShare/CrossShareDebug.entitlements;
+				CODE_SIGN_IDENTITY = "Mac Developer: Wei Cheng Lin (DBC29LJ7XP)";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Mac Developer: Wei Cheng Lin (DBC29LJ7XP)";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = JZKQ3RMSQL;
+				"DEVELOPMENT_TEAM[sdk=macosx*]" = JZKQ3RMSQL;
+				ENABLE_HARDENED_RUNTIME = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "$(SRCROOT)/CrossShare/Resources/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = CrossShare;
+				INFOPLIST_KEY_LSBackgroundOnly = NO;
+				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "需要访问鼠标事件以检测特殊点击操作";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "应用程序需要访问局域网以查找设备";
+				INFOPLIST_KEY_NSMainNibFile = MainMenu;
+				INFOPLIST_KEY_NSMainStoryboardFile = Main;
+				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/CrossShare",
+					"$(PROJECT_DIR)/CrossShare/Libraries",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 12.4;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.realtek.crossshare.macos;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = "RTK Main App dev";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "$(SRCROOT)/CrossShare/Libraries/CrossShare-Bridging-Header.h";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				SYSTEM_FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SYSTEM_LIBRARY_DIR)/PrivateFrameworks",
+				);
+			};
+			name = Debug;
+		};
+		5B74C3452D78207500A623E0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = E3CDB12F57EDD6E690CED7D3 /* Pods-CrossShare.release.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = CrossShare/Resources/CrossShare.entitlements;
+				CODE_SIGN_IDENTITY = "Developer ID Application: Wei Cheng Lin (JZKQ3RMSQL)";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Developer ID Application: Wei Cheng Lin (JZKQ3RMSQL)";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = JZKQ3RMSQL;
+				"DEVELOPMENT_TEAM[sdk=macosx*]" = JZKQ3RMSQL;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "$(SRCROOT)/CrossShare/Resources/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = CrossShare;
+				INFOPLIST_KEY_LSBackgroundOnly = NO;
+				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "需要访问鼠标事件以检测特殊点击操作";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "应用程序需要访问局域网以查找设备";
+				INFOPLIST_KEY_NSMainNibFile = MainMenu;
+				INFOPLIST_KEY_NSMainStoryboardFile = Main;
+				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/CrossShare",
+					"$(PROJECT_DIR)/CrossShare/Libraries",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 12.4;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.realtek.crossshare.macos;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = "";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "$(SRCROOT)/CrossShare/Libraries/CrossShare-Bridging-Header.h";
+				SWIFT_VERSION = 5.0;
+				SYSTEM_FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SYSTEM_LIBRARY_DIR)/PrivateFrameworks",
+				);
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		5156D2F02E65BF990019CF0A /* Build configuration list for PBXNativeTarget "DdcciHelper" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5156D2EE2E65BF990019CF0A /* Debug */,
+				5156D2EF2E65BF990019CF0A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		51BF19892E4F143B00941BA1 /* Build configuration list for PBXNativeTarget "CrossShareHelper" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				51BF198A2E4F143B00941BA1 /* Debug */,
+				51BF198B2E4F143B00941BA1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		5B74C32F2D78207300A623E0 /* Build configuration list for PBXProject "CrossShare" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5B74C3412D78207500A623E0 /* Debug */,
+				5B74C3422D78207500A623E0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		5B74C3432D78207500A623E0 /* Build configuration list for PBXNativeTarget "CrossShare" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5B74C3442D78207500A623E0 /* Debug */,
+				5B74C3452D78207500A623E0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 5B74C32C2D78207300A623E0 /* Project object */;
+}

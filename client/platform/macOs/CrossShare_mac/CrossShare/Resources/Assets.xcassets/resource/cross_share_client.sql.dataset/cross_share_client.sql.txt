@@ -1,0 +1,14 @@
+--
+-- SQLiteStudio v3.4.8 生成的文件，周四 12月 12 16:21:45 2024
+--
+-- 所用的文本编码：UTF-8
+--
+PRAGMA foreign_keys = off;
+BEGIN TRANSACTION;
+
+-- 表：opt_record
+DROP TABLE IF EXISTS opt_record;
+CREATE TABLE IF NOT EXISTS opt_record (id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE NOT NULL, file_name TEXT DEFAULT "" NOT NULL, file_size INTEGER NOT NULL, timestamp INTEGER NOT NULL, progress_value INTEGER NOT NULL DEFAULT (0), client_name TEXT NOT NULL DEFAULT "", client_id TEXT NOT NULL, ip TEXT NOT NULL, direction INTEGER NOT NULL DEFAULT (0));
+
+COMMIT TRANSACTION;
+PRAGMA foreign_keys = on;

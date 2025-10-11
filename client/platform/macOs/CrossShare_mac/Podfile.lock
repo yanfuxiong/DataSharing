@@ -1,0 +1,39 @@
+PODS:
+  - Alamofire (5.10.2)
+  - Realm (20.0.3):
+    - Realm/Headers (= 20.0.3)
+  - Realm/Headers (20.0.3)
+  - RealmSwift (20.0.3):
+    - Realm (= 20.0.3)
+  - SnapKit (5.7.1)
+  - Sparkle (2.8.0)
+  - SwiftyJSON (5.0.2)
+
+DEPENDENCIES:
+  - Alamofire
+  - RealmSwift
+  - SnapKit
+  - Sparkle
+  - SwiftyJSON
+
+SPEC REPOS:
+  https://mirrors.tuna.tsinghua.edu.cn/git/CocoaPods/Specs.git:
+    - Alamofire
+    - SnapKit
+    - SwiftyJSON
+  trunk:
+    - Realm
+    - RealmSwift
+    - Sparkle
+
+SPEC CHECKSUMS:
+  Alamofire: 7193b3b92c74a07f85569e1a6c4f4237291e7496
+  Realm: 853e5089d6042dff807bda000277eadfe2da93d2
+  RealmSwift: f33c19577cefcbf681345d721fcbc7b42be4c949
+  SnapKit: d612e99e678a2d3b95bf60b0705ed0a35c03484a
+  Sparkle: 16aaef9876ab6b3d49633d26e8e5b77e0d52b0e2
+  SwiftyJSON: f5b1bf1cd8dd53cd25887ac0eabcfd92301c6a5a
+
+PODFILE CHECKSUM: 04adc06d2258b35205e3b319cf5e066af235101d
+
+COCOAPODS: 1.16.2
