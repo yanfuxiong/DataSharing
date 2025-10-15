@@ -2,6 +2,7 @@ package filedrop
 
 import (
 	"log"
+	rtkCommon "rtk-cross-share/client/common"
 	rtkPlatform "rtk-cross-share/client/platform"
 	rtkMisc "rtk-cross-share/misc"
 )
@@ -23,11 +24,10 @@ func CancelFileTransfer(id, ip string, timestamp uint64) {
 
 		if cacheData.filesTransferDataQueue[0].TimeStamp == timestamp {
 			if cacheData.cancelFn != nil {
-				cacheData.cancelFn()
+				cacheData.cancelFn(rtkCommon.FileTransDstGuiCancel)
 				cacheData.cancelFn = nil
-				cacheData.isCancelByGui = true
 				filesDataCacheMap[id] = cacheData
-				log.Printf("[%s] ID:[%s],IPAddr:[%s] id:[%s] CancelFileTransfer success by platform GUI!", id, ip, timestamp)
+				log.Printf("[%s] ID:[%s],IPAddr:[%s] id:[%s] CancelFileTransfer success by platform GUI!", rtkMisc.GetFuncInfo(), id, ip, timestamp)
 			} else {
 				log.Printf("[%s] ID:[%s] Not fount cancelFn from cache map data\n\n", rtkMisc.GetFuncInfo(), id)
 			}
@@ -37,7 +37,7 @@ func CancelFileTransfer(id, ip string, timestamp uint64) {
 				filesDataCacheMap[id] = cacheData
 
 				log.Printf("[%s] ID:[%s],IPAddr:[%s] id:[%s] CancelFileTransfer Remove cache data success by platform GUI!", id, ip, timestamp)
-				//rtkConnection.CloseFileDropItemStream(id, timestamp)
+
 				if callbackSendCancelFileTransferMsgToPeer != nil {
 					callbackSendCancelFileTransferMsgToPeer(id, timestamp)
 				} else {
@@ -81,8 +81,7 @@ func setFilesDataToCache(id string, isSrc bool) {
 				FileDropData:       filesDataItem,
 				FileTransDirection: directType,
 			}},
-			cancelFn:      nil,
-			isCancelByGui: false,
+			cancelFn: nil,
 		}
 	} else {
 		cacheData.filesTransferDataQueue = append(cacheData.filesTransferDataQueue, FilesTransferDataItem{
@@ -92,6 +91,22 @@ func setFilesDataToCache(id string, isSrc bool) {
 
 		filesDataCacheMap[id] = cacheData
 	}
+}
+
+func GetFilesTransferDataList(id string) []FilesTransferDataItem {
+	fileDropDataMutex.RLock()
+	defer fileDropDataMutex.RUnlock()
+	if cacheData, ok := filesDataCacheMap[id]; ok {
+		nCount := len(cacheData.filesTransferDataQueue)
+		if nCount > 0 {
+			return cacheData.filesTransferDataQueue
+		} else {
+			log.Printf("[%s] ID:[%s] Not fount cache map data\n\n", rtkMisc.GetFuncInfo(), id)
+			return nil
+		}
+	}
+	log.Printf("[%s] ID:[%s] Not fount cache map data\n\n", rtkMisc.GetFuncInfo(), id)
+	return nil
 }
 
 func GetFilesTransferDataItem(id string) *FilesTransferDataItem {
@@ -126,7 +141,6 @@ func SetFilesCacheItemComplete(id string, timestamp uint64) {
 				log.Printf("[%s] ID:[%s] compelete a files cache item, id:[%d], still %d records left", rtkMisc.GetFuncInfo(), id, timestamp, nItemCount-1)
 			}
 			cacheData.cancelFn = nil
-			cacheData.isCancelByGui = false
 			filesDataCacheMap[id] = cacheData
 		} else {
 			log.Printf("[%s] ID:[%s] Not fount cache map data\n\n", rtkMisc.GetFuncInfo(), id)
@@ -161,27 +175,16 @@ func GetFilesTransferDataSendCacheCount(id string) int {
 	return nSendCount
 }
 
-func SetCancelFileTransferFunc(id string, fn func()) {
+func SetCancelFileTransferFunc(id string, fn func(source rtkCommon.CancelBusinessSource)) {
 	fileDropDataMutex.Lock()
 	defer fileDropDataMutex.Unlock()
 
 	if cacheData, ok := filesDataCacheMap[id]; ok {
 		cacheData.cancelFn = fn
-		cacheData.isCancelByGui = false
 		filesDataCacheMap[id] = cacheData
 	} else {
 		log.Printf("[%s] ID:[%s] Not fount cache map data\n\n", rtkMisc.GetFuncInfo(), id)
 	}
-}
-
-func IsCancelFileTransferByGui(id string) bool {
-	fileDropDataMutex.RLock()
-	defer fileDropDataMutex.RUnlock()
-	if cacheData, ok := filesDataCacheMap[id]; ok {
-		return cacheData.isCancelByGui
-	}
-	log.Printf("[%s] ID:[%s] Not fount cache map data\n\n", rtkMisc.GetFuncInfo(), id)
-	return false
 }
 
 func IsFileTransInProgress(id string, timestamp uint64) bool {
@@ -200,6 +203,21 @@ func IsFileTransInProgress(id string, timestamp uint64) bool {
 	return false
 }
 
+func SetFilesTransferDataInterrupt(id, fileName string, timestamp uint64, offset, timeStampSec int64) {
+	fileDropDataMutex.Lock()
+	defer fileDropDataMutex.Unlock()
+	if cacheData, ok := filesDataCacheMap[id]; ok {
+		for _, fileDataItem := range cacheData.filesTransferDataQueue {
+			if fileDataItem.TimeStamp == timestamp {
+				fileDataItem.InterruptFileName = fileName
+				fileDataItem.InterruptFileOffSet = offset
+				fileDataItem.InterruptFileTimeStamp = timeStampSec
+				log.Printf("[%s] ID:[%s] timestamp:[%d] Set interrupt info [%s] [%d] success", rtkMisc.GetFuncInfo(), id, timestamp, fileName, offset)
+			}
+		}
+	}
+}
+
 func CancelFileTransFromCacheMap(id string, timestamp uint64) {
 	fileDropDataMutex.Lock()
 	defer fileDropDataMutex.Unlock()
@@ -207,7 +225,6 @@ func CancelFileTransFromCacheMap(id string, timestamp uint64) {
 		cacheData.filesTransferDataQueue, ok = RemoveItemFromCacheQueue(cacheData.filesTransferDataQueue, timestamp)
 		if ok {
 			filesDataCacheMap[id] = cacheData
-			//rtkConnection.CloseFileDropItemStream(id, timestamp)
 			log.Printf("[%s] ID:[%s] id:[%d] CancelFileTransfer success from cache map data!", rtkMisc.GetFuncInfo(), id, timestamp)
 		} else {
 			log.Printf("[%s] ID:[%s] Not fount cache map data\n\n", rtkMisc.GetFuncInfo(), id)

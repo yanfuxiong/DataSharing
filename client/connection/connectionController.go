@@ -95,7 +95,7 @@ func cancelHostNode() {
 
 func Run(ctx context.Context) {
 	defer cancelHostNode()
-	defer CancelStreamPool()
+	defer CancelStreamPool(true)
 
 	if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformWindows { // only windows need watch network info
 		rtkMisc.GoSafe(func() { WatchNetworkInfo(ctx) })
@@ -289,8 +289,8 @@ func handlerFileDropItemStream(stream network.Stream) {
 	noticeFmtTypeStreamReady(reqMsg.ID, rtkCommon.FILE_DROP)
 }
 
-func NewFileDropItemStream(id string, timestamp uint64) rtkMisc.CrossShareErr {
-	ctx, cancel := context.WithTimeout(context.Background(), ctxTimeout_short)
+func NewFileDropItemStream(ctx context.Context, id string, timestamp uint64) rtkMisc.CrossShareErr {
+	ctx, cancel := context.WithTimeout(ctx, ctxTimeout_short)
 	defer cancel()
 
 	clientInfo, err := rtkUtils.GetClientInfo(id)
@@ -434,8 +434,8 @@ func buildTalker(ctxMain context.Context, client rtkMisc.ClientInfo) rtkMisc.Cro
 	return onlineEvent(stream, false, &client)
 }
 
-func BuildFmtTypeTalker(id string, fmtType rtkCommon.TransFmtType) rtkMisc.CrossShareErr {
-	ctx, cancel := context.WithTimeout(context.Background(), ctxTimeout_short)
+func BuildFmtTypeTalker(ctx context.Context, id string, fmtType rtkCommon.TransFmtType) rtkMisc.CrossShareErr {
+	ctx, cancel := context.WithTimeout(ctx, ctxTimeout_short)
 	defer cancel()
 
 	sInfo, ok := GetStreamInfo(id)
@@ -524,7 +524,7 @@ func WriteSocket(id string, data []byte) rtkMisc.CrossShareErr {
 		}
 
 		log.Printf("[%s][%s] Write failed:[%+v], and execute offlineEvent ", rtkMisc.GetFuncInfo(), sInfo.ipAddr, err)
-		offlineEvent(sInfo.s)
+		offlineEvent(sInfo.s, false)
 
 		if errors.Is(err, io.EOF) {
 			return rtkMisc.ERR_NETWORK_P2P_EOF
@@ -559,7 +559,7 @@ func ReadSocket(id string, buffer []byte) (int, rtkMisc.CrossShareErr) {
 		}
 
 		log.Printf("[%s][%s] Read failed [%+v],  execute offlineEvent ", rtkMisc.GetFuncInfo(), sInfo.ipAddr, err)
-		offlineEvent(sInfo.s)
+		offlineEvent(sInfo.s, false)
 
 		if errors.Is(err, io.EOF) {
 			return n, rtkMisc.ERR_NETWORK_P2P_EOF
@@ -607,7 +607,7 @@ func onlineEvent(stream network.Stream, isFromListener bool, clientInfo *rtkMisc
 		srcPortType = clientInfo.SourcePortType
 	}
 
-	UpdateStream(id, stream)
+	updateStream(id, stream)
 	log.Println("****************************************************************************************")
 	if isFromListener {
 		log.Println("Connected from ID:", id, " IP:", ipAddr)
@@ -620,21 +620,23 @@ func onlineEvent(stream network.Stream, isFromListener bool, clientInfo *rtkMisc
 	return rtkMisc.SUCCESS
 }
 
-func offlineEvent(stream network.Stream) {
+func offlineEvent(stream network.Stream, isFromPeer bool) {
 	id := stream.Conn().RemotePeer().String()
 	mutex := getMutex(id)
 	mutex.Lock()
 	defer mutex.Unlock()
+
+	// Disconnect and remove stream map
+	closeStream(id, isFromPeer)
 
 	clientInfo, err := rtkUtils.GetClientInfo(id)
 	if err == nil {
 		updateUIOnlineStatus(false, id, clientInfo.IpAddr, clientInfo.Platform, clientInfo.DeviceName, clientInfo.SourcePortType, "", "", "")
 	} else {
 		log.Printf("[%s] %s, so not need updateUIOnlineStatus!", rtkMisc.GetFuncInfo(), err.Error())
+		return
 	}
 
-	// Disconnect and remove stream map
-	CloseStream(id)
 	log.Println("************************************************************************************************")
 	log.Println("Lost connection with ID:", id, " IP:", clientInfo.IpAddr)
 	log.Println("************************************************************************************************\n\n")
@@ -647,7 +649,7 @@ func OfflineEvent(id string) {
 		return
 	}
 	log.Printf("ID:[%s] offline event come from peer!", id)
-	offlineEvent(s)
+	offlineEvent(s, true)
 }
 
 func updateUIOnlineStatus(isOnline bool, id, ipAddr, platfrom, deviceName, srcPortType, ver, fileTransId, udpPort string) {

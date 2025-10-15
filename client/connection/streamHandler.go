@@ -31,7 +31,7 @@ type streamInfo struct {
 	sImage         network.Stream
 	transFileState TransFileStateType
 
-	cancelFn func()
+	cancelFn func(source rtkCommon.CancelBusinessSource)
 
 	sFileDataQueueMap map[uint64]network.Stream
 }
@@ -52,8 +52,8 @@ func CheckAllStreamAlive(ctx context.Context) {
 		}
 
 		pingErrCnt := updateStreamPingErrCntIncrease(key)
-		if (pingErrCnt >= pingErrMaxCnt) && (sInfo.transFileState == TRANS_FILE_NOT_PREFORMED) {
-			offlineEvent(sInfo.s)
+		if pingErrCnt >= pingErrMaxCnt {
+			offlineEvent(sInfo.s, false)
 		}
 	}
 
@@ -65,9 +65,6 @@ func CheckAllStreamAlive(ctx context.Context) {
 	streamPoolMutex.RUnlock()
 
 	for key, sInfo := range tempStreamMap {
-		if sInfo.transFileState == TRANS_FILE_IN_PROGRESS_SRC || sInfo.transFileState == TRANS_FILE_IN_PROGRESS_DST {
-			continue
-		}
 
 		rtkMisc.GoSafeWithParam(func(args ...any) {
 			// Default timeout is 10 sec in Ping.go
@@ -93,7 +90,7 @@ func CheckAllStreamAlive(ctx context.Context) {
 	}
 }
 
-func UpdateStream(id string, stream network.Stream) {
+func updateStream(id string, stream network.Stream) {
 	streamPoolMutex.Lock()
 	defer streamPoolMutex.Unlock()
 
@@ -101,7 +98,7 @@ func UpdateStream(id string, stream network.Stream) {
 	if oldSinfo, ok := streamPoolMap[id]; ok {
 		log.Printf("[%s] UpdateStream ID:%s  IP:[%s],Stream existed, the old streamID:[%s] ", rtkMisc.GetFuncInfo(), id, ipAddr, oldSinfo.s.ID())
 		if oldSinfo.cancelFn != nil {
-			oldSinfo.cancelFn()
+			oldSinfo.cancelFn(rtkCommon.OldP2PBusinessCancel)
 			log.Printf("[%s] UpdateStream ID:[%s] IP:[%s], ProcessForPeer existed, Cancel the old StartProcessForPeer first!", rtkMisc.GetFuncInfo(), id, ipAddr)
 		}
 	}
@@ -204,9 +201,45 @@ func CloseFileDropItemStream(id string, timestamp uint64) {
 			}
 			streamPoolMap[id] = sInfo
 			return
+		} else {
+			log.Printf("[%s] ID:[%s] Unknown file drop Item stream, timestamp:%d", rtkMisc.GetFuncInfo(), id, timestamp)
+			return
 		}
 	}
-	log.Printf("[%s] ID:[%s] Unknown file drop Item stream, timestamp:%d", rtkMisc.GetFuncInfo(), id, timestamp)
+	log.Printf("[%s] ID:[%s] Unknown streamPoolMap info, timestamp:%d", rtkMisc.GetFuncInfo(), id)
+}
+
+func ResetFileDropItemStream(id string, timestamp uint64) {
+	streamPoolMutex.Lock()
+	defer streamPoolMutex.Unlock()
+	if sInfo, ok := streamPoolMap[id]; ok {
+		if itemStream, bOk := sInfo.sFileDataQueueMap[timestamp]; bOk {
+			itemStream.Reset()
+			delete(sInfo.sFileDataQueueMap, timestamp)
+			log.Printf("[%s] ID:[%s] IP:[%s] Reset file drop Item stream success! timestamp:%d ID:[%s]!", rtkMisc.GetFuncInfo(), id, sInfo.ipAddr, timestamp, itemStream.ID())
+			streamPoolMap[id] = sInfo
+			return
+		} else {
+			log.Printf("[%s] ID:[%s] Unknown file drop Item stream, timestamp:%d", rtkMisc.GetFuncInfo(), id, timestamp)
+			return
+		}
+	}
+	log.Printf("[%s] ID:[%s] Unknown streamPoolMap info, timestamp:%d", rtkMisc.GetFuncInfo(), id)
+}
+
+func ResetAllFileDropStream(id string) {
+	streamPoolMutex.Lock()
+	defer streamPoolMutex.Unlock()
+	if sInfo, ok := streamPoolMap[id]; ok {
+		for timestamp, itemStream := range sInfo.sFileDataQueueMap {
+			itemStream.Reset()
+			delete(sInfo.sFileDataQueueMap, timestamp)
+			log.Printf("[%s] ID:[%s] IP:[%s] Reset file drop Item stream success! timestamp:%d ID:[%s]!", rtkMisc.GetFuncInfo(), id, sInfo.ipAddr, timestamp, itemStream.ID())
+		}
+		streamPoolMap[id] = sInfo
+		return
+	}
+	log.Printf("[%s] ID:[%s] Unknown streamPoolMap info, timestamp:%d", rtkMisc.GetFuncInfo(), id)
 }
 
 func updateFmtTypeStreamInternal(stream network.Stream, fmtType rtkCommon.TransFmtType, isDst bool) {
@@ -217,7 +250,7 @@ func updateFmtTypeStreamInternal(stream network.Stream, fmtType rtkCommon.TransF
 		if fmtType == rtkCommon.XCLIP_CB {
 			if sInfo.sImage != nil {
 				log.Printf("[%s] ID:[%s] IP:[%s]  found old XClip stream is alive, not close it !", rtkMisc.GetFuncInfo(), id, sInfo.ipAddr)
-				//sInfo.sFileDrop.Close()
+				//sInfo.sImage.Close()
 			}
 			sInfo.sImage = stream
 		} else if fmtType == rtkCommon.FILE_DROP {
@@ -335,7 +368,7 @@ func AddStream(id string, pStream network.Stream) {
 	}
 }
 
-func CloseStream(id string) {
+func closeStream(id string, isFromPeer bool) {
 	streamPoolMutex.Lock()
 	defer streamPoolMutex.Unlock()
 
@@ -349,8 +382,14 @@ func CloseStream(id string) {
 			sInfo.sFileDrop = nil
 		}
 		if sInfo.cancelFn != nil { // StopProcessForPeer
-			log.Printf("ID:[%s] IP:[%s] ProcessEventsForPeer is Cancel! ", id, sInfo.ipAddr)
-			sInfo.cancelFn()
+			if isFromPeer {
+				sInfo.cancelFn(rtkCommon.PeerDisconnectCancel)
+				log.Printf("ID:[%s] IP:[%s] ProcessEventsForPeer is Cancel by peer disconnect! ", id, sInfo.ipAddr)
+			} else {
+				sInfo.cancelFn(rtkCommon.TcpNetworkCancel)
+				log.Printf("ID:[%s] IP:[%s] ProcessEventsForPeer is Cancel by stream err! ", id, sInfo.ipAddr)
+			}
+
 			sInfo.cancelFn = nil
 		}
 		delete(streamPoolMap, id)
@@ -407,7 +446,7 @@ func ClosePeer(id string) {
 
 		if sInfo.cancelFn != nil { // StopProcessForPeer
 			log.Printf("ID:[%s] IP:[%s] ProcessEventsForPeer is Cancel! ", id, sInfo.ipAddr)
-			sInfo.cancelFn()
+			sInfo.cancelFn(rtkCommon.UpperLevelBusinessCancel)
 		}
 		sInfo.s.Close()
 		node.Network().ClosePeer(sInfo.s.Conn().RemotePeer())
@@ -427,7 +466,7 @@ func IsStreamExisted(id string) bool {
 	return false
 }
 
-func CancelStreamPool() {
+func CancelStreamPool(isBusinessCancel bool) {
 	tempStreamMap := make(map[string](streamInfo))
 	streamPoolMutex.RLock()
 	for key, sInfo := range streamPoolMap {
@@ -447,8 +486,13 @@ func CancelStreamPool() {
 			sInfo.sImage.Close()
 		}
 		if sInfo.cancelFn != nil { // StopProcessForPeer
-			log.Printf("[%s] ID:[%s] IP:[%s] ProcessEventsForPeer is Cancel! ", rtkMisc.GetFuncInfo(), id, sInfo.ipAddr)
-			sInfo.cancelFn()
+			if isBusinessCancel {
+				sInfo.cancelFn(rtkCommon.UpperLevelBusinessCancel)
+				log.Printf("[%s] ID:[%s] IP:[%s] ProcessEventsForPeer is Cancel by upper level business! ", rtkMisc.GetFuncInfo(), id, sInfo.ipAddr)
+			} else {
+				sInfo.cancelFn(rtkCommon.LanServerBusinessCancel)
+				log.Printf("[%s] ID:[%s] IP:[%s] ProcessEventsForPeer is Cancel by LanServer disconnect! ", rtkMisc.GetFuncInfo(), id, sInfo.ipAddr)
+			}
 			sInfo.cancelFn = nil
 		}
 		sInfo.s.Close()

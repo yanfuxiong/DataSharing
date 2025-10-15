@@ -142,7 +142,7 @@ func SendMultiFilesDropRequest(multiFilesData string) int {
 	}
 	totalDesc := rtkMisc.FileSizeDesc(totalSize)
 
-	timestamp := multiFileInfo.TimeStamp
+	timestamp := uint64(multiFileInfo.TimeStamp)
 	if multiFileInfo.TimeStamp == 0 {
 		timestamp = uint64(time.Now().UnixMilli())
 	}

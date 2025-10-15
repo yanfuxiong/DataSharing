@@ -45,14 +45,17 @@ func UpdateDragFileReqDataFromDst(id string) {
 
 func updateDragFileReqData(id string) {
 	targetData := FileDropData{
-		SrcFileList:   append([]rtkCommon.FileInfo(nil), dragFileInfoList...),
-		TimeStamp:     dragFileTimeStamp,
-		ActionType:    rtkCommon.P2PFileActionType_Drag,
-		TotalDescribe: dragTotalDesc,
-		TotalSize:     dragTotalSize,
-
-		DstFilePath: "",
-		Cmd:         rtkCommon.FILE_DROP_REQUEST,
+		SrcFileList:            append([]rtkCommon.FileInfo(nil), dragFileInfoList...),
+		ActionType:             rtkCommon.P2PFileActionType_Drag,
+		TimeStamp:              dragFileTimeStamp,
+		FolderList:             nil,
+		TotalDescribe:          dragTotalDesc,
+		TotalSize:              dragTotalSize,
+		DstFilePath:            "",
+		Cmd:                    rtkCommon.FILE_DROP_REQUEST,
+		InterruptFileName:      "",
+		InterruptFileOffSet:    0,
+		InterruptFileTimeStamp: 0,
 	}
 
 	if len(dragFolderList) > 0 {

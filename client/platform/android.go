@@ -39,7 +39,7 @@ type Callback interface {
 	CallbackFileListDragFolderNotify(ip, id, folderName string, timestamp int64)
 	CallbackFilesTransferDone(filesInfo, platform, deviceName string, timestamp int64)
 	CallbackUpdateClientStatus(clientInfo string)
-	CallbackUpdateMultipleProgressBar(ip, id, deviceName, currentFileName string, sentFileCnt, totalFileCnt int, currentFileSize, totalSize, sentSize, timestamp int64)
+	CallbackUpdateMultipleProgressBar(ip, id, currentFileName string, sentFileCnt, totalFileCnt int, currentFileSize, totalSize, sentSize, timestamp int64)
 	CallbackNotifyErrEvent(id string, errCode int, arg1, arg2, arg3, arg4 string)
 	CallbackUpdateDiasStatus(status int)
 	CallbackGetAuthData() string
@@ -461,7 +461,7 @@ func GoUpdateMultipleProgressBar(ip, id, currentFileName string, sentFileCnt, to
 		return
 	}
 	//log.Printf("GoUpdateMultipleProgressBar ip:[%s] [%s] currentFileName:[%s] recvSize:[%d] total:[%d] timestamp:[%d]", ip, deviceName, currentFileName, sentSize, totalSize, timestamp)
-	CallbackInstance.CallbackUpdateMultipleProgressBar(ip, id, “”, currentFileName, int(sentFileCnt), int(totalFileCnt), int64(currentFileSize), int64(totalSize), int64(sentSize), int64(timestamp))
+	CallbackInstance.CallbackUpdateMultipleProgressBar(ip, id, currentFileName, int(sentFileCnt), int(totalFileCnt), int64(currentFileSize), int64(totalSize), int64(sentSize), int64(timestamp))
 }
 
 func GoUpdateSystemInfo(ip, serviceVer string) {

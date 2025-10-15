@@ -2,7 +2,6 @@ package utils
 
 import (
 	"bufio"
-	"context"
 	"crypto/md5"
 	"encoding/base64"
 	"encoding/json"
@@ -17,7 +16,6 @@ import (
 	rtkMisc "rtk-cross-share/misc"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/network"
@@ -496,31 +494,6 @@ func GetTargetDstPathName(dstFullPath, dstFileName string) (string, string) {
 		}
 		index++
 	}
-}
-
-func WithCancelSource(parent context.Context) (context.Context, func(rtkCommon.CancelBusinessSource)) {
-	ctx, cancel := context.WithCancel(parent)
-	cc := &rtkCommon.CustomContext{
-		Context: ctx,
-		Mutex:   &sync.Mutex{},
-		Source:  0,
-	}
-
-	return cc, func(source rtkCommon.CancelBusinessSource) {
-		cc.Mutex.Lock()
-		defer cc.Mutex.Unlock()
-		cc.Source = source
-		cancel()
-	}
-}
-
-func GetCancelSource(ctx context.Context) (rtkCommon.CancelBusinessSource, bool) {
-	if cc, ok := ctx.(*rtkCommon.CustomContext); ok {
-		cc.Mutex.Lock()
-		defer cc.Mutex.Unlock()
-		return cc.Source, cc.Source != 0
-	}
-	return 0, false
 }
 
 // FIXME: hack code

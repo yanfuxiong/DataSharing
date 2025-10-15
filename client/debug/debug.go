@@ -111,8 +111,6 @@ func DebugCmdLine() {
 			fmt.Println("ClientList:", rtkUtils.GetClientList())
 		} else if strings.Contains(line, "streamPool") {
 			rtkConnection.PrintfStreamPool()
-		} else if strings.Contains(line, "CloseStream") {
-			rtkConnection.CloseStream("QmatLKJ3uE7tc9gX4Kx6jhgyu7QzB5fYSQuU81js4jSSMD")
 		} else if strings.Contains(line, "ClosePeer") {
 			rtkConnection.ClosePeer("QmatLKJ3uE7tc9gX4Kx6jhgyu7QzB5fYSQuU81js4jSSMD")
 		} else if strings.Contains(line, "SetupLogShut") {

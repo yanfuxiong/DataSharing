@@ -15,15 +15,17 @@ func updateFileListDrop(id string, fileInfoList []rtkCommon.FileInfo, folderList
 	defer fileDropDataMutex.Unlock()
 
 	fileDropDataMap[id] = FileDropData{
-		SrcFileList:   append([]rtkCommon.FileInfo(nil), fileInfoList...),
-		ActionType:    rtkCommon.P2PFileActionType_Drop,
-		TimeStamp:     timeStamp,
-		FolderList:    append([]string(nil), folderList...),
-		TotalDescribe: totalDesc,
-		TotalSize:     total,
-
-		DstFilePath: "",
-		Cmd:         rtkCommon.FILE_DROP_REQUEST,
+		SrcFileList:            append([]rtkCommon.FileInfo(nil), fileInfoList...),
+		ActionType:             rtkCommon.P2PFileActionType_Drop,
+		TimeStamp:              timeStamp,
+		FolderList:             append([]string(nil), folderList...),
+		TotalDescribe:          totalDesc,
+		TotalSize:              total,
+		DstFilePath:            "",
+		Cmd:                    rtkCommon.FILE_DROP_REQUEST,
+		InterruptFileName:      "",
+		InterruptFileOffSet:    0,
+		InterruptFileTimeStamp: 0,
 	}
 
 }

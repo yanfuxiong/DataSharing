@@ -270,10 +270,10 @@ func dealS2CMsgRespClientList(id string, extData json.RawMessage) rtkMisc.CrossS
 		NotifyDIASStatus(DIAS_Status_Wait_Other_Clients)
 	} else {
 		NotifyDIASStatus(DIAS_Status_Get_Clients_Success)
+		GetClientListFlag <- clientList
 	}
 
-	GetClientListFlag <- clientList
-	log.Printf("Request Client List success, get online ClienList len [%d], self SourcePortType:[%s]", nClientCount, rtkGlobal.NodeInfo.SourcePortType)
+	log.Printf("Request Client List success, get other online ClienList len [%d], self SourcePortType:[%s]", nClientCount, rtkGlobal.NodeInfo.SourcePortType)
 	return rtkMisc.SUCCESS
 }
 

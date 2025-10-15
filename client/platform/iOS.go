@@ -496,12 +496,7 @@ func GoUpdateClientStatusEx(id string, status uint8) {
 }
 
 func FoundPeer() {
-	log.Println("CallbackMethodFoundPeer")
-	if callbackMethodFoundPeer == nil {
-		log.Println(" CallbackInstance is null !")
-		return
-	}
-	callbackMethodFoundPeer()
+
 }
 
 func GoSetupDstPasteXClipData(cbText, cbImage, cbHtml []byte) {

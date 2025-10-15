@@ -1,10 +1,5 @@
 package common
 
-import (
-	"context"
-	"sync"
-)
-
 type FileDropCmd string
 
 const (
@@ -68,14 +63,24 @@ const (
 type CancelBusinessSource int
 
 const (
-	SourceCablePlugIn CancelBusinessSource = iota + 1000
+	SourceCablePlugIn CancelBusinessSource = iota + 1000 //businessStart
 	SourceCablePlugOut
 	SourceNetworkSwitch
 	SourceVerInvalid
 )
 
-type CustomContext struct {
-	context.Context
-	Mutex  *sync.Mutex
-	Source CancelBusinessSource
-}
+const (
+	UpperLevelBusinessCancel CancelBusinessSource = iota + 2000 // StartProcessForPeer
+	LanServerBusinessCancel
+	OldP2PBusinessCancel
+	TcpNetworkCancel
+	PeerDisconnectCancel
+)
+
+const (
+	FileTransDone CancelBusinessSource = iota + 3000 // FilesCacheDataProcess
+	FileTransSrcCancel
+	FileTransSrcGuiCancel
+	FileTransDstCancel
+	FileTransDstGuiCancel
+)

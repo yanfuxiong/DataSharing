@@ -43,6 +43,11 @@ type FileDropData struct {
 	// Resp data
 	DstFilePath string
 	Cmd         rtkCommon.FileDropCmd
+
+	// Trans Info
+	InterruptFileName      string // Src fileName
+	InterruptFileOffSet    int64
+	InterruptFileTimeStamp int64 // Seconds
 }
 
 type FilesTransferDataItem struct {
@@ -52,14 +57,9 @@ type FilesTransferDataItem struct {
 
 type filesDataTransferCache struct {
 	filesTransferDataQueue []FilesTransferDataItem
-	cancelFn               func()
-	isCancelByGui          bool
+	cancelFn               func(source rtkCommon.CancelBusinessSource)
 }
 
 func SetSendFileTransferCancelMsgToPeerCallback(cb CallbackSendCancelFileTransMsgFunc) {
 	callbackSendCancelFileTransferMsgToPeer = cb
 }
-
-/*func SetRemove() {
-
-}*/
