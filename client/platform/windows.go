@@ -22,6 +22,7 @@ var (
 	hostID                   = ".HostID"
 	nodeID                   = ".ID"
 	lockFile                 = "singleton.lock"
+	lockFd                   *os.File
 	logFile                  = "p2p.log"
 	crashLogFile             = "crash.log"
 	downloadPath             = ""
@@ -381,10 +382,6 @@ func GetCrashLogFilePath() string {
 	return crashLogFile
 }
 
-func GetLockFilePath() string {
-	return lockFile
-}
-
 func GoAuthViaIndex(clientIndex uint32) {
 	callbackAuthViaIndex(clientIndex)
 }
@@ -560,24 +557,29 @@ func GetNetWorkConnected() bool {
 	return false
 }
 
-func LockFile(file *os.File) error {
-	handle := windows.Handle(file.Fd())
+func LockFile() (err error) {
+	lockFd, err = os.OpenFile(lockFile, os.O_CREATE|os.O_RDWR, 0666)
+	if err != nil {
+		log.Println("Failed to open or create lock file:", err)
+		return
+	}
+
+	handle := windows.Handle(lockFd.Fd())
 	if handle == windows.InvalidHandle {
 		return fmt.Errorf("invalid file handle")
 	}
 
 	var overlapped windows.Overlapped
-
-	err := windows.LockFileEx(handle, windows.LOCKFILE_EXCLUSIVE_LOCK|windows.LOCKFILE_FAIL_IMMEDIATELY, 0, 1, 0, &overlapped)
+	err = windows.LockFileEx(handle, windows.LOCKFILE_EXCLUSIVE_LOCK|windows.LOCKFILE_FAIL_IMMEDIATELY, 0, 1, 0, &overlapped)
 	if err != nil {
 		return fmt.Errorf("failed to lock file: %w", err)
 	}
 
-	return nil
+	return
 }
 
-func UnlockFile(file *os.File) error {
-	handle := windows.Handle(file.Fd())
+func UnlockFile() error {
+	handle := windows.Handle(lockFd.Fd())
 	if handle == windows.InvalidHandle {
 		return fmt.Errorf("invalid file handle")
 	}
@@ -589,6 +591,7 @@ func UnlockFile(file *os.File) error {
 		return fmt.Errorf("failed to unlock file: %w", err)
 	}
 
+	lockFd.Close()
 	return nil
 }
 

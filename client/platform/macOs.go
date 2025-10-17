@@ -24,6 +24,7 @@ var (
 	hostID                   string
 	nodeID                   string
 	lockFile                 string
+	lockFd                   *os.File
 	logFile                  string
 	crashLogFile             string
 	downloadPath             string
@@ -54,10 +55,6 @@ func GetLogFilePath() string {
 
 func GetCrashLogFilePath() string {
 	return crashLogFile
-}
-
-func GetLockFilePath() string {
-	return lockFile
 }
 
 type (
@@ -589,19 +586,27 @@ func GetPlatform() string {
 	return rtkMisc.PlatformMac
 }
 
-func LockFile(file *os.File) error {
-	err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+func LockFile() (err error) {
+	lockFd, err = os.OpenFile(lockFile, os.O_CREATE|os.O_RDWR, 0666)
 	if err != nil {
-		log.Println("Failed to lock file:", err) //err:  resource temporarily unavailable
+		log.Printf("Failed to open or create lock file:[%s]  err:", lockFile, err)
+		return
 	}
-	return err
+
+	err = syscall.Flock(int(lockFd.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+	if err != nil {
+		log.Printf("Failed to lock file[%s] err:%+v", lockFile, err) //err:  resource temporarily unavailable
+	}
+	return
 }
 
-func UnlockFile(file *os.File) error {
-	err := syscall.Flock(int(file.Fd()), syscall.LOCK_UN|syscall.LOCK_NB)
+func UnlockFile() error {
+	err := syscall.Flock(int(lockFd.Fd()), syscall.LOCK_UN|syscall.LOCK_NB)
 	if err != nil {
-		log.Println("Failed to lock file:", err)
+		log.Printf("Failed to unlock file[%s] err:%+v", lockFile, err)
 	}
+
+	lockFd.Close()
 	return err
 }
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 	rtkBuildConfig "rtk-cross-share/client/buildConfig"
 	rtkCommon "rtk-cross-share/client/common"
 	rtkConnection "rtk-cross-share/client/connection"
@@ -113,20 +112,13 @@ func Run() {
 	log.Println("=======================================================\n\n")
 
 	rtkLogin.NotifyDIASStatus(rtkLogin.DIAS_Status_Wait_DiasMonitor)
-	lockFilePath := rtkPlatform.GetLockFilePath()
-	file, err := os.OpenFile(lockFilePath, os.O_CREATE|os.O_RDWR, 0666)
-	if err != nil {
-		log.Println("Failed to open or create lock file:", err)
-		return
-	}
-	defer file.Close()
 
-	err = rtkPlatform.LockFile(file)
+	err := rtkPlatform.LockFile()
 	if err != nil {
-		log.Println("Another instance is already running.")
+		log.Fatalf("Another instance is already running, so Exit!\n\n")
 		return
 	}
-	defer rtkPlatform.UnlockFile(file)
+	defer rtkPlatform.UnlockFile()
 
 	if rtkBuildConfig.CmdDebug == "1" {
 		rtkMisc.GoSafe(func() { rtkDebug.DebugCmdLine() })
@@ -164,20 +156,12 @@ func MainInit(serverId, serverIpInfo, listenHost string, listentPort int) {
 		log.Fatalf("MainInit  parameter is invalid \n\n")
 	}
 
-	/*lockFilePath := rtkPlatform.GetLockFilePath()
-	file, err := os.OpenFile(lockFilePath, os.O_CREATE|os.O_RDWR, 0666)
+	err := rtkPlatform.LockFile()
 	if err != nil {
-		log.Println("Failed to open or create lock file:", err)
+		log.Fatalf("Another instance is already running, so Exit!\n\n")
 		return
 	}
-	defer file.Close()
-
-	err = rtkPlatform.LockFile(file)
-	if err != nil {
-		log.Println("Another instance is already running.\n\n")
-		return
-	}
-	defer rtkPlatform.UnlockFile(file)*/
+	defer rtkPlatform.UnlockFile()
 
 	rtkMisc.GoSafe(func() { businessProcess(context.Background()) })
 
