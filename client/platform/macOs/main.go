@@ -6,6 +6,7 @@ package main
 #include <stdlib.h>
 #include <stdint.h>
 
+typedef void (*CallbackUpdateSystemInfo)(char* ipInfo, char* verInfo);
 typedef void (*CallbackUpdateClientStatus)(char* clientJsonStr);
 typedef void (*CallbackMethodFileListNotify)(char* ip, char* id, char* platform,unsigned int fileCnt, unsigned long long totalSize,unsigned long long timestamp, char* firstFileName, unsigned long long firstFileSize);
 typedef void (*CallbackUpdateMultipleProgressBar)(char* ip,char* id, char* currentfileName,unsigned int recvFileCnt, unsigned int totalFileCnt,unsigned long long currentFileSize,unsigned long long totalSize,unsigned long long recvSize,unsigned long long timestamp);
@@ -20,6 +21,7 @@ typedef void (*CallbackRequestUpdateClientVersion)(char* clientVer);
 typedef void (*CallbackNotifyErrEvent)(char* id, unsigned int errCode, char* arg1, char* arg2, char* arg3, char* arg4);
 typedef void (*CallbackNotifyBrowseResult)(char* monitorName, char* instance, char* ip, char* version, unsigned long long timestamp);
 
+static CallbackUpdateSystemInfo gCallbackUpdateSystemInfo = 0;
 static CallbackUpdateClientStatus gCallbackUpdateClientStatus = 0;
 static CallbackMethodFileListNotify gCallbackMethodFileListNotify = 0;
 static CallbackUpdateMultipleProgressBar gCallbackUpdateMultipleProgressBar = 0;
@@ -34,7 +36,10 @@ static CallbackRequestUpdateClientVersion gCallbackRequestUpdateClientVersion = 
 static CallbackNotifyErrEvent gCallbackNotifyErrEvent = 0;
 static CallbackNotifyBrowseResult gCallbackNotifyBrowseResult = 0;
 
-
+static void setCallbackUpdateSystemInfo(CallbackUpdateSystemInfo cb) {gCallbackUpdateSystemInfo = cb;}
+static void invokeCallbackUpdateSystemInfo(char* ipInfo, char* verInfo) {
+	if (gCallbackUpdateSystemInfo) {gCallbackUpdateSystemInfo(ipInfo, verInfo);}
+}
 static void setCallbackUpdateClientStatus(CallbackUpdateClientStatus cb) {gCallbackUpdateClientStatus = cb;}
 static void invokeCallbackUpdateClientStatus(char* clientJsonStr) {
 	if (gCallbackUpdateClientStatus) {gCallbackUpdateClientStatus(clientJsonStr);}
@@ -111,6 +116,7 @@ func main() {
 }
 
 func init() {
+	rtkPlatform.SetCallbackUpdateSystemInfo(GoTriggerCallbackUpdateSystemInfo)
 	rtkPlatform.SetCallbackFileListNotify(GoTriggerCallbackMethodFileListNotify)
 	rtkPlatform.SetCallbackUpdateClientStatus(GoTriggerCallbackUpdateClientStatus)
 	rtkPlatform.SetCallbackUpdateMultipleProgressBar(GoTriggerCallbackUpdateMultipleProgressBar)
@@ -131,6 +137,20 @@ type MultiFilesDropRequestInfo struct {
 	Id       string
 	Ip       string
 	PathList []string
+}
+
+type MultiFilesDragRequestInfo struct {
+	PathList []string
+}
+
+func GoTriggerCallbackUpdateSystemInfo(ipAddr, versionInfo string) {
+	cIpAddr := C.CString(ipAddr)
+	defer C.free(unsafe.Pointer(cIpAddr))
+
+	cServiceVer := C.CString(versionInfo)
+	defer C.free(unsafe.Pointer(cServiceVer))
+
+	C.invokeCallbackUpdateSystemInfo(cIpAddr, cServiceVer)
 }
 
 func GoTriggerCallbackUpdateClientStatus(clientInfo string) {
@@ -276,6 +296,11 @@ func GoTriggerCallbackNotifyBrowseResult(monitorName, instance, ipAddr, version 
 	C.invokeCallbackNotifyBrowseResult(cMonitorName, cInstance, cIpAddr, cVersion, cTimeStamp)
 }
 
+//export SetCallbackUpdateSystemInfo
+func SetCallbackUpdateSystemInfo(cb C.CallbackUpdateSystemInfo) {
+	C.setCallbackUpdateSystemInfo(cb)
+}
+
 //export SetCallbackUpdateClientStatus
 func SetCallbackUpdateClientStatus(cb C.CallbackUpdateClientStatus) {
 	C.setCallbackUpdateClientStatus(cb)
@@ -350,14 +375,21 @@ func SetCallbackNotifyBrowseResult(cb C.CallbackNotifyBrowseResult) {
 }
 
 //export MainInit
-func MainInit(deviceName, rootPath, serverId, serverIpInfo, listenHost string, listenPort int) {
+func MainInit(deviceName, rootPath, downloadPath, serverId, serverIpInfo, listenHost string, listenPort int) {
 	rtkPlatform.SetDeviceName(deviceName)
 
 	if rootPath == "" || !rtkMisc.FolderExists(rootPath) {
 		log.Fatalf("[%s] RootPath :[%s] is invalid!", rtkMisc.GetFuncInfo(), rootPath)
 	}
-	log.Printf("[%s] device name:[%s] rootPath:[%s] host:[%s] port:[%d]", rtkMisc.GetFuncInfo(), deviceName, rootPath, listenHost, listenPort)
 	rtkPlatform.SetupRootPath(rootPath)
+	log.Printf("[%s] deviceName:[%s] rootPath:[%s] downloadPath:[%s] host:[%s] port:[%d]", rtkMisc.GetFuncInfo(), deviceName, rootPath, downloadPath, listenHost, listenPort)
+
+	if downloadPath == "" || !rtkMisc.FolderExists(downloadPath) {
+		log.Printf("[%s] downloadPath :[%s] is invalid, so use default path[%s]!", rtkMisc.GetFuncInfo(), downloadPath, rtkPlatform.GetDownloadPath())
+	} else {
+		rtkPlatform.GoUpdateDownloadPath(downloadPath)
+	}
+
 	rtkCmd.MainInit(serverId, serverIpInfo, listenHost, listenPort)
 }
 
@@ -471,6 +503,15 @@ func SetCancelFileTransfer(ipPort, clientID string, timeStamp uint64) {
 	rtkPlatform.GoCancelFileTrans(ipPort, clientID, timeStamp)
 }
 
+//export RequestUpdateDownloadPath
+func RequestUpdateDownloadPath(downloadPath string) {
+	if downloadPath == "" || !rtkMisc.FolderExists(downloadPath) {
+		log.Printf("[%s] get downloadPath [%s] is invalid!", rtkMisc.GetFuncInfo(), downloadPath)
+		return
+	}
+	rtkPlatform.GoUpdateDownloadPath(downloadPath)
+}
+
 //export SetNetWorkConnected
 func SetNetWorkConnected(isConnect bool) {
 	log.Printf("[%s] SetNetWorkConnected:[%v]", rtkMisc.GetFuncInfo(), isConnect)
@@ -555,6 +596,57 @@ func SetBrowseMdnsResult(instance, ip string, port int, productName, mName, time
 func SetConfirmDocumentsAccept(ifConfirm bool) {
 	log.Printf("[%s], ifConfirm:[%+v]", rtkMisc.GetFuncInfo(), ifConfirm)
 	rtkPlatform.SetConfirmDocumentsAccept(ifConfirm)
+}
+
+//export SetDragFileListRequest
+func SetDragFileListRequest(multiFilesData string, timeStamp uint64) {
+	var multiFileInfo MultiFilesDragRequestInfo
+	err := json.Unmarshal([]byte(multiFilesData), &multiFileInfo)
+	if err != nil {
+		log.Printf("[%s] Unmarshal[%s] err:%+v", rtkMisc.GetFuncInfo(), multiFilesData, err)
+		return
+	}
+	log.Printf("len:[%d] json:[%s]", len(multiFileInfo.PathList), multiFilesData)
+
+	fileList := make([]rtkCommon.FileInfo, 0)
+	folderList := make([]string, 0)
+	totalSize := uint64(0)
+	nFileCnt := 0
+	nFolderCnt := 0
+	nPathSize := uint64(0)
+
+	for _, file := range multiFileInfo.PathList {
+		file = strings.ReplaceAll(file, "\\", "/")
+		if rtkMisc.FolderExists(file) {
+			nFileCnt = len(fileList)
+			nFolderCnt = len(folderList)
+			nPathSize = totalSize
+			rtkUtils.WalkPath(file, &folderList, &fileList, &totalSize)
+			log.Printf("[%s] walk a path:[%s], get [%d] files and [%d] folders, path total size:[%d]", rtkMisc.GetFuncInfo(), file, len(fileList)-nFileCnt, len(folderList)-nFolderCnt, totalSize-nPathSize)
+		} else if rtkMisc.FileExists(file) {
+			fileSize, err := rtkMisc.FileSize(file)
+			if err != nil {
+				log.Printf("[%s] get file:[%s] size error, skit it!", rtkMisc.GetFuncInfo(), file)
+				continue
+			}
+			fileList = append(fileList, rtkCommon.FileInfo{
+				FileSize_: rtkCommon.FileSize{
+					SizeHigh: uint32(fileSize >> 32),
+					SizeLow:  uint32(fileSize & 0xFFFFFFFF),
+				},
+				FilePath: file,
+				FileName: filepath.Base(file),
+			})
+			totalSize += fileSize
+		} else {
+			log.Printf("[%s] get file or path:[%s] is not exist , so skit it!", rtkMisc.GetFuncInfo(), file)
+		}
+	}
+	timestamp := uint64(timeStamp)
+	totalDesc := rtkMisc.FileSizeDesc(totalSize)
+
+	log.Printf("[%s] get file count:[%d] folder count:[%d], totalSize:[%d] totalDesc:[%s] timestamp:[%d]", rtkMisc.GetFuncInfo(), len(fileList), len(folderList), totalSize, totalDesc, timestamp)
+	rtkPlatform.GoDragFileListRequest(&fileList, &folderList, totalSize, timestamp, totalDesc)
 }
 
 //export FreeCString

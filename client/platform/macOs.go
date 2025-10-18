@@ -58,6 +58,7 @@ func GetCrashLogFilePath() string {
 }
 
 type (
+	CallbackUpdateSystemInfoFunc           func(ipAddr string, verInfo string)
 	CallbackNetworkSwitchFunc              func()
 	CallbackCopyXClipFunc                  func(cbText, cbImage, cbHtml []byte)
 	CallbackPasteXClipFunc                 func(text, image, html string)
@@ -92,6 +93,7 @@ type (
 )
 
 var (
+	callbackUpdateSystemInfo           CallbackUpdateSystemInfoFunc           = nil
 	callbackNetworkSwitch              CallbackNetworkSwitchFunc              = nil
 	callbackCopyXClipData              CallbackCopyXClipFunc                  = nil
 	callbackPasteXClipData             CallbackPasteXClipFunc                 = nil
@@ -123,6 +125,10 @@ var (
 )
 
 /*======================================= Used by main.go, set Callback =======================================*/
+
+func SetCallbackUpdateSystemInfo(cb CallbackUpdateSystemInfoFunc) {
+	callbackUpdateSystemInfo = cb
+}
 
 func SetCallbackFileListNotify(cb CallbackFileListDragNotify) {
 	callbackFileListDragNotify = cb
@@ -366,6 +372,11 @@ func GoMultiFilesDropRequest(id string, fileList *[]rtkCommon.FileInfo, folderLi
 		return rtkCommon.SendFilesRequestCallbackNotSet
 	}
 
+	if len(*fileList) == 0 && len(*folderList) == 0 {
+		log.Println("file content is null!")
+		return rtkCommon.SendFilesRequestParameterErr
+	}
+
 	if !rtkUtils.GetPeerClientIsSupportQueueTrans(id) {
 		if callbackGetFilesTransCode == nil {
 			log.Println("callbackGetFilesTransCode is null!")
@@ -408,12 +419,29 @@ func GoMultiFilesDropRequest(id string, fileList *[]rtkCommon.FileInfo, folderLi
 	return rtkCommon.SendFilesRequestSuccess
 }
 
+func GoDragFileListRequest(fileList *[]rtkCommon.FileInfo, folderList *[]string, totalSize, timestamp uint64, totalDesc string) {
+	if callbackDragFileListRequestCB == nil {
+		log.Println("callbackDragFileListRequestCB is null!")
+		return
+	}
+	if len(*fileList) == 0 && len(*folderList) == 0 {
+		log.Println("[%s] file content is null!", rtkMisc.GetFuncInfo())
+		return
+	}
+	callbackDragFileListRequestCB(*fileList, *folderList, totalSize, timestamp, totalDesc)
+}
+
 func GoCancelFileTrans(ip, id string, timestamp uint64) {
 	if callbackCancelFileTrans == nil {
 		log.Println("callbackCancelFileTrans is null!")
 		return
 	}
 	callbackCancelFileTrans(id, ip, timestamp)
+}
+
+func GoUpdateDownloadPath(path string) {
+	downloadPath = path
+	log.Printf("[%s] update downloadPath:[%s] success!", rtkMisc.GetFuncInfo(), downloadPath)
 }
 
 /*======================================= Used  by GO business =======================================*/
@@ -510,8 +538,9 @@ func GoUpdateMultipleProgressBar(ip, id, currentFileName string, sentFileCnt, to
 	callbackUpdateMultipleProgressBar(ip, id, currentFileName, sentFileCnt, totalFileCnt, currentFileSize, totalSize, sentSize, timestamp)
 }
 
-func GoUpdateSystemInfo(ip, serviceVer string) {
-
+func GoUpdateSystemInfo(ipAddr, serviceVer string) {
+	log.Printf("[%s] ipAddr:[%s]  version[%s]", rtkMisc.GetFuncInfo(), ipAddr, serviceVer)
+	callbackUpdateSystemInfo(ipAddr, serviceVer)
 }
 
 func GoUpdateClientStatus(status uint32, ip, id, name, deviceType string) {
