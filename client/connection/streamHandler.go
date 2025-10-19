@@ -114,7 +114,7 @@ func updateStream(id string, stream network.Stream) {
 		cancelFn:          callbackStartProcessForPeer(id, ipAddr), // StartProcessForPeer
 		sFileDataQueueMap: make(map[uint64]network.Stream),
 	}
-	log.Printf("UpdateStream ID:[%s] IP:[%s] streamID:[%s]", id, ipAddr, stream.ID())
+	log.Printf("updateStream ID:[%s] IP:[%s] streamID:[%s]", id, ipAddr, stream.ID())
 }
 
 func GetStreamInfo(id string) (streamInfo, bool) {

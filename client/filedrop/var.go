@@ -2,6 +2,7 @@ package filedrop
 
 import (
 	rtkCommon "rtk-cross-share/client/common"
+	rtkMisc "rtk-cross-share/misc"
 	"sync"
 )
 
@@ -48,6 +49,7 @@ type FileDropData struct {
 	InterruptFileName      string // Src fileName
 	InterruptFileOffSet    int64
 	InterruptFileTimeStamp int64 // Seconds
+	InterruptLastErrCode   rtkMisc.CrossShareErr
 }
 
 type FilesTransferDataItem struct {

@@ -59,12 +59,13 @@ func sendCmdMsgToPeer(id string, cmd CommandType, fmtType rtkCommon.TransFmtType
 	writeToSocket(&msg, id)
 }
 
-func sendFileTransPauseToPeer(id, fileName string, timestamp uint64, offset, interrupTimeStamp int64) rtkMisc.CrossShareErr {
+func sendFileTransPauseToPeer(id, fileName string, timestamp uint64, offset, interrupTimeStamp int64, err rtkMisc.CrossShareErr) rtkMisc.CrossShareErr {
 	extData := rtkCommon.ExtDataFilesTransferInterruptInfo{
 		InterruptFileName:      fileName,
 		InterruptFileOffSet:    offset,
 		TimeStamp:              timestamp,
 		InterruptFileTimeStamp: interrupTimeStamp,
+		InterruptErrCode:       err,
 	}
 	var msg Peer2PeerMessage
 	msg.SourceID = rtkGlobal.NodeInfo.ID

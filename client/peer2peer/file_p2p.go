@@ -29,7 +29,7 @@ const (
 	copyBufShortSize  = 1 << 20  // 1MB
 	truncateThreshold = 32 << 20 // 32MB
 
-	interruptFailureTime = 30 //seconds, Interrupt file data transfer time out: 30s
+	interruptFailureInterval = 10 //seconds, Interrupt file data transfer time out: 10s
 )
 
 var (
@@ -129,6 +129,7 @@ func DeleteFile(filePath string) error {
 	if err != nil {
 		log.Printf("Remove file:[%s] err:%+v", filePath, err)
 	}
+	log.Printf("Remove file:[%s] success!", filePath)
 	return err
 }
 
@@ -227,15 +228,15 @@ func dealFilesCacheDataProcess(ctx context.Context, id, ipAddr string) {
 				if !reTry {
 					log.Printf("(SRC) ID[%s] IP[%s] Copy file data To Socket failed, timestamp:%d, ERR code:[%d],  and not resend!", id, ipAddr, cacheData.TimeStamp, resultCode)
 					rtkPlatform.GoNotifyErrEvent(id, resultCode, ipAddr, strconv.Itoa(int(cacheData.TimeStamp)), "", "")
-					if resultCode == rtkMisc.ERR_BIZ_FD_FILE_NOT_EXISTS { // need notify to peer
+					if resultCode == rtkMisc.ERR_BIZ_FD_FILE_NOT_EXISTS || resultCode == rtkMisc.ERR_BIZ_FD_DATA_INVALID { // need notify to dst
 						sendFileTransInterruptMsgToPeer(id, COMM_FILE_TRANSFER_SRC_INTERRUPT, resultCode, cacheData.TimeStamp)
 					}
 				} else {
 					log.Printf("(SRC) ID[%s] IP[%s] Copy file data To Socket is interrupt, timestamp:[%d], wait to resend...", id, ipAddr, cacheData.TimeStamp)
-					continue
+					return
 				}
-
 			}
+			rtkConnection.RemoveFileDropItemStreamListener(cacheData.TimeStamp)
 		} else if cacheData.FileTransDirection == rtkFileDrop.FilesTransfer_As_Dst {
 			resultCode, reTry := handleFileDataFromSocket(ctx, id, ipAddr, cacheData)
 			if resultCode != rtkMisc.SUCCESS {
@@ -244,7 +245,8 @@ func dealFilesCacheDataProcess(ctx context.Context, id, ipAddr string) {
 					rtkPlatform.GoNotifyErrEvent(id, resultCode, ipAddr, strconv.Itoa(int(cacheData.TimeStamp)), "", "")
 				} else {
 					log.Printf("(DST) ID[%s] IP[%s] Copy file data To Socket is interrupt, timestamp:[%d], wait to retry...", id, ipAddr, cacheData.TimeStamp)
-					continue
+					rtkMisc.GoSafe(func() { reTryFileTransferProcess(id, ipAddr) })
+					return
 				}
 			}
 		} else {
@@ -265,7 +267,6 @@ func writeFileDataToSocket(ctx context.Context, id, ipAddr string, fileDropReqDa
 	var ok bool
 	if rtkUtils.GetPeerClientIsSupportQueueTrans(id) {
 		sFileDrop, ok = rtkConnection.GetFileDropItemStream(id, fileDropReqData.TimeStamp)
-		defer rtkConnection.RemoveFileDropItemStreamListener(fileDropReqData.TimeStamp)
 		defer rtkConnection.CloseFileDropItemStream(id, fileDropReqData.TimeStamp)
 	} else {
 		sFileDrop, ok = rtkConnection.GetFmtTypeStream(id, rtkCommon.FILE_DROP)
@@ -584,9 +585,8 @@ func handleFileDataFromSocket(ctx context.Context, id, ipAddr string, fileDropDa
 				needReTry = false // not need retry
 			} else {
 				interrputTimeStampSec := time.Now().Unix()
-				rtkFileDrop.SetFilesTransferDataInterrupt(id, fileInfo.FileName, fileDropData.TimeStamp, offset, interrputTimeStampSec)
+				rtkFileDrop.SetFilesTransferDataInterrupt(id, fileInfo.FileName, fileDropData.TimeStamp, offset, interrputTimeStampSec, dstTransResult)
 				rtkConnection.ResetAllFileDropStream(id) // set all file data transfer stream Reset, wait to retry...
-				rtkMisc.GoSafe(func() { reTryFileTransferProcess(id, ipAddr) })
 			}
 			errCode = dstTransResult
 			return
@@ -709,18 +709,19 @@ func reTryFileTransferProcess(id, ipAddr string) {
 	dealFilesCacheDataProcess(context.Background(), id, ipAddr)
 }
 
-func BuildFileDropItemStream(id string) {
+func BuildFileDropItemStream(id string) rtkMisc.CrossShareErr {
 	cacheList := rtkFileDrop.GetFilesTransferDataList(id)
 	if cacheList == nil {
-		return
+		return rtkMisc.ERR_BIZ_FD_DATA_EMPTY
 	}
 	for _, cacheData := range cacheList {
 		if cacheData.FileTransDirection == rtkFileDrop.FilesTransfer_As_Dst {
-			if errCode := rtkConnection.NewFileDropItemStream(context.Background(), id, cacheData.TimeStamp); errCode != rtkMisc.SUCCESS {
+			errCode := rtkConnection.NewFileDropItemStream(context.Background(), id, cacheData.TimeStamp)
+			if errCode != rtkMisc.SUCCESS {
 				log.Printf("[%s] new File Drop Item stream errCode:%+v ", rtkMisc.GetFuncInfo(), errCode)
-				return
+				return errCode
 			}
 		}
 	}
-
+	return rtkMisc.SUCCESS
 }
