@@ -84,6 +84,13 @@ func cancelHostNode() {
 		node = nil
 		log.Println("close p2p node info success!")
 	}
+
+}
+
+func CancelFileTransNode(){
+	nodeMutex.Lock()
+	defer nodeMutex.Unlock()
+	
 	if fileTransNode != nil {
 		fileTransNode.Peerstore().Close()
 		fileTransNode.Network().Close()

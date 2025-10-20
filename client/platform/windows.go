@@ -314,6 +314,11 @@ func GoMultiFilesDropRequest(id string, fileList *[]rtkCommon.FileInfo, folderLi
 		return rtkCommon.SendFilesRequestCallbackNotSet
 	}
 
+	if len(*fileList) == 0 && len(*folderList) == 0 {
+		log.Println("file content is null!")
+		return rtkCommon.SendFilesRequestParameterErr
+	}
+
 	if !rtkUtils.GetPeerClientIsSupportQueueTrans(id) {
 		if callbackGetFilesTransCode == nil {
 			log.Println("callbackGetFilesTransCode is null!")
@@ -357,6 +362,10 @@ func GoMultiFilesDropRequest(id string, fileList *[]rtkCommon.FileInfo, folderLi
 }
 
 func GoDragFileListRequest(fileList *[]rtkCommon.FileInfo, folderList *[]string, totalSize, timestamp uint64, totalDesc string) {
+	if len(*fileList) == 0 && len(*folderList) == 0 {
+		log.Println("file content is null!")
+		return
+	}
 	callbackDragFileListRequestCB(*fileList, *folderList, totalSize, timestamp, totalDesc)
 }
 

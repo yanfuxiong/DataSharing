@@ -677,15 +677,10 @@ func ShowNotiMessageRecvFileTransferDone(fileDropData *rtkFileDrop.FilesTransfer
 }
 
 func reTryFileTransferProcess(id, ipAddr string) {
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := time.NewTicker(3 * time.Second)
 	defer ticker.Stop()
 	for {
-		select {
-		/*case <-ctx.Done():
-		return*/
-		case <-ticker.C:
-
-		}
+		<-ticker.C
 
 		if rtkConnection.IsStreamExisted(id) {
 			cacheData := rtkFileDrop.GetFilesTransferDataItem(id)
@@ -697,10 +692,24 @@ func reTryFileTransferProcess(id, ipAddr string) {
 				return
 			}
 
-			if sendFileTransPauseToPeer(id, cacheData.InterruptFileName, cacheData.TimeStamp, cacheData.InterruptFileOffSet, cacheData.InterruptFileTimeStamp) != rtkMisc.SUCCESS {
+			if (time.Now().Unix() - cacheData.InterruptFileTimeStamp) > interruptFailureInterval {
+				log.Printf("[%s] IP:[%s] timestamp:[%d] Interrupt time out!", rtkMisc.GetFuncInfo(), ipAddr, cacheData.TimeStamp)
+				rtkPlatform.GoNotifyErrEvent(id, cacheData.InterruptLastErrCode, ipAddr, strconv.Itoa(int(cacheData.TimeStamp)), "", "")
+				sendFileTransInterruptMsgToPeer(id, COMM_FILE_TRANSFER_DST_INTERRUPT, cacheData.InterruptLastErrCode, cacheData.TimeStamp) // need notify to dst
+				DeleteFile(cacheData.InterruptFileName)
 				return
 			}
-			BuildFileDropItemStream(id)
+
+			errCode := sendFileTransPauseToPeer(id, cacheData.InterruptFileName, cacheData.TimeStamp, cacheData.InterruptFileOffSet, cacheData.InterruptFileTimeStamp, cacheData.InterruptLastErrCode)
+			if errCode != rtkMisc.SUCCESS {
+				return
+			}
+
+			errCode = BuildFileDropItemStream(id)
+			if errCode != rtkMisc.SUCCESS {
+				continue
+			}
+
 			ticker.Stop()
 			break
 		}

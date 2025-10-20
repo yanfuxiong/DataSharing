@@ -873,6 +873,10 @@ func ProcessEventsForPeer(id, ipAddr string, ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			log.Printf("[%s] ID:[%s] ProcessEventsForPeer is End by context", rtkMisc.GetFuncInfo(), id)
+			if rtkFileDrop.GetFilesTransferDataCacheCount(id) == 0 {
+				rtkConnection.CancelFileTransNode()
+			}
+			
 			if rtkClipboard.GetLastClipboardData().SourceID == id {
 				rtkClipboard.ResetLastClipboardData()
 			}
