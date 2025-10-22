@@ -59,7 +59,7 @@ func sendCmdMsgToPeer(id string, cmd CommandType, fmtType rtkCommon.TransFmtType
 	writeToSocket(&msg, id)
 }
 
-func sendFileTransPauseToPeer(id, fileName string, timestamp uint64, offset, interrupTimeStamp int64, err rtkMisc.CrossShareErr) rtkMisc.CrossShareErr {
+func sendFileTransRecoverMsgToPeer(id, fileName string, timestamp uint64, offset, interrupTimeStamp int64, err rtkMisc.CrossShareErr) rtkMisc.CrossShareErr {
 	extData := rtkCommon.ExtDataFilesTransferInterruptInfo{
 		InterruptFileName:      fileName,
 		InterruptFileOffSet:    offset,
@@ -72,7 +72,7 @@ func sendFileTransPauseToPeer(id, fileName string, timestamp uint64, offset, int
 	msg.SourcePlatform = rtkGlobal.NodeInfo.Platform
 	msg.FmtType = rtkCommon.FILE_DROP
 	msg.TimeStamp = uint64(time.Now().UnixMilli())
-	msg.Command = COMM_FILE_TRANSFER_INTERRUPT
+	msg.Command = COMM_FILE_TRANSFER_RECOVER
 	msg.ExtData = extData
 	return writeToSocket(&msg, id)
 }

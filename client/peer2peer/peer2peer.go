@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"log"
-	"net"
 	rtkClipboard "rtk-cross-share/client/clipboard"
 	rtkCommon "rtk-cross-share/client/common"
 	rtkConnection "rtk-cross-share/client/connection"
@@ -178,7 +177,7 @@ func processInbandRead(buffer []byte, len int, msg *Peer2PeerMessage) rtkMisc.Cr
 				}
 				msg.ExtData = resultCode
 			}
-		} else if msg.Command == COMM_FILE_TRANSFER_INTERRUPT {
+		} else if msg.Command == COMM_FILE_TRANSFER_RECOVER {
 			var extData rtkCommon.ExtDataFilesTransferInterruptInfo
 			err = json.Unmarshal(temp.ExtData, &extData)
 			if err != nil {
@@ -323,10 +322,10 @@ func HandleReadInbandFromSocket(ctxMain context.Context, resultChan chan<- Event
 					}
 				}
 				continue
-			} else if msg.Command == COMM_FILE_TRANSFER_INTERRUPT {
+			} else if msg.Command == COMM_FILE_TRANSFER_RECOVER { // Src
 				if interruptInfo, ok := msg.ExtData.(rtkCommon.ExtDataFilesTransferInterruptInfo); ok {
-					rtkFileDrop.SetFilesTransferDataInterrupt(id, interruptInfo.InterruptFileName, interruptInfo.TimeStamp, interruptInfo.InterruptFileOffSet, interruptInfo.InterruptFileTimeStamp)
-					rtkMisc.GoSafe(func() { dealFilesCacheDataProcess(ctxMain, id, ipAddr) })
+					rtkFileDrop.SetFilesTransferDataInterrupt(id, interruptInfo.InterruptFileName, interruptInfo.TimeStamp, interruptInfo.InterruptFileOffSet, interruptInfo.InterruptFileTimeStamp, interruptInfo.InterruptErrCode)
+					rtkMisc.GoSafe(func() { recoverFileTransferProcessAsSrc(ctxMain, id, ipAddr) })
 				}
 			} else if msg.Command == COMM_CB_TRANSFER_SRC_INTERRUPT {
 				log.Printf("[%s] (DST) Copy image operation was canceled by src !", rtkMisc.GetFuncInfo())
@@ -517,45 +516,6 @@ func buildMessage(msg *Peer2PeerMessage, id string, event EventResult) bool {
 	}
 
 	return false
-}
-
-func WaitForReply(s net.Conn, match CommandType) rtkCommon.SocketErr {
-	timeout := 5 * time.Second
-	s.SetReadDeadline(time.Now().Add(timeout))
-
-	buffer := make([]byte, 65535)
-	n, err := s.Read(buffer)
-	if err != nil {
-		if netErr, ok := err.(net.Error); ok {
-			log.Println("Read fail network error", netErr.Error())
-			if netErr.Timeout() {
-				return rtkCommon.ERR_TIMEOUT
-			}
-			return rtkCommon.ERR_NETWORK
-		} else {
-			log.Println("Read fail", err.Error())
-			return rtkCommon.ERR_OTHER
-		}
-	}
-
-	buffer = buffer[:n]
-	buffer = bytes.Trim(buffer, "\x00")
-	buffer = bytes.Trim(buffer, "\x13")
-
-	var msg Peer2PeerMessage
-	err = json.Unmarshal(buffer, msg)
-	if err != nil {
-		log.Println("Failed to unmarshal P2PMessage data", err.Error())
-		log.Printf("Err JSON len[%d] data:[%s] ", n, string(buffer))
-		rtkUtils.WriteErrJson(s.RemoteAddr().String(), buffer)
-		return rtkCommon.ERR_JSON
-	}
-
-	log.Println("Read msg from:", s.RemoteAddr(), "Cmd =", msg.Command, "FmtType =", msg.FmtType)
-	if msg.Command != match {
-		return rtkCommon.ERR_OTHER
-	}
-	return rtkCommon.OK
 }
 
 func writeToSocket(msg *Peer2PeerMessage, id string) rtkMisc.CrossShareErr {
@@ -869,16 +829,18 @@ func ProcessEventsForPeer(id, ipAddr string, ctx context.Context) {
 		}
 	}
 
+	value, _ := recoverFileTransferChanMap.LoadOrStore(id, make(chan struct{}))
+	fileTransRecoverChan := value.(chan struct{})
+
 	for {
 		select {
 		case <-ctx.Done():
 			log.Printf("[%s] ID:[%s] ProcessEventsForPeer is End by context", rtkMisc.GetFuncInfo(), id)
-			if rtkFileDrop.GetFilesTransferDataCacheCount(id) == 0 {
-				rtkConnection.CancelFileTransNode()
-			}
-			
 			if rtkClipboard.GetLastClipboardData().SourceID == id {
 				rtkClipboard.ResetLastClipboardData()
+			}
+			if rtkFileDrop.GetFilesTransferDataCacheCount(id) == 0 {
+				rtkConnection.CancelFileTransNode()
 			}
 			return
 		case event, ok := <-eventResultClipboard:
@@ -899,6 +861,8 @@ func ProcessEventsForPeer(id, ipAddr string, ctx context.Context) {
 			}
 			log.Printf("[ProcessEvent Socket][%s] EventResult fmt=%s, state=%s, cmd=%s", ipAddr, event.Cmd.FmtType, event.Cmd.State, event.Cmd.Command)
 			handleEvent(event)
+		case <-fileTransRecoverChan:
+			rtkMisc.GoSafe(func() { recoverFileTransferProcessAsDst(ctx, id, ipAddr) })
 		}
 	}
 }
