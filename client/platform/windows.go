@@ -490,10 +490,6 @@ func GoNotiMessageFileTransfer(fileName, clientName, platform string, timestamp 
 	callbackNotiMessageFileTransCB(fileName, clientName, platform, timestamp, isSender)
 }
 
-func GoEventHandle(eventType rtkCommon.EventType, ipAddr, fileName string, timestamp uint64) {
-
-}
-
 func GoNotifyErrEvent(id string, errCode rtkMisc.CrossShareErr, arg1, arg2, arg3, arg4 string) {
 	if callbackNotifyErrEvent == nil {
 		log.Printf("callbackNotifyErrEvent is null!\n")

@@ -52,7 +52,7 @@ func CheckAllStreamAlive(ctx context.Context) {
 		}
 
 		pingErrCnt := updateStreamPingErrCntIncrease(key)
-		if pingErrCnt >= pingErrMaxCnt {
+		if pingErrCnt >= rtkCommon.PingErrMaxCnt {
 			offlineEvent(sInfo.s, false)
 		}
 	}
@@ -69,7 +69,7 @@ func CheckAllStreamAlive(ctx context.Context) {
 		rtkMisc.GoSafeWithParam(func(args ...any) {
 			// Default timeout is 10 sec in Ping.go
 			// Use this context timeout instead of the timeout in Ping.go
-			pingCtx, cancelFun := context.WithTimeout(ctx, pingTimeout)
+			pingCtx, cancelFun := context.WithTimeout(ctx, rtkCommon.PingTimeout)
 			defer cancelFun()
 			select {
 			case pingResult := <-pingServer.Ping(pingCtx, sInfo.s.Conn().RemotePeer()):

@@ -116,7 +116,6 @@ func Run() {
 	err := rtkPlatform.LockFile()
 	if err != nil {
 		log.Fatalf("Another instance is already running, so Exit!\n\n")
-		return
 	}
 	defer rtkPlatform.UnlockFile()
 
@@ -159,7 +158,6 @@ func MainInit(serverId, serverIpInfo, listenHost string, listentPort int) {
 	err := rtkPlatform.LockFile()
 	if err != nil {
 		log.Fatalf("Another instance is already running, so Exit!\n\n")
-		return
 	}
 	defer rtkPlatform.UnlockFile()
 

@@ -1,22 +1,10 @@
 package common
 
-type SocketErr int
+import "time"
 
 const (
-	OK SocketErr = iota + 1
-	ERR_TIMEOUT
-	ERR_NETWORK
-	ERR_JSON
-	ERR_CANCEL
-	ERR_CONNECTION
-	ERR_EOF
-	ERR_RESET
-	ERR_OTHER
-)
-
-type EventType int
-
-const (
-	EVENT_TYPE_OPEN_FILE_ERR = 0
-	EVENT_TYPE_RECV_TIMEOUT  = 1
+	PingInterval     = 3500 * time.Millisecond
+	PingTimeout      = 3000 * time.Millisecond
+	PingTimeoutMilli = 3000
+	PingErrMaxCnt    = 3
 )

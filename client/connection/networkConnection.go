@@ -35,10 +35,6 @@ func ListenMultAddr() []ma.Multiaddr {
 	return multAddr
 }
 
-func GetNetworkStatus() chan bool {
-	return mdnsNoticeNetworkStatus
-}
-
 func WatchNetworkInfo(ctx context.Context) {
 	lastIp := rtkGlobal.NodeInfo.IPAddr.PublicIP
 	lastPort := rtkGlobal.NodeInfo.IPAddr.LocalPort

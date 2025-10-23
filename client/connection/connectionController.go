@@ -84,10 +84,9 @@ func cancelHostNode() {
 		node = nil
 		log.Println("close p2p node info success!")
 	}
-
 }
 
-func CancelFileTransNode(){
+func CancelFileTransNode() { // must trigger after file transfer goroutine cancel, and how ??
 	nodeMutex.Lock()
 	defer nodeMutex.Unlock()
 	
@@ -110,7 +109,7 @@ func Run(ctx context.Context) {
 
 	buildListener()
 
-	ticker := time.NewTicker(pingInterval)
+	ticker := time.NewTicker(rtkCommon.PingInterval)
 	defer ticker.Stop()
 
 	for {
@@ -130,6 +129,7 @@ func setupNode(ip string, port int) error {
 	priv := rtkPlatform.GenKey()
 
 	cancelHostNode()
+	CancelFileTransNode()
 
 	tcpAddr, err := ma.NewMultiaddr(fmt.Sprintf("/ip4/%s/tcp/%d", ip, port))
 	if err != nil {
