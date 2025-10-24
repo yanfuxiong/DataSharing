@@ -797,7 +797,3 @@ func handleNotice(s network.Stream, platForm, name, srcPortType, ver, fileTransI
 
 	return rtkMisc.SUCCESS
 }
-
-func SetMDNSPeer(peer peer.AddrInfo) {
-	mdnsPeerChan <- peer
-}

@@ -1,5 +1,4 @@
 //go:build ios
-// +build ios
 
 package platform
 
@@ -591,7 +590,7 @@ func GetPlatform() string {
 func LockFile() (err error) {
 	lockFd, err = os.OpenFile(lockFile, os.O_CREATE|os.O_RDWR, 0666)
 	if err != nil {
-		log.Printf("Failed to open or create lock file:[%s]  err:", lockFile, err)
+		log.Printf("Failed to open or create lock file:[%s] err:%+v", lockFile, err)
 		return
 	}
 

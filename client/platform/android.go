@@ -545,7 +545,7 @@ func GetPlatform() string {
 func LockFile() (err error) {
 	lockFd, err = os.OpenFile(lockFile, os.O_CREATE|os.O_RDWR, 0666)
 	if err != nil {
-		log.Printf("Failed to open or create lock file:[%s]  err:", lockFile, err)
+		log.Printf("Failed to open or create lock file:[%s] err:%+v", lockFile, err)
 		return
 	}
 
@@ -553,7 +553,7 @@ func LockFile() (err error) {
 	if err != nil {
 		log.Printf("Failed to lock file[%s] err:%+v", lockFile, err) //err:  resource temporarily unavailable
 	}
-	log.Printf("[%s] LockFile success!", rtkMisc.GetFuncInfo())
+
 	return err
 }
 

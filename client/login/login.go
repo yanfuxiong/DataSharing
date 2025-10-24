@@ -208,11 +208,10 @@ func ConnectLanServerRun(ctx context.Context) {
 					errCode = rtkMisc.ERR_NETWORK_C2S_READ
 					if errors.Is(err, io.EOF) {
 						errCode = rtkMisc.ERR_NETWORK_C2S_READ_EOF
-					} else if netErr, ok := err.(net.Error); ok {
-						if netErr.Timeout() {
-							errCode = rtkMisc.ERR_NETWORK_C2S_READ_TIME_OUT
-						}
+					} else if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+						errCode = rtkMisc.ERR_NETWORK_C2S_READ_TIME_OUT
 					}
+
 				}
 				readResult <- struct {
 					buffer  string
