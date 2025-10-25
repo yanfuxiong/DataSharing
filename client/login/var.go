@@ -44,15 +44,18 @@ var (
 	g_ProductName           string
 	g_monitorName           string
 	pSafeConnect            *safeConnect
-	heartBeatTicker         *time.Ticker
-	isReconnectRunning      atomic.Bool
 	lanServerRunning        atomic.Bool
-	reconnectCancelFunc     func()
 	disconnectAllClientFunc callbackDisconnectAllClientFunc
 	cancelAllBusinessFunc   callbackCancelAllBusinessFunc
 	mobileAuthData          rtkMisc.AuthDataInfo
 	g_lookupByUnicast       bool
 	initLanServerMutex      sync.Mutex
+
+	// connect reliability
+	heartBeatTicker     *time.Ticker
+	pingServerMtx       sync.Mutex
+	pingServerErrCnt    int
+	pingServerTimeStamp int64
 
 	// Used by connection package
 	GetClientListFlag = make(chan []rtkMisc.ClientInfo)

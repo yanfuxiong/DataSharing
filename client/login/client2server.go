@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"log"
+	rtkCommon "rtk-cross-share/client/common"
 	rtkFileDrop "rtk-cross-share/client/filedrop"
 	rtkGlobal "rtk-cross-share/client/global"
 	rtkPlatform "rtk-cross-share/client/platform"
@@ -59,7 +60,11 @@ func sendReqMsgToLanServer(MsgType rtkMisc.C2SMsgType, extData ...interface{}) r
 	errCode := pSafeConnect.Write(encodedData)
 	if errCode != rtkMisc.SUCCESS {
 		log.Printf("[%s] LanServer IPAddr:[%s]  sending msg[%s] errCode:%d ", rtkMisc.GetFuncInfo(), pSafeConnect.ConnectIPAddr(), MsgType, errCode)
-		pSafeConnect.Close()
+		if errCode == rtkMisc.ERR_NETWORK_C2S_WRITE_EOF {
+			pSafeConnect.Close()
+		} else {
+			updatePingServerErrCntIncrease()
+		}
 		return errCode
 	}
 
@@ -76,6 +81,7 @@ func buildMessageReq(msg *rtkMisc.C2SMessage, extData ...interface{}) rtkMisc.Cr
 	switch msg.MsgType {
 	case rtkMisc.C2SMsg_CLIENT_HEARTBEAT:
 		msg.ClientIndex = rtkGlobal.NodeInfo.ClientIndex
+		updatePingServerTimeStamp(msg.TimeStamp)
 	case rtkMisc.C2SMsg_INIT_CLIENT:
 		reqData := rtkMisc.InitClientMessageReq{
 			HOST:          rtkGlobal.HOST_ID,
@@ -135,24 +141,7 @@ func handleReadMessageFromServer(buffer []byte) rtkMisc.CrossShareErr {
 
 	switch rspMsg.MsgType {
 	case rtkMisc.C2SMsg_CLIENT_HEARTBEAT:
-	//log.Printf("HearBeat, RTT:[%d]ms", time.Now().UnixMilli()-rspMsg.TimeStamp)
-	case rtkMisc.C2SMsg_RESET_CLIENT:
-		var resetClientRsp rtkMisc.ResetClientResponse
-		err = json.Unmarshal(rspMsg.ExtData, &resetClientRsp)
-		if err != nil {
-			log.Printf("clientID:[%s]decode ExtDataText  Err: %+v", rspMsg.ClientID, err)
-			return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
-		} else {
-			if resetClientRsp.Code != rtkMisc.SUCCESS {
-				log.Printf("Requst Reset Client failed,  code:[%d] errMsg:[%s]", resetClientRsp.Code, resetClientRsp.Msg)
-				return resetClientRsp.Code
-			}
-		}
-		log.Printf("Requst Reset Client Response success, request client list!")
-		errCode := sendReqMsgToLanServer(rtkMisc.C2SMsg_REQ_CLIENT_LIST)
-		if errCode != rtkMisc.SUCCESS {
-			log.Printf("[%s] Err: Send REQ_CLIENT_LIST failed: [%d]", rtkMisc.GetFuncInfo(), errCode)
-		}
+		checkPingServerRspTimeStamp(rspMsg.TimeStamp)
 	case rtkMisc.C2SMsg_INIT_CLIENT:
 		return dealS2CMsgInitClient(rspMsg.ClientID, rspMsg.ExtData)
 	case rtkMisc.C2SMsg_AUTH_DATA_INDEX_MOBILE:
@@ -390,4 +379,57 @@ func checkClientVersionInvalid(reqVer string) bool {
 	}
 
 	return false
+}
+
+func updatePingServerErrCntIncrease() {
+	nCnt := 0
+	pingServerMtx.Lock()
+	pingServerErrCnt++
+	nCnt = pingServerErrCnt
+	pingServerMtx.Unlock()
+
+	log.Printf("Update Ping Server err cnt:[%d]", nCnt)
+	if nCnt >= rtkCommon.PingErrMaxCnt {
+		pSafeConnect.Close()
+	}
+}
+
+func updatePingServerErrCntReset() {
+	pingServerMtx.Lock()
+	defer pingServerMtx.Unlock()
+	if pingServerErrCnt > 0 {
+		pingServerErrCnt = 0
+		log.Printf("Update Ping Server err cnt reset!")
+	}
+	pingServerTimeStamp = 0
+}
+
+func updatePingServerTimeStamp(timestamp int64) {
+	pingServerMtx.Lock()
+	defer pingServerMtx.Unlock()
+	pingServerTimeStamp = timestamp
+}
+
+func checkPingServerRspTimeStamp(timestamp int64) {
+	pingServerMtx.Lock()
+	defer pingServerMtx.Unlock()
+	if timestamp == pingServerTimeStamp && ((time.Now().UnixMilli() - timestamp) < rtkCommon.PingTimeoutMilli) {
+		if pingServerErrCnt > 0 {
+			pingServerErrCnt = 0
+			log.Printf("Update Ping Server err cnt reset!")
+		}
+		pingServerTimeStamp = 0
+	}
+}
+
+func checkPingServerTimeout() {
+	pingServerMtx.Lock()
+	defer pingServerMtx.Unlock()
+	if pingServerTimeStamp != 0 && (time.Now().UnixMilli()-pingServerTimeStamp) > rtkCommon.PingTimeoutMilli { // time out
+		pingServerErrCnt++
+		log.Printf("Update Ping Server err cnt:[%d]", pingServerErrCnt)
+		if pingServerErrCnt >= rtkCommon.PingErrMaxCnt {
+			pSafeConnect.Close()
+		}
+	}
 }

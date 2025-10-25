@@ -3,8 +3,10 @@ package login
 import (
 	"bufio"
 	"errors"
+	"io"
 	"log"
 	"net"
+	rtkCommon "rtk-cross-share/client/common"
 	rtkMisc "rtk-cross-share/misc"
 	"sync"
 	"time"
@@ -56,35 +58,25 @@ func (s *safeConnect) Write(b []byte) rtkMisc.CrossShareErr {
 	s.connectMutex.Lock()
 	defer s.connectMutex.Unlock()
 	if s.isAlive && s.connectLanServer != nil {
-		writeDone := make(chan rtkMisc.CrossShareErr, 1)
-		go func() {
-			
-			s.connectLanServer.SetWriteDeadline(time.Now().Add(5 * time.Second))
-			_, err := s.connectLanServer.Write(append(b, '\n'))
-			if err != nil {
-				log.Printf("[%s] LanServer Write err:%+v", rtkMisc.GetFuncInfo(), err)
-				writeDone <-  rtkMisc.ERR_NETWORK_C2S_WRITE
-				return
+		s.connectLanServer.SetWriteDeadline(time.Now().Add(rtkCommon.PingTimeout))
+		_, err := s.connectLanServer.Write(append(b, '\n'))
+		if err != nil {
+			log.Printf("[%s] LanServer Write err:%+v", rtkMisc.GetFuncInfo(), err)
+			if ne, ok := err.(net.Error); ok && ne.Timeout() {
+				return rtkMisc.ERR_NETWORK_C2S_WRITE_TIME_OUT
+			} else if errors.Is(err, io.EOF) {
+				return rtkMisc.ERR_NETWORK_C2S_WRITE_EOF
 			}
+			return rtkMisc.ERR_NETWORK_C2S_WRITE
+		}
 
-			err = bufio.NewWriter(s.connectLanServer).Flush()
-			if err != nil {
-				log.Printf("[%s] LanServer Flush Error:%+v ", rtkMisc.GetFuncInfo(), err.Error())
-				writeDone <- rtkMisc.ERR_NETWORK_C2S_FLUSH
-				return 
-			}
-			writeDone <- rtkMisc.SUCCESS
-    		}()
+		err = bufio.NewWriter(s.connectLanServer).Flush()
+		if err != nil {
+			log.Printf("[%s] LanServer Flush Error:%+v ", rtkMisc.GetFuncInfo(), err.Error())
+			return rtkMisc.ERR_NETWORK_C2S_FLUSH
+		}
 
-		
-		
-		select {
-		case err := <-writeDone:
-			return err
-		case <-time.After(5 * time.Second):
-			return rtkMisc.ERR_NETWORK_C2S_WRITE_TIME_OUT
-		}	
-		
+		return rtkMisc.SUCCESS
 	}
 
 	log.Printf("[%s] connectLanServer is not alive! Write failed!", rtkMisc.GetFuncInfo())
