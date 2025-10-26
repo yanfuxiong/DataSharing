@@ -324,9 +324,10 @@ func HandleReadInbandFromSocket(ctxMain context.Context, resultChan chan<- Event
 				continue
 			} else if msg.Command == COMM_FILE_TRANSFER_RECOVER { // Src
 				if interruptInfo, ok := msg.ExtData.(rtkCommon.ExtDataFilesTransferInterruptInfo); ok {
-					rtkFileDrop.SetFilesTransferDataInterrupt(id, interruptInfo.InterruptFileName, interruptInfo.TimeStamp, interruptInfo.InterruptFileOffSet, interruptInfo.InterruptFileTimeStamp, interruptInfo.InterruptErrCode)
+					rtkFileDrop.SetFilesTransferDataInterrupt(id, interruptInfo.InterruptSrcFileName, "", interruptInfo.TimeStamp, interruptInfo.InterruptFileOffSet, interruptInfo.InterruptFileTimeStamp, interruptInfo.InterruptErrCode)
 					rtkMisc.GoSafe(func() { recoverFileTransferProcessAsSrc(ctxMain, id, ipAddr) })
 				}
+				continue
 			} else if msg.Command == COMM_CB_TRANSFER_SRC_INTERRUPT {
 				log.Printf("[%s] (DST) Copy image operation was canceled by src !", rtkMisc.GetFuncInfo())
 				continue

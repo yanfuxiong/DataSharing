@@ -86,7 +86,7 @@ func cancelHostNode() {
 	}
 }
 
-func CancelFileTransNode() { // must trigger after file transfer goroutine cancel, and how ??
+func CancelFileTransNode() { //TODO: must trigger after file transfer goroutine cancel, and how to do??
 	nodeMutex.Lock()
 	defer nodeMutex.Unlock()
 	
@@ -101,13 +101,13 @@ func CancelFileTransNode() { // must trigger after file transfer goroutine cance
 
 func Run(ctx context.Context) {
 	defer cancelHostNode()
-	defer CancelStreamPool(true)
+	defer CancelAllStream(false)
 
 	if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformWindows { // only windows need watch network info
 		rtkMisc.GoSafe(func() { WatchNetworkInfo(ctx) })
 	}
 
-	buildListener()
+	buildListener(ctx)
 
 	ticker := time.NewTicker(rtkCommon.PingInterval)
 	defer ticker.Stop()
@@ -187,7 +187,7 @@ func setupNode(ip string, port int) error {
 	}
 
 	if rtkPlatform.IsHost() {
-		rtkUtils.WriteNodeID(tempNode.ID().String(), rtkPlatform.GetHostIDPath())
+		//rtkUtils.WriteNodeID(tempNode.ID().String(), rtkPlatform.GetHostIDPath())
 	}
 
 	rtkUtils.WriteNodeID(tempNode.ID().String(), rtkPlatform.GetIDPath())
@@ -238,7 +238,7 @@ func setupNode(ip string, port int) error {
 	return nil
 }
 
-func buildListener() {
+func buildListener(ctx context.Context) {
 	nodeMutex.RLock()
 	defer nodeMutex.RUnlock()
 	if node == nil {
@@ -246,7 +246,7 @@ func buildListener() {
 	}
 
 	node.SetStreamHandler(protocol.ID(rtkGlobal.ProtocolDirectID), func(stream network.Stream) {
-		onlineEvent(stream, true, nil)
+		onlineEvent(ctx, stream, true, nil)
 	})
 
 	node.SetStreamHandler(protocol.ID(rtkGlobal.ProtocolImageTransmission), func(stream network.Stream) {
@@ -438,7 +438,7 @@ func buildTalker(ctxMain context.Context, client rtkMisc.ClientInfo) rtkMisc.Cro
 		return rtkMisc.ERR_NETWORK_P2P_OPEN_STREAM
 	}
 
-	return onlineEvent(stream, false, &client)
+	return onlineEvent(ctxMain, stream, false, &client)
 }
 
 func BuildFmtTypeTalker(ctx context.Context, id string, fmtType rtkCommon.TransFmtType) rtkMisc.CrossShareErr {
@@ -587,7 +587,7 @@ func ReadSocket(id string, buffer []byte) (int, rtkMisc.CrossShareErr) {
 	return n, rtkMisc.SUCCESS
 }
 
-func onlineEvent(stream network.Stream, isFromListener bool, clientInfo *rtkMisc.ClientInfo) rtkMisc.CrossShareErr {
+func onlineEvent(ctx context.Context, stream network.Stream, isFromListener bool, clientInfo *rtkMisc.ClientInfo) rtkMisc.CrossShareErr {
 	id := stream.Conn().RemotePeer().String()
 	mutex := getMutex(id)
 	mutex.Lock()
@@ -614,7 +614,7 @@ func onlineEvent(stream network.Stream, isFromListener bool, clientInfo *rtkMisc
 		srcPortType = clientInfo.SourcePortType
 	}
 
-	updateStream(id, stream)
+	updateStream(ctx, id, stream)
 	log.Println("****************************************************************************************")
 	if isFromListener {
 		log.Println("Connected from ID:", id, " IP:", ipAddr)
@@ -712,6 +712,7 @@ func noticeToPeer(s network.Stream, ver, fileTransId, udpPort *string) rtkMisc.C
 	read := bufio.NewReader(s)
 	err = json.NewDecoder(read).Decode(&reqMsg)
 	if err != nil {
+		s.SetReadDeadline(time.Time{})
 		log.Printf("[%s] ID:[%s] IP:[%s] Stream json.NewDecoder.Decode err:%+v", rtkMisc.GetFuncInfo(), id, ipAddr, err)
 		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 			*ver = rtkGlobal.ClientDefaultVersion

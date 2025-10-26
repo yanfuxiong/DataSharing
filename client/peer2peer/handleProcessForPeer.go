@@ -16,9 +16,9 @@ func init() {
 	rtkFileDrop.SetSendFileTransferCancelMsgToPeerCallback(SendFileTransCancelByGuiMsgToPeer)
 }
 
-func StartProcessForPeer(id, ipAddr string) func(source rtkCommon.CancelBusinessSource) {
-	ctx, cancel := rtkUtils.WithCancelSource(context.Background())
-	rtkMisc.GoSafe(func() { ProcessEventsForPeer(id, ipAddr, ctx) })
+func StartProcessForPeer(ctx context.Context, id, ipAddr string) func(source rtkCommon.CancelBusinessSource) {
+	sonCtx, cancel := rtkUtils.WithCancelSource(ctx)
+	rtkMisc.GoSafe(func() { ProcessEventsForPeer(sonCtx, id, ipAddr) })
 	log.Printf("[%s][%s][%s] ProcessEventsForPeer is Start !", rtkMisc.GetFuncInfo(), id, ipAddr)
 	return cancel
 }
