@@ -61,7 +61,7 @@ func sendCmdMsgToPeer(id string, cmd CommandType, fmtType rtkCommon.TransFmtType
 
 func sendFileTransRecoverMsgToPeer(id, fileName string, timestamp uint64, offset, interrupTimeStamp int64, err rtkMisc.CrossShareErr) rtkMisc.CrossShareErr {
 	extData := rtkCommon.ExtDataFilesTransferInterruptInfo{
-		InterruptFileName:      fileName,
+		InterruptSrcFileName:   fileName,
 		InterruptFileOffSet:    offset,
 		TimeStamp:              timestamp,
 		InterruptFileTimeStamp: interrupTimeStamp,

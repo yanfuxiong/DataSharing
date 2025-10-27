@@ -32,13 +32,12 @@ type streamInfo struct {
 	transFileState TransFileStateType
 
 	cancelFn func(source rtkCommon.CancelBusinessSource)
-
-	sFileDataQueueMap map[uint64]network.Stream
 }
 
 var (
-	streamPoolMap   = make(map[string](streamInfo))
-	streamPoolMutex sync.RWMutex
+	streamPoolMap         = make(map[string](streamInfo))
+	fileDataStreamItemMap = make(map[string]map[uint64]network.Stream)
+	streamPoolMutex       sync.RWMutex
 )
 
 func init() {
@@ -113,6 +112,8 @@ func updateStream(ctx context.Context, id string, stream network.Stream) {
 		transFileState: TRANS_FILE_NOT_PREFORMED,
 		cancelFn:       callbackStartProcessForPeer(ctx, id, ipAddr), // StartProcessForPeer
 	}
+
+	fileDataStreamItemMap[id] = make(map[uint64]network.Stream)
 	log.Printf("updateStream ID:[%s] IP:[%s] streamID:[%s]", id, ipAddr, stream.ID())
 }
 
@@ -160,8 +161,12 @@ func addFileDropItemStreamAsDst(id string, timestamp uint64, stream network.Stre
 func addFileDropItemStream(id string, timestamp uint64, stream network.Stream, isDst bool) {
 	streamPoolMutex.Lock()
 	defer streamPoolMutex.Unlock()
+	if fileStreamMap, ok := fileDataStreamItemMap[id]; ok {
+		fileStreamMap[timestamp] = stream
+		fileDataStreamItemMap[id] = fileStreamMap
+	}
+
 	if sInfo, ok := streamPoolMap[id]; ok {
-		sInfo.sFileDataQueueMap[timestamp] = stream
 		if isDst {
 			sInfo.transFileState = TRANS_FILE_IN_PROGRESS_DST
 		} else {
@@ -170,14 +175,14 @@ func addFileDropItemStream(id string, timestamp uint64, stream network.Stream, i
 		streamPoolMap[id] = sInfo
 	}
 
-	log.Printf("[%s] ID:[%s] add file drop Item stream success! timestamp:%d ID:[%s]", rtkMisc.GetFuncInfo(), id, timestamp, stream.ID())
+	log.Printf("[%s] ID:[%s] add file drop Item stream success! timestamp:%d id:[%s]", rtkMisc.GetFuncInfo(), id, timestamp, stream.ID())
 }
 
 func GetFileDropItemStream(id string, timestamp uint64) (network.Stream, bool) {
 	streamPoolMutex.RLock()
 	defer streamPoolMutex.RUnlock()
-	if sInfo, ok := streamPoolMap[id]; ok {
-		itemStream, bOk := sInfo.sFileDataQueueMap[timestamp]
+	if fileStreamMap, ok := fileDataStreamItemMap[id]; ok {
+		itemStream, bOk := fileStreamMap[timestamp]
 		return itemStream, bOk
 	}
 
@@ -187,58 +192,63 @@ func GetFileDropItemStream(id string, timestamp uint64) (network.Stream, bool) {
 func CloseFileDropItemStream(id string, timestamp uint64) {
 	streamPoolMutex.Lock()
 	defer streamPoolMutex.Unlock()
-	if sInfo, ok := streamPoolMap[id]; ok {
-		if itemStream, bOk := sInfo.sFileDataQueueMap[timestamp]; bOk {
+	if fileStreamMap, ok := fileDataStreamItemMap[id]; ok {
+		if itemStream, bOk := fileStreamMap[timestamp]; bOk {
 			itemStream.Close()
-			delete(sInfo.sFileDataQueueMap, timestamp)
-			nCount := len(sInfo.sFileDataQueueMap)
+			delete(fileStreamMap, timestamp)
+			nCount := len(fileStreamMap)
 			if nCount == 0 {
-				sInfo.transFileState = TRANS_FILE_NOT_PREFORMED
-				log.Printf("[%s] ID:[%s] IP:[%s] close file drop Item stream success! timestamp:%d ID:[%s], all file drop Item stream done!", rtkMisc.GetFuncInfo(), id, sInfo.ipAddr, timestamp, itemStream.ID())
+				if sInfo, ok := streamPoolMap[id]; ok {
+					sInfo.transFileState = TRANS_FILE_NOT_PREFORMED
+				}
+				log.Printf("[%s] ID:[%s] close file drop Item stream success! timestamp:[%d] id:[%s], all file drop Item stream done!", rtkMisc.GetFuncInfo(), id, timestamp, itemStream.ID())
 			} else {
-				log.Printf("[%s] ID:[%s] IP:[%s] close file drop Item stream success! timestamp:%d ID:[%s], still %d records left!", rtkMisc.GetFuncInfo(), id, sInfo.ipAddr, timestamp, itemStream.ID(), nCount)
+				log.Printf("[%s] ID:[%s] close file drop Item stream success! timestamp:[%d] id:[%s], still %d records left!", rtkMisc.GetFuncInfo(), id, timestamp, itemStream.ID(), nCount)
 			}
-			streamPoolMap[id] = sInfo
+
+			fileDataStreamItemMap[id] = fileStreamMap
 			return
 		} else {
-			log.Printf("[%s] ID:[%s] Unknown file drop Item stream, timestamp:%d", rtkMisc.GetFuncInfo(), id, timestamp)
+			log.Printf("[%s] ID:[%s] Unknown file drop Item stream, timestamp:[%d]", rtkMisc.GetFuncInfo(), id, timestamp)
 			return
 		}
 	}
-	log.Printf("[%s] ID:[%s] Unknown streamPoolMap info, timestamp:%d", rtkMisc.GetFuncInfo(), id)
+	log.Printf("[%s] ID:[%s] Unknown fileDataStreamItemMap info, timestamp:%d", rtkMisc.GetFuncInfo(), id, timestamp)
 }
 
 func ResetFileDropItemStream(id string, timestamp uint64) {
 	streamPoolMutex.Lock()
 	defer streamPoolMutex.Unlock()
-	if sInfo, ok := streamPoolMap[id]; ok {
-		if itemStream, bOk := sInfo.sFileDataQueueMap[timestamp]; bOk {
+	if fileStreamMap, ok := fileDataStreamItemMap[id]; ok {
+		if itemStream, bOk := fileStreamMap[timestamp]; bOk {
 			itemStream.Reset()
-			delete(sInfo.sFileDataQueueMap, timestamp)
-			log.Printf("[%s] ID:[%s] IP:[%s] Reset file drop Item stream success! timestamp:%d ID:[%s]!", rtkMisc.GetFuncInfo(), id, sInfo.ipAddr, timestamp, itemStream.ID())
-			streamPoolMap[id] = sInfo
+			delete(fileStreamMap, timestamp)
+			log.Printf("[%s] ID:[%s] Reset file drop Item stream success! timestamp:%d id:[%s]!", rtkMisc.GetFuncInfo(), id, timestamp, itemStream.ID())
+			fileDataStreamItemMap[id] = fileStreamMap
 			return
 		} else {
 			log.Printf("[%s] ID:[%s] Unknown file drop Item stream, timestamp:%d", rtkMisc.GetFuncInfo(), id, timestamp)
 			return
 		}
 	}
-	log.Printf("[%s] ID:[%s] Unknown streamPoolMap info, timestamp:%d", rtkMisc.GetFuncInfo(), id)
+	log.Printf("[%s] ID:[%s] Unknown fileDataStreamItemMap info, timestamp:%d", rtkMisc.GetFuncInfo(), id, timestamp)
 }
 
-func ResetAllFileDropStream(id string) {
+func CloseAllFileDropStream(id string) {
 	streamPoolMutex.Lock()
 	defer streamPoolMutex.Unlock()
-	if sInfo, ok := streamPoolMap[id]; ok {
-		for timestamp, itemStream := range sInfo.sFileDataQueueMap {
-			itemStream.Reset()
-			delete(sInfo.sFileDataQueueMap, timestamp)
-			log.Printf("[%s] ID:[%s] IP:[%s] Reset file drop Item stream success! timestamp:%d ID:[%s]!", rtkMisc.GetFuncInfo(), id, sInfo.ipAddr, timestamp, itemStream.ID())
+	if fileStreamMap, ok := fileDataStreamItemMap[id]; ok {
+
+		for timestamp, itemStream := range fileStreamMap {
+			itemStream.Close()
+			delete(fileStreamMap, timestamp)
+			log.Printf("[%s] ID:[%s] close file drop Item stream success! timestamp:[%d] id:[%s]!", rtkMisc.GetFuncInfo(), id, timestamp, itemStream.ID())
 		}
-		streamPoolMap[id] = sInfo
+
+		fileDataStreamItemMap[id] = fileStreamMap
 		return
 	}
-	log.Printf("[%s] ID:[%s] Unknown streamPoolMap info, timestamp:%d", rtkMisc.GetFuncInfo(), id)
+	log.Printf("[%s] ID:[%s] Unknown fileDataStreamItemMap info", rtkMisc.GetFuncInfo(), id)
 }
 
 func updateFmtTypeStreamInternal(stream network.Stream, fmtType rtkCommon.TransFmtType, isDst bool) {
@@ -385,7 +395,7 @@ func closeStream(id string, isFromPeer bool) {
 				sInfo.cancelFn(rtkCommon.PeerDisconnectCancel)
 				log.Printf("ID:[%s] IP:[%s] ProcessEventsForPeer is Cancel by peer disconnect! ", id, sInfo.ipAddr)
 			} else {
-				sInfo.cancelFn(rtkCommon.TcpNetworkCancel)
+				sInfo.cancelFn(rtkCommon.TcpNetworkCancel) // TODO: check it
 				log.Printf("ID:[%s] IP:[%s] ProcessEventsForPeer is Cancel by stream err! ", id, sInfo.ipAddr)
 			}
 

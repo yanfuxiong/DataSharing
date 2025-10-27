@@ -53,7 +53,8 @@ func updateDragFileReqData(id string) {
 		TotalSize:              dragTotalSize,
 		DstFilePath:            "",
 		Cmd:                    rtkCommon.FILE_DROP_REQUEST,
-		InterruptFileName:      "",
+		InterruptSrcFileName:   "",
+		InterruptDstFileName:   "",
 		InterruptFileOffSet:    0,
 		InterruptFileTimeStamp: 0,
 	}

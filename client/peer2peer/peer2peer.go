@@ -807,7 +807,7 @@ func isValidState(curState StateType, curCommand CommandType, nextState StateTyp
 	return ret
 }
 
-func ProcessEventsForPeer(id, ipAddr string, ctx context.Context) {
+func ProcessEventsForPeer(ctx context.Context, id, ipAddr string) {
 	curState := STATE_INIT
 	curCommand := COMM_INIT
 
@@ -830,8 +830,8 @@ func ProcessEventsForPeer(id, ipAddr string, ctx context.Context) {
 		}
 	}
 
-	value, _ := recoverFileTransferChanMap.LoadOrStore(id, make(chan struct{}))
-	fileTransRecoverChan := value.(chan struct{})
+	value, _ := recoverFileTransferInfoMap.LoadOrStore(id, recoverFileTransferInfo{dstTriggerFlag: make(chan struct{}), srcTimer: nil})
+	fileTransRecoverChan := value.(recoverFileTransferInfo).dstTriggerFlag
 
 	for {
 		select {
@@ -840,9 +840,9 @@ func ProcessEventsForPeer(id, ipAddr string, ctx context.Context) {
 			if rtkClipboard.GetLastClipboardData().SourceID == id {
 				rtkClipboard.ResetLastClipboardData()
 			}
-			if rtkFileDrop.GetFilesTransferDataCacheCount(id) == 0 {
+			/*if rtkFileDrop.GetFilesTransferDataCacheCount(id) == 0 {
 				rtkConnection.CancelFileTransNode()
-			}
+			}*/
 			return
 		case event, ok := <-eventResultClipboard:
 			if !ok {

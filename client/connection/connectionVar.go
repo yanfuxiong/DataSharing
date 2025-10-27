@@ -1,6 +1,7 @@
 package connection
 
 import (
+	"context"
 	rtkCommon "rtk-cross-share/client/common"
 	"sync"
 	"time"
@@ -21,7 +22,7 @@ type FileDropItemStreamInfo struct {
 }
 
 type (
-	callbackStartProcessForPeerFunc     func(id, ipAddr string) func(source rtkCommon.CancelBusinessSource)
+	callbackStartProcessForPeerFunc     func(ctx context.Context, id, ipAddr string) func(source rtkCommon.CancelBusinessSource)
 	callbackSendDisconnectMsgToPeerFunc func(id string)
 )
 

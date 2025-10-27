@@ -203,17 +203,19 @@ func IsFileTransInProgress(id string, timestamp uint64) bool {
 	return false
 }
 
-func SetFilesTransferDataInterrupt(id, fileName string, timestamp uint64, offset, timeStampSec int64, err rtkMisc.CrossShareErr) {
+func SetFilesTransferDataInterrupt(id, srcFileName, dstFileName string, timestamp uint64, offset, timeStampSec int64, err rtkMisc.CrossShareErr) {
 	fileDropDataMutex.Lock()
 	defer fileDropDataMutex.Unlock()
 	if cacheData, ok := filesDataCacheMap[id]; ok {
-		for _, fileDataItem := range cacheData.filesTransferDataQueue {
+		for i, fileDataItem := range cacheData.filesTransferDataQueue {
 			if fileDataItem.TimeStamp == timestamp {
-				fileDataItem.InterruptFileName = fileName
-				fileDataItem.InterruptFileOffSet = offset
-				fileDataItem.InterruptFileTimeStamp = timeStampSec
-				fileDataItem.InterruptLastErrCode = err
-				log.Printf("[%s] ID:[%s] timestamp:[%d] Set interrupt info [%s] [%d] success", rtkMisc.GetFuncInfo(), id, timestamp, fileName, offset)
+				cacheData.filesTransferDataQueue[i].InterruptSrcFileName = srcFileName
+				cacheData.filesTransferDataQueue[i].InterruptDstFileName = dstFileName
+				cacheData.filesTransferDataQueue[i].InterruptFileOffSet = offset
+				cacheData.filesTransferDataQueue[i].InterruptFileTimeStamp = timeStampSec
+				cacheData.filesTransferDataQueue[i].InterruptLastErrCode = err
+				filesDataCacheMap[id] = cacheData
+				log.Printf("[%s] ID:[%s] timestamp:[%d] Set interrupt info srcfileName:[%s] offset:[%d] success!", rtkMisc.GetFuncInfo(), id, timestamp, srcFileName, offset)
 			}
 		}
 	}

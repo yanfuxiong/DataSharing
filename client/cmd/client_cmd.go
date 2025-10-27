@@ -36,7 +36,7 @@ func init() {
 
 	rtkConnection.SetStartProcessForPeerCallback(rtkPeer2Peer.StartProcessForPeer)
 	rtkConnection.SetSendDisconnectMsgToPeerCallback(rtkPeer2Peer.SendDisconnectMsgToPeer)
-	rtkLogin.SetDisconnectAllClientCallback(func() { rtkConnection.CancelStreamPool(false) })
+	rtkLogin.SetDisconnectAllClientCallback(func() { rtkConnection.CancelAllStream(true) })
 
 	rtkLogin.SetCancelAllBusinessCallback(func() {
 		clientVerInvalidFlagChan <- struct{}{}
