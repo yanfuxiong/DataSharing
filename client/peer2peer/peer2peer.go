@@ -177,7 +177,7 @@ func processInbandRead(buffer []byte, len int, msg *Peer2PeerMessage) rtkMisc.Cr
 				}
 				msg.ExtData = resultCode
 			}
-		} else if msg.Command == COMM_FILE_TRANSFER_RECOVER {
+		} else if msg.Command == COMM_FILE_TRANSFER_RECOVER_REQ {
 			var extData rtkCommon.ExtDataFilesTransferInterruptInfo
 			err = json.Unmarshal(temp.ExtData, &extData)
 			if err != nil {
@@ -185,6 +185,14 @@ func processInbandRead(buffer []byte, len int, msg *Peer2PeerMessage) rtkMisc.Cr
 				return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
 			}
 			msg.ExtData = extData
+		} else if msg.Command == COMM_FILE_TRANSFER_RECOVER_RSP {
+			var resultCode rtkMisc.CrossShareErr
+			err = json.Unmarshal(temp.ExtData, &resultCode)
+			if err != nil {
+				log.Printf("[%s] Err: decode ExtDataFile:%+v", rtkMisc.GetFuncInfo(), err)
+				return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
+			}
+			msg.ExtData = resultCode
 		} else {
 			var extDataFile rtkCommon.ExtDataFile
 			err = json.Unmarshal(temp.ExtData, &extDataFile)
@@ -322,10 +330,23 @@ func HandleReadInbandFromSocket(ctxMain context.Context, resultChan chan<- Event
 					}
 				}
 				continue
-			} else if msg.Command == COMM_FILE_TRANSFER_RECOVER { // Src
+			} else if msg.Command == COMM_FILE_TRANSFER_RECOVER_REQ { // Src
 				if interruptInfo, ok := msg.ExtData.(rtkCommon.ExtDataFilesTransferInterruptInfo); ok {
-					rtkFileDrop.SetFilesTransferDataInterrupt(id, interruptInfo.InterruptSrcFileName, "", interruptInfo.TimeStamp, interruptInfo.InterruptFileOffSet, interruptInfo.InterruptFileTimeStamp, interruptInfo.InterruptErrCode)
-					rtkMisc.GoSafe(func() { recoverFileTransferProcessAsSrc(ctxMain, id, ipAddr) })
+					reqErrCode := rtkMisc.SUCCESS
+					if !rtkFileDrop.SetFilesTransferDataInterrupt(id, interruptInfo.InterruptSrcFileName, "", interruptInfo.TimeStamp, interruptInfo.InterruptFileOffSet, interruptInfo.InterruptFileTimeStamp, interruptInfo.InterruptErrCode) {
+						reqErrCode = rtkMisc.ERR_BIZ_FT_INTERRUPT_INFO_INVALID
+					}
+					rtkMisc.GoSafe(func() { recoverFileTransferProcessAsSrc(ctxMain, id, ipAddr, reqErrCode) })
+				}
+				continue
+			} else if msg.Command == COMM_FILE_TRANSFER_RECOVER_RSP { // Dst
+				if recoverRspCode, ok := msg.ExtData.(rtkMisc.CrossShareErr); ok {
+					if recoverRspCode == rtkMisc.SUCCESS {
+						rtkMisc.GoSafe(func() { recoverFileTransferProcessAsDst(ctxMain, id, ipAddr) })
+					} else {
+						log.Printf("[%s](DST) request recover file transfer failed, errCode:[%d]", rtkMisc.GetFuncInfo(), recoverRspCode)
+						clearCacheFileDataList(id, ipAddr, recoverRspCode)
+					}
 				}
 				continue
 			} else if msg.Command == COMM_CB_TRANSFER_SRC_INTERRUPT {
@@ -830,9 +851,6 @@ func ProcessEventsForPeer(ctx context.Context, id, ipAddr string) {
 		}
 	}
 
-	value, _ := recoverFileTransferInfoMap.LoadOrStore(id, recoverFileTransferInfo{dstTriggerFlag: make(chan struct{}), srcTimer: nil})
-	fileTransRecoverChan := value.(recoverFileTransferInfo).dstTriggerFlag
-
 	for {
 		select {
 		case <-ctx.Done():
@@ -862,8 +880,6 @@ func ProcessEventsForPeer(ctx context.Context, id, ipAddr string) {
 			}
 			log.Printf("[ProcessEvent Socket][%s] EventResult fmt=%s, state=%s, cmd=%s", ipAddr, event.Cmd.FmtType, event.Cmd.State, event.Cmd.Command)
 			handleEvent(event)
-		case <-fileTransRecoverChan:
-			rtkMisc.GoSafe(func() { recoverFileTransferProcessAsDst(ctx, id, ipAddr) })
 		}
 	}
 }

@@ -59,7 +59,7 @@ func sendCmdMsgToPeer(id string, cmd CommandType, fmtType rtkCommon.TransFmtType
 	writeToSocket(&msg, id)
 }
 
-func sendFileTransRecoverMsgToPeer(id, fileName string, timestamp uint64, offset, interrupTimeStamp int64, err rtkMisc.CrossShareErr) rtkMisc.CrossShareErr {
+func requestFileTransRecoverMsgToSrc(id, fileName string, timestamp uint64, offset, interrupTimeStamp int64, err rtkMisc.CrossShareErr) rtkMisc.CrossShareErr {
 	extData := rtkCommon.ExtDataFilesTransferInterruptInfo{
 		InterruptSrcFileName:   fileName,
 		InterruptFileOffSet:    offset,
@@ -72,7 +72,18 @@ func sendFileTransRecoverMsgToPeer(id, fileName string, timestamp uint64, offset
 	msg.SourcePlatform = rtkGlobal.NodeInfo.Platform
 	msg.FmtType = rtkCommon.FILE_DROP
 	msg.TimeStamp = uint64(time.Now().UnixMilli())
-	msg.Command = COMM_FILE_TRANSFER_RECOVER
+	msg.Command = COMM_FILE_TRANSFER_RECOVER_REQ
 	msg.ExtData = extData
+	return writeToSocket(&msg, id)
+}
+
+func responseFileTransRecoverMsgToDst(id string, errCode rtkMisc.CrossShareErr) rtkMisc.CrossShareErr {
+	var msg Peer2PeerMessage
+	msg.SourceID = rtkGlobal.NodeInfo.ID
+	msg.SourcePlatform = rtkGlobal.NodeInfo.Platform
+	msg.FmtType = rtkCommon.FILE_DROP
+	msg.TimeStamp = uint64(time.Now().UnixMilli())
+	msg.Command = COMM_FILE_TRANSFER_RECOVER_RSP
+	msg.ExtData = errCode
 	return writeToSocket(&msg, id)
 }

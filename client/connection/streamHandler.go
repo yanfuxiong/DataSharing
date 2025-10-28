@@ -238,7 +238,6 @@ func CloseAllFileDropStream(id string) {
 	streamPoolMutex.Lock()
 	defer streamPoolMutex.Unlock()
 	if fileStreamMap, ok := fileDataStreamItemMap[id]; ok {
-
 		for timestamp, itemStream := range fileStreamMap {
 			itemStream.Close()
 			delete(fileStreamMap, timestamp)
