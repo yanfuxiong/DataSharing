@@ -86,9 +86,8 @@ type ExtDataFilesTransferInterrupt struct {
 }
 
 type ExtDataFilesTransferInterruptInfo struct {
-	TimeStamp              uint64
-	InterruptSrcFileName   string // Src fileName
-	InterruptFileOffSet    int64
-	InterruptFileTimeStamp int64
-	InterruptErrCode       rtkMisc.CrossShareErr
+	TimeStamp            uint64
+	InterruptSrcFileName string // Src fileName
+	InterruptFileOffSet  int64
+	InterruptErrCode     rtkMisc.CrossShareErr
 }

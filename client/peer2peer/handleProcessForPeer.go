@@ -28,7 +28,7 @@ func SendDisconnectMsgToPeer(id string) {
 }
 
 func SendFileTransCancelByGuiMsgToPeer(id string, fileTransDataId uint64) {
-	log.Printf("[%s] ID:[%s] send cancel filesCachedata msg, id:%d", rtkMisc.GetFuncInfo(), id, fileTransDataId)
+	log.Printf("[%s] send cancel files transfer msg to ID:[%s], id:%d", rtkMisc.GetFuncInfo(), id, fileTransDataId)
 	sendFileTransInterruptMsgToPeer(id, COMM_FILE_TRANSFER_DST_INTERRUPT, rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL_GUI, fileTransDataId)
 	rtkConnection.CloseFileDropItemStream(id, fileTransDataId)
 }
@@ -59,13 +59,12 @@ func sendCmdMsgToPeer(id string, cmd CommandType, fmtType rtkCommon.TransFmtType
 	writeToSocket(&msg, id)
 }
 
-func requestFileTransRecoverMsgToSrc(id, fileName string, timestamp uint64, offset, interrupTimeStamp int64, err rtkMisc.CrossShareErr) rtkMisc.CrossShareErr {
+func requestFileTransRecoverMsgToSrc(id, srcFileName string, timestamp uint64, offset int64, errCode rtkMisc.CrossShareErr) rtkMisc.CrossShareErr {
 	extData := rtkCommon.ExtDataFilesTransferInterruptInfo{
-		InterruptSrcFileName:   fileName,
-		InterruptFileOffSet:    offset,
-		TimeStamp:              timestamp,
-		InterruptFileTimeStamp: interrupTimeStamp,
-		InterruptErrCode:       err,
+		InterruptSrcFileName: srcFileName,
+		InterruptFileOffSet:  offset,
+		TimeStamp:            timestamp,
+		InterruptErrCode:     errCode,
 	}
 	var msg Peer2PeerMessage
 	msg.SourceID = rtkGlobal.NodeInfo.ID

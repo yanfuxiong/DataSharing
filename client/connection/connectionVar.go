@@ -3,6 +3,7 @@ package connection
 import (
 	"context"
 	rtkCommon "rtk-cross-share/client/common"
+	rtkUtils "rtk-cross-share/client/utils"
 	"sync"
 	"time"
 
@@ -32,6 +33,7 @@ var (
 	nodeMutex     sync.RWMutex
 
 	pingServer *ping.PingService
+	cg         *rtkUtils.CondGroup
 
 	// mutexMap by ID
 	mutexMap sync.Map
@@ -50,4 +52,16 @@ func SetStartProcessForPeerCallback(cb callbackStartProcessForPeerFunc) {
 
 func SetSendDisconnectMsgToPeerCallback(cb callbackSendDisconnectMsgToPeerFunc) {
 	callbackSendDisconnectMsgToPeer = cb
+}
+
+func CondGroupAdd() {
+	cg.Add(1)
+}
+
+func CondGroupDone() {
+	cg.Done()
+}
+
+func wait() {
+	cg.Wait()
 }

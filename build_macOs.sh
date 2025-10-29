@@ -17,7 +17,7 @@ arm="arm64"
 x86_64="x86_64"
 a="a"
 h="h"
-fileName="libcross_share"
+fileName="libcross_share_macOs"
 mainGo="./main.go"
 
 export GO111MODULE=on

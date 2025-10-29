@@ -2,12 +2,14 @@ package connection
 
 import (
 	"context"
+	"errors"
 	"log"
 	rtkCommon "rtk-cross-share/client/common"
 	rtkGlobal "rtk-cross-share/client/global"
 	rtkPlatform "rtk-cross-share/client/platform"
 	rtkUtils "rtk-cross-share/client/utils"
 	rtkMisc "rtk-cross-share/misc"
+	"strings"
 	"sync"
 	"time"
 
@@ -42,6 +44,8 @@ var (
 
 func init() {
 	rtkPlatform.SetGetFilesTransCodeCallback(GetFileTransErrCode)
+
+	cg = rtkUtils.NewCondGroup()
 }
 
 func CheckAllStreamAlive(ctx context.Context) {
@@ -52,7 +56,8 @@ func CheckAllStreamAlive(ctx context.Context) {
 
 		pingErrCnt := updateStreamPingErrCntIncrease(key)
 		if pingErrCnt >= rtkCommon.PingErrMaxCnt {
-			offlineEvent(sInfo.s, false)
+			//offlineEvent(sInfo.s, false)
+			closeStream(key, false)
 		}
 	}
 
@@ -194,6 +199,7 @@ func CloseFileDropItemStream(id string, timestamp uint64) {
 	defer streamPoolMutex.Unlock()
 	if fileStreamMap, ok := fileDataStreamItemMap[id]; ok {
 		if itemStream, bOk := fileStreamMap[timestamp]; bOk {
+			itemStream.CloseRead()
 			itemStream.Close()
 			delete(fileStreamMap, timestamp)
 			nCount := len(fileStreamMap)
@@ -216,22 +222,24 @@ func CloseFileDropItemStream(id string, timestamp uint64) {
 	log.Printf("[%s] ID:[%s] Unknown fileDataStreamItemMap info, timestamp:%d", rtkMisc.GetFuncInfo(), id, timestamp)
 }
 
-func ResetFileDropItemStream(id string, timestamp uint64) {
-	streamPoolMutex.Lock()
-	defer streamPoolMutex.Unlock()
-	if fileStreamMap, ok := fileDataStreamItemMap[id]; ok {
-		if itemStream, bOk := fileStreamMap[timestamp]; bOk {
-			itemStream.Reset()
-			delete(fileStreamMap, timestamp)
-			log.Printf("[%s] ID:[%s] Reset file drop Item stream success! timestamp:%d id:[%s]!", rtkMisc.GetFuncInfo(), id, timestamp, itemStream.ID())
-			fileDataStreamItemMap[id] = fileStreamMap
-			return
-		} else {
-			log.Printf("[%s] ID:[%s] Unknown file drop Item stream, timestamp:%d", rtkMisc.GetFuncInfo(), id, timestamp)
-			return
-		}
+func IsQuicEOF(err error) bool {
+	if err == nil {
+		return false
 	}
-	log.Printf("[%s] ID:[%s] Unknown fileDataStreamItemMap info, timestamp:%d", rtkMisc.GetFuncInfo(), id, timestamp)
+
+	var serr *network.StreamError
+	if !errors.As(err, &serr) {
+		return false
+	}
+	if !serr.Remote || serr.ErrorCode != 0 {
+		return false
+	}
+
+	if !strings.Contains(serr.TransportError.Error(), "canceled by remote") {
+		return false
+	}
+
+	return strings.Contains(err.Error(), "reset")
 }
 
 func CloseAllFileDropStream(id string) {
@@ -239,6 +247,7 @@ func CloseAllFileDropStream(id string) {
 	defer streamPoolMutex.Unlock()
 	if fileStreamMap, ok := fileDataStreamItemMap[id]; ok {
 		for timestamp, itemStream := range fileStreamMap {
+			itemStream.CloseRead()
 			itemStream.Close()
 			delete(fileStreamMap, timestamp)
 			log.Printf("[%s] ID:[%s] close file drop Item stream success! timestamp:[%d] id:[%s]!", rtkMisc.GetFuncInfo(), id, timestamp, itemStream.ID())
@@ -363,6 +372,35 @@ func HandleFmtTypeStreamReady(id string, fmtType rtkCommon.TransFmtType) {
 	<-noticeChan.(chan struct{})
 }
 
+func clearFmtTypeStreamReadyFlag(id, fmtType string) (nCount int) {
+	key := id + fmtType
+	nCount = int(0)
+	if noticeChan, ok := noticeFmtTypeSteamReadyChanMap.Load(key); ok {
+		flagChan := noticeChan.(chan struct{})
+		for {
+			select {
+			case <-flagChan:
+				nCount++
+			default:
+				return
+			}
+		}
+	}
+	return
+}
+
+func ClearFmtTypeStreamReadyFlag(id string) {
+	nFlagCount := 0
+	fmtList := []string{string(rtkCommon.XCLIP_CB), string(rtkCommon.FILE_DROP)}
+	for _, key := range fmtList {
+		nFlagCount += clearFmtTypeStreamReadyFlag(id, key)
+	}
+
+	if nFlagCount > 0 {
+		log.Printf("ID[%s] ClearFmtTypeStreamReadyFlag count:[%d]", id, nFlagCount)
+	}
+}
+
 func AddStream(id string, pStream network.Stream) {
 	streamPoolMutex.Lock()
 	defer streamPoolMutex.Unlock()
@@ -395,7 +433,7 @@ func closeStream(id string, isFromPeer bool) {
 				log.Printf("ID:[%s] IP:[%s] ProcessEventsForPeer is Cancel by peer disconnect! ", id, sInfo.ipAddr)
 			} else {
 				sInfo.cancelFn(rtkCommon.TcpNetworkCancel) // TODO: check it
-				log.Printf("ID:[%s] IP:[%s] ProcessEventsForPeer is Cancel by stream err! ", id, sInfo.ipAddr)
+				log.Printf("ID:[%s] IP:[%s] ProcessEventsForPeer is Cancel by TCP network err! ", id, sInfo.ipAddr)
 			}
 
 			sInfo.cancelFn = nil
@@ -405,6 +443,17 @@ func closeStream(id string, isFromPeer bool) {
 		sInfo.s.Close()
 	} else {
 		log.Printf("[%s] Err: Unknown stream of id:%s", rtkMisc.GetFuncInfo(), id)
+	}
+
+	if fileStreamMap, ok := fileDataStreamItemMap[id]; ok {
+		for timestamp, itemStream := range fileStreamMap {
+			itemStream.CloseRead()
+			itemStream.Close()
+			delete(fileStreamMap, timestamp)
+			log.Printf("[%s] ID:[%s] close file drop Item stream success! timestamp:[%d] id:[%s]!", rtkMisc.GetFuncInfo(), id, timestamp, itemStream.ID())
+		}
+
+		fileDataStreamItemMap[id] = fileStreamMap
 	}
 }
 
@@ -496,7 +545,7 @@ func CancelAllStream(isFromLanServerCancel bool) {
 		if sInfo.cancelFn != nil { // StopProcessForPeer
 			if isFromLanServerCancel {
 				sInfo.cancelFn(rtkCommon.LanServerBusinessCancel)
-				sInfo.s.Reset() // trigger offlineEvent immediately
+				sInfo.s.Close() // trigger offlineEvent immediately
 				log.Printf("[%s] ID:[%s] IP:[%s] ProcessEventsForPeer is Cancel by LanServer disconnect! ", rtkMisc.GetFuncInfo(), id, sInfo.ipAddr)
 			} else {
 				log.Printf("[%s] ID:[%s] IP:[%s] ProcessEventsForPeer is Cancel by upper level business! ", rtkMisc.GetFuncInfo(), id, sInfo.ipAddr)

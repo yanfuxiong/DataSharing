@@ -46,11 +46,11 @@ type FileDropData struct {
 	Cmd         rtkCommon.FileDropCmd
 
 	// Trans Info
-	InterruptSrcFileName   string // Src fileName
-	InterruptDstFileName   string // Dst fileName
-	InterruptFileOffSet    int64
-	InterruptFileTimeStamp int64 // Seconds
-	InterruptLastErrCode   rtkMisc.CrossShareErr
+	InterruptSrcFileName string // Src fileName
+	InterruptDstFileName string // Dst fileName
+	InterruptDstFullPath string // Dst full path
+	InterruptFileOffSet  int64
+	InterruptLastErrCode rtkMisc.CrossShareErr
 }
 
 type FilesTransferDataItem struct {

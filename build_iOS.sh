@@ -17,7 +17,7 @@ buildFolder="./build/libs"
 arm="arm64"
 a="a"
 h="h"
-fileName="libcross_share"
+fileName="libcross_share_ios"
 mainGo="./main.go"
 
 rm -rf $buildFolder
