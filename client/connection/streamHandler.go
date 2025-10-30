@@ -445,16 +445,6 @@ func closeStream(id string, isFromPeer bool) {
 		log.Printf("[%s] Err: Unknown stream of id:%s", rtkMisc.GetFuncInfo(), id)
 	}
 
-	if fileStreamMap, ok := fileDataStreamItemMap[id]; ok {
-		for timestamp, itemStream := range fileStreamMap {
-			itemStream.CloseRead()
-			itemStream.Close()
-			delete(fileStreamMap, timestamp)
-			log.Printf("[%s] ID:[%s] close file drop Item stream success! timestamp:[%d] id:[%s]!", rtkMisc.GetFuncInfo(), id, timestamp, itemStream.ID())
-		}
-
-		fileDataStreamItemMap[id] = fileStreamMap
-	}
 }
 
 func CloseFmtTypeStream(id string, fmtType rtkCommon.TransFmtType) {

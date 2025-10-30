@@ -349,12 +349,7 @@ func HandleReadInbandFromSocket(ctxMain context.Context, resultChan chan<- Event
 					}
 				}
 				continue
-			} else if msg.Command == COMM_FILE_TRANSFER_CANCEL_DST_REQ {
-				if timestamp, ok := msg.ExtData.(uint64); ok {
-					CancelSrcFileTransfer(id, timestamp)
-				}
-				continue
-			} else if msg.Command == COMM_CB_TRANSFER_SRC_INTERRUPT {
+			}else if msg.Command == COMM_CB_TRANSFER_SRC_INTERRUPT {
 				log.Printf("[%s] (DST) Copy image operation was canceled by src !", rtkMisc.GetFuncInfo())
 				continue
 			} else if msg.Command == COMM_CB_TRANSFER_DST_INTERRUPT {
