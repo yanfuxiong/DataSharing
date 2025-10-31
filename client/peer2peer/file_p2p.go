@@ -1,7 +1,6 @@
 package peer2peer
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -29,7 +28,7 @@ const (
 	copyBufShortSize  = 1 << 20  // 1MB
 	truncateThreshold = 32 << 20 // 32MB
 
-	interruptFailureInterval = 10 //seconds, Interrupt file data transfer time out: 10s
+	interruptFailureInterval = 60 //seconds, Interrupt file data transfer time out: 60s
 )
 
 var (
@@ -396,10 +395,12 @@ func writeFileDataItemToSocket(ctx context.Context, id, ipAddr string, fileDropR
 		srcTransResult := writeFileToSocket(id, ipAddr, &cancelableWrite, &cancelableRead, &progressBar, fileInfo.FileName, fileInfo.FilePath, fileSize, fileDropReqData.TimeStamp, offSet, &copyBuffer)
 		if srcTransResult != rtkMisc.SUCCESS {
 			if srcTransResult == rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_CANCEL_BUSINESS ||
+				srcTransResult == rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL_BUSINESS ||
 				srcTransResult == rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_CANCEL_GUI ||
-				srcTransResult == rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL_GUI ||
 				srcTransResult == rtkMisc.ERR_BIZ_FT_FILE_NOT_EXISTS {
 				needReTry = false
+			} else {
+				rtkConnection.CloseAllFileDropStream(id) // set all file data transfer stream Reset, wait to retry...
 			}
 
 			errCode = srcTransResult
@@ -437,9 +438,12 @@ func writeFileToSocket(id, ipAddr string, write *cancelableWriter, read *cancela
 	if fileSize > 0 {
 		nCopy, err = io.CopyBuffer(io.MultiWriter(write, *totalBar), read, *buf)
 		if err != nil {
-			if rtkConnection.IsQuicEOF(err) {
+			if rtkConnection.IsQuicEOF(err) { // cancel by dst
 				log.Printf("(SRC) [%s] ID:[%s] timestamp:[%d] quic EOF!", rtkMisc.GetFuncInfo(), id, timeStamp)
-				return rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL_GUI
+				return rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL_BUSINESS
+			} else if rtkConnection.IsQuicClose(err) { // cancel by src
+				log.Printf("(SRC) [%s] ID:[%s] timestamp:[%d] quic Closed!", rtkMisc.GetFuncInfo(), id, timeStamp)
+				return rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_CANCEL_BUSINESS
 			} else if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 				log.Println("Error sending file timeout:", netErr)
 				return rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_TIMEOUT
@@ -457,7 +461,7 @@ func writeFileToSocket(id, ipAddr string, write *cancelableWriter, read *cancela
 				return rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE
 			}
 		}
-		bufio.NewWriter(write).Flush()
+		//bufio.NewWriter(write).Flush()    //quic no need flush
 	}
 	log.Printf("(SRC) End to copy file:[%s], size:[%d] use [%d] ms", fileName, nCopy, time.Now().UnixMilli()-startTime)
 	return rtkMisc.SUCCESS
@@ -632,7 +636,9 @@ func readFileDataItemFromSocket(ctx context.Context, id, ipAddr string, fileDrop
 
 		dstTransResult := readFileFromSocket(id, ipAddr, &cancelableWrite, &cancelableRead, &progressBar, currentFileSize, fileDropData.TimeStamp, dstFileName, dstFullFilePath, &copyBuffer, &offset, isRecoverFile)
 		if dstTransResult != rtkMisc.SUCCESS {
-			if dstTransResult == rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL_BUSINESS || dstTransResult == rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL_GUI {
+			if dstTransResult == rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL_BUSINESS ||
+				dstTransResult == rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_CANCEL_BUSINESS ||
+				dstTransResult == rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL_GUI {
 				needReTry = false // not need retry
 			} else {
 				rtkFileDrop.SetFilesTransferDataInterrupt(id, fileInfo.FileName, dstFileName, dstFullFilePath, fileDropData.TimeStamp, offset, dstTransResult)
@@ -681,10 +687,13 @@ func readFileFromSocket(id, ipAddr string, write *cancelableWriter, read *cancel
 		nDstWrite, err = io.CopyBuffer(io.MultiWriter(write, *totalBar), read, *buf)
 		if err != nil {
 			*offset = nDstWrite
-			/*if rtkConnection.IsQuicEOF(err) {
+			if rtkConnection.IsQuicEOF(err) { // cancel by src
 				log.Printf("(DST) [%s] ID:[%s] timestamp:[%d] quic EOF!", rtkMisc.GetFuncInfo(), id, timeStamp)
-				return rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_CANCEL_GUI
-			} else */if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+				return rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_CANCEL_BUSINESS
+			} else if rtkConnection.IsQuicClose(err) { // cancel by dst
+				log.Printf("(DST) [%s] ID:[%s] timestamp:[%d] quic Closed!", rtkMisc.GetFuncInfo(), id, timeStamp)
+				return rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL_BUSINESS
+			} else if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 				log.Printf("(DST) IP:[%s] Error Read file timeout:%s", ipAddr, netErr)
 				return rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_TIMEOUT
 			} else if errors.Is(err, context.Canceled) {
@@ -738,7 +747,7 @@ func ShowNotiMessageRecvFileTransferDone(fileDropData *rtkFileDrop.FilesTransfer
 }
 
 func checkRecoverProcessEventsForPeerAsSrc(id, ipAddr string, code rtkMisc.CrossShareErr) {
-	timer := time.NewTimer(20 * time.Second)
+	timer := time.NewTimer((interruptFailureInterval + 5) * time.Second)
 	defer timer.Stop()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -767,7 +776,7 @@ func checkRecoverProcessEventsForPeerAsDst(id, ipAddr string, code rtkMisc.Cross
 			break
 		}
 
-		if nCount >= 20 {
+		if nCount >= interruptFailureInterval {
 			log.Printf("(DST) [%s] ID:[%s] IP:[%s] cache file data retry time out!", rtkMisc.GetFuncInfo(), id, ipAddr)
 			clearCacheFileDataList(id, ipAddr, code)
 			return
@@ -775,8 +784,6 @@ func checkRecoverProcessEventsForPeerAsDst(id, ipAddr string, code rtkMisc.Cross
 
 		nCount++
 	}
-
-	setFileDataItemProtocolListener(id)
 
 	cacheData := rtkFileDrop.GetFilesTransferDataItem(id)
 	if cacheData == nil {
@@ -820,12 +827,7 @@ func recoverFileTransferProcessAsSrc(ctx context.Context, id, ipAddr string, err
 		}
 	}
 
-	code := setFileDataItemProtocolListener(id)
-	if code != rtkMisc.SUCCESS {
-		errCode = code
-	}
-
-	code = buildFileDropItemStream(ctx, id)
+	code := buildFileDropItemStream(ctx, id)
 	if code != rtkMisc.SUCCESS {
 		errCode = code
 	}
@@ -887,9 +889,9 @@ func buildFileDropItemStream(ctx context.Context, id string) rtkMisc.CrossShareE
 	return rtkMisc.SUCCESS
 }
 
-func clearCacheFileDataList(id, ipAddr string, code rtkMisc.CrossShareErr) rtkMisc.CrossShareErr {
-	i := 0
+func clearCacheFileDataList(id, ipAddr string, code rtkMisc.CrossShareErr) {
 	rtkConnection.ClearFmtTypeStreamReadyFlag(id) // clear all wait for file drop stream Ready chan flag
+	i := 0
 
 	for rtkFileDrop.GetFilesTransferDataCacheCount(id) > 0 {
 		cacheData := rtkFileDrop.GetFilesTransferDataItem(id)
@@ -914,5 +916,4 @@ func clearCacheFileDataList(id, ipAddr string, code rtkMisc.CrossShareErr) rtkMi
 		rtkFileDrop.SetFilesCacheItemComplete(id, cacheData.TimeStamp)
 	}
 
-	return rtkMisc.SUCCESS
 }

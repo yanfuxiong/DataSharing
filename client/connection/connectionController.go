@@ -73,11 +73,9 @@ func ConnectionInit(ctx context.Context) {
 }
 
 func cancelHostNode() {
-	nodeMutex.Lock()
-	defer nodeMutex.Unlock()
-
 	wait()
 
+	nodeMutex.Lock()
 	if node != nil {
 		node.Peerstore().Close()
 		node.Network().Close()
@@ -93,6 +91,7 @@ func cancelHostNode() {
 		fileTransNode = nil
 		log.Println("close p2p file Node info success!")
 	}
+	nodeMutex.Unlock()
 }
 
 func Run(ctx context.Context) {
@@ -526,9 +525,11 @@ func WriteSocket(id string, data []byte) rtkMisc.CrossShareErr {
 		}
 
 		log.Printf("[%s][%s] Write failed:[%+v], and execute offlineEvent ", rtkMisc.GetFuncInfo(), sInfo.ipAddr, err)
-		offlineEvent(sInfo.s, false)
+		isEOF := false
+		defer offlineEvent(sInfo.s, isEOF)
 
 		if errors.Is(err, io.EOF) {
+			isEOF = true
 			return rtkMisc.ERR_NETWORK_P2P_EOF
 		} else if netErr, ok := err.(net.Error); ok {
 			log.Printf("[Socket][%s] Err: Read fail network error(%v)", sInfo.ipAddr, netErr.Error())
@@ -561,9 +562,12 @@ func ReadSocket(id string, buffer []byte) (int, rtkMisc.CrossShareErr) {
 		}
 
 		log.Printf("[%s][%s] Read failed [%+v],  execute offlineEvent ", rtkMisc.GetFuncInfo(), sInfo.ipAddr, err)
-		offlineEvent(sInfo.s, false)
+
+		isEOF := false
+		defer offlineEvent(sInfo.s, isEOF)
 
 		if errors.Is(err, io.EOF) {
+			isEOF = true
 			return n, rtkMisc.ERR_NETWORK_P2P_EOF
 		} else if netErr, ok := err.(net.Error); ok {
 			log.Printf("[Socket][%s] Err: Read fail network error(%v)", sInfo.ipAddr, netErr.Error())

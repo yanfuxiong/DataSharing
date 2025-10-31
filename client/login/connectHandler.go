@@ -54,11 +54,16 @@ func (s *safeConnect) GetConnect() net.Conn {
 	return nil
 }
 
-func (s *safeConnect) Write(b []byte) rtkMisc.CrossShareErr {
+func (s *safeConnect) Write(msgType rtkMisc.C2SMsgType, b []byte) rtkMisc.CrossShareErr {
 	s.connectMutex.Lock()
 	defer s.connectMutex.Unlock()
 	if s.isAlive && s.connectLanServer != nil {
-		s.connectLanServer.SetWriteDeadline(time.Now().Add(rtkCommon.PingTimeout))
+		if msgType == rtkMisc.C2SMsg_CLIENT_HEARTBEAT {
+			s.connectLanServer.SetWriteDeadline(time.Now().Add(rtkCommon.PingTimeout))
+		} else {
+			s.connectLanServer.SetWriteDeadline(time.Time{}) //Cancel timeout limit
+		}
+
 		_, err := s.connectLanServer.Write(append(b, '\n'))
 		if err != nil {
 			log.Printf("[%s] LanServer Write err:%+v", rtkMisc.GetFuncInfo(), err)

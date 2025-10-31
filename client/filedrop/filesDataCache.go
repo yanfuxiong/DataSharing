@@ -36,7 +36,7 @@ func CancelFileTransfer(id, ip string, timestamp uint64) {
 				cacheData.filesTransferDataQueue = queue
 				filesDataCacheMap[id] = cacheData
 
-				log.Printf("[%s] ID:[%s],IPAddr:[%s] id:[%s] CancelFileTransfer Remove cache data success by platform GUI!", rtkMisc.GetFuncInfo(), id, ip, timestamp)
+				log.Printf("[%s] ID:[%s],IPAddr:[%s] id:[%d] CancelFileTransfer Remove cache data success by platform GUI!", rtkMisc.GetFuncInfo(), id, ip, timestamp)
 				if callbackSendCancelFileTransferMsgToPeer != nil {
 					callbackSendCancelFileTransferMsgToPeer(id, timestamp)
 				} else {

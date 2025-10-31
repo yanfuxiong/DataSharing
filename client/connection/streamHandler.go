@@ -34,6 +34,7 @@ type streamInfo struct {
 	transFileState TransFileStateType
 
 	cancelFn func(source rtkCommon.CancelBusinessSource)
+	cxt      context.Context
 }
 
 var (
@@ -104,6 +105,15 @@ func updateStream(ctx context.Context, id string, stream network.Stream) {
 		if oldSinfo.cancelFn != nil {
 			oldSinfo.cancelFn(rtkCommon.OldP2PBusinessCancel)
 			log.Printf("[%s] UpdateStream ID:[%s] IP:[%s], ProcessForPeer existed, Cancel the old StartProcessForPeer first!", rtkMisc.GetFuncInfo(), id, ipAddr)
+			if fileStreamMap, fileItemOk := fileDataStreamItemMap[id]; fileItemOk {
+				for timestamp, itemStream := range fileStreamMap {
+					itemStream.CloseRead()
+					itemStream.Close()
+					delete(fileStreamMap, timestamp)
+					log.Printf("[%s] ID:[%s] close old file drop Item stream success! timestamp:[%d] id:[%s]!", rtkMisc.GetFuncInfo(), id, timestamp, itemStream.ID())
+				}
+				fileDataStreamItemMap[id] = fileStreamMap
+			}
 		}
 	}
 
@@ -116,6 +126,7 @@ func updateStream(ctx context.Context, id string, stream network.Stream) {
 		sImage:         nil,
 		transFileState: TRANS_FILE_NOT_PREFORMED,
 		cancelFn:       callbackStartProcessForPeer(ctx, id, ipAddr), // StartProcessForPeer
+		cxt:            ctx,
 	}
 
 	fileDataStreamItemMap[id] = make(map[uint64]network.Stream)
@@ -220,6 +231,26 @@ func CloseFileDropItemStream(id string, timestamp uint64) {
 		}
 	}
 	log.Printf("[%s] ID:[%s] Unknown fileDataStreamItemMap info, timestamp:%d", rtkMisc.GetFuncInfo(), id, timestamp)
+}
+
+func IsQuicClose(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	var serr *network.StreamError
+	if !errors.As(err, &serr) {
+		return false
+	}
+	if serr.Remote || serr.ErrorCode != 0 {
+		return false
+	}
+
+	if !strings.Contains(serr.TransportError.Error(), "canceled by local") {
+		return false
+	}
+
+	return strings.Contains(err.Error(), "reset")
 }
 
 func IsQuicEOF(err error) bool {
@@ -429,11 +460,15 @@ func closeStream(id string, isFromPeer bool) {
 		}
 		if sInfo.cancelFn != nil { // StopProcessForPeer
 			if isFromPeer {
-				sInfo.cancelFn(rtkCommon.PeerDisconnectCancel)
-				log.Printf("ID:[%s] IP:[%s] ProcessEventsForPeer is Cancel by peer disconnect! ", id, sInfo.ipAddr)
+				if sInfo.cxt.Err() == nil {
+					sInfo.cancelFn(rtkCommon.PeerDisconnectCancel)
+					log.Printf("ID:[%s] IP:[%s] ProcessEventsForPeer is Cancel by peer disconnect! ", id, sInfo.ipAddr)
+				}
 			} else {
-				sInfo.cancelFn(rtkCommon.TcpNetworkCancel) // TODO: check it
-				log.Printf("ID:[%s] IP:[%s] ProcessEventsForPeer is Cancel by TCP network err! ", id, sInfo.ipAddr)
+				if sInfo.cxt.Err() == nil { // tcp err
+					sInfo.cancelFn(rtkCommon.TcpNetworkCancel) // TODO: check it
+					log.Printf("ID:[%s] IP:[%s] ProcessEventsForPeer is Cancel by TCP network err! ", id, sInfo.ipAddr)
+				}
 			}
 
 			sInfo.cancelFn = nil
@@ -444,7 +479,6 @@ func closeStream(id string, isFromPeer bool) {
 	} else {
 		log.Printf("[%s] Err: Unknown stream of id:%s", rtkMisc.GetFuncInfo(), id)
 	}
-
 }
 
 func CloseFmtTypeStream(id string, fmtType rtkCommon.TransFmtType) {

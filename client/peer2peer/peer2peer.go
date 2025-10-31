@@ -865,7 +865,7 @@ func ProcessEventsForPeer(ctx context.Context, id, ipAddr string) {
 			if rtkClipboard.GetLastClipboardData().SourceID == id {
 				rtkClipboard.ResetLastClipboardData()
 			}
-			rtkConnection.ClearFmtTypeStreamReadyFlag(id)
+
 			return
 		case event, ok := <-eventResultClipboard:
 			if !ok {

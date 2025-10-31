@@ -57,7 +57,7 @@ func sendReqMsgToLanServer(MsgType rtkMisc.C2SMsgType, extData ...interface{}) r
 		return rtkMisc.ERR_BIZ_JSON_MARSHAL
 	}
 	encodedData = bytes.Trim(encodedData, "\x00")
-	errCode := pSafeConnect.Write(encodedData)
+	errCode := pSafeConnect.Write(MsgType, encodedData)
 	if errCode != rtkMisc.SUCCESS {
 		log.Printf("[%s] LanServer IPAddr:[%s]  sending msg[%s] errCode:%d ", rtkMisc.GetFuncInfo(), pSafeConnect.ConnectIPAddr(), MsgType, errCode)
 		if errCode == rtkMisc.ERR_NETWORK_C2S_WRITE_EOF {
