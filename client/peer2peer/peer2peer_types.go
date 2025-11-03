@@ -38,8 +38,6 @@ const (
 	COMM_CB_TRANSFER_DST_INTERRUPT    CommandType = "COMM_CB_TRANSFER_DST_INTERRUPT"
 	COMM_FILE_TRANSFER_SRC_INTERRUPT  CommandType = "COMM_FILE_TRANSFER_SRC_INTERRUPT"  // cancel by  src
 	COMM_FILE_TRANSFER_DST_INTERRUPT  CommandType = "COMM_FILE_TRANSFER_DST_INTERRUPT"  // cancel by  dst
-	COMM_FILE_TRANSFER_CANCEL_DST_REQ CommandType = "COMM_FILE_TRANSFER_CANCEL_DST_REQ" // dst GUI request cancel
-	COMM_FILE_TRANSFER_CANCEL_DST_RSP CommandType = "COMM_FILE_TRANSFER_CANCEL_DST_ESP" // src response dst cancel
 	COMM_FILE_TRANSFER_RECOVER_REQ    CommandType = "COMM_FILE_TRANSFER_RECOVER_REQ"    //dst request src to recover file strans, It will automatically recover file data transfer
 	COMM_FILE_TRANSFER_RECOVER_RSP    CommandType = "COMM_FILE_TRANSFER_RECOVER_RSP"    //src response dst to recover file strans
 )
