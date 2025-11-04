@@ -221,6 +221,12 @@ func UpdateProductName(cName *C.char) {
 	rtkIfaceMgr.GetInterfaceMgr().UpdateProductName(name)
 }
 
+//export UpdateMacAddr
+func UpdateMacAddr(cMacAddr *C.char) {
+	macAddr := C.GoString(cMacAddr)
+	rtkIfaceMgr.GetInterfaceMgr().UpdateMacAddr(macAddr)
+}
+
 //export UpdateSrcPortTiming
 func UpdateSrcPortTiming(cSource, cPort, cWidth, cHeight, cFramerate C.int) {
 	source := int(cSource)

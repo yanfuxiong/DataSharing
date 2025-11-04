@@ -88,6 +88,7 @@ const ( //sqlite error code
 	ERR_DB_SQLITE_EMPTY_RESULT
 	ERR_DB_SQLITE_BEGIN
 	ERR_DB_SQLITE_COMMIT
+	ERR_DB_SQLITE_INSTANCE_NULL
 )
 
 /***************************************  business  info error code, begin with 5000  ****************************************************/

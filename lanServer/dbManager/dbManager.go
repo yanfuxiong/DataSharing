@@ -31,6 +31,10 @@ const (
 	g_DBConnectionStr = "file:" + rtkGlobal.DB_PATH + rtkGlobal.DB_NAME + "?cache=shared&mode=rwc" //sqlite connect string
 )
 
+func init() {
+	g_SqlInstance = nil
+}
+
 func InitSqlite(ctx context.Context) {
 	err := rtkMisc.CreateDir(rtkGlobal.DB_PATH, os.ModePerm)
 	if err != nil {
@@ -42,11 +46,11 @@ func InitSqlite(ctx context.Context) {
 	if err != nil {
 		log.Fatal(err)
 	}
+	db.SetConnMaxIdleTime(time.Duration(0)) //connections are not closed due to a connection's idle time
+	db.SetMaxIdleConns(10)
 
+	dbMutex.Lock()
 	g_SqlInstance = db
-	g_SqlInstance.SetConnMaxIdleTime(time.Duration(0)) //connections are not closed due to a connection's idle time
-	g_SqlInstance.SetMaxIdleConns(10)
-
 	_, err = g_SqlInstance.Exec(SqlDataCreateTable.toString())
 	if err != nil {
 		log.Fatal(err)
@@ -56,6 +60,9 @@ func InitSqlite(ctx context.Context) {
 	if err != nil {
 		log.Println("[WARN] Database error: Reset auth info failed: ", err)
 	}
+	dbMutex.Unlock()
+
+	upgradeDb()
 
 	UpdateAllClientOffline()
 
@@ -66,14 +73,82 @@ func InitSqlite(ctx context.Context) {
 		for {
 			select {
 			case <-ctx.Done():
+				dbMutex.Lock()
 				g_SqlInstance.Close()
+				g_SqlInstance = nil
+				dbMutex.Unlock()
 				return
 			case <-tkKeepAlive.C:
 				keppAlive()
 			}
 		}
 	})
+}
 
+func getDb() (*sql.DB, bool) {
+	if g_SqlInstance == nil {
+		log.Println("[ERROR] Database instance is null!")
+		return nil, false
+	}
+	return g_SqlInstance, true
+}
+
+func upgradeDbVer(updateVer int, sqlData SqlData) rtkMisc.CrossShareErr {
+	dbMutex.Lock()
+	defer dbMutex.Unlock()
+
+	db, ok := getDb()
+	if !ok {
+		return rtkMisc.ERR_DB_SQLITE_INSTANCE_NULL
+	}
+	var version int
+	row := db.QueryRow(SqlDataQueryDbVersion.toString())
+	if err := row.Scan(&version); err != nil {
+		log.Printf("[%s] Err: %s", rtkMisc.GetFuncInfo(), err.Error())
+		return rtkMisc.ERR_DB_SQLITE_EXEC
+	}
+
+	if version >= updateVer {
+		return rtkMisc.SUCCESS
+	}
+
+	log.Printf("[%s] Upgrade database version from (%d) to (%d)", rtkMisc.GetFuncInfo(), version, updateVer)
+	tx, err := db.Begin()
+	if err != nil {
+		log.Printf("[%s] Err: %s", rtkMisc.GetFuncInfo(), err.Error())
+		return rtkMisc.ERR_DB_SQLITE_BEGIN
+	}
+	defer tx.Rollback()
+
+	_, errUpgrade := tx.Exec(sqlData.toString())
+	if errUpgrade != nil {
+		log.Printf("[%s] Err: %s", rtkMisc.GetFuncInfo(), errUpgrade.Error())
+		return rtkMisc.ERR_DB_SQLITE_EXEC
+	}
+
+	_, errUpdateVer := tx.Exec(getUpdateDbVersion(updateVer))
+	if errUpdateVer != nil {
+		log.Printf("[%s] Err: %s", rtkMisc.GetFuncInfo(), errUpdateVer.Error())
+		return rtkMisc.ERR_DB_SQLITE_EXEC
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		log.Printf("[%s] Err: %s", rtkMisc.GetFuncInfo(), err.Error())
+		return rtkMisc.ERR_DB_SQLITE_COMMIT
+	}
+
+	return rtkMisc.SUCCESS
+}
+
+func upgradeDb() {
+	for _, data := range sqlDbVerData {
+		err := upgradeDbVer(data.Ver, data.SQL)
+		if err != rtkMisc.SUCCESS {
+			log.Printf("[%s] Err: Upgrade database version failed: %s", rtkMisc.GetFuncInfo(), rtkMisc.GetResponse(err).Msg)
+			break
+		}
+	}
 }
 
 func upsertClientInfo(pkIndex *int, clientId, host, ipAddr, deviceName, platform, version string) rtkMisc.CrossShareErr {
@@ -85,7 +160,11 @@ func upsertClientInfo(pkIndex *int, clientId, host, ipAddr, deviceName, platform
 		return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
 	}
 
-	tx, err := g_SqlInstance.Begin()
+	db, ok := getDb()
+	if !ok {
+		return rtkMisc.ERR_DB_SQLITE_INSTANCE_NULL
+	}
+	tx, err := db.Begin()
 	if err != nil {
 		log.Printf("[%s] Err: %s", rtkMisc.GetFuncInfo(), err.Error())
 		return rtkMisc.ERR_DB_SQLITE_BEGIN
@@ -168,13 +247,22 @@ func upsertAuthStatus(authPkIndex *int, clientPkIndex int, authStatus bool) rtkM
 		return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
 	}
 
-	sqlData := SqlDataUpsertAuthInfo
+	var sqlData SqlData
+	if authStatus {
+		sqlData = SqlDataUpsertAuthInfo
+	} else {
+		sqlData = SqlDataUpsertUnauthInfo
+	}
 	param := []any{clientPkIndex, authStatus}
 	if sqlData.checkArgsCount(param) == false {
 		return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
 	}
 
-	row := g_SqlInstance.QueryRow(sqlData.toString(), param...)
+	db, ok := getDb()
+	if !ok {
+		return rtkMisc.ERR_DB_SQLITE_INSTANCE_NULL
+	}
+	row := db.QueryRow(sqlData.toString(), param...)
 	if err := row.Scan(authPkIndex); err != nil {
 		log.Printf("[%s] Err: %s", rtkMisc.GetFuncInfo(), err.Error())
 		return rtkMisc.ERR_DB_SQLITE_SCAN
@@ -197,7 +285,11 @@ func updateClientInfo(pkIndexList *[]int, setConds []SqlCond, whereConds []SqlCo
 		return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
 	}
 
-	rows, err := g_SqlInstance.Query(sqlData.toString(), args...)
+	db, ok := getDb()
+	if !ok {
+		return rtkMisc.ERR_DB_SQLITE_INSTANCE_NULL
+	}
+	rows, err := db.Query(sqlData.toString(), args...)
 	if err != nil {
 		log.Printf("[%s] Query error[%+v]", rtkMisc.GetFuncInfo(), err)
 		log.Printf("[%s] Err: %s", rtkMisc.GetFuncInfo(), sqlData.toString())
@@ -224,6 +316,9 @@ func updateClientInfo(pkIndexList *[]int, setConds []SqlCond, whereConds []SqlCo
 }
 
 func queryClientInfo(clientInfoList *[]rtkCommon.ClientInfoTb, conds []SqlCond, args ...any) rtkMisc.CrossShareErr {
+	dbMutex.Lock()
+	defer dbMutex.Unlock()
+
 	if clientInfoList == nil {
 		log.Printf("[%s] ClientInfoList is null", rtkMisc.GetFuncInfo())
 		return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
@@ -234,7 +329,11 @@ func queryClientInfo(clientInfoList *[]rtkCommon.ClientInfoTb, conds []SqlCond, 
 		return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
 	}
 
-	rows, err := g_SqlInstance.Query(sqlData.toString(), args...)
+	db, ok := getDb()
+	if !ok {
+		return rtkMisc.ERR_DB_SQLITE_INSTANCE_NULL
+	}
+	rows, err := db.Query(sqlData.toString(), args...)
 	if err != nil {
 		log.Printf("[%s] Query error[%+v]", rtkMisc.GetFuncInfo(), err)
 		log.Printf("[%s] Err: %s", rtkMisc.GetFuncInfo(), sqlData.toString())
@@ -246,7 +345,7 @@ func queryClientInfo(clientInfoList *[]rtkCommon.ClientInfoTb, conds []SqlCond, 
 		var client rtkCommon.ClientInfoTb
 		if err = rows.Scan(&client.Index, &client.ClientId, &client.Host, &client.IpAddr,
 			&client.Source, &client.Port, &client.DeviceName, &client.Platform, &client.Version,
-			&client.Online, &client.AuthStatus, &client.UpdateTime, &client.CreateTime); err != nil {
+			&client.Online, &client.AuthStatus, &client.UpdateTime, &client.CreateTime, &client.LastAuthTime); err != nil {
 			log.Printf("[%s] Err: %s", rtkMisc.GetFuncInfo(), err.Error())
 			continue
 		}
@@ -260,6 +359,77 @@ func queryClientInfo(clientInfoList *[]rtkCommon.ClientInfoTb, conds []SqlCond, 
 	}
 
 	return rtkMisc.SUCCESS
+}
+
+func upsertTimingInfo(source, port, width, height, framerate int) rtkMisc.CrossShareErr {
+	dbMutex.Lock()
+	defer dbMutex.Unlock()
+
+	sqlData := SqlDataUpsertTimingInfo
+	param := []any{source, port, width, height, framerate}
+	if sqlData.checkArgsCount(param) == false {
+		return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
+	}
+
+	db, ok := getDb()
+	if !ok {
+		return rtkMisc.ERR_DB_SQLITE_INSTANCE_NULL
+	}
+	_, err := db.Exec(sqlData.toString(), param...)
+	if err != nil {
+		log.Printf("[%s] Query error[%+v]", rtkMisc.GetFuncInfo(), err)
+		log.Printf("[%s] Err: %s", rtkMisc.GetFuncInfo(), sqlData.toString())
+		return rtkMisc.ERR_DB_SQLITE_QUERY
+	}
+
+	return rtkMisc.SUCCESS
+}
+
+func upsertLinkInfo(pkIndex int, link string) rtkMisc.CrossShareErr {
+	dbMutex.Lock()
+	defer dbMutex.Unlock()
+
+	sqlData := SqlDataUpsertLinkInfo
+	param := []any{pkIndex, link}
+	if sqlData.checkArgsCount(param) == false {
+		return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
+	}
+
+	db, ok := getDb()
+	if !ok {
+		return rtkMisc.ERR_DB_SQLITE_INSTANCE_NULL
+	}
+	_, err := db.Exec(sqlData.toString(), param...)
+	if err != nil {
+		log.Printf("[%s] Query error[%+v]", rtkMisc.GetFuncInfo(), err)
+		log.Printf("[%s] Err: %s", rtkMisc.GetFuncInfo(), sqlData.toString())
+		return rtkMisc.ERR_DB_SQLITE_QUERY
+	}
+
+	return rtkMisc.SUCCESS
+}
+
+func queryLinkInfo(conds []SqlCond, args ...any) (string, rtkMisc.CrossShareErr) {
+	dbMutex.Lock()
+	defer dbMutex.Unlock()
+
+	sqlData := SqlDataQueryLinkInfo.withCond_WHERE(conds...)
+	if sqlData.checkArgsCount(args) == false {
+		return "", rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
+	}
+
+	var link string = ""
+	db, ok := getDb()
+	if !ok {
+		return "", rtkMisc.ERR_DB_SQLITE_INSTANCE_NULL
+	}
+	row := db.QueryRow(sqlData.toString(), args...)
+	if err := row.Scan(&link); err != nil {
+		log.Printf("[%s] Err: %s", rtkMisc.GetFuncInfo(), err.Error())
+		return "", rtkMisc.ERR_DB_SQLITE_SCAN
+	}
+
+	return link, rtkMisc.SUCCESS
 }
 
 // =============================
@@ -302,7 +472,7 @@ func QueryOnlineClientList(clientInfoList *[]rtkCommon.ClientInfoTb) rtkMisc.Cro
 
 func QueryClientInfoByIndex(pkIndex int) (rtkCommon.ClientInfoTb, rtkMisc.CrossShareErr) {
 	if pkIndex <= 0 {
-		log.Printf("pkIndex:[%d] Err, QueryDeviceName failed! Invalid Client Index", pkIndex)
+		log.Printf("pkIndex:[%d] Err, QueryClientInfoByIndex failed! Invalid Client Index", pkIndex)
 		return rtkCommon.ClientInfoTb{}, rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
 	}
 
@@ -326,10 +496,10 @@ func QueryClientInfoByIndex(pkIndex int) (rtkCommon.ClientInfoTb, rtkMisc.CrossS
 	return clientInfoList[0], rtkMisc.SUCCESS
 }
 
-func QueryClientInfoBySrcPort(source, port int) (rtkCommon.ClientInfoTb, rtkMisc.CrossShareErr) {
+func QueryClientInfoBySrcPort(source, port int) ([]rtkCommon.ClientInfoTb, rtkMisc.CrossShareErr) {
 	if source < 0 || port < 0 {
 		log.Printf("[%s] Invalid (source,port)=(%d,%d)", rtkMisc.GetFuncInfo(), source, port)
-		return rtkCommon.ClientInfoTb{}, rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
+		return []rtkCommon.ClientInfoTb{}, rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
 	}
 
 	clientInfoList := make([]rtkCommon.ClientInfoTb, 0)
@@ -339,20 +509,18 @@ func QueryClientInfoBySrcPort(source, port int) (rtkCommon.ClientInfoTb, rtkMisc
 		source, port,
 	)
 	if err != rtkMisc.SUCCESS {
-		return rtkCommon.ClientInfoTb{}, err
+		return []rtkCommon.ClientInfoTb{}, err
 	}
 
 	if len(clientInfoList) == 0 {
-		return rtkCommon.ClientInfoTb{Source: source, Port: port}, rtkMisc.ERR_DB_SQLITE_EMPTY_RESULT
+		return []rtkCommon.ClientInfoTb{}, rtkMisc.ERR_DB_SQLITE_EMPTY_RESULT
 	}
 
 	if len(clientInfoList) > 1 {
 		log.Printf("[%s] WARNING! The result count from database more than 1", rtkMisc.GetFuncInfo())
 	}
 
-	clientInfoList[0].Source = source
-	clientInfoList[0].Port = port
-	return clientInfoList[0], rtkMisc.SUCCESS
+	return clientInfoList, rtkMisc.SUCCESS
 }
 
 func QueryReconnList(clientInfoList *[]rtkCommon.ClientInfoTb) rtkMisc.CrossShareErr {
@@ -380,6 +548,24 @@ func QueryMaxVersion() (string, rtkMisc.CrossShareErr) {
 	}
 
 	return maxVer, err
+}
+
+func QueryLinkInfoByIndex(pkIndex int) (string, rtkMisc.CrossShareErr) {
+	if pkIndex <= 0 {
+		log.Printf("pkIndex:[%d] Err, QueryLinkInfoByIndex failed! Invalid Client Index", pkIndex)
+		return "", rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
+	}
+
+	return queryLinkInfo([]SqlCond{SqlCondClientIndex}, pkIndex)
+}
+
+func QueryLinkInfoByPlatform(platform string) (string, rtkMisc.CrossShareErr) {
+	if platform == "" {
+		log.Printf("platform is empty, QueryLinkInfoByPlatform failed! Invalid Client Index")
+		return "", rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
+	}
+
+	return queryLinkInfo([]SqlCond{SqlCondPlatform, SqlCondLinkNotEmpty}, platform)
 }
 
 // =============================
@@ -488,15 +674,18 @@ func UpdateAuthAndSrcPort(pkIndex int, status bool, source, port int) rtkMisc.Cr
 	}
 
 	// Update Source, Port
-	pkIndexList := make([]int, 0)
-	errUpdateSrcPort := updateClientInfo(
-		&pkIndexList,
-		[]SqlCond{SqlCondSource, SqlCondPort},
-		[]SqlCond{SqlCondPkIndex},
-		source, port, pkIndex,
-	)
-	if errUpdateSrcPort != rtkMisc.SUCCESS {
-		return errUpdateSrcPort
+	// Only update source and port if AuthStatus=1
+	if status {
+		pkIndexList := make([]int, 0)
+		errUpdateSrcPort := updateClientInfo(
+			&pkIndexList,
+			[]SqlCond{SqlCondSource, SqlCondPort},
+			[]SqlCond{SqlCondPkIndex},
+			source, port, pkIndex,
+		)
+		if errUpdateSrcPort != rtkMisc.SUCCESS {
+			return errUpdateSrcPort
+		}
 	}
 
 	// Notify the lastest ClientInfoTb
@@ -508,39 +697,57 @@ func UpdateAuthAndSrcPort(pkIndex int, status bool, source, port int) rtkMisc.Cr
 	return rtkMisc.SUCCESS
 }
 
+func UpsertTimingInfo(source, port, width, height, framerate int) rtkMisc.CrossShareErr {
+	if source < 0 || port < 0 {
+		log.Printf("[%s] Invalid (source,port)=(%d,%d)", rtkMisc.GetFuncInfo(), source, port)
+		return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
+	}
+
+	if width < 0 || height < 0 || framerate < 0 {
+		log.Printf("[%s] Invalid timing=(%dx%d@%d)", rtkMisc.GetFuncInfo(), width, height, framerate)
+		return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
+	}
+
+	return upsertTimingInfo(source, port, width, height, framerate)
+}
+
+func UpsertLinkInfo(pkIndex int, link string) rtkMisc.CrossShareErr {
+	if pkIndex <= 0 {
+		log.Printf("pkIndex:[%d] Err, UpsertLinkInfo failed! Invalid Client Index", pkIndex)
+		return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
+	}
+
+	return upsertLinkInfo(pkIndex, link)
+}
+
 // =============================
 // Misc
 // =============================
 func keppAlive() {
-	err := g_SqlInstance.Ping()
+	dbMutex.Lock()
+	defer dbMutex.Unlock()
+
+	db, ok := getDb()
+	if !ok {
+		return
+	}
+
+	err := db.Ping()
 	if err != nil {
-		g_SqlInstance.Close()
+		db.Close()
+		g_SqlInstance = nil
 		log.Printf("sqlite3 Ping error:%+v,  so reconnect it!", err)
-		db, err := sql.Open("sqlite3", g_DBConnectionStr)
+		newDb, err := sql.Open("sqlite3", g_DBConnectionStr)
 		if err != nil {
 			log.Printf("Open sqlite3 [%s] err:%+v", g_DBConnectionStr, err)
 			return
 		}
-		g_SqlInstance = db
-		g_SqlInstance.SetConnMaxIdleTime(time.Duration(0)) //connections are not closed due to a connection's idle time
-		g_SqlInstance.SetMaxIdleConns(10)
+
+		newDb.SetConnMaxIdleTime(time.Duration(0)) //connections are not closed due to a connection's idle time
+		newDb.SetMaxIdleConns(10)
+		g_SqlInstance = newDb
 	}
 
 	// DEBUG log
 	// log.Printf("[%s] sqlite3 is alive!", rtkMisc.GetFuncInfo())
-}
-
-func reOpenDBInstance() rtkMisc.CrossShareErr {
-	g_SqlInstance.Close()
-	db, err := sql.Open("sqlite3", g_DBConnectionStr)
-	if err != nil {
-		log.Printf("reOpen sqlite3 [%s] err:%+v", g_DBConnectionStr, err)
-		return rtkMisc.ERR_DB_SQLITE_OPEN
-	}
-	g_SqlInstance = db
-	g_SqlInstance.SetConnMaxIdleTime(time.Duration(0)) //connections are not closed due to a connection's idle time
-	g_SqlInstance.SetMaxIdleConns(10)
-
-	log.Println("reOpenDBInstance success!")
-	return rtkMisc.SUCCESS
 }

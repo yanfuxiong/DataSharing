@@ -1,8 +1,8 @@
 package global
 
 const (
-	LanServerVersion  = "2.2.18" // it must notify client and update client version and VersionReadme.txt  when intermediate version is update
-	ClientBaseVersion = "2.3"
+	LanServerVersion  = "2.2.19" // it must notify client and update client version and VersionReadme.txt  when intermediate version is update
+	ClientBaseVersion = "2.3"    // Deprecated: unused
 
 	LOG_PATH         = "/data/vendor/realtek/cross_share/"
 	SOCKET_PATH_ROOT = "/mnt/vendor/tvdata/database/cross_share/"

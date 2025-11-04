@@ -94,11 +94,14 @@ func queryClientInfoBySrcPort(scanner *bufio.Scanner) {
 	if !ret {
 		return
 	}
-	clientInfo, err := rtkdbManager.QueryClientInfoBySrcPort(src, port)
+	clientInfoList, err := rtkdbManager.QueryClientInfoBySrcPort(src, port)
 	if err != rtkMisc.SUCCESS {
 		fmt.Println("Err: ", err)
 	}
-	clientInfo.Dump()
+
+	for _, clientInfo := range clientInfoList {
+		clientInfo.Dump()
+	}
 }
 
 func updateDeviceName(scanner *bufio.Scanner) {

@@ -27,21 +27,23 @@ type (
 		index int
 		id    string
 	}
-	UpdateClientInfoCb   func(clientInfo rtkCommon.ClientInfoTb)
-	DisplayMonitorNameCb func()
-	GetDpSrcTypeCb       func(source, port int) rtkGlobal.DpSrcType
-	GetTimingDataCb      func() []rtkCommon.TimingData
-	SendMsgEventCb       func(event int, arg1, arg2, arg3, arg4 string)
-	InterfaceMgr         struct {
-		mu                    sync.RWMutex
-		mUpdateDeviceNameCb   UpdateDeviceNameCb
-		mDragFileStartCb      DragFileStartCb
-		mDragFileSrcInfo      DragFileSrcInfo
-		mUpdateClientInfoCb   UpdateClientInfoCb
-		mDisplayMonitorNameCb DisplayMonitorNameCb
-		mGetDpSrcTypeCb       GetDpSrcTypeCb
-		mGetTimingDataCb      GetTimingDataCb
-		mSendMsgEventCb       SendMsgEventCb
+	UpdateClientInfoCb       func(clientInfo rtkCommon.ClientInfoTb)
+	DisplayMonitorNameCb     func()
+	GetDpSrcTypeCb           func(source, port int) rtkGlobal.DpSrcType
+	GetTimingDataCb          func() []rtkCommon.TimingData
+	GetTimingDataBySrcPortCb func(source, port int) rtkCommon.TimingData
+	SendMsgEventCb           func(event int, arg1, arg2, arg3, arg4 string)
+	InterfaceMgr             struct {
+		mu                        sync.RWMutex
+		mUpdateDeviceNameCb       UpdateDeviceNameCb
+		mDragFileStartCb          DragFileStartCb
+		mDragFileSrcInfo          DragFileSrcInfo
+		mUpdateClientInfoCb       UpdateClientInfoCb
+		mDisplayMonitorNameCb     DisplayMonitorNameCb
+		mGetDpSrcTypeCb           GetDpSrcTypeCb
+		mGetTimingDataCb          GetTimingDataCb
+		mGetTimingDataBySrcPortCb GetTimingDataBySrcPortCb
+		mSendMsgEventCb           SendMsgEventCb
 	}
 )
 
@@ -56,6 +58,7 @@ func GetInterfaceMgr() *InterfaceMgr {
 func (mgr *InterfaceMgr) initCallbackToClient() {
 	rtkdbManager.SetNotifyUpdateClientInfoCallback(mgr.TriggerUpdateClientInfo)
 	rtkClientManager.SetNotifyGetTimingDataCallback(mgr.TriggerGetTimingData)
+	rtkClientManager.SetNotifyGetTimingDataBySrcPortCallback(mgr.TriggerGetTimingDataBySrcPort)
 	rtkClientManager.SetSendPlatformMsgEventCallback(mgr.TriggerSendMsgEvent)
 }
 
@@ -66,6 +69,7 @@ func (mgr *InterfaceMgr) SetupCallbackFromServer(
 	displayMonitorNameCb DisplayMonitorNameCb,
 	getDpSrcTypeCb GetDpSrcTypeCb,
 	getTimingDataCb GetTimingDataCb,
+	getTimingDataBySrcPortCb GetTimingDataBySrcPortCb,
 	sendMsgEventCb SendMsgEventCb,
 ) {
 	mgr.mu.Lock()
@@ -76,6 +80,7 @@ func (mgr *InterfaceMgr) SetupCallbackFromServer(
 	mgr.mDisplayMonitorNameCb = displayMonitorNameCb
 	mgr.mGetDpSrcTypeCb = getDpSrcTypeCb
 	mgr.mGetTimingDataCb = getTimingDataCb
+	mgr.mGetTimingDataBySrcPortCb = getTimingDataBySrcPortCb
 	mgr.mSendMsgEventCb = sendMsgEventCb
 }
 
@@ -146,6 +151,17 @@ func (mgr *InterfaceMgr) TriggerGetTimingData() []rtkCommon.TimingData {
 	return mgr.mGetTimingDataCb()
 }
 
+func (mgr *InterfaceMgr) TriggerGetTimingDataBySrcPort(source, port int) rtkCommon.TimingData {
+	mgr.mu.RLock()
+	if mgr.mGetTimingDataBySrcPortCb == nil {
+		log.Printf("[%s][%s] Error: GetTimingDataBySrcPortCb callback is null", tag, rtkMisc.GetFuncInfo())
+		return rtkCommon.TimingData{}
+	}
+	mgr.mu.RUnlock()
+
+	return mgr.mGetTimingDataBySrcPortCb(source, port)
+}
+
 func (mgr *InterfaceMgr) TriggerSendMsgEvent(event int, arg1, arg2, arg3, arg4 string) {
 	mgr.mu.RLock()
 	if mgr.mSendMsgEventCb == nil {
@@ -176,52 +192,63 @@ func (mgr *InterfaceMgr) AuthDevice(source, port, index int) bool {
 }
 
 func (mgr *InterfaceMgr) UpdateMousePos(source, port, horzSize, vertSize, posX, posY int) {
-	clientInfoTb, err := rtkdbManager.QueryClientInfoBySrcPort(source, port)
+	clientInfoTbList, err := rtkdbManager.QueryClientInfoBySrcPort(source, port)
 	if err != rtkMisc.SUCCESS {
 		log.Printf("[%s][%s] Error: get client by (source,port):(%d,%d) failed: %d", tag, rtkMisc.GetFuncInfo(), source, port, err)
 		return
 	}
 
-	if (clientInfoTb.Online == false) || (clientInfoTb.AuthStatus == false) {
-		log.Printf("[%s][%s] Error: not valid client (source,port):(%d,%d) online:%t, authStatus:%t",
-			tag, rtkMisc.GetFuncInfo(), source, port, clientInfoTb.Online, clientInfoTb.AuthStatus)
-		return
+	for _, clientInfo := range clientInfoTbList {
+		if (clientInfo.Online == true) || (clientInfo.AuthStatus == true) {
+			if mgr.TriggerDragFileStart(source, port, horzSize, vertSize, posX, posY) {
+				mgr.mDragFileSrcInfo = DragFileSrcInfo{clientInfo.Index, clientInfo.ClientId}
+				return
+			}
+		}
 	}
 
-	if mgr.TriggerDragFileStart(source, port, horzSize, vertSize, posX, posY) {
-		mgr.mDragFileSrcInfo = DragFileSrcInfo{clientInfoTb.Index, clientInfoTb.ClientId}
-	}
+	log.Printf("[%s][%s] Error: not found valid client (source,port):(%d,%d)",
+		tag, rtkMisc.GetFuncInfo(), source, port)
 }
 
 func (mgr *InterfaceMgr) DragFileEnd(source, port int) {
-	clientInfoTb, err := rtkdbManager.QueryClientInfoBySrcPort(source, port)
+	clientInfoTbList, err := rtkdbManager.QueryClientInfoBySrcPort(source, port)
 	if err != rtkMisc.SUCCESS {
 		log.Printf("[%s][%s] Error: get client by (source,port):(%d,%d) failed: %d", tag, rtkMisc.GetFuncInfo(), source, port, err)
 		return
 	}
 
-	if (clientInfoTb.Online == false) || (clientInfoTb.AuthStatus == false) {
-		log.Printf("[%s][%s] Error: not valid client (source,port):(%d,%d) online:%t, authStatus:%t",
-			tag, rtkMisc.GetFuncInfo(), source, port, clientInfoTb.Online, clientInfoTb.AuthStatus)
-		return
+	for _, clientInfo := range clientInfoTbList {
+		if (clientInfo.Online == true) && (clientInfo.AuthStatus == true) {
+			rtkClientManager.SendDragFileEvent(mgr.mDragFileSrcInfo.id, clientInfo.ClientId, uint32(mgr.mDragFileSrcInfo.index))
+			return
+		}
 	}
 
-	rtkClientManager.SendDragFileEvent(mgr.mDragFileSrcInfo.id, clientInfoTb.ClientId, uint32(mgr.mDragFileSrcInfo.index))
+	log.Printf("[%s][%s] Error: not found valid client (source,port):(%d,%d)",
+		tag, rtkMisc.GetFuncInfo(), source, port)
 }
 
+// Deprecated: Unused
 func (mgr *InterfaceMgr) GetDiasId() string {
 	return rtkGlobal.ServerMdnsId
 }
 
 // Deprecated: Use GetClientInfodData
 func (mgr *InterfaceMgr) GetDeviceName(source, port int) string {
-	clientInfoTb, err := rtkdbManager.QueryClientInfoBySrcPort(source, port)
+	clientInfoTbList, err := rtkdbManager.QueryClientInfoBySrcPort(source, port)
 	if err != rtkMisc.SUCCESS {
 		log.Printf("[%s][%s] Error: query device name failed: %d", tag, rtkMisc.GetFuncInfo(), err)
 		return ""
 	}
 
-	return clientInfoTb.DeviceName
+	for _, clientInfo := range clientInfoTbList {
+		if (clientInfo.Online == true) && (clientInfo.AuthStatus == true) {
+			return clientInfo.DeviceName
+		}
+	}
+
+	return ""
 }
 
 func (mgr *InterfaceMgr) UpdateMiracastInfo(ip string, macAddr []byte, name string) {
@@ -236,13 +263,19 @@ func (mgr *InterfaceMgr) UpdateMiracastInfo(ip string, macAddr []byte, name stri
 }
 
 func (mgr *InterfaceMgr) GetClientInfodData(source, port int) rtkCommon.ClientInfoTb {
-	clientInfoTb, err := rtkdbManager.QueryClientInfoBySrcPort(source, port)
+	clientInfoTbList, err := rtkdbManager.QueryClientInfoBySrcPort(source, port)
 	if err != rtkMisc.SUCCESS && err != rtkMisc.ERR_DB_SQLITE_EMPTY_RESULT {
 		log.Printf("[%s][%s] Error: query clientInfo data failed: %d", tag, rtkMisc.GetFuncInfo(), err)
 		return rtkCommon.ClientInfoTb{}
 	}
 
-	return clientInfoTb
+	for _, clientInfo := range clientInfoTbList {
+		if (clientInfo.Online == true) && (clientInfo.AuthStatus == true) {
+			return clientInfo
+		}
+	}
+
+	return rtkCommon.ClientInfoTb{Source: source, Port: port}
 }
 
 func (mgr *InterfaceMgr) UpdateMonitorName(name string) {
@@ -255,9 +288,17 @@ func (mgr *InterfaceMgr) UpdateProductName(name string) {
 	rtkGlobal.ServerProductName = name
 }
 
+func (mgr *InterfaceMgr) UpdateMacAddr(macAddr string) {
+	log.Printf("[%s][%s] MacAddr: %s", tag, rtkMisc.GetFuncInfo(), macAddr)
+	rtkGlobal.ServerMdnsId = macAddr
+}
+
 func (mgr *InterfaceMgr) UpdateSrcPortTiming(source, port, width, height, framerate int) {
 	log.Printf("[%s][%s] (Source,Port): (%d,%d), timing: %dx%d@%d", tag, rtkMisc.GetFuncInfo(), source, port, width, height, framerate)
-	// TODO: implement
+	err := rtkClientManager.UpdateSrcPortTiming(source, port, width, height, framerate)
+	if err != rtkMisc.SUCCESS {
+		log.Printf("[%s][%s] Error: update source port timing failed: %s", tag, rtkMisc.GetFuncInfo(), rtkMisc.GetResponse(err).Msg)
+	}
 }
 
 func (mgr *InterfaceMgr) EnableCrossShare(enable bool) {

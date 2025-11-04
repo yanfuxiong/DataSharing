@@ -28,7 +28,6 @@ var cancelServer = make(chan struct{})
 var acceptErrFlag = make(chan struct{})
 
 var (
-	name          = flag.String("name", rtkMisc.LanServerName, "The name for the service.")
 	service       = flag.String("service", rtkMisc.LanServiceType, "Set the service type of the new service.")
 	domain        = flag.String("domain", rtkMisc.LanServerDomain, "Set the network domain. Default should be fine.")
 	port          = flag.Int("port", rtkMisc.LanServerPort, "Set the port the service is listening to.")
@@ -81,7 +80,7 @@ func browseOtherServer(ctx context.Context) {
 		entries := make(chan *zeroconf.ServiceEntry)
 		rtkMisc.GoSafe(func() {
 			for entry := range entries {
-				if (len(entry.AddrIPv4) == 0) || (entry.Instance == *name) {
+				if (len(entry.AddrIPv4) == 0) || (entry.Instance == rtkGlobal.ServerMdnsId) {
 					continue
 				}
 
@@ -135,10 +134,13 @@ func MainInit() {
 	rtkMisc.CreateDir(rtkGlobal.SOCKET_PATH_ROOT, os.ModePerm)
 
 	log.Println("=====================================================")
-	log.Printf("%s LanServer Version: %s , Client Base Version: %s", rtkBuildConfig.ServerName, rtkGlobal.LanServerVersion, rtkGlobal.ClientBaseVersion)
+	log.Printf("%s LanServer Version: %s ", rtkBuildConfig.ServerName, rtkGlobal.LanServerVersion)
 	log.Printf("%s Build Date: %s", rtkBuildConfig.ServerName, rtkBuildConfig.BuildDate)
 	log.Printf("=====================================================\n\n")
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	rtkdbManager.InitSqlite(ctx)
 	initDpSrcType()
 
 	var printErrNetwork = true
@@ -157,9 +159,6 @@ func MainInit() {
 
 	rtkGlobal.ServerIPAddr = ""
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	rtkdbManager.InitSqlite(ctx)
 	rtkMisc.GoSafe(func() { rtkDebug.DebugCmdLine() })
 	rtkMisc.GoSafe(func() { rtkNetwork.WatchNetworkInfo(ctx) })
 	rtkMisc.GoSafe(func() { Run() })
@@ -219,27 +218,12 @@ func getValidHarwdareAddr(iface *net.Interface) (string, error) {
 	return hardwareAddr, nil
 }
 
-func setupMdnsId(iface *net.Interface) {
-	if iface == nil {
-		log.Printf("[%s] Err: null interface", rtkMisc.GetFuncInfo())
-		return
-	}
-
-	rtkGlobal.ServerMdnsId = ""
-	for _, b := range iface.HardwareAddr {
-		rtkGlobal.ServerMdnsId += fmt.Sprintf("%02X", b)
-	}
-	*name = rtkGlobal.ServerMdnsId
-}
-
 func registerMdns(server **zeroconf.Server, serverForSearch **zeroconf.Server) []net.Addr {
-	var mdnsId = ""
 	var printErrIface = true
 	var printErrMac = true
 	var printErrIp = true
 	var printErrMdns = true
 	for {
-		mdnsId = ""
 		for _, ifaceName := range rtkNetwork.SupInterfaces {
 			iface, err := rtkMisc.GetValidInterface(ifaceName)
 			if err != nil {
@@ -251,8 +235,8 @@ func registerMdns(server **zeroconf.Server, serverForSearch **zeroconf.Server) [
 			}
 
 			// Use the perferred interface MAC address as mDNS ID, even the interface has no IP
-			if mdnsId == "" {
-				mdnsId, err = getValidHarwdareAddr(iface)
+			if rtkGlobal.ServerMdnsId == "" {
+				mdnsId, err := getValidHarwdareAddr(iface)
 				if err != nil {
 					if printErrMac {
 						log.Printf("Err: Get server MAC address failed: %s", err.Error())
@@ -261,7 +245,6 @@ func registerMdns(server **zeroconf.Server, serverForSearch **zeroconf.Server) [
 					continue
 				}
 
-				*name = mdnsId
 				rtkGlobal.ServerMdnsId = mdnsId
 			}
 			printErrMac = true
@@ -302,8 +285,8 @@ func registerMdns(server **zeroconf.Server, serverForSearch **zeroconf.Server) [
 			textRecordTimestamp := getTextRecord(rtkMisc.TextRecordKeyTimestamp, strconv.FormatInt(time.Now().UnixMilli(), 10))
 			textRecordVersion := getTextRecord(rtkMisc.TextRecordKeyVersion, rtkGlobal.LanServerVersion)
 			textRecords := []string{textRecordIp, textRecordMonitorName, textRecordProductName, textRecordTimestamp, textRecordVersion}
-			*server, err = zeroconf.Register(*name, *service, *domain, *port, textRecords, []net.Interface{*iface})
-			*serverForSearch, _ = zeroconf.Register(*name, *serviceForServer, *domain, *port, []string{}, []net.Interface{*iface})
+			*server, err = zeroconf.Register(rtkGlobal.ServerMdnsId, *service, *domain, *port, textRecords, []net.Interface{*iface})
+			*serverForSearch, _ = zeroconf.Register(rtkGlobal.ServerMdnsId, *serviceForServer, *domain, *port, []string{}, []net.Interface{*iface})
 			(*server).TTL(60)
 			(*serverForSearch).TTL(60)
 
@@ -364,10 +347,10 @@ func Run() {
 			}
 		})
 		log.Printf("Register use [%d]ms, Published service info:", time.Now().UnixMilli()-startTime)
-		log.Println("- Name:", *name)
+		log.Println("- Name:", rtkGlobal.ServerMdnsId)
 		log.Println("- Type:", *service)
 		log.Println("- Domain:", *domain)
-		log.Println("- Port:", rtkGlobal.ServerPort)
+		log.Println("- Port:", *port)
 
 		serverAddr := ""
 		for _, addr := range addrs {
@@ -383,7 +366,9 @@ func Run() {
 		}
 
 		rtkGlobal.ServerIPAddr = serverAddr
-		serverAddr = fmt.Sprintf("%s:%d", serverAddr, rtkGlobal.ServerPort)
+		rtkGlobal.ServerPort = *port
+
+		serverAddr = fmt.Sprintf("%s:%d", serverAddr, *port)
 		listener, err := net.Listen("tcp", serverAddr)
 		if err != nil {
 			log.Printf("Error listening:%+v", err)
