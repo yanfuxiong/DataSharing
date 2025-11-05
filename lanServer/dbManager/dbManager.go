@@ -19,6 +19,7 @@ import (
 const (
 	g_KeppDBAliveInterval = 1 // minute
 	g_ReconnListInterval  = 2 // seconds
+	g_ReCreateDbRetry     = 5
 )
 
 var (
@@ -35,32 +36,73 @@ func init() {
 	g_SqlInstance = nil
 }
 
-func InitSqlite(ctx context.Context) {
+func reCreateDb() error {
+	filePath := rtkGlobal.DB_PATH + rtkGlobal.DB_NAME
+	if rtkMisc.FileExists(filePath) {
+		err := os.Remove(filePath)
+		if err != nil {
+			log.Printf("Remove corrupt db:[%s] err:%+v", filePath, err)
+			return errors.New("Remove db error!")
+		}
+	}
+
+	return createDb()
+}
+
+
+func createDb() error {
 	err := rtkMisc.CreateDir(rtkGlobal.DB_PATH, os.ModePerm)
 	if err != nil {
 		log.Printf("Create DB failed: %s", err.Error())
-		log.Fatal(errors.New("buildDbPath error!"))
+		return errors.New("buildDbPath error!")
 	}
 
 	db, err := sql.Open("sqlite3", g_DBConnectionStr)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	db.SetConnMaxIdleTime(time.Duration(0)) //connections are not closed due to a connection's idle time
 	db.SetMaxIdleConns(10)
 
 	dbMutex.Lock()
+	defer dbMutex.Unlock()
 	g_SqlInstance = db
 	_, err = g_SqlInstance.Exec(SqlDataCreateTable.toString())
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	_, err = g_SqlInstance.Exec(SqlDataResetAuthInfo.toString())
 	if err != nil {
 		log.Println("[WARN] Database error: Reset auth info failed: ", err)
 	}
-	dbMutex.Unlock()
+
+	return nil
+}
+
+
+func InitSqlite(ctx context.Context) {
+	err := createDb()
+	if err != nil {
+		log.Printf("Create database failed. Err: %s", err.Error())
+
+		retryRet := false
+		for i := 1; i < g_ReCreateDbRetry; i++ {
+			time.Sleep(i*100 * time.Millisecond)
+			log.Printf("Create database failed. Retry(%d/%d)", i, g_ReCreateDbRetry)
+			errRetry := reCreateDb()
+			if errRetry == nil {
+				retryRet = true
+				break
+			}
+			log.Printf("Re-Create database filed. Err: %s", errRetry.Error())
+		}
+
+		if !retryRet {
+			log.Println("[WARN] Cannot create database. CrossShare Server will be abnormal!")
+			return
+		}
+	}
 
 	upgradeDb()
 
