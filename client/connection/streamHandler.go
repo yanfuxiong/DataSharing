@@ -446,6 +446,7 @@ func AddStream(id string, pStream network.Stream) {
 }
 
 func closeStream(id string, isFromPeer bool) {
+	ClearFmtTypeStreamReadyFlag(id)
 	streamPoolMutex.Lock()
 	defer streamPoolMutex.Unlock()
 
@@ -466,7 +467,7 @@ func closeStream(id string, isFromPeer bool) {
 				}
 			} else {
 				if sInfo.cxt.Err() == nil { // tcp err
-					sInfo.cancelFn(rtkCommon.TcpNetworkCancel) // TODO: check it
+					sInfo.cancelFn(rtkCommon.TcpNetworkCancel)
 					log.Printf("ID:[%s] IP:[%s] ProcessEventsForPeer is Cancel by TCP network err! ", id, sInfo.ipAddr)
 				}
 			}
@@ -514,7 +515,7 @@ func ClosePeer(id string) {
 	defer streamPoolMutex.Unlock()
 
 	if sInfo, ok := streamPoolMap[id]; ok {
-		callbackSendDisconnectMsgToPeer(id)
+		//callbackSendDisconnectMsgToPeer(id)
 		if sInfo.sImage != nil {
 			sInfo.sImage.Close()
 			sInfo.sImage = nil
@@ -557,8 +558,8 @@ func CancelAllStream(isFromLanServerCancel bool) {
 
 	nCount := uint8(0)
 	for id, sInfo := range tempStreamMap {
-		//updateUIOnlineStatus(false, id, sInfo.ipAddr, "", "", "", "", "", "")
-		callbackSendDisconnectMsgToPeer(id)
+
+		//callbackSendDisconnectMsgToPeer(id)
 
 		if sInfo.sFileDrop != nil {
 			sInfo.sFileDrop.Close()
@@ -567,6 +568,7 @@ func CancelAllStream(isFromLanServerCancel bool) {
 			sInfo.sImage.Close()
 		}
 		if sInfo.cancelFn != nil { // StopProcessForPeer
+			sInfo.s.Close() //TODO:check it
 			if isFromLanServerCancel {
 				sInfo.cancelFn(rtkCommon.LanServerBusinessCancel)
 				sInfo.s.Close() // trigger offlineEvent immediately
@@ -579,7 +581,7 @@ func CancelAllStream(isFromLanServerCancel bool) {
 		nCount++
 	}
 
-	log.Printf("[%s] Send disconnect msg count:%d", rtkMisc.GetFuncInfo(), nCount)
+	log.Printf("[%s] close stream count:%d", rtkMisc.GetFuncInfo(), nCount)
 }
 
 func PrintfStreamPool() {

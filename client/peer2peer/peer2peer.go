@@ -278,7 +278,7 @@ func HandleReadInbandFromSocket(ctxMain context.Context, resultChan chan<- Event
 				if rtkUtils.GetPeerClientIsSupportQueueTrans(id) {
 					if fileTransInfo, ok := msg.ExtData.(rtkCommon.ExtDataFilesTransferInterrupt); ok {
 						fileTransferId := int(fileTransInfo.TimeStamp)
-						CancelDstFileTransfer(id) // Dst: Copy need cancel
+						CancelDstFileTransfer(id, fileTransInfo.TimeStamp) // Dst: Copy need cancel
 						log.Printf("[%s] (DST) Copy operation was canceled by src errCode:%d!", rtkMisc.GetFuncInfo(), fileTransInfo.Code)
 						// notice  errCode to platform
 						rtkPlatform.GoNotifyErrEvent(id, fileTransInfo.Code, ipAddr, strconv.Itoa(fileTransferId), "", "")
@@ -289,7 +289,7 @@ func HandleReadInbandFromSocket(ctxMain context.Context, resultChan chan<- Event
 					if ok {
 						fileTransferId = int(fileDropData.TimeStamp)
 					}
-					CancelDstFileTransfer(id) // Dst: Copy need cancel
+					CancelDstFileTransfer(id, fileDropData.TimeStamp) // Dst: Copy need cancel
 					if fileTransCode, ok := msg.ExtData.(rtkMisc.CrossShareErr); ok {
 						log.Printf("[%s] (DST) Copy operation was canceled by src errCode:%d!", rtkMisc.GetFuncInfo(), fileTransCode)
 						// notice  errCode to platform
@@ -349,7 +349,7 @@ func HandleReadInbandFromSocket(ctxMain context.Context, resultChan chan<- Event
 					}
 				}
 				continue
-			}else if msg.Command == COMM_CB_TRANSFER_SRC_INTERRUPT {
+			} else if msg.Command == COMM_CB_TRANSFER_SRC_INTERRUPT {
 				log.Printf("[%s] (DST) Copy image operation was canceled by src !", rtkMisc.GetFuncInfo())
 				continue
 			} else if msg.Command == COMM_CB_TRANSFER_DST_INTERRUPT {

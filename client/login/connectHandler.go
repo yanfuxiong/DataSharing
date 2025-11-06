@@ -6,7 +6,6 @@ import (
 	"io"
 	"log"
 	"net"
-	rtkCommon "rtk-cross-share/client/common"
 	rtkMisc "rtk-cross-share/misc"
 	"sync"
 	"time"
@@ -83,7 +82,7 @@ func (s *safeConnect) Write(b []byte) rtkMisc.CrossShareErr {
 	return rtkMisc.ERR_BIZ_C2S_GET_EMPTY_CONNECT
 }
 
-func (s *safeConnect) Read(b *[]byte) (int, error) {
+func (s *safeConnect) Read(b *[]byte) (int, error) { // Deprecated: unused
 	s.connectMutex.Lock()
 	defer s.connectMutex.Unlock()
 	if s.isAlive {
@@ -103,6 +102,7 @@ func (s *safeConnect) Read(b *[]byte) (int, error) {
 }
 
 func (s *safeConnect) Close() error {
+	// use RLock to immediately trigger shutdown
 	s.connectMutex.RLock()
 	defer s.connectMutex.RUnlock()
 	if s.isAlive {
