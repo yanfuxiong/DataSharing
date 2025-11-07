@@ -10,8 +10,6 @@ import (
 	rtkMisc "rtk-cross-share/misc"
 	"sync/atomic"
 	"time"
-
-	"golang.design/x/clipboard"
 )
 
 var kDefClipboardData = rtkCommon.ClipBoardData{
@@ -87,11 +85,6 @@ func updateXClipData(id string, cbText, cbImage, cbHtml []byte) {
 }
 
 func init() {
-	err := clipboard.Init()
-	if err != nil {
-		log.Fatal("clipboard init error:%+v", err)
-	}
-
 	rtkPlatform.SetCopyXClipCallback(updateClipboardFromPlatform)
 }
 

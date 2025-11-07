@@ -277,55 +277,37 @@ func HandleReadInbandFromSocket(ctxMain context.Context, resultChan chan<- Event
 			} else if msg.Command == COMM_FILE_TRANSFER_SRC_INTERRUPT {
 				if rtkUtils.GetPeerClientIsSupportQueueTrans(id) {
 					if fileTransInfo, ok := msg.ExtData.(rtkCommon.ExtDataFilesTransferInterrupt); ok {
-						fileTransferId := int(fileTransInfo.TimeStamp)
-						CancelDstFileTransfer(id, fileTransInfo.TimeStamp) // Dst: Copy need cancel
-						log.Printf("[%s] (DST) Copy operation was canceled by src errCode:%d!", rtkMisc.GetFuncInfo(), fileTransInfo.Code)
-						// notice  errCode to platform
-						rtkPlatform.GoNotifyErrEvent(id, fileTransInfo.Code, ipAddr, strconv.Itoa(fileTransferId), "", "")
+						log.Printf("[%s] (DST) timestamp:[%d] Copy operation was canceled by src errCode:%d!", rtkMisc.GetFuncInfo(), fileTransInfo.TimeStamp, fileTransInfo.Code)
+						CancelDstFileTransfer(id, ipAddr, fileTransInfo.TimeStamp, fileTransInfo.Code) // Dst: Copy need cancel
 					}
 				} else {
-					fileTransferId := int(0)
-					fileDropData, ok := rtkFileDrop.GetFileDropData(id)
-					if ok {
-						fileTransferId = int(fileDropData.TimeStamp)
-					}
-					CancelDstFileTransfer(id, fileDropData.TimeStamp) // Dst: Copy need cancel
-					if fileTransCode, ok := msg.ExtData.(rtkMisc.CrossShareErr); ok {
-						log.Printf("[%s] (DST) Copy operation was canceled by src errCode:%d!", rtkMisc.GetFuncInfo(), fileTransCode)
-						// notice  errCode to platform
-						rtkPlatform.GoNotifyErrEvent(id, fileTransCode, ipAddr, strconv.Itoa(fileTransferId), "", "")
+					if fileDropData, ok := rtkFileDrop.GetFileDropData(id); ok {
+						if fileTransCode, ok := msg.ExtData.(rtkMisc.CrossShareErr); ok {
+							log.Printf("[%s] (DST) Copy operation was canceled by src errCode:%d!", rtkMisc.GetFuncInfo(), fileTransCode)
+							CancelDstFileTransfer(id, ipAddr, fileDropData.TimeStamp, fileTransCode) // Dst: Copy need cancel
+						}
 					}
 				}
 				continue
 			} else if msg.Command == COMM_FILE_TRANSFER_DST_INTERRUPT {
 				if rtkUtils.GetPeerClientIsSupportQueueTrans(id) {
 					if fileTransInfo, ok := msg.ExtData.(rtkCommon.ExtDataFilesTransferInterrupt); ok {
-						CancelSrcFileTransfer(id, fileTransInfo.TimeStamp) // Src: Copy need cancel
-
-						// notice  errCode to platform
-						//fileTransferId := int(fileTransInfo.TimeStamp)
-						//rtkPlatform.GoNotifyErrEvent(id, fileTransInfo.Code, ipAddr, strconv.Itoa(fileTransferId), "", "")
 						if fileTransInfo.Code == rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL_GUI {
-							log.Printf("[%s](SRC) ID:[%s] Copy file operation was canceled by dst GUI !", rtkMisc.GetFuncInfo(), id)
+							log.Printf("[%s](SRC) ID:[%s] timestamp:[%d] Copy file operation was canceled by dst GUI !", rtkMisc.GetFuncInfo(), id)
 						} else {
-							log.Printf("[%s](SRC) ID:[%s] Copy file operation was canceled by dst errCode:%d!", rtkMisc.GetFuncInfo(), id, fileTransInfo.Code)
+							log.Printf("[%s](SRC) ID:[%s] timestamp:[%d] Copy file operation was canceled by dst errCode:%d!", rtkMisc.GetFuncInfo(), id, fileTransInfo.Code)
 						}
+						CancelSrcFileTransfer(id, ipAddr, fileTransInfo.TimeStamp, fileTransInfo.Code) // Src: Copy need cancel
 					}
 				} else {
-					fileTransferId := int(0)
-					fileDropData, ok := rtkFileDrop.GetFileDropData(id)
-					if ok {
-						fileTransferId = int(fileDropData.TimeStamp)
-					}
-
-					CancelSrcFileTransfer(id, fileDropData.TimeStamp) // Src: Copy need cancel
-					if fileTransCode, ok := msg.ExtData.(rtkMisc.CrossShareErr); ok {
-						// notice  errCode to platform
-						rtkPlatform.GoNotifyErrEvent(id, fileTransCode, ipAddr, strconv.Itoa(fileTransferId), "", "")
-						if fileTransCode == rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL_GUI {
-							log.Printf("[%s](SRC) ID:[%s] Copy file operation was canceled by dst GUI !", rtkMisc.GetFuncInfo(), id)
-						} else {
-							log.Printf("[%s](SRC) ID:[%s] Copy file operation was canceled by dst errCode:%d!", rtkMisc.GetFuncInfo(), id, fileTransCode)
+					if fileDropData, ok := rtkFileDrop.GetFileDropData(id); ok {
+						if fileTransCode, ok := msg.ExtData.(rtkMisc.CrossShareErr); ok {
+							if fileTransCode == rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL_GUI {
+								log.Printf("[%s](SRC) ID:[%s] Copy file operation was canceled by dst GUI !", rtkMisc.GetFuncInfo(), id)
+							} else {
+								log.Printf("[%s](SRC) ID:[%s] Copy file operation was canceled by dst errCode:%d!", rtkMisc.GetFuncInfo(), id, fileTransCode)
+							}
+							CancelSrcFileTransfer(id, ipAddr, fileDropData.TimeStamp, fileTransCode) // Src: Copy need cancel
 						}
 					}
 				}
