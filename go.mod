@@ -8,7 +8,6 @@ require (
 	github.com/multiformats/go-multiaddr v0.16.1
 	github.com/multiformats/go-multihash v0.2.3
 	github.com/ncruces/go-sqlite3 v0.28.0
-	golang.design/x/clipboard v0.7.1
 	golang.org/x/sys v0.35.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )

@@ -10,10 +10,8 @@ import (
 	rtkConnection "rtk-cross-share/client/connection"
 	rtkFileDrop "rtk-cross-share/client/filedrop"
 	rtkGlobal "rtk-cross-share/client/global"
-	rtkPlatform "rtk-cross-share/client/platform"
 	rtkUtils "rtk-cross-share/client/utils"
 	rtkMisc "rtk-cross-share/misc"
-	"strconv"
 	"time"
 	"unicode/utf8"
 )
