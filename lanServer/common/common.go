@@ -67,6 +67,10 @@ var (
 	DpSrcTypeAry  = make([]SourcePortType, MAX_PORT_DP)
 )
 
+func IsSourceTypeUsbC(port int) bool {
+	return DpSrcTypeAry[port] == SrcPortType_USBC_1 || DpSrcTypeAry[port] == SrcPortType_USBC_2
+}
+
 // TODO: This mapping is hardcode now. Need to consider the different PCB in the future
 func GetClientSourcePortType(src, port int) string {
 	srcPortType := SrcPortType_UNKNOWN

@@ -9,6 +9,7 @@ import (
 	"net"
 	rtkCommon "rtk-cross-share/lanServer/common"
 	rtkdbManager "rtk-cross-share/lanServer/dbManager"
+	rtkGlobal "rtk-cross-share/lanServer/global"
 	rtkMisc "rtk-cross-share/misc"
 	"time"
 )
@@ -16,6 +17,17 @@ import (
 const (
 	reconnListInternal = 5 * time.Second
 )
+
+// =============================
+// CaptureColorData get event
+// =============================
+type NotifyCaptureIndexCallback func(source, port, clientIndex int) bool
+
+var notifyCaptureIndexCallback NotifyCaptureIndexCallback
+
+func SetNotifyCaptureIndexCallback(cb NotifyCaptureIndexCallback) {
+	notifyCaptureIndexCallback = cb
+}
 
 // =============================
 // TimingData get event
@@ -79,6 +91,34 @@ func handleReadFromClientMsg(buffer []byte, IPAddr string, MsgRsp *rtkMisc.C2SMe
 	}
 
 	return rtkMisc.SUCCESS
+}
+
+func checkCaptureResult(clientIndex int) (bool, int, int) {
+	// TODO: discuss max count and interval
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	maxRetryCnt := 20
+	retryCnt := 0
+	for {
+		<-ticker.C
+		src := rtkGlobal.Src_DP
+		for port := range rtkCommon.MAX_PORT_DP {
+			if rtkCommon.IsSourceTypeUsbC(port) {
+				ret := notifyCaptureIndexCallback(src, port, clientIndex)
+				if ret {
+					return true, src, port
+				}
+			}
+		}
+
+		retryCnt++
+		if retryCnt >= maxRetryCnt {
+			log.Printf("[%s] Not found index(%d) in src(%d), Retry:(%d/%d)",
+				rtkMisc.GetFuncInfo(), clientIndex, src, retryCnt, maxRetryCnt)
+			return false, 0, 0
+		}
+	}
 }
 
 func checkMobileTiming(clientIndex int, authData rtkMisc.AuthDataInfo) (bool, int, int) {

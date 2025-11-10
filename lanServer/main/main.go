@@ -35,6 +35,7 @@ typedef struct TIMING_DATA
 typedef void (*UpdateDeviceNameCb)(int source, int port, const char* name);
 typedef void (*DragFileStartCb)(int source, int port, int horzSize, int vertSize, int posX, int posY);
 typedef void (*UpdateClientInfoCb)(const CLIENT_INFO_DATA clientInfo);
+typedef void (*CaptureIndexCb)(int source, int port, int index, int *ret);
 typedef void (*GetTimingDataCb)(TIMING_DATA** list, int* size);
 typedef void (*GetTimingDataBySrcPortCb)(int source, int port, TIMING_DATA* timingData);
 typedef void (*DisplayMonitorNameCb)();
@@ -45,6 +46,7 @@ typedef void (*SendMsgEventCb)(int event, const char* arg1, const char* arg2, co
 static UpdateDeviceNameCb g_updateDeviceNameCb = 0;
 static DragFileStartCb g_dragFileStartCb = 0;
 static UpdateClientInfoCb g_updateClientInfoCb = 0;
+static CaptureIndexCb g_captureIndexCb = 0;
 static GetTimingDataCb g_getTimingDataCb = 0;
 static GetTimingDataBySrcPortCb g_getTimingDataBySrcPortCb = 0;
 static DisplayMonitorNameCb g_displayMonitorNameCb = 0;
@@ -68,6 +70,12 @@ static void setUpdateClientInfoCb(UpdateClientInfoCb cb) {g_updateClientInfoCb =
 static void onUpdateClientInfoCb(const CLIENT_INFO_DATA clientInfo) {
 	if (g_updateClientInfoCb) {
 		g_updateClientInfoCb(clientInfo);
+	}
+}
+static void setCaptureIndexCb(CaptureIndexCb cb) {g_captureIndexCb = cb;}
+static void onCaptureIndexCb(int source, int port, int index, int *ret) {
+	if (g_captureIndexCb) {
+		g_captureIndexCb(source, port, index, ret);
 	}
 }
 static void setGetTimingDataCb(GetTimingDataCb cb) {g_getTimingDataCb = cb;}
@@ -124,6 +132,11 @@ func SetDragFileStartCb(cb C.DragFileStartCb) {
 //export SetUpdateClientInfoCb
 func SetUpdateClientInfoCb(cb C.UpdateClientInfoCb) {
 	C.setUpdateClientInfoCb(cb)
+}
+
+//export SetCaptureIndexCb
+func SetCaptureIndexCb(cb C.CaptureIndexCb) {
+	C.setCaptureIndexCb(cb)
 }
 
 //export SetGetTimingDataCb
@@ -262,6 +275,7 @@ func initFunc() {
 		goUpdateClientInfoCb,
 		goDisplayMonitorNameCb,
 		goGetDpSrcTypeCb,
+		goCaptureIndexCb,
 		goGetTimingDataCb,
 		goGetTimingDataBySrcPortCb,
 		goSendMsgEventCb)
@@ -306,6 +320,17 @@ func goGetDpSrcTypeCb(source, port int) rtkGlobal.DpSrcType {
 	C.onGetDpSrcTypeCb(cSource, cPort, &cDpSrcType)
 
 	return rtkGlobal.DpSrcType(cDpSrcType)
+}
+
+func goCaptureIndexCb(source, port, clientIndex int) bool {
+	cSource := C.int(source)
+	cPort := C.int(port)
+	cClientIndex := C.int(clientIndex)
+	var cRet C.int
+	C.onCaptureIndexCb(cSource, cPort, cClientIndex, &cRet)
+
+	ret := cIntToGoBool(cRet)
+	return ret
 }
 
 func goGetTimingDataCb() []rtkCommon.TimingData {
@@ -377,6 +402,15 @@ func goBoolToCInt(val bool) C.int {
 		return C.int(1)
 	} else {
 		return C.int(0)
+	}
+}
+
+func cIntToGoBool(cVal C.int) bool {
+	val := int(cVal)
+	if val == 1 {
+		return true
+	} else {
+		return false
 	}
 }
 

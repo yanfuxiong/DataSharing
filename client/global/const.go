@@ -4,8 +4,9 @@ const (
 	ClientVersion = "2.3.49"
 
 	ClientDefaultVersion        = "2.3.0" // when the other client is an old version and cannot obtain the version number, use this default version
-	XClipVersionSerial          = 46      // the client support XClip since third version(serial number) 46
-	QueueFileTransVersionSerial = 48      // the client support file drop queue transfer since third version(serial number) 48
+	QueueFileTransVersionSerial = 49      // the client support file drop queue transfer since third version(serial number) 48
+	ClientXClipVerSerial        = 46      // the client support XClip since third version(serial number) 46
+	ClientCaptureIndexVerSerial = 48      // the client build ClientIndex color block on verification dialog
 
 	ProtocolID     = "/libp2p/dcutr"
 	HostProtocolID = "host_register"

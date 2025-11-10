@@ -43,7 +43,7 @@ type Callback interface {
 	CallbackUpdateMultipleProgressBar(ip, id, currentFileName string, sentFileCnt, totalFileCnt int, currentFileSize, totalSize, sentSize, timestamp int64)
 	CallbackNotifyErrEvent(id string, errCode int, arg1, arg2, arg3, arg4 string)
 	CallbackUpdateDiasStatus(status int)
-	CallbackGetAuthData() string
+	CallbackGetAuthData(clientIndex int) string
 	CallbackUpdateMonitorName(monitorName string)
 	CallbackRequestUpdateClientVersion(clienVersion string)
 	CallbackNotifyBrowseResult(monitorName, instance, ipAddr, version string, timestamp int64)
@@ -619,13 +619,13 @@ func GoDIASStatusNotify(diasStatus uint32) {
 	CallbackInstance.CallbackUpdateDiasStatus(int(diasStatus))
 }
 
-func GetAuthData() (rtkMisc.CrossShareErr, rtkMisc.AuthDataInfo) {
+func GetAuthData(clientIndex uint32) (rtkMisc.CrossShareErr, rtkMisc.AuthDataInfo) {
 	if CallbackInstance == nil {
 		log.Println("GetAuthData - failed - callbackInstance is nil")
 		return rtkMisc.ERR_BIZ_GET_CALLBACK_INSTANCE_NULL, rtkMisc.AuthDataInfo{}
 	}
 
-	authDataJsonInfo := CallbackInstance.CallbackGetAuthData()
+	authDataJsonInfo := CallbackInstance.CallbackGetAuthData(int(clientIndex))
 	log.Printf("[%s] get json data:[%s]", rtkMisc.GetFuncInfo(), authDataJsonInfo)
 
 	var authData rtkMisc.AuthDataInfo

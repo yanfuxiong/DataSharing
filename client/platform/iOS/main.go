@@ -12,7 +12,7 @@ typedef void (*CallbackMethodFileListNotify)(char* ip, char* id, char* platform,
 typedef void (*CallbackUpdateMultipleProgressBar)(char* ip,char* id, char* deviceName, char* currentfileName,unsigned int recvFileCnt, unsigned int totalFileCnt,unsigned long long currentFileSize,unsigned long long totalSize,unsigned long long recvSize,unsigned long long timestamp);
 typedef void (*CallbackMethodStartBrowseMdns)(char* instance, char* serviceType);
 typedef void (*CallbackMethodStopBrowseMdns)();
-typedef char* (*CallbackAuthData)();
+typedef char* (*CallbackAuthData)(unsigned int clientIndex);
 typedef void (*CallbackSetDIASStatus)(unsigned int status);
 typedef void (*CallbackSetMonitorName)(char* monitorName);
 typedef void (*CallbackPasteXClipData)(char *text, char *image, char *html);
@@ -56,8 +56,8 @@ static void invokeCallbackMethodStopBrowseMdns() {
 	if (gCallbackMethodStopBrowseMdns) {gCallbackMethodStopBrowseMdns();}
 }
 static void setCallbackGetAuthData(CallbackAuthData cb) {gCallbackAuthData = cb;}
-static char* invokeCallbackGetAuthData() {
-	if (gCallbackAuthData) { return gCallbackAuthData();}
+static char* invokeCallbackGetAuthData(unsigned int clientIndex) {
+	if (gCallbackAuthData) { return gCallbackAuthData(clientIndex);}
     return NULL;
 }
 static void setCallbackSetDIASStatus(CallbackSetDIASStatus cb) {gCallbackSetDIASStatus = cb;}
@@ -193,8 +193,9 @@ func GoTriggerCallbackMethodStopBrowseMdns() {
 	C.invokeCallbackMethodStopBrowseMdns()
 }
 
-func GoTriggerCallbackGetAuthData() string {
-	cAuthData := C.invokeCallbackGetAuthData()
+func GoTriggerCallbackGetAuthData(clientIndex uint32) string {
+	cClientIndex := C.uint(clientIndex)
+	cAuthData := C.invokeCallbackGetAuthData(cClientIndex)
 	defer C.free(unsafe.Pointer(cAuthData))
 
 	authData := C.GoString(cAuthData)

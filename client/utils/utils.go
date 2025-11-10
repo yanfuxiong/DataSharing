@@ -269,7 +269,7 @@ func InsertClientInfoMap(id, ipAddr, platform, name, srcPortType, ver, fileTrans
 	var logSuffix string
 
 	peerVerSerial := rtkMisc.GetVersionSerialValue(ver)
-	if peerVerSerial >= int(rtkGlobal.XClipVersionSerial) {
+	if peerVerSerial >= int(rtkGlobal.ClientXClipVerSerial) {
 		isSupportXClip = true
 		logSuffix = " support XClip,"
 		if peerVerSerial >= int(rtkGlobal.QueueFileTransVersionSerial) {
@@ -282,7 +282,7 @@ func InsertClientInfoMap(id, ipAddr, platform, name, srcPortType, ver, fileTrans
 		logSuffix = " not support XClip and file drop queue transfer!"
 	}
 
-	log.Printf("ID:[%s] version:[%s] serial threshold XClip:[%d] file drop queue:[%d], so %s", id, ver, rtkGlobal.XClipVersionSerial, rtkGlobal.QueueFileTransVersionSerial, logSuffix)
+	log.Printf("ID:[%s] version:[%s] serial threshold XClip:[%d] file drop queue:[%d], so %s", id, ver, rtkGlobal.ClientXClipVerSerial, rtkGlobal.QueueFileTransVersionSerial, logSuffix)
 
 	rtkGlobal.ClientInfoMap[id] = rtkCommon.ClientInfoEx{
 		ClientInfo: rtkMisc.ClientInfo{

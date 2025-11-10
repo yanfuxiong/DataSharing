@@ -78,7 +78,7 @@ type (
 	CallbackMethodStopBrowseMdns           func()
 	CallbackMethodBrowseMdnsResultFunc     func(string, string, int, string, string, string, string)
 	CallbackDetectPluginEventFunc          func(isPlugin bool, productName string)
-	CallbackGetAuthDataFunc                func() string
+	CallbackGetAuthDataFunc                func(uint32) string
 	CallbackDIASStatusFunc                 func(uint32)
 	CallbackMonitorNameFunc                func(string)
 	CallbackGetFilesTransCodeFunc          func(id string) rtkCommon.SendFilesRequestErrCode
@@ -658,12 +658,12 @@ func GoDIASStatusNotify(diasStatus uint32) {
 	callbackDIASStatus(diasStatus)
 }
 
-func GetAuthData() (rtkMisc.CrossShareErr, rtkMisc.AuthDataInfo) {
+func GetAuthData(clientIndex uint32) (rtkMisc.CrossShareErr, rtkMisc.AuthDataInfo) {
 	if callbackGetAuthData == nil {
 		log.Println("callbackGetAuthData is null !")
 		return rtkMisc.ERR_BIZ_GET_CALLBACK_INSTANCE_NULL, rtkMisc.AuthDataInfo{}
 	}
-	authDataJsonInfo := callbackGetAuthData()
+	authDataJsonInfo := callbackGetAuthData(clientIndex)
 	log.Printf("[%s] get json data:[%s]", rtkMisc.GetFuncInfo(), authDataJsonInfo)
 
 	var authData rtkMisc.AuthDataInfo

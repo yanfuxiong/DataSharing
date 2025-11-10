@@ -6,6 +6,7 @@ import (
 	"log"
 	rtkCommon "rtk-cross-share/lanServer/common"
 	rtkdbManager "rtk-cross-share/lanServer/dbManager"
+	rtkGlobal "rtk-cross-share/lanServer/global"
 	rtkMisc "rtk-cross-share/misc"
 	"time"
 )
@@ -169,22 +170,43 @@ func dealC2SMsgMobileAuthDataIndex(id string, clientIndex uint32, ext *json.RawM
 	if err != nil {
 		log.Printf("[%s] clientID:[%s] decode ExtDataText Err: %s", rtkMisc.GetFuncInfo(), id, err.Error())
 		authDataIndexMobileRsp.Response = rtkMisc.GetResponse(rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL)
-	} else {
-		// Compare timing with TimingData & AuthData
-		log.Printf("[%s] Width[%d] Height[%d] Type[%d] Framerate[%d]  DisplayName:[%s]", rtkMisc.GetFuncInfo(), extData.AuthData.Width, extData.AuthData.Height, extData.AuthData.Type, extData.AuthData.Framerate, extData.AuthData.DisplayName)
-		authStatus, source, port := checkMobileTiming(int(clientIndex), extData.AuthData)
-		errCode := rtkdbManager.UpdateAuthAndSrcPort(int(clientIndex), authStatus, source, port)
-		if errCode != rtkMisc.SUCCESS {
-			authDataIndexMobileRsp.Response = rtkMisc.GetResponse(errCode)
-		} else {
-			authDataIndexMobileRsp.AuthStatus = authStatus
-		}
+		return authDataIndexMobileRsp
+	}
 
-		if !authStatus {
-			log.Printf("[%s] clientID:[%s] WARNING: Authorize failed", id, rtkMisc.GetFuncInfo())
+	clientInfo, errQueryClient := rtkdbManager.QueryClientInfoByIndex(int(clientIndex))
+	if errQueryClient != rtkMisc.SUCCESS {
+		log.Printf("[%s] Err(%d): Get Client info failed:(%d)", rtkMisc.GetFuncInfo(), errQueryClient, clientIndex)
+		authDataIndexMobileRsp.Response = rtkMisc.GetResponse(errQueryClient)
+		return authDataIndexMobileRsp
+	}
+
+	var authStatus = false
+	var source = 0
+	var port = 0
+	// Only check capture index in USB-C type
+	if extData.AuthData.Type == rtkMisc.DisplayModeUsbC {
+		if rtkMisc.GetVersionSerialValue(clientInfo.Version) >= int(rtkGlobal.ClientCaptureIndexVerSerial) {
+			log.Printf("[%s] Get capture result. Index[%d]", rtkMisc.GetFuncInfo(), clientIndex)
+			authStatus, source, port = checkCaptureResult(int(clientIndex))
 		}
 	}
 
+	if authStatus == false {
+		// Compare timing with TimingData & AuthData
+		log.Printf("[%s] Width[%d] Height[%d] Type[%d] Framerate[%d]  DisplayName:[%s]", rtkMisc.GetFuncInfo(), extData.AuthData.Width, extData.AuthData.Height, extData.AuthData.Type, extData.AuthData.Framerate, extData.AuthData.DisplayName)
+		authStatus, source, port = checkMobileTiming(int(clientIndex), extData.AuthData)
+	}
+
+	errCode := rtkdbManager.UpdateAuthAndSrcPort(int(clientIndex), authStatus, source, port)
+	if errCode != rtkMisc.SUCCESS {
+		authDataIndexMobileRsp.Response = rtkMisc.GetResponse(errCode)
+		return authDataIndexMobileRsp
+	}
+
+	if !authStatus {
+		log.Printf("[%s] clientID:[%s] WARNING: Authorize failed", id, rtkMisc.GetFuncInfo())
+	}
+	authDataIndexMobileRsp.AuthStatus = authStatus
 	return authDataIndexMobileRsp
 }
 

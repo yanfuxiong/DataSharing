@@ -406,7 +406,7 @@ func GoDIASStatusNotify(diasStatus uint32) {
 	callbackDIASStatus(diasStatus)
 }
 
-func GetAuthData() (rtkMisc.CrossShareErr, rtkMisc.AuthDataInfo) {
+func GetAuthData(clientIndex uint32) (rtkMisc.CrossShareErr, rtkMisc.AuthDataInfo) {
 	return rtkMisc.ERR_BIZ_GET_CALLBACK_INSTANCE_NULL, rtkMisc.AuthDataInfo{}
 }
 

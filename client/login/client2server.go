@@ -195,7 +195,7 @@ func dealS2CMsgInitClient(id string, extData json.RawMessage) rtkMisc.CrossShare
 	lanServerHeartbeatStart()
 
 	if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformAndroid || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformiOS {
-		errCode, authData := rtkPlatform.GetAuthData()
+		errCode, authData := rtkPlatform.GetAuthData(rtkGlobal.NodeInfo.ClientIndex)
 		if errCode != rtkMisc.SUCCESS {
 			log.Printf("[%s] GetAuthData errCode:[%d]", rtkMisc.GetFuncInfo(), errCode)
 			return errCode

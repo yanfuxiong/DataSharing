@@ -30,6 +30,7 @@ type (
 	UpdateClientInfoCb       func(clientInfo rtkCommon.ClientInfoTb)
 	DisplayMonitorNameCb     func()
 	GetDpSrcTypeCb           func(source, port int) rtkGlobal.DpSrcType
+	CaptureIndexCb           func(source, port, clientIndex int) bool
 	GetTimingDataCb          func() []rtkCommon.TimingData
 	GetTimingDataBySrcPortCb func(source, port int) rtkCommon.TimingData
 	SendMsgEventCb           func(event int, arg1, arg2, arg3, arg4 string)
@@ -41,6 +42,7 @@ type (
 		mUpdateClientInfoCb       UpdateClientInfoCb
 		mDisplayMonitorNameCb     DisplayMonitorNameCb
 		mGetDpSrcTypeCb           GetDpSrcTypeCb
+		mCaptureIndexCb           CaptureIndexCb
 		mGetTimingDataCb          GetTimingDataCb
 		mGetTimingDataBySrcPortCb GetTimingDataBySrcPortCb
 		mSendMsgEventCb           SendMsgEventCb
@@ -57,6 +59,7 @@ func GetInterfaceMgr() *InterfaceMgr {
 
 func (mgr *InterfaceMgr) initCallbackToClient() {
 	rtkdbManager.SetNotifyUpdateClientInfoCallback(mgr.TriggerUpdateClientInfo)
+	rtkClientManager.SetNotifyCaptureIndexCallback(mgr.TriggerCaptureIndex)	
 	rtkClientManager.SetNotifyGetTimingDataCallback(mgr.TriggerGetTimingData)
 	rtkClientManager.SetNotifyGetTimingDataBySrcPortCallback(mgr.TriggerGetTimingDataBySrcPort)
 	rtkClientManager.SetSendPlatformMsgEventCallback(mgr.TriggerSendMsgEvent)
@@ -68,6 +71,7 @@ func (mgr *InterfaceMgr) SetupCallbackFromServer(
 	updateClientInfoCb UpdateClientInfoCb,
 	displayMonitorNameCb DisplayMonitorNameCb,
 	getDpSrcTypeCb GetDpSrcTypeCb,
+	captureIndexCb CaptureIndexCb,
 	getTimingDataCb GetTimingDataCb,
 	getTimingDataBySrcPortCb GetTimingDataBySrcPortCb,
 	sendMsgEventCb SendMsgEventCb,
@@ -79,6 +83,7 @@ func (mgr *InterfaceMgr) SetupCallbackFromServer(
 	mgr.mUpdateClientInfoCb = updateClientInfoCb
 	mgr.mDisplayMonitorNameCb = displayMonitorNameCb
 	mgr.mGetDpSrcTypeCb = getDpSrcTypeCb
+	mgr.mCaptureIndexCb = captureIndexCb
 	mgr.mGetTimingDataCb = getTimingDataCb
 	mgr.mGetTimingDataBySrcPortCb = getTimingDataBySrcPortCb
 	mgr.mSendMsgEventCb = sendMsgEventCb
@@ -138,6 +143,16 @@ func (mgr *InterfaceMgr) TriggerGetDpSrcTypeCb(source, port int) rtkGlobal.DpSrc
 	}
 	mgr.mu.RUnlock()
 	return mgr.mGetDpSrcTypeCb(source, port)
+}
+
+func (mgr *InterfaceMgr) TriggerCaptureIndex(source, port, clientIndex int) bool {
+	mgr.mu.RLock()
+	if mgr.mCaptureIndexCb == nil {
+		log.Printf("[%s][%s] Error: CaptureIndex callback is null", tag, rtkMisc.GetFuncInfo())
+		return false
+	}
+	mgr.mu.RUnlock()
+	return mgr.mCaptureIndexCb(source, port, clientIndex)
 }
 
 func (mgr *InterfaceMgr) TriggerGetTimingData() []rtkCommon.TimingData {
