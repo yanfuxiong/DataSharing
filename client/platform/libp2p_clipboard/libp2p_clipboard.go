@@ -62,8 +62,9 @@ func SetMsgEventFunc(event int, arg1, arg2, arg3, arg4 string) {
 	rtkPlatform.GoSetMsgEventFunc(uint32(event), arg1, arg2, arg3, arg4)
 }
 
-func SendXClipData(text, image, html string) {
-	log.Printf("[%s] text:%d, image:%d, html:%d\n\n", rtkMisc.GetFuncInfo(), len(text), len(image), len(html))
+func SendXClipData(text, image, html, rtf string) {
+	log.Printf("[%s] text:%d, image:%d, html:%d, rtf:%d \n\n", rtkMisc.GetFuncInfo(), len(text), len(image), len(html), len(rtf))
+
 	imgData := []byte(nil)
 	if image != "" {
 		startTime := time.Now().UnixMilli()
@@ -86,7 +87,7 @@ func SendXClipData(text, image, html string) {
 		log.Printf("image get jpg size:[%d](%d,%d),decode use:[%d]ms", len(imgData), width, height, time.Now().UnixMilli()-startTime)
 	}
 
-	rtkPlatform.GoCopyXClipData([]byte(text), imgData, []byte(html))
+	rtkPlatform.GoCopyXClipData([]byte(text), imgData, []byte(html), []byte(rtf))
 }
 
 func GetClientListEx() string {

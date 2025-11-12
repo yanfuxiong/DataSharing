@@ -76,8 +76,8 @@ func InitPlatform(rootPath, downLoadPath, deviceName string) {
 
 type (
 	CallbackNetworkSwitchFunc          func()
-	CallbackCopyXClipFunc              func(cbText, cbImage, cbHtml []byte)
-	CallbackPasteXClipFunc             func(text, image, html string)
+	CallbackCopyXClipFunc              func(cbText, cbImage, cbHtml, cbRtf []byte)
+	CallbackPasteXClipFunc             func(text, image, html, rtf string)
 	CallbackCleanClipboardFunc         func()
 	CallbackFileListDropRequestFunc    func(string, []rtkCommon.FileInfo, []string, uint64, uint64, string)
 	CallbackDragFileListRequestFunc    func([]rtkCommon.FileInfo, []string, uint64, uint64, string)
@@ -278,13 +278,13 @@ func GoSetMsgEventFunc(event uint32, arg1, arg2, arg3, arg4 string) {
 	callbackSetMsgEvent(event, arg1, arg2, arg3, arg4)
 }
 
-func GoCopyXClipData(text, image, html []byte) {
+func GoCopyXClipData(text, image, html, rtf []byte) {
 	if callbackCopyXClipDataCB == nil {
 		log.Println("callbackCopyXClipDataCB is null!")
 		return
 	}
 
-	callbackCopyXClipDataCB(text, image, html)
+	callbackCopyXClipDataCB(text, image, html, rtf)
 }
 
 func GoSetAuthStatusCode(status uint8) {
@@ -429,7 +429,7 @@ func GoDragFileListNotify(ip, id, platform string, fileCnt uint32, totalSize uin
 func GoDragFileListFolderNotify(ip, id, folderName string, timestamp uint64) {
 }
 
-func GoSetupDstPasteXClipData(cbText, cbImage, cbHtml []byte) {
+func GoSetupDstPasteXClipData(cbText, cbImage, cbHtml, cbRtf []byte) {
 	if callbackPasteXClipDataCB == nil {
 		log.Printf("callbackPasteXClipDataCB is null!\n\n")
 		return
@@ -441,7 +441,7 @@ func GoSetupDstPasteXClipData(cbText, cbImage, cbHtml []byte) {
 		imageStr = imageBase64
 	}
 
-	callbackPasteXClipDataCB(string(cbText), imageStr, string(cbHtml))
+	callbackPasteXClipDataCB(string(cbText), imageStr, string(cbHtml), string(cbRtf))
 }
 
 func GoUpdateMultipleProgressBar(ip, id, currentFileName string, sentFileCnt, totalFileCnt uint32, currentFileSize, totalSize, sentSize, timestamp uint64) {
@@ -510,9 +510,6 @@ func GoRequestUpdateClientVersion(ver string) {
 
 func GoCleanClipboard() {
 	callbackCleanClipboard()
-}
-
-func FoundPeer() {
 }
 
 func GenKey() crypto.PrivKey {

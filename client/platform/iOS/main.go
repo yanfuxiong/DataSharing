@@ -9,13 +9,13 @@ package main
 
 typedef void (*CallbackUpdateClientStatus)(char* clientJsonStr);
 typedef void (*CallbackMethodFileListNotify)(char* ip, char* id, char* platform,unsigned int fileCnt, unsigned long long totalSize,unsigned long long timestamp, char* firstFileName, unsigned long long firstFileSize);
-typedef void (*CallbackUpdateMultipleProgressBar)(char* ip,char* id, char* deviceName, char* currentfileName,unsigned int recvFileCnt, unsigned int totalFileCnt,unsigned long long currentFileSize,unsigned long long totalSize,unsigned long long recvSize,unsigned long long timestamp);
+typedef void (*CallbackUpdateMultipleProgressBar)(char* ip,char* id, char* currentfileName,unsigned int recvFileCnt, unsigned int totalFileCnt,unsigned long long currentFileSize,unsigned long long totalSize,unsigned long long recvSize,unsigned long long timestamp);
 typedef void (*CallbackMethodStartBrowseMdns)(char* instance, char* serviceType);
 typedef void (*CallbackMethodStopBrowseMdns)();
 typedef char* (*CallbackAuthData)(unsigned int clientIndex);
 typedef void (*CallbackSetDIASStatus)(unsigned int status);
 typedef void (*CallbackSetMonitorName)(char* monitorName);
-typedef void (*CallbackPasteXClipData)(char *text, char *image, char *html);
+typedef void (*CallbackPasteXClipData)(char *text, char *image, char *html, char* rtf);
 typedef void (*CallbackRequestUpdateClientVersion)(char* clientVer);
 typedef void (*CallbackNotifyErrEvent)(char* id, unsigned int errCode, char* arg1, char* arg2, char* arg3, char* arg4);
 typedef void (*CallbackNotifyBrowseResult)(char* monitorName, char* instance, char* ip, char* version, unsigned long long timestamp);
@@ -44,8 +44,8 @@ static void invokeCallbackMethodFileListNotify(char* ip, char* id, char* platfor
 	if (gCallbackMethodFileListNotify) {gCallbackMethodFileListNotify(ip, id, platform, fileCnt, totalSize, timestamp, firstFileName, firstFileSize);}
 }
 static void setCallbackUpdateMultipleProgressBar(CallbackUpdateMultipleProgressBar cb) {gCallbackUpdateMultipleProgressBar = cb;}
-static void invokeCallbackUpdateMultipleProgressBar(char* ip,char* id, char* deviceName, char* currentfileName,unsigned int recvFileCnt, unsigned int totalFileCnt,unsigned long long currentFileSize,unsigned long long totalSize,unsigned long long recvSize,unsigned long long timestamp) {
-	if (gCallbackUpdateMultipleProgressBar) {gCallbackUpdateMultipleProgressBar(ip,id, deviceName,currentfileName,recvFileCnt,totalFileCnt,currentFileSize,totalSize, recvSize, timestamp);}
+static void invokeCallbackUpdateMultipleProgressBar(char* ip,char* id, char* currentfileName,unsigned int recvFileCnt, unsigned int totalFileCnt,unsigned long long currentFileSize,unsigned long long totalSize,unsigned long long recvSize,unsigned long long timestamp) {
+	if (gCallbackUpdateMultipleProgressBar) {gCallbackUpdateMultipleProgressBar(ip,id, currentfileName,recvFileCnt,totalFileCnt,currentFileSize,totalSize, recvSize, timestamp);}
 }
 static void setCallbackMethodStartBrowseMdns(CallbackMethodStartBrowseMdns cb) {gCallbackMethodStartBrowseMdns = cb;}
 static void invokeCallbackMethodStartBrowseMdns(char* instance, char* serviceType) {
@@ -69,8 +69,8 @@ static void invokeCallbackSetMonitorName(char* monitorName) {
 	if (gCallbackSetMonitorName) { gCallbackSetMonitorName(monitorName);}
 }
 static void setCallbackPasteXClipData(CallbackPasteXClipData cb) {gCallbackPasteXClipData = cb;}
-static void invokeCallbackPasteXClipData(char *text, char *image, char *html) {
-	if (gCallbackPasteXClipData) { gCallbackPasteXClipData(text, image, html);}
+static void invokeCallbackPasteXClipData(char *text, char *image, char *html, char* rtf) {
+	if (gCallbackPasteXClipData) { gCallbackPasteXClipData(text, image, html, rtf);}
 }
 static void setCallbackRequestUpdateClientVersion(CallbackRequestUpdateClientVersion cb) {gCallbackRequestUpdateClientVersion = cb;}
 static void invokeCallbackRequestUpdateClientVersion(char* clientVer) {
@@ -160,13 +160,11 @@ func GoTriggerCallbackMethodFileListNotify(ip, id, platform string, fileCnt uint
 func GoTriggerCallbackUpdateMultipleProgressBar(ip, id, currentFileName string, sentFileCnt, totalFileCnt uint32, currentFileSize, totalSize, sentSize, timestamp uint64) {
 	cip := C.CString(ip)
 	cid := C.CString(id)
-	cdeviceName := C.CString("")
 	ccurrentFileName := C.CString(currentFileName)
 
 	defer func() {
 		C.free(unsafe.Pointer(cip))
 		C.free(unsafe.Pointer(cid))
-		C.free(unsafe.Pointer(cdeviceName))
 		C.free(unsafe.Pointer(ccurrentFileName))
 	}()
 
@@ -178,7 +176,7 @@ func GoTriggerCallbackUpdateMultipleProgressBar(ip, id, currentFileName string, 
 	crecvSize := C.ulonglong(sentSize)
 	ctimeStamp := C.ulonglong(timestamp)
 
-	C.invokeCallbackUpdateMultipleProgressBar(cip, cid, cdeviceName, ccurrentFileName, crecvFileCnt, ctotalFileCnt, ccurrentFileSize, ctotalSize, crecvSize, ctimeStamp)
+	C.invokeCallbackUpdateMultipleProgressBar(cip, cid, ccurrentFileName, crecvFileCnt, ctotalFileCnt, ccurrentFileSize, ctotalSize, crecvSize, ctimeStamp)
 }
 
 func GoTriggerCallbackMethodStartBrowseMdns(instance, serviceType string) {
@@ -216,16 +214,18 @@ func GoTriggerCallbackSetMonitorName(name string) {
 	log.Printf("[%s] MonitorName:[%s]", rtkMisc.GetFuncInfo(), name)
 }
 
-func GoTriggerCallbackPasteXClipData(text, image, html string) {
+func GoTriggerCallbackPasteXClipData(text, image, html, rtf string) {
 	cText := C.CString(text)
 	cImage := C.CString(image)
 	cHtml := C.CString(html)
+	cRtf := C.CString(rtf)
 	defer C.free(unsafe.Pointer(cText))
 	defer C.free(unsafe.Pointer(cImage))
 	defer C.free(unsafe.Pointer(cHtml))
+	defer C.free(unsafe.Pointer(cRtf))
 
-	log.Printf("[%s] text len:%d , image len:%d, html:%d\n\n", rtkMisc.GetFuncInfo(), len(text), len(image), len(html))
-	C.invokeCallbackPasteXClipData(cText, cImage, cHtml)
+	log.Printf("[%s] text:%d, image:%d, html:%d, rtf:%d \n\n", rtkMisc.GetFuncInfo(), len(text), len(image), len(html), len(rtf))
+	C.invokeCallbackPasteXClipData(cText, cImage, cHtml, cRtf)
 }
 
 func GoTriggerCallbackReqClientUpdateVer(ver string) {
@@ -341,14 +341,14 @@ func SetCallbackNotifyBrowseResult(cb C.CallbackNotifyBrowseResult) {
 }
 
 //export MainInit
-func MainInit(deviceName, serverId, serverIpInfo, listenHost string, listenPort int) {
+func MainInit(deviceName, rootPath, serverId, serverIpInfo, listenHost string, listenPort int) {
 	rtkPlatform.SetDeviceName(deviceName)
-	rootPath := rtkPlatform.GetRootPath()
+
 	if rootPath == "" || !rtkMisc.FolderExists(rootPath) {
 		log.Fatalf("[%s] RootPath :[%s] is invalid!", rtkMisc.GetFuncInfo(), rootPath)
 	}
-
-	log.Printf("[%s] device name:[%s] host:[%s] port:[%d]", rtkMisc.GetFuncInfo(), deviceName, listenHost, listenPort)
+	rtkPlatform.SetupRootPath(rootPath)
+	log.Printf("[%s] deviceName:[%s] rootPath:[%s] host:[%s] port:[%d]", rtkMisc.GetFuncInfo(), deviceName, rootPath, listenHost, listenPort)
 	rtkCmd.MainInit(serverId, serverIpInfo, listenHost, listenPort)
 }
 
@@ -359,8 +359,8 @@ func SetMsgEventFunc(event int, arg1, arg2, arg3, arg4 string) {
 }
 
 //export SendXClipData
-func SendXClipData(text, image, html string) {
-	log.Printf("[%s] text:%d, image:%d, html:%d\n\n", rtkMisc.GetFuncInfo(), len(text), len(image), len(html))
+func SendXClipData(text, image, html, rtf string) {
+	log.Printf("[%s] text:%d, image:%d, html:%d, rtf:%d \n\n", rtkMisc.GetFuncInfo(), len(text), len(image), len(html), len(rtf))
 
 	imgData := []byte(nil)
 	if image != "" {
@@ -384,7 +384,7 @@ func SendXClipData(text, image, html string) {
 		log.Printf("image get jpg size:[%d](%d,%d),decode use:[%d]ms", len(imgData), width, height, time.Now().UnixMilli()-startTime)
 	}
 
-	rtkPlatform.GoCopyXClipData([]byte(text), imgData, []byte(html))
+	rtkPlatform.GoCopyXClipData([]byte(text), imgData, []byte(html), []byte(rtf))
 }
 
 //export GetClientListEx
@@ -506,12 +506,6 @@ func GetVersion() *C.char {
 //export GetBuildDate
 func GetBuildDate() *C.char {
 	return C.CString(rtkBuildConfig.BuildDate)
-}
-
-//export SetupRootPath
-func SetupRootPath(rootPath string) {
-	log.Printf("[%s] rootPath:[%s]", rtkMisc.GetFuncInfo(), rootPath)
-	rtkPlatform.SetupRootPath(rootPath)
 }
 
 //export SetBrowseMdnsResult

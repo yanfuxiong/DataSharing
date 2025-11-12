@@ -192,7 +192,6 @@ func dealS2CMsgInitClient(id string, extData json.RawMessage) rtkMisc.CrossShare
 
 	rtkGlobal.NodeInfo.ClientIndex = initClientRsp.ClientIndex
 	log.Printf("Requst Init Client success, get Client Index:[%d]", initClientRsp.ClientIndex)
-	lanServerHeartbeatStart()
 
 	if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformAndroid || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformiOS {
 		errCode, authData := rtkPlatform.GetAuthData(rtkGlobal.NodeInfo.ClientIndex)
@@ -225,6 +224,7 @@ func dealS2CMsgMobileAuthDataResp(id string, index uint32, extData json.RawMessa
 		NotifyDIASStatus(DIAS_Status_Authorization_Failed)
 		return rtkMisc.ERR_BIZ_S2C_UNAUTH
 	}
+
 	return SendReqClientListToLanServer()
 }
 

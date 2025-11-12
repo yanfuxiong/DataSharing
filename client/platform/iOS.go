@@ -59,8 +59,8 @@ func GetCrashLogFilePath() string {
 
 type (
 	CallbackNetworkSwitchFunc              func()
-	CallbackCopyXClipFunc                  func(cbText, cbImage, cbHtml []byte)
-	CallbackPasteXClipFunc                 func(text, image, html string)
+	CallbackCopyXClipFunc                  func(cbText, cbImage, cbHtml, cbRtf []byte)
+	CallbackPasteXClipFunc                 func(text, image, html, rtf string)
 	CallbackFileDropResponseFunc           func(string, rtkCommon.FileDropCmd, string)
 	CallbackDragFileListRequestFunc        func([]rtkCommon.FileInfo, []string, uint64, uint64, string)
 	CallbackFileListDragNotify             func(string, string, string, uint32, uint64, uint64, string, uint64)
@@ -347,13 +347,13 @@ func GoBrowseLanServer() {
 	rtkMisc.GoSafe(func() { callbackBrowseLanServer() })
 }
 
-func GoCopyXClipData(text, image, html []byte) {
+func GoCopyXClipData(text, image, html, rtf []byte) {
 	if callbackCopyXClipData == nil {
 		log.Println("callbackCopyXClipData is null!")
 		return
 	}
 
-	callbackCopyXClipData(text, image, html)
+	callbackCopyXClipData(text, image, html, rtf)
 }
 
 func GoFileDropResponse(id string, fileCmd rtkCommon.FileDropCmd, fileName string) {
@@ -487,11 +487,7 @@ func GoUpdateClientStatusEx(id string, status uint8) {
 	callbackUpdateClientStatus(string(encodedData))
 }
 
-func FoundPeer() {
-
-}
-
-func GoSetupDstPasteXClipData(cbText, cbImage, cbHtml []byte) {
+func GoSetupDstPasteXClipData(cbText, cbImage, cbHtml, cbRtf []byte) {
 	if callbackPasteXClipData == nil {
 		log.Printf("callbackPasteXClipData is null!\n\n")
 		return
@@ -503,7 +499,7 @@ func GoSetupDstPasteXClipData(cbText, cbImage, cbHtml []byte) {
 		imageStr = imageBase64
 	}
 
-	callbackPasteXClipData(string(cbText), imageStr, string(cbHtml))
+	callbackPasteXClipData(string(cbText), imageStr, string(cbHtml), string(cbRtf))
 }
 
 func GoUpdateMultipleProgressBar(ip, id, currentFileName string, sentFileCnt, totalFileCnt uint32, currentFileSize, totalSize, sentSize, timestamp uint64) {
@@ -516,10 +512,6 @@ func GoUpdateMultipleProgressBar(ip, id, currentFileName string, sentFileCnt, to
 }
 
 func GoUpdateSystemInfo(ip, serviceVer string) {
-
-}
-
-func GoUpdateClientStatus(status uint32, ip, id, name, deviceType string) {
 
 }
 

@@ -36,12 +36,12 @@ func writeXClipDataToSocket(id string) rtkMisc.CrossShareErr {
 		return rtkMisc.ERR_BIZ_CB_INVALID_DATA
 	}
 
-	log.Printf("(SRC) Start to copy XClip data, text:[%d] image:[%d] html:[%d]...", extData.TextLen, extData.ImageLen, extData.HtmlLen)
+	log.Printf("(SRC) Start to copy XClip data, text:[%d] image:[%d] html:[%d] rtf:[%d]...", extData.TextLen, extData.ImageLen, extData.HtmlLen, extData.RtfLen)
 	var reader io.Reader
 	if !rtkUtils.GetPeerClientIsSupportXClip(id) {
 		reader = bytes.NewReader(extData.Image)
 	} else {
-		reader = bytes.NewReader(append(append(extData.Text, extData.Image...), extData.Html...))
+		reader = bytes.NewReader(bytes.Join([][]byte{extData.Text, extData.Image, extData.Html, extData.Rtf}, nil))
 	}
 	_, err := io.Copy(sXClip, reader)
 	if err != nil {
@@ -78,7 +78,7 @@ func handleXClipDataFromSocket(id, ipAddr string) rtkMisc.CrossShareErr {
 
 	var xClipBuffer bytes.Buffer
 	xClipBuffer.Reset()
-	nXClipLen := extData.TextLen + extData.ImageLen + extData.HtmlLen
+	nXClipLen := extData.TextLen + extData.ImageLen + extData.HtmlLen + extData.RtfLen
 	xClipBuffer.Grow(int(nXClipLen))
 
 	log.Printf("(DST) IP[%s] Start to Copy XClip data, Total size:[%d]...", ipAddr, nXClipLen)
@@ -109,11 +109,17 @@ func handleXClipDataFromSocket(id, ipAddr string) rtkMisc.CrossShareErr {
 		htmlData := []byte(nil)
 		if extData.HtmlLen > 0 {
 			htmlData = make([]byte, extData.HtmlLen)
-			io.ReadFull(bytes.NewReader(xClipBuffer.Bytes()[(extData.TextLen+extData.ImageLen):]), htmlData)
+			io.ReadFull(bytes.NewReader(xClipBuffer.Bytes()[(extData.TextLen+extData.ImageLen):(extData.TextLen+extData.ImageLen+extData.HtmlLen)]), htmlData)
+		}
+
+		rtfData := []byte(nil)
+		if extData.RtfLen > 0 {
+			rtfData = make([]byte, extData.RtfLen)
+			io.ReadFull(bytes.NewReader(xClipBuffer.Bytes()[(extData.TextLen+extData.ImageLen+extData.HtmlLen):]), rtfData)
 		}
 
 		log.Printf("(DST) IP[%s] End to Copy XClip data success, Total size:[%d] use [%d] ms", ipAddr, nDstWrite, time.Now().UnixMilli()-startTime)
-		rtkClipboard.SetupDstPasteXClipData(id, textData, imageData, htmlData)
+		rtkClipboard.SetupDstPasteXClipData(id, textData, imageData, htmlData, rtfData)
 		xClipBuffer.Reset()
 		return rtkMisc.SUCCESS
 	} else {

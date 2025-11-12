@@ -661,15 +661,11 @@ func OfflineEvent(id string) {
 func updateUIOnlineStatus(isOnline bool, id, ipAddr, platfrom, deviceName, srcPortType, ver, fileTransId, udpPort string) {
 	if isOnline {
 		log.Printf("[%s] IP:[%s] Online: increase client count\n\n", rtkMisc.GetFuncInfo(), ipAddr)
-		rtkPlatform.GoUpdateClientStatus(1, ipAddr, id, deviceName, srcPortType) // TODO: Deprecate , and replace with GoUpdateClientStatusEx
 		rtkUtils.InsertClientInfoMap(id, ipAddr, platfrom, deviceName, srcPortType, ver, fileTransId, udpPort)
-		rtkPlatform.FoundPeer() // TODO: Deprecate , and replace with GoUpdateClientStatusEx
 		rtkPlatform.GoUpdateClientStatusEx(id, 1)
 	} else {
 		log.Printf("[%s] IP:[%s] Offline: decrease client count", rtkMisc.GetFuncInfo(), ipAddr)
-		rtkPlatform.GoUpdateClientStatus(0, ipAddr, id, deviceName, srcPortType) // TODO: Deprecate , and replace with GoUpdateClientStatusEx
 		rtkUtils.LostClientInfoMap(id)
-		rtkPlatform.FoundPeer() // TODO: Deprecate , and replace with GoUpdateClientStatusEx
 		rtkPlatform.GoUpdateClientStatusEx(id, 0)
 	}
 }

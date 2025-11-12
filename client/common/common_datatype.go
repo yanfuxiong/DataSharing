@@ -65,11 +65,13 @@ type ExtDataImg struct {
 
 type ExtDataXClip struct {
 	Text     []byte // Text,UTF-8
-	Image    []byte // decode base64
+	Image    []byte // Image decode base64
 	Html     []byte // Html
+	Rtf      []byte // Rtf
 	TextLen  int64
 	ImageLen int64
 	HtmlLen  int64
+	RtfLen   int64
 }
 
 type ClipBoardData struct {

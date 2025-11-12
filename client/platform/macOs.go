@@ -60,8 +60,8 @@ func GetCrashLogFilePath() string {
 type (
 	CallbackUpdateSystemInfoFunc           func(ipAddr string, verInfo string)
 	CallbackNetworkSwitchFunc              func()
-	CallbackCopyXClipFunc                  func(cbText, cbImage, cbHtml []byte)
-	CallbackPasteXClipFunc                 func(text, image, html string)
+	CallbackCopyXClipFunc                  func(cbText, cbImage, cbHtml, cbRtf []byte)
+	CallbackPasteXClipFunc                 func(text, image, html, rtf string)
 	CallbackFileDropResponseFunc           func(string, rtkCommon.FileDropCmd, string)
 	CallbackDragFileListRequestFunc        func([]rtkCommon.FileInfo, []string, uint64, uint64, string)
 	CallbackFileListDragNotify             func(string, string, string, uint32, uint64, uint64, string, uint64)
@@ -69,6 +69,7 @@ type (
 	CallbackFileListDropRequestFunc        func(string, []rtkCommon.FileInfo, []string, uint64, uint64, string)
 	CallbackUpdateClientStatusFunc         func(clientInfo string)
 	CallbackUpdateMultipleProgressBar      func(string, string, string, uint32, uint32, uint64, uint64, uint64, uint64)
+	CallbackNotiMessageFileTransFunc       func(fileName, clientName, platform string, timestamp uint64, isSender bool)
 	CallbackCancelFileTransFunc            func(string, string, uint64)
 	CallbackNotifyErrEventFunc             func(id string, errCode uint32, arg1, arg2, arg3, arg4 string)
 	CallbackGetMacAddressFunc              func(string)
@@ -104,6 +105,7 @@ var (
 	callbackFileListDropRequest        CallbackFileListDropRequestFunc        = nil
 	callbackUpdateClientStatus         CallbackUpdateClientStatusFunc         = nil
 	callbackUpdateMultipleProgressBar  CallbackUpdateMultipleProgressBar      = nil
+	callbackNotiMessageFileTransCB     CallbackNotiMessageFileTransFunc       = nil
 	callbackCancelFileTrans            CallbackCancelFileTransFunc            = nil
 	callbackNotifyErrEvent             CallbackNotifyErrEventFunc             = nil
 	callbackGetMacAddress              CallbackGetMacAddressFunc              = nil
@@ -144,6 +146,10 @@ func SetCallbackUpdateClientStatus(cb CallbackUpdateClientStatusFunc) {
 
 func SetCallbackUpdateMultipleProgressBar(cb CallbackUpdateMultipleProgressBar) {
 	callbackUpdateMultipleProgressBar = cb
+}
+
+func SetCallbackNotiMessageFileTrans(cb CallbackNotiMessageFileTransFunc) {
+	callbackNotiMessageFileTransCB = cb
 }
 
 func SetCallbackMethodStartBrowseMdns(cb CallbackMethodStartBrowseMdns) {
@@ -348,13 +354,13 @@ func GoSetDIASSourceAndPort(src, port uint8) {
 	callbackDIASSourceAndPortCB(src, port)
 }
 
-func GoCopyXClipData(text, image, html []byte) {
+func GoCopyXClipData(text, image, html, rtf []byte) {
 	if callbackCopyXClipData == nil {
 		log.Println("callbackCopyXClipData is null!")
 		return
 	}
 
-	callbackCopyXClipData(text, image, html)
+	callbackCopyXClipData(text, image, html, rtf)
 }
 
 func GoFileDropResponse(id string, fileCmd rtkCommon.FileDropCmd, fileName string) {
@@ -510,11 +516,7 @@ func GoUpdateClientStatusEx(id string, status uint8) {
 	callbackUpdateClientStatus(string(encodedData))
 }
 
-func FoundPeer() {
-
-}
-
-func GoSetupDstPasteXClipData(cbText, cbImage, cbHtml []byte) {
+func GoSetupDstPasteXClipData(cbText, cbImage, cbHtml, cbRtf []byte) {
 	if callbackPasteXClipData == nil {
 		log.Printf("callbackPasteXClipData is null!\n\n")
 		return
@@ -526,7 +528,7 @@ func GoSetupDstPasteXClipData(cbText, cbImage, cbHtml []byte) {
 		imageStr = imageBase64
 	}
 
-	callbackPasteXClipData(string(cbText), imageStr, string(cbHtml))
+	callbackPasteXClipData(string(cbText), imageStr, string(cbHtml), string(cbRtf))
 }
 
 func GoUpdateMultipleProgressBar(ip, id, currentFileName string, sentFileCnt, totalFileCnt uint32, currentFileSize, totalSize, sentSize, timestamp uint64) {
@@ -543,12 +545,12 @@ func GoUpdateSystemInfo(ipAddr, serviceVer string) {
 	callbackUpdateSystemInfo(ipAddr, serviceVer)
 }
 
-func GoUpdateClientStatus(status uint32, ip, id, name, deviceType string) {
-
-}
-
 func GoNotiMessageFileTransfer(fileName, clientName, platform string, timestamp uint64, isSender bool) {
-
+	if callbackNotiMessageFileTransCB == nil {
+		log.Println("CallbackNotiMessageFileTransCB is null !")
+		return
+	}
+	callbackNotiMessageFileTransCB(fileName, clientName, platform, timestamp, isSender)
 }
 
 func GoNotifyErrEvent(id string, errCode rtkMisc.CrossShareErr, arg1, arg2, arg3, arg4 string) {

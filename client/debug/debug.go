@@ -54,13 +54,7 @@ func DebugCmdLine() {
 	for scanner.Scan() {
 		line := scanner.Text()
 		fmt.Println("You entered:", line)
-		if strings.Contains(line, "PIPE_UPDATE_CLIENT") {
-			var status uint32 = 1
-			ip := "192.168.30.1:12345"
-			id := "QmQ7obXFx1XMFr6hCYXtovn9zREFqSXEtH5hdtpBDLjrAz"
-			name := "jack_huang123"
-			rtkPlatform.GoUpdateClientStatus(status, ip, id, name, "HDMI1")
-		} else if strings.Contains(line, "PIPE_SETUP_FILE_DROP") {
+		if strings.Contains(line, "PIPE_SETUP_FILE_DROP") {
 			/*ip := "192.168.30.1:12345"
 			id := "QmQ7obXFx1XMFr6hCYXtovn9zREFqSXEtH5hdtpBDLjrAz"
 			// fileName := "D:\\jack_huang\\Downloads\\新增資料夾\\測試.mp4"

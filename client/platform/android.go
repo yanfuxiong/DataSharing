@@ -33,7 +33,7 @@ var (
 
 // Notify to Android APK
 type Callback interface {
-	CallbackPasteXClipData(text, image, html string)
+	CallbackPasteXClipData(text, image, html, rtf string)
 	LogMessageCallback(msg string)
 	CallbackMethodFileConfirm(id, platform, filename string, fileSize int64)
 	CallbackFileListDragNotify(ip, id, platform string, fileCnt int, totalSize, timestamp int64, firstFileName string, firstFileSize int64)
@@ -88,7 +88,7 @@ func GetDownloadPath() string {
 
 type (
 	CallbackNetworkSwitchFunc          func()
-	CallbackXClipCopyFunc              func(cbText, cbImage, cbHtml []byte)
+	CallbackCopyXClipFunc              func(cbText, cbImage, cbHtml, cbRtf []byte)
 	CallbackFileDropResponseFunc       func(string, rtkCommon.FileDropCmd, string)
 	CallbackFileListDropRequestFunc    func(string, []rtkCommon.FileInfo, []string, uint64, uint64, string)
 	CallbackDragFileListRequestFunc    func([]rtkCommon.FileInfo, []string, uint64, uint64, string)
@@ -108,7 +108,7 @@ type (
 
 var (
 	callbackNetworkSwitchCB            CallbackNetworkSwitchFunc          = nil
-	callbackXClipCopyCB                CallbackXClipCopyFunc              = nil
+	callbackXClipCopyCB                CallbackCopyXClipFunc              = nil
 	callbackInstanceFileDropResponseCB CallbackFileDropResponseFunc       = nil
 	callbackFileListDropRequestCB      CallbackFileListDropRequestFunc    = nil
 	callbackDragFileListRequestCB      CallbackDragFileListRequestFunc    = nil
@@ -131,7 +131,7 @@ func SetGoNetworkSwitchCallback(cb CallbackNetworkSwitchFunc) {
 }
 
 // Notify to Clipboard/FileDrop
-func SetCopyXClipCallback(cb CallbackXClipCopyFunc) {
+func SetCopyXClipCallback(cb CallbackCopyXClipFunc) {
 	callbackXClipCopyCB = cb
 }
 
@@ -253,13 +253,13 @@ func GoTriggerNetworkSwitch() {
 	callbackNetworkSwitchCB()
 }
 
-func GoCopyXClipData(text, image, html []byte) {
+func GoCopyXClipData(text, image, html, rtf []byte) {
 	if callbackXClipCopyCB == nil {
 		log.Println("callbackXClipCopyCB is null!")
 		return
 	}
 
-	callbackXClipCopyCB(text, image, html)
+	callbackXClipCopyCB(text, image, html, rtf)
 }
 
 func GoFileDropResponse(id string, fileCmd rtkCommon.FileDropCmd, fileName string) {
@@ -401,10 +401,6 @@ func GoDragFileListFolderNotify(ip, id, folderName string, timestamp uint64) {
 	CallbackInstance.CallbackFileListDragFolderNotify(ip, id, folderName, int64(timestamp))
 }
 
-func FoundPeer() {
-
-}
-
 func GoUpdateClientStatusEx(id string, status uint8) {
 	if CallbackInstance == nil {
 		log.Println(" CallbackInstance is null !")
@@ -436,12 +432,12 @@ func GoUpdateClientStatusEx(id string, status uint8) {
 	CallbackInstance.CallbackUpdateClientStatus(string(encodedData))
 }
 
-func GoSetupDstPasteXClipData(cbText, cbImage, cbHtml []byte) {
+func GoSetupDstPasteXClipData(cbText, cbImage, cbHtml, cbRtf []byte) {
 	if CallbackInstance == nil {
 		log.Println("GoSetupDstPasteXClipData failed - callbackInstance is nil")
 		return
 	}
-	log.Printf("[%s] text len:%d , image len:%d, html:%d\n\n", rtkMisc.GetFuncInfo(), len(cbText), len(cbImage), len(cbHtml))
+	log.Printf("[%s] text len:%d , image len:%d, html:%d, cbRtf:%d \n\n", rtkMisc.GetFuncInfo(), len(cbText), len(cbImage), len(cbHtml), len(cbRtf))
 
 	imageStr := ""
 	if len(cbImage) > 0 {
@@ -449,7 +445,7 @@ func GoSetupDstPasteXClipData(cbText, cbImage, cbHtml []byte) {
 		imageStr = imageBase64
 	}
 
-	CallbackInstance.CallbackPasteXClipData(string(cbText), imageStr, string(cbHtml))
+	CallbackInstance.CallbackPasteXClipData(string(cbText), imageStr, string(cbHtml), string(cbRtf))
 }
 
 func GoUpdateMultipleProgressBar(ip, id, currentFileName string, sentFileCnt, totalFileCnt uint32, currentFileSize, totalSize, sentSize, timestamp uint64) {
@@ -462,10 +458,6 @@ func GoUpdateMultipleProgressBar(ip, id, currentFileName string, sentFileCnt, to
 }
 
 func GoUpdateSystemInfo(ip, serviceVer string) {
-
-}
-
-func GoUpdateClientStatus(status uint32, ip, id, name, deviceType string) {
 
 }
 

@@ -113,7 +113,7 @@ func mobileInitLanServer(instance string) {
 	if lanServerInstance != "" {
 		if lanServerInstance == instance &&
 			pSafeConnect.IsAlive() &&
-			(currentDiasStatus == DIAS_Status_Wait_Other_Clients || currentDiasStatus == DIAS_Status_Get_Clients_Success) {
+			(currentDiasStatus == DIAS_Status_Wait_screenCasting || currentDiasStatus == DIAS_Status_Wait_Other_Clients || currentDiasStatus == DIAS_Status_Get_Clients_Success) {
 			log.Printf("[%s][mobile] Instance:%s is already connected, skip it!", rtkMisc.GetFuncInfo(), instance)
 			return
 		}
@@ -351,6 +351,7 @@ func initLanServer(ctx context.Context, bPrintErr bool) rtkMisc.CrossShareErr {
 		NotifyDIASStatus(DIAS_Status_Wait_screenCasting)
 	}
 
+	lanServerHeartbeatStart()
 	return sendReqInitClientToLanServer()
 }
 

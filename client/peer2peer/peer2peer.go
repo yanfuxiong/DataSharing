@@ -142,9 +142,11 @@ func processInbandRead(buffer []byte, len int, msg *Peer2PeerMessage) rtkMisc.Cr
 			Text:     []byte(extDataText.Text),
 			Image:    nil,
 			Html:     nil,
+			Rtf:      nil,
 			TextLen:  int64(utf8.RuneCountInString(extDataText.Text)),
 			ImageLen: 0,
 			HtmlLen:  0,
+			RtfLen:   0,
 		}
 		msg.FmtType = rtkCommon.XCLIP_CB
 	case rtkCommon.FILE_DROP:
@@ -220,9 +222,11 @@ func processInbandRead(buffer []byte, len int, msg *Peer2PeerMessage) rtkMisc.Cr
 				Text:     nil,
 				Image:    nil,
 				Html:     nil,
+				Rtf:      nil,
 				TextLen:  0,
 				ImageLen: int64(extDataImg.Size.SizeLow),
 				HtmlLen:  0,
+				RtfLen:   0,
 			}
 		}
 		msg.FmtType = rtkCommon.XCLIP_CB
@@ -503,9 +507,11 @@ func buildMessage(msg *Peer2PeerMessage, id string, event EventResult) bool {
 					Text:     nil,
 					Image:    nil,
 					Html:     nil,
+					Rtf:      nil,
 					TextLen:  extData.TextLen,
 					ImageLen: extData.ImageLen,
 					HtmlLen:  extData.HtmlLen,
+					RtfLen:   extData.RtfLen,
 				}
 				return true
 			} else {
@@ -707,13 +713,13 @@ func processXClip(ctx context.Context, id string, event EventResult) bool {
 		if nextState == STATE_INFO && nextCommand == COMM_DST && !rtkUtils.GetPeerClientIsSupportXClip(id) { // not support XClip
 			if extData, ok := event.Data.(rtkCommon.ExtDataXClip); ok {
 				if extData.TextLen > 0 {
-					rtkClipboard.SetupDstPasteXClipData(id, extData.Text, nil, nil)
+					rtkClipboard.SetupDstPasteXClipData(id, extData.Text, nil, nil, nil)
 					return true
 				}
 			}
 		} else if nextState == STATE_TRANS && nextCommand == COMM_DST {
 			if extData, ok := event.Data.(rtkCommon.ExtDataXClip); ok {
-				rtkClipboard.SetupDstPasteXClipHead(id, extData.TextLen, extData.ImageLen, extData.HtmlLen)
+				rtkClipboard.SetupDstPasteXClipHead(id, extData.TextLen, extData.ImageLen, extData.HtmlLen, extData.RtfLen)
 			} else {
 				log.Printf("[%s] Err: Setup past XClip failed", rtkMisc.GetFuncInfo())
 				return false

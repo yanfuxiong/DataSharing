@@ -1,6 +1,7 @@
 package clipboard
 
 import (
+	"bytes"
 	"context"
 	"log"
 	rtkCommon "rtk-cross-share/client/common"
@@ -44,8 +45,8 @@ func ResetLastClipboardData() {
 	rtkPlatform.GoCleanClipboard()
 }
 
-func updateXClipHead(id string, nText, nImage, nHtml int64) {
-	log.Printf("[%s] ID:[%s] Text:%d Image:%d Html:%d", rtkMisc.GetFuncInfo(), id, nText, nImage, nHtml)
+func updateXClipHead(id string, nText, nImage, nHtml, nRtf int64) {
+	log.Printf("[%s] ID:[%s] Text:%d Image:%d Html:%d Rtf:%d", rtkMisc.GetFuncInfo(), id, nText, nImage, nHtml, nRtf)
 
 	clipboardData := rtkCommon.ClipBoardData{
 		SourceID:  id,
@@ -56,17 +57,19 @@ func updateXClipHead(id string, nText, nImage, nHtml int64) {
 			Text:     nil,
 			Image:    nil,
 			Html:     nil,
+			Rtf:      nil,
 			TextLen:  nText,
 			ImageLen: nImage,
 			HtmlLen:  nHtml,
+			RtfLen:   nRtf,
 		},
 	}
 	updateLastClipboardData(clipboardData)
 }
 
-func updateXClipData(id string, cbText, cbImage, cbHtml []byte) {
-	log.Printf("[%s] ID:[%s] Text:%d Image:%d Html:%d", rtkMisc.GetFuncInfo(), id, len(cbText), len(cbImage), len(cbHtml))
-	hash, _ := rtkUtils.CreateMD5Hash(append(append(cbText, cbImage...), cbHtml...))
+func updateXClipData(id string, cbText, cbImage, cbHtml, cbRtf []byte) {
+	log.Printf("[%s] ID:[%s] Text:%d Image:%d Html:%d Rtf:%d", rtkMisc.GetFuncInfo(), id, len(cbText), len(cbImage), len(cbHtml), len(cbRtf))
+	hash, _ := rtkUtils.CreateMD5Hash(bytes.Join([][]byte{cbText, cbImage, cbHtml, cbRtf}, nil))
 	clipboardData := rtkCommon.ClipBoardData{
 		SourceID:  id,
 		FmtType:   rtkCommon.XCLIP_CB,
@@ -76,9 +79,11 @@ func updateXClipData(id string, cbText, cbImage, cbHtml []byte) {
 			Text:     cbText,
 			Image:    cbImage,
 			Html:     cbHtml,
+			Rtf:      cbRtf,
 			TextLen:  int64(len(cbText)),
 			ImageLen: int64(len(cbImage)),
 			HtmlLen:  int64(len(cbHtml)),
+			RtfLen:   int64(len(cbRtf)),
 		},
 	}
 	updateLastClipboardData(clipboardData)
@@ -88,8 +93,8 @@ func init() {
 	rtkPlatform.SetCopyXClipCallback(updateClipboardFromPlatform)
 }
 
-func updateClipboardFromPlatform(cbText, cbImage, cbHtml []byte) {
-	updateXClipData(rtkGlobal.NodeInfo.ID, cbText, cbImage, cbHtml)
+func updateClipboardFromPlatform(cbText, cbImage, cbHtml, cbRtf []byte) {
+	updateXClipData(rtkGlobal.NodeInfo.ID, cbText, cbImage, cbHtml, cbRtf)
 
 	nCount := rtkUtils.GetClientCount()
 	for i := 0; i < nCount; i++ {
@@ -115,7 +120,7 @@ func WatchXClipData(ctx context.Context, id string, resultChan chan<- rtkCommon.
 				if !rtkUtils.ContentEqual([]byte(lastHash), []byte(currentHash)) || lastTimeStamp != currentTimeStamp {
 					if extData, ok := lastData.ExtData.(rtkCommon.ExtDataXClip); ok {
 						ipAddr, _ := rtkUtils.GetClientIp(id)
-						log.Printf("[WatchXClipData][%s] - got new data text:%d, image:%d, html:%d", ipAddr, extData.TextLen, extData.ImageLen, extData.HtmlLen)
+						log.Printf("[WatchXClipData][%s] - got new data text:%d, image:%d, html:%d, rtf:%d", ipAddr, extData.TextLen, extData.ImageLen, extData.HtmlLen, extData.RtfLen)
 						lastHash = currentHash
 						lastTimeStamp = currentTimeStamp
 						resultChan <- lastData
@@ -133,11 +138,11 @@ func SetupDstPasteFile(desc, fileName, platform string, fileSizeHigh uint32, fil
 	rtkPlatform.GoSetupDstPasteFile(desc, fileName, platform, fileSizeHigh, fileSizeLow)
 }
 
-func SetupDstPasteXClipHead(id string, nText, nImage, nHtml int64) {
-	updateXClipHead(id, nText, nImage, nHtml)
+func SetupDstPasteXClipHead(id string, nText, nImage, nHtml, nRtf int64) {
+	updateXClipHead(id, nText, nImage, nHtml, nRtf)
 }
 
-func SetupDstPasteXClipData(id string, text, image, html []byte) {
-	updateXClipData(id, text, image, html)
-	rtkPlatform.GoSetupDstPasteXClipData(text, image, html)
+func SetupDstPasteXClipData(id string, text, image, html, rtf []byte) {
+	updateXClipData(id, text, image, html, rtf)
+	rtkPlatform.GoSetupDstPasteXClipData(text, image, html, rtf)
 }

@@ -6,17 +6,27 @@ package main
 #include <stdlib.h>
 #include <stdint.h>
 
+typedef enum NOTI_MSG_CODE
+{
+    NOTI_MSG_CODE_CONN_STATUS_SUCCESS       = 1,
+    NOTI_MSG_CODE_CONN_STATUS_FAIL          = 2,
+    NOTI_MSG_CODE_FILE_TRANS_DONE_SENDER    = 3,
+    NOTI_MSG_CODE_FILE_TRANS_DONE_RECEIVER  = 4,
+    NOTI_MSG_CODE_FILE_TRANS_REJECT         = 5,
+} NOTI_MSG_CODE;
+
 typedef void (*CallbackUpdateSystemInfo)(char* ipInfo, char* verInfo);
 typedef void (*CallbackUpdateClientStatus)(char* clientJsonStr);
 typedef void (*CallbackMethodFileListNotify)(char* ip, char* id, char* platform,unsigned int fileCnt, unsigned long long totalSize,unsigned long long timestamp, char* firstFileName, unsigned long long firstFileSize);
 typedef void (*CallbackUpdateMultipleProgressBar)(char* ip,char* id, char* currentfileName,unsigned int recvFileCnt, unsigned int totalFileCnt,unsigned long long currentFileSize,unsigned long long totalSize,unsigned long long recvSize,unsigned long long timestamp);
+typedef void (*CallbackNotiMessage)(unsigned long long timestamp, unsigned int notiCode, char* notiParam[], int paramCount);
 typedef void (*CallbackMethodStartBrowseMdns)(char* instance, char* serviceType);
 typedef void (*CallbackMethodStopBrowseMdns)();
 typedef void (*CallbackRequestSourceAndPort)();
 typedef void (*CallbackAuthViaIndex)(unsigned int index);
 typedef void (*CallbackSetDIASStatus)(unsigned int status);
 typedef void (*CallbackSetMonitorName)(char* monitorName);
-typedef void (*CallbackPasteXClipData)(char *text, char *image, char *html);
+typedef void (*CallbackPasteXClipData)(char *text, char *image, char *html, char* rtf);
 typedef void (*CallbackRequestUpdateClientVersion)(char* clientVer);
 typedef void (*CallbackNotifyErrEvent)(char* id, unsigned int errCode, char* arg1, char* arg2, char* arg3, char* arg4);
 typedef void (*CallbackNotifyBrowseResult)(char* monitorName, char* instance, char* ip, char* version, unsigned long long timestamp);
@@ -25,6 +35,7 @@ static CallbackUpdateSystemInfo gCallbackUpdateSystemInfo = 0;
 static CallbackUpdateClientStatus gCallbackUpdateClientStatus = 0;
 static CallbackMethodFileListNotify gCallbackMethodFileListNotify = 0;
 static CallbackUpdateMultipleProgressBar gCallbackUpdateMultipleProgressBar = 0;
+static CallbackNotiMessage gCallbackNotiMessage = 0;
 static CallbackMethodStartBrowseMdns gCallbackMethodStartBrowseMdns = 0;
 static CallbackMethodStopBrowseMdns gCallbackMethodStopBrowseMdns = 0;
 static CallbackRequestSourceAndPort gCallbackRequestSourceAndPort = 0;
@@ -52,6 +63,10 @@ static void setCallbackUpdateMultipleProgressBar(CallbackUpdateMultipleProgressB
 static void invokeCallbackUpdateMultipleProgressBar(char* ip,char* id, char* currentfileName,unsigned int recvFileCnt, unsigned int totalFileCnt,unsigned long long currentFileSize,unsigned long long totalSize,unsigned long long recvSize,unsigned long long timestamp) {
 	if (gCallbackUpdateMultipleProgressBar) {gCallbackUpdateMultipleProgressBar(ip,id, currentfileName,recvFileCnt,totalFileCnt,currentFileSize,totalSize, recvSize, timestamp);}
 }
+static void setCallbackNotiMessage(CallbackNotiMessage cb) {gCallbackNotiMessage = cb;}
+static void invokeCallbackNotiMessage(unsigned long long timestamp, unsigned int notiCode, char* notiParam[], int paramCount) {
+	if (gCallbackNotiMessage) {gCallbackNotiMessage(timestamp, notiCode, notiParam, paramCount);}
+}
 static void setCallbackMethodStartBrowseMdns(CallbackMethodStartBrowseMdns cb) {gCallbackMethodStartBrowseMdns = cb;}
 static void invokeCallbackMethodStartBrowseMdns(char* instance, char* serviceType) {
 	if (gCallbackMethodStartBrowseMdns) {gCallbackMethodStartBrowseMdns(instance, serviceType);}
@@ -77,8 +92,8 @@ static void invokeCallbackSetMonitorName(char* monitorName) {
 	if (gCallbackSetMonitorName) { gCallbackSetMonitorName(monitorName);}
 }
 static void setCallbackPasteXClipData(CallbackPasteXClipData cb) {gCallbackPasteXClipData = cb;}
-static void invokeCallbackPasteXClipData(char *text, char *image, char *html) {
-	if (gCallbackPasteXClipData) { gCallbackPasteXClipData(text, image, html);}
+static void invokeCallbackPasteXClipData(char *text, char *image, char *html, char* rtf) {
+	if (gCallbackPasteXClipData) { gCallbackPasteXClipData(text, image, html, rtf);}
 }
 static void setCallbackRequestUpdateClientVersion(CallbackRequestUpdateClientVersion cb) {gCallbackRequestUpdateClientVersion = cb;}
 static void invokeCallbackRequestUpdateClientVersion(char* clientVer) {
@@ -112,6 +127,42 @@ import (
 	"unsafe"
 )
 
+type CharArray struct {
+	Array **C.char
+	items []*C.char
+}
+
+func NewCharArray(strs []string) *CharArray {
+	ptrSize := unsafe.Sizeof(uintptr(0))
+	cArray := C.malloc(C.size_t(len(strs)+1) * C.size_t(ptrSize))
+	if cArray == nil {
+		panic("C.malloc failed")
+	}
+
+	cStrs := make([]*C.char, len(strs))
+	for i, s := range strs {
+		cStr := C.CString(s)
+		cStrs[i] = cStr
+		elemPtr := (**C.char)(unsafe.Pointer(uintptr(cArray) + uintptr(i)*ptrSize))
+		*elemPtr = cStr
+	}
+
+	endPtr := (**C.char)(unsafe.Pointer(uintptr(cArray) + uintptr(len(strs))*ptrSize))
+	*endPtr = nil
+
+	return &CharArray{
+		Array: (**C.char)(cArray),
+		items: cStrs,
+	}
+}
+
+func (a *CharArray) Free() {
+	for _, ptr := range a.items {
+		C.free(unsafe.Pointer(ptr))
+	}
+	C.free(unsafe.Pointer(a.Array))
+}
+
 func main() {
 }
 
@@ -120,6 +171,7 @@ func init() {
 	rtkPlatform.SetCallbackFileListNotify(GoTriggerCallbackMethodFileListNotify)
 	rtkPlatform.SetCallbackUpdateClientStatus(GoTriggerCallbackUpdateClientStatus)
 	rtkPlatform.SetCallbackUpdateMultipleProgressBar(GoTriggerCallbackUpdateMultipleProgressBar)
+	rtkPlatform.SetCallbackNotiMessageFileTrans(GoTriggerCallbackNotiMessage)
 	rtkPlatform.SetCallbackMethodStartBrowseMdns(GoTriggerCallbackMethodStartBrowseMdns)
 	rtkPlatform.SetCallbackMethodStopBrowseMdns(GoTriggerCallbackMethodStopBrowseMdns)
 	rtkPlatform.SetCallbackDIASStatus(GoTriggerCallbackSetDIASStatus)
@@ -203,6 +255,27 @@ func GoTriggerCallbackUpdateMultipleProgressBar(ip, id, currentFileName string, 
 	C.invokeCallbackUpdateMultipleProgressBar(cip, cid, ccurrentFileName, crecvFileCnt, ctotalFileCnt, ccurrentFileSize, ctotalSize, crecvSize, ctimeStamp)
 }
 
+func GoTriggerCallbackNotiMessage(fileName, clientName, platform string, timestamp uint64, isSender bool) {
+	cTimestamp := C.ulonglong(timestamp)
+	cCode := C.uint(C.NOTI_MSG_CODE_FILE_TRANS_DONE_RECEIVER)
+	if isSender {
+		cCode = C.uint(C.NOTI_MSG_CODE_FILE_TRANS_DONE_SENDER)
+	}
+	cFileName := C.CString(fileName)
+	cClientName := C.CString(clientName)
+	paramArray := []string{fileName, clientName}
+	cParamArray := NewCharArray(paramArray)
+	defer func() {
+		defer C.free(unsafe.Pointer(cFileName))
+		defer C.free(unsafe.Pointer(cClientName))
+		defer cParamArray.Free()
+	}()
+	cParamCnt := C.int(len(paramArray))
+
+	log.Printf("[%s] timestamp:[%d] code:[%d] notiParam:[%+v] cParamCnt:[%d]", rtkMisc.GetFuncInfo(), cTimestamp, cCode, cParamArray.Array, cParamCnt)
+	C.invokeCallbackNotiMessage(cTimestamp, cCode, cParamArray.Array, cParamCnt)
+}
+
 func GoTriggerCallbackMethodStartBrowseMdns(instance, serviceType string) {
 	cinstance := C.CString(instance)
 	cserviceType := C.CString(serviceType)
@@ -239,16 +312,18 @@ func GoTriggerCallbackSetMonitorName(name string) {
 	log.Printf("[%s] MonitorName:[%s]", rtkMisc.GetFuncInfo(), name)
 }
 
-func GoTriggerCallbackPasteXClipData(text, image, html string) {
+func GoTriggerCallbackPasteXClipData(text, image, html, rtf string) {
 	cText := C.CString(text)
 	cImage := C.CString(image)
 	cHtml := C.CString(html)
+	cRtf := C.CString(rtf)
 	defer C.free(unsafe.Pointer(cText))
 	defer C.free(unsafe.Pointer(cImage))
 	defer C.free(unsafe.Pointer(cHtml))
+	defer C.free(unsafe.Pointer(cRtf))
 
-	log.Printf("[%s] text len:%d , image len:%d, html:%d\n\n", rtkMisc.GetFuncInfo(), len(text), len(image), len(html))
-	C.invokeCallbackPasteXClipData(cText, cImage, cHtml)
+	log.Printf("[%s] text:%d, image:%d, html:%d, rtf:%d \n\n", rtkMisc.GetFuncInfo(), len(text), len(image), len(html), len(rtf))
+	C.invokeCallbackPasteXClipData(cText, cImage, cHtml, cRtf)
 }
 
 func GoTriggerCallbackReqClientUpdateVer(ver string) {
@@ -314,6 +389,11 @@ func SetCallbackMethodFileListNotify(cb C.CallbackMethodFileListNotify) {
 //export SetCallbackUpdateMultipleProgressBar
 func SetCallbackUpdateMultipleProgressBar(cb C.CallbackUpdateMultipleProgressBar) {
 	C.setCallbackUpdateMultipleProgressBar(cb)
+}
+
+//export SetCallbackNotiMessage
+func SetCallbackNotiMessage(cb C.CallbackNotiMessage) {
+	C.setCallbackNotiMessage(cb)
 }
 
 //export SetCallbackMethodStartBrowseMdns
@@ -400,8 +480,8 @@ func SetMsgEventFunc(event int, arg1, arg2, arg3, arg4 string) {
 }
 
 //export SendXClipData
-func SendXClipData(text, image, html string) {
-	log.Printf("[%s] text:%d, image:%d, html:%d\n\n", rtkMisc.GetFuncInfo(), len(text), len(image), len(html))
+func SendXClipData(text, image, html, rtf string) {
+	log.Printf("[%s] text:%d, image:%d, html:%d, rtf:%d \n\n", rtkMisc.GetFuncInfo(), len(text), len(image), len(html), len(rtf))
 
 	imgData := []byte(nil)
 	if image != "" {
@@ -425,7 +505,7 @@ func SendXClipData(text, image, html string) {
 		log.Printf("image get jpg size:[%d](%d,%d),decode use:[%d]ms", len(imgData), width, height, time.Now().UnixMilli()-startTime)
 	}
 
-	rtkPlatform.GoCopyXClipData([]byte(text), imgData, []byte(html))
+	rtkPlatform.GoCopyXClipData([]byte(text), imgData, []byte(html), []byte(rtf))
 }
 
 //export GetClientList
@@ -470,6 +550,7 @@ func SendMultiFilesDropRequest(multiFilesData string) int {
 			nFileCnt = len(fileList)
 			nFolderCnt = len(folderList)
 			nPathSize = totalSize
+			
 			rtkUtils.WalkPath(file, &folderList, &fileList, &totalSize)
 			log.Printf("[%s] walk a path:[%s], get [%d] files and [%d] folders, path total size:[%d]", rtkMisc.GetFuncInfo(), file, len(fileList)-nFileCnt, len(folderList)-nFolderCnt, totalSize-nPathSize)
 		} else if rtkMisc.FileExists(file) {

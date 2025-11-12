@@ -8,13 +8,6 @@ package main
 #include <wchar.h>
 #include <stdlib.h>
 
-typedef struct {
-    int width;
-    int height;
-    unsigned short planes;
-    unsigned short bitCount;
-    unsigned long compression;
-} IMAGE_HEADER;
 
 typedef enum NOTI_MSG_CODE
 {
@@ -90,9 +83,9 @@ static void RequestSourceAndPortCallbackFunc(RequestSourceAndPortCallback cb) {
     if (cb) cb();
 }
 
-typedef void (*SetupDstPasteXClipDataCallback)(const char *text,const char *image,const char *html);
-static void SetupDstPasteXClipDataCallbackFunc(SetupDstPasteXClipDataCallback cb, const char *text,const char *image,const char *html) {
-    if (cb) cb(text, image, html);
+typedef void (*SetupDstPasteXClipDataCallback)(const char *text,const char *image,const char *html,const char *rtf);
+static void SetupDstPasteXClipDataCallbackFunc(SetupDstPasteXClipDataCallback cb, const char *text,const char *image,const char *html,const char *rtf) {
+    if (cb) cb(text, image, html,rtf);
 }
 
 typedef void (*RequestUpdateClientVersionCallback)(const char *clienVersion);
@@ -304,7 +297,7 @@ func GoTriggerCallbackUpdateClientStatus(status uint32, ip, id, deviceName, devi
 	C.UpdateClientStatusCallbackFunc(g_UpdateClientStatusCallback, cStatus, cIp, cId, cDeviceName, cDeviceType)
 }
 
-func GoTriggerCallbackSetupDstPasteXClipData(text, image, html string) {
+func GoTriggerCallbackSetupDstPasteXClipData(text, image, html, rtf string) {
 	if g_SetupDstPasteXClipDataCallback == nil {
 		log.Printf("%s g_SetupDstPasteXClipDataCallback is not set!", rtkMisc.GetFuncInfo())
 		return
@@ -312,15 +305,17 @@ func GoTriggerCallbackSetupDstPasteXClipData(text, image, html string) {
 	cText := C.CString(text)
 	cImage := C.CString(image)
 	cHtml := C.CString(html)
+	cRtf := C.CString(rtf)
 
 	defer func() {
 		C.free(unsafe.Pointer(cText))
 		C.free(unsafe.Pointer(cImage))
 		C.free(unsafe.Pointer(cHtml))
+		C.free(unsafe.Pointer(cRtf))
 	}()
 
-	log.Printf("[%s] text len:%d , image len:%d, html len:%d\n\n", rtkMisc.GetFuncInfo(), len(text), len(image), len(html))
-	C.SetupDstPasteXClipDataCallbackFunc(g_SetupDstPasteXClipDataCallback, cText, cImage, cHtml)
+	log.Printf("[%s] text len:%d , image len:%d, html len:%d  rtf len:%d \n\n", rtkMisc.GetFuncInfo(), len(text), len(image), len(html), len(rtf))
+	C.SetupDstPasteXClipDataCallbackFunc(g_SetupDstPasteXClipDataCallback, cText, cImage, cHtml, cRtf)
 }
 
 func GoTriggerCallbackCleanClipboard() {
@@ -479,11 +474,13 @@ func InitGoServer(cRootPath, cDownloadPath, cDeviceName *C.wchar_t) {
 }
 
 //export SendXClipData
-func SendXClipData(cText, cImage, cHtml *C.char) {
+func SendXClipData(cText, cImage, cHtml, cRtf *C.char) {
 	text := C.GoString(cText)
 	image := C.GoString(cImage)
 	html := C.GoString(cHtml)
-	log.Printf("[%s] text:%d, image:%d, html:%d\n\n", rtkMisc.GetFuncInfo(), len(text), len(image), len(html))
+	rtf := C.GoString(cRtf)
+
+	log.Printf("[%s] text:%d, image:%d, html:%d, rtf:%d \n\n", rtkMisc.GetFuncInfo(), len(text), len(image), len(html), len(rtf))
 
 	imgData := []byte(nil)
 	if image != "" {
@@ -507,7 +504,7 @@ func SendXClipData(cText, cImage, cHtml *C.char) {
 		log.Printf("image get jpg size:[%d](%d,%d),decode use:[%d]ms", len(imgData), width, height, time.Now().UnixMilli()-startTime)
 	}
 
-	rtkPlatform.GoCopyXClipData([]byte(text), imgData, []byte(html))
+	rtkPlatform.GoCopyXClipData([]byte(text), imgData, []byte(html), []byte(rtf))
 }
 
 //export SetFileDropResponse
