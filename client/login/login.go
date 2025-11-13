@@ -227,11 +227,7 @@ func ConnectLanServerRun(ctx context.Context) {
 				continue
 			}
 			if readData.errCode != rtkMisc.SUCCESS {
-				if readData.errCode == rtkMisc.ERR_NETWORK_C2S_READ_EOF {
-					pSafeConnect.Close()
-				} else {
-					updatePingServerErrCntIncrease()
-				}
+				pSafeConnect.Close()
 				log.Printf("[%s] read lanServer socket Data, errcode:%d", rtkMisc.GetFuncInfo(), readData.errCode)
 				continue
 			}

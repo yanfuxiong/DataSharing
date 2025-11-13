@@ -57,7 +57,6 @@ func (s *safeConnect) Write(b []byte) rtkMisc.CrossShareErr {
 	s.connectMutex.RLock()
 	defer s.connectMutex.RUnlock()
 	if s.isAlive && s.connectLanServer != nil {
-
 		_, err := s.connectLanServer.Write(append(b, '\n'))
 		if err != nil {
 			log.Printf("[%s] LanServer Write err:%+v", rtkMisc.GetFuncInfo(), err)

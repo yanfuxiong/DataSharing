@@ -60,11 +60,7 @@ func sendReqMsgToLanServer(MsgType rtkMisc.C2SMsgType, extData ...interface{}) r
 	errCode := pSafeConnect.Write(encodedData)
 	if errCode != rtkMisc.SUCCESS {
 		log.Printf("[%s] LanServer IPAddr:[%s]  sending msg[%s] errCode:%d ", rtkMisc.GetFuncInfo(), pSafeConnect.ConnectIPAddr(), MsgType, errCode)
-		if errCode == rtkMisc.ERR_NETWORK_C2S_WRITE_EOF {
-			pSafeConnect.Close()
-		} else {
-			updatePingServerErrCntIncrease()
-		}
+		pSafeConnect.Close()
 		return errCode
 	}
 
@@ -381,18 +377,6 @@ func checkClientVersionInvalid(reqVer string) bool {
 	return false
 }
 
-func updatePingServerErrCntIncrease() {
-	nCnt := 0
-	pingServerMtx.Lock()
-	pingServerErrCnt++
-	nCnt = pingServerErrCnt
-	pingServerMtx.Unlock()
-
-	log.Printf("Update Ping Server err cnt:[%d]", nCnt)
-	if nCnt >= rtkCommon.PingErrMaxCnt {
-		pSafeConnect.Close()
-	}
-}
 
 func updatePingServerErrCntReset() {
 	pingServerMtx.Lock()
