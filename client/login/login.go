@@ -36,7 +36,7 @@ func init() {
 		connectLanServer: nil,
 		isAlive:          false,
 	}
-	heartBeatTicker = nil
+	heartBeatTicker = NewHeartBeatTicker(rtkCommon.PingInterval)
 	cancelBrowse = nil
 
 	disconnectAllClientFunc = nil
@@ -214,13 +214,12 @@ func ConnectLanServerRun(ctx context.Context) {
 		}
 	})
 
-	heartBeatTicker = time.NewTicker(time.Duration(999 * time.Hour))
 	defer heartBeatTicker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-heartBeatTicker.C:
+		case <-heartBeatTicker.C():
 			rtkMisc.GoSafe(func() { heartBeatFunc(ctx) })
 		case readData, ok := <-readResult:
 			if !ok {
@@ -394,13 +393,12 @@ func ReConnectLanServer(ctx context.Context) {
 }
 
 func lanServerHeartbeatStart() {
-	heartBeatTicker.Reset(rtkCommon.PingInterval)
+	heartBeatTicker.Start()
 	log.Println("lanServer heartbeat is Running...")
 }
 
 func lanServerHeartbeatStop() {
-	heartBeatTicker.Reset(time.Duration(999 * time.Hour))
-	//heartBeatTicker.Stop()  //Go Version must be 1.23 or greater
+	heartBeatTicker.Stop()
 	log.Println("lanServer heartbeat is Stop!")
 	updatePingServerErrCntReset()
 }

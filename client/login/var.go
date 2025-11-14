@@ -52,7 +52,7 @@ var (
 	initLanServerMutex      sync.Mutex
 
 	// connect reliability
-	heartBeatTicker     *time.Ticker
+	heartBeatTicker     *HeartBeatTicker
 	pingServerMtx       sync.Mutex
 	pingServerErrCnt    int
 	pingServerTimeStamp int64
@@ -69,4 +69,60 @@ func SetDisconnectAllClientCallback(cb callbackDisconnectAllClientFunc) {
 
 func SetCancelAllBusinessCallback(cb callbackCancelAllBusinessFunc) {
 	cancelAllBusinessFunc = cb
+}
+
+type HeartBeatTicker struct {
+	interval time.Duration
+	ticker   *time.Ticker
+	proxyCh  chan time.Time
+	stopCh   chan struct{}
+	mu       sync.Mutex
+}
+
+func NewHeartBeatTicker(interval time.Duration) *HeartBeatTicker {
+	return &HeartBeatTicker{
+		interval: interval,
+		proxyCh:  make(chan time.Time),
+	}
+}
+
+func (t *HeartBeatTicker) Start() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if t.ticker != nil {
+		t.stopTicker()
+	}
+
+	t.ticker = time.NewTicker(t.interval)
+	t.stopCh = make(chan struct{})
+
+	go func() {
+		for {
+			select {
+			case tickTime := <-t.ticker.C:
+				t.proxyCh <- tickTime
+			case <-t.stopCh:
+				return
+			}
+		}
+	}()
+}
+
+func (t *HeartBeatTicker) Stop() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.stopTicker()
+}
+
+func (t *HeartBeatTicker) stopTicker() {
+	if t.ticker != nil {
+		t.ticker.Stop()
+		t.ticker = nil
+		close(t.stopCh)
+	}
+}
+
+func (t *HeartBeatTicker) C() <-chan time.Time {
+	return t.proxyCh
 }

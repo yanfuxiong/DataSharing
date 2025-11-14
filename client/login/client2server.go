@@ -212,6 +212,8 @@ func dealS2CMsgMobileAuthDataResp(id string, index uint32, extData json.RawMessa
 	}
 
 	if authIndexMobileRsp.Code != rtkMisc.SUCCESS {
+		log.Printf("[%s] clientID:[%s] Index[%d] Err: Unauthorized with err[%d]", rtkMisc.GetFuncInfo(), id, index, authIndexMobileRsp.Code)
+		NotifyDIASStatus(DIAS_Status_Authorization_Failed)
 		return authIndexMobileRsp.Code
 	}
 
@@ -376,7 +378,6 @@ func checkClientVersionInvalid(reqVer string) bool {
 
 	return false
 }
-
 
 func updatePingServerErrCntReset() {
 	pingServerMtx.Lock()
