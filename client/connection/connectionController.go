@@ -77,12 +77,32 @@ func cancelHostNode() {
 
 	nodeMutex.Lock()
 	if node != nil {
-		node.Peerstore().Close()
-		node.Network().Close()
-		node.ConnManager().Close()
-		node.Close()
-		node = nil
-		log.Println("close p2p node info success!")
+		log.Println("begin close p2p node info!")
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		done := make(chan struct{})
+		rtkMisc.GoSafe(func() {
+			for _, c := range node.Network().Conns() {
+				for _, s := range c.GetStreams() {
+					_ = s.SetDeadline(time.Now().Add(100 * time.Millisecond))
+					s.Reset()
+				}
+				_ = c.Close()
+			}
+			node.Network().Close()
+			node.Peerstore().Close()
+			node.ConnManager().Close()
+			node.Close()
+			node = nil
+
+			done <- struct{}{}
+			log.Println("close p2p node info success!")
+		})
+		select {
+		case <-ctx.Done():
+			log.Printf("close p2p node info time out!")
+		case <-done:
+		}
 	}
 	if fileTransNode != nil {
 		fileTransNode.Peerstore().Close()
@@ -150,8 +170,9 @@ func setupNode(ip string, port int) error {
 		libp2p.Identity(priv),
 		libp2p.ForceReachabilityPrivate(),
 		libp2p.ResourceManager(&network.NullResourceManager{}),
-		libp2p.EnableHolePunching(),
-		libp2p.EnableRelay(),
+		//libp2p.EnableHolePunching(),
+		//libp2p.EnableRelay(),
+		libp2p.DisableRelay(),
 		libp2p.Ping(true),
 	)
 	if err != nil {
@@ -178,6 +199,10 @@ func setupNode(ip string, port int) error {
 
 	for _, p := range tempNode.Peerstore().Peers() {
 		tempNode.Peerstore().ClearAddrs(p)
+	}
+
+	for _, fp := range tempFileNode.Peerstore().Peers() {
+		tempFileNode.Peerstore().ClearAddrs(fp)
 	}
 
 	if rtkPlatform.IsHost() {

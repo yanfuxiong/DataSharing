@@ -1,7 +1,7 @@
 package global
 
 const (
-	ClientVersion = "2.3.49"
+	ClientVersion = "2.3.50"
 
 	ClientDefaultVersion        = "2.3.0" // when the other client is an old version and cannot obtain the version number, use this default version
 	QueueFileTransVersionSerial = 49      // the client support file drop queue transfer since third version(serial number) 48
