@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-func writeXClipDataToSocket(id string) rtkMisc.CrossShareErr {
+func writeXClipDataToSocket(id, ipAddr string) rtkMisc.CrossShareErr {
 	startTime := time.Now().UnixMilli()
 	rtkConnection.HandleFmtTypeStreamReady(id, rtkCommon.XCLIP_CB) // wait for fmtType stream Ready
 	sXClip, ok := rtkConnection.GetFmtTypeStream(id, rtkCommon.XCLIP_CB)
@@ -36,20 +36,25 @@ func writeXClipDataToSocket(id string) rtkMisc.CrossShareErr {
 		return rtkMisc.ERR_BIZ_CB_INVALID_DATA
 	}
 
-	log.Printf("(SRC) Start to copy XClip data, text:[%d] image:[%d] html:[%d] rtf:[%d]...", extData.TextLen, extData.ImageLen, extData.HtmlLen, extData.RtfLen)
-	var reader io.Reader
+	log.Printf("(SRC) IP[%s] Start to copy XClip data, text:[%d] image:[%d] html:[%d] rtf:[%d]...", ipAddr, extData.TextLen, extData.ImageLen, extData.HtmlLen, extData.RtfLen)
+	var readers []io.Reader
 	if !rtkUtils.GetPeerClientIsSupportXClip(id) {
-		reader = bytes.NewReader(extData.Image)
+		readers = make([]io.Reader, 1)
+		readers[0] = bytes.NewReader(extData.Image)
 	} else {
-		reader = bytes.NewReader(bytes.Join([][]byte{extData.Text, extData.Image, extData.Html, extData.Rtf}, nil))
+		readers = make([]io.Reader, 4)
+		readers[0] = bytes.NewReader(extData.Text)
+		readers[1] = bytes.NewReader(extData.Image)
+		readers[2] = bytes.NewReader(extData.Html)
+		readers[3] = bytes.NewReader(extData.Rtf)
 	}
-	_, err := io.Copy(sXClip, reader)
+	nWrite, err := io.Copy(sXClip, io.MultiReader(readers...))
 	if err != nil {
-		log.Printf("(SRC) Copy XClip data err:%+v", err)
-		return rtkMisc.ERR_BIZ_CB_SRC_COPY_IMAGE
+		log.Printf("(SRC) IP:[%s] Copy XClip data err:%+v", ipAddr, err)
+		return rtkMisc.ERR_BIZ_CB_SRC_COPY
 	}
 
-	log.Printf("(SRC) End to copy XClip data, use [%d] ms", time.Now().UnixMilli()-startTime)
+	log.Printf("(SRC) IP[%s] End to copy XClip data, Total size:[%d] use [%d] ms", ipAddr, nWrite, time.Now().UnixMilli()-startTime)
 	bufio.NewWriter(sXClip).Flush()
 	return rtkMisc.SUCCESS
 }
@@ -86,10 +91,10 @@ func handleXClipDataFromSocket(id, ipAddr string) rtkMisc.CrossShareErr {
 	if err != nil {
 		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 			log.Printf("[%s] IP:[%s] (DST) Read XClip data timeout:%+v", rtkMisc.GetFuncInfo(), ipAddr, netErr)
-			return rtkMisc.ERR_BIZ_CB_DST_COPY_IMAGE_TIMEOUT
+			return rtkMisc.ERR_BIZ_CB_DST_COPY_TIMEOUT
 		} else {
 			log.Printf("[%s] IP:[%s] (DST) Copy XClip data, Error:%+v", rtkMisc.GetFuncInfo(), ipAddr, err)
-			return rtkMisc.ERR_BIZ_CB_DST_COPY_IMAGE
+			return rtkMisc.ERR_BIZ_CB_DST_COPY
 		}
 	}
 
@@ -124,6 +129,6 @@ func handleXClipDataFromSocket(id, ipAddr string) rtkMisc.CrossShareErr {
 		return rtkMisc.SUCCESS
 	} else {
 		log.Printf("(DST) IP[%s] End to Copy XClip data and failed, total:[%d], it less then total size:[%d] ...", ipAddr, nDstWrite, nXClipLen)
-		return rtkMisc.ERR_BIZ_CB_DST_COPY_IMAGE_LOSS
+		return rtkMisc.ERR_BIZ_CB_DST_COPY_LOSS
 	}
 }

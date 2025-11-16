@@ -551,7 +551,7 @@ func processIoWrite(ctx context.Context, id, ipAddr string, fmtType rtkCommon.Tr
 	if fmtType == rtkCommon.FILE_DROP {
 		dealFilesCacheDataProcess(ctx, id, ipAddr)
 	} else if fmtType == rtkCommon.XCLIP_CB {
-		resultCode = writeXClipDataToSocket(id)
+		resultCode = writeXClipDataToSocket(id, ipAddr)
 		if resultCode != rtkMisc.SUCCESS {
 			log.Printf("(SRC) ID[%s] IP[%s] Copy XClip data To Socket failed, ERR code:[%d]", id, ipAddr, resultCode)
 			sendCmdMsgToPeer(id, COMM_CB_TRANSFER_SRC_INTERRUPT, fmtType, resultCode)

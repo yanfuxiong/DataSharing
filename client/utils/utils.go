@@ -96,10 +96,14 @@ func WriteErrJson(name string, strContent []byte) {
 	}
 }
 
-func CreateMD5Hash(data []byte) (mh.Multihash, error) {
-	hash := md5.Sum(data)
+func CreateMD5Hash(chunks ...[]byte) (mh.Multihash, error) {
+	h := md5.New()
+	for _, chunk := range chunks {
+		h.Write(chunk)
+	}
+	sum := h.Sum(nil)
 
-	multihash, err := mh.Encode(hash[:], mh.MD5)
+	multihash, err := mh.Encode(sum, mh.MD5)
 	if err != nil {
 		return nil, err
 	}

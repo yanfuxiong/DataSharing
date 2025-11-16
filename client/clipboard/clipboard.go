@@ -1,7 +1,6 @@
 package clipboard
 
 import (
-	"bytes"
 	"context"
 	"log"
 	rtkCommon "rtk-cross-share/client/common"
@@ -69,7 +68,7 @@ func updateXClipHead(id string, nText, nImage, nHtml, nRtf int64) {
 
 func updateXClipData(id string, cbText, cbImage, cbHtml, cbRtf []byte) {
 	log.Printf("[%s] ID:[%s] Text:%d Image:%d Html:%d Rtf:%d", rtkMisc.GetFuncInfo(), id, len(cbText), len(cbImage), len(cbHtml), len(cbRtf))
-	hash, _ := rtkUtils.CreateMD5Hash(bytes.Join([][]byte{cbText, cbImage, cbHtml, cbRtf}, nil))
+	hash, _ := rtkUtils.CreateMD5Hash(cbText, cbImage, cbHtml, cbRtf)
 	clipboardData := rtkCommon.ClipBoardData{
 		SourceID:  id,
 		FmtType:   rtkCommon.XCLIP_CB,

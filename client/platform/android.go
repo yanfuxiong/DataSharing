@@ -437,7 +437,7 @@ func GoSetupDstPasteXClipData(cbText, cbImage, cbHtml, cbRtf []byte) {
 		log.Println("GoSetupDstPasteXClipData failed - callbackInstance is nil")
 		return
 	}
-	log.Printf("[%s] text len:%d , image len:%d, html:%d, cbRtf:%d \n\n", rtkMisc.GetFuncInfo(), len(cbText), len(cbImage), len(cbHtml), len(cbRtf))
+	log.Printf("[%s] text:%d , image:%d, html:%d, rtf:%d \n\n", rtkMisc.GetFuncInfo(), len(cbText), len(cbImage), len(cbHtml), len(cbRtf))
 
 	imageStr := ""
 	if len(cbImage) > 0 {
