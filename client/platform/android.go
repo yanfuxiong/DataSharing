@@ -534,16 +534,17 @@ func GetPlatform() string {
 	return rtkMisc.PlatformAndroid
 }
 
-func LockFile() (err error) {
+func LockFile() error {
+	var err error
 	lockFd, err = os.OpenFile(lockFile, os.O_CREATE|os.O_RDWR, 0666)
 	if err != nil {
 		log.Printf("Failed to open or create lock file:[%s] err:%+v", lockFile, err)
-		return
+		return err
 	}
 
 	err = syscall.Flock(int(lockFd.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
 	if err != nil {
-		log.Printf("Failed to lock file[%s] err:%+v", lockFile, err) //err:  resource temporarily unavailable
+		log.Printf("Failed to lock file[%s] err:%+v", lockFile, err)
 	}
 
 	return err

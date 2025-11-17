@@ -559,18 +559,19 @@ func GetNetWorkConnected() bool {
 	return false
 }
 
-func LockFile() (err error) {
+func LockFile() error {
+	var err error
 	lockFd, err = os.OpenFile(lockFile, os.O_CREATE|os.O_RDWR, 0666)
 	if err != nil {
 		log.Printf("Failed to open or create lock file:[%s] err:%+v", lockFile, err)
-		return
+		return err
 	}
 
 	handle := windows.Handle(lockFd.Fd())
 	if handle == windows.InvalidHandle {
 		err = fmt.Errorf("invalid file handle")
 		log.Printf("[%s] Failed to get file handle", rtkMisc.GetFuncInfo())
-		return
+		return err
 	}
 
 	var overlapped windows.Overlapped
@@ -579,7 +580,7 @@ func LockFile() (err error) {
 		log.Printf("Failed to lock file[%s] err:%+v", lockFile, err)
 	}
 
-	return
+	return err
 }
 
 func UnlockFile() error {
