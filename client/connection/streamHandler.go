@@ -191,7 +191,7 @@ func addFileDropItemStream(id string, timestamp uint64, stream network.Stream, i
 		streamPoolMap[id] = sInfo
 	}
 
-	log.Printf("[%s] ID:[%s] add file drop Item stream success! timestamp:%d id:[%s]", rtkMisc.GetFuncInfo(), id, timestamp, stream.ID())
+	log.Printf("[%s] ID:[%s] add file drop Item stream success! timestamp:%d ID:[%s]", rtkMisc.GetFuncInfo(), id, timestamp, stream.ID())
 }
 
 func GetFileDropItemStream(id string, timestamp uint64) (network.Stream, bool) {
@@ -331,7 +331,7 @@ func updateFmtTypeStreamDst(stream network.Stream, fmtType rtkCommon.TransFmtTyp
 	updateFmtTypeStreamInternal(stream, fmtType, true)
 }
 
-func clearOldFmtStream(id string, fmtType rtkCommon.TransFmtType) {
+func clearOldFmtStream(id string, fmtType rtkCommon.TransFmtType) bool {
 	streamPoolMutex.Lock()
 	defer streamPoolMutex.Unlock()
 
@@ -342,9 +342,11 @@ func clearOldFmtStream(id string, fmtType rtkCommon.TransFmtType) {
 				sInfo.sImage.Reset()
 				sInfo.sImage = nil
 				streamPoolMap[id] = sInfo
+				return true
 			}
 		}
 	}
+	return false
 }
 
 func GetFmtTypeStream(id string, fmtType rtkCommon.TransFmtType) (network.Stream, bool) {

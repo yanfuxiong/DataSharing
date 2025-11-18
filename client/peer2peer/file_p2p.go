@@ -398,6 +398,7 @@ func writeFileDataItemToSocket(p2pCtx context.Context, id, ipAddr string, fileDr
 		srcTransResult := writeFileToSocket(id, ipAddr, &cancelableWrite, &cancelableRead, &progressBar, fileInfo.FileName, fileInfo.FilePath, fileSize, fileDropReqData.TimeStamp, offSet, &copyBuffer)
 		if srcTransResult != rtkMisc.SUCCESS {
 			if srcTransResult == rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_CANCEL_BUSINESS ||
+				srcTransResult == rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL_BUSINESS ||
 				srcTransResult == rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_CANCEL_GUI ||
 				srcTransResult == rtkMisc.ERR_BIZ_FT_FILE_NOT_EXISTS {
 				needReTry = false
@@ -638,6 +639,7 @@ func readFileDataItemFromSocket(p2pCtx context.Context, id, ipAddr string, fileD
 		dstTransResult := readFileFromSocket(id, ipAddr, &cancelableWrite, &cancelableRead, &progressBar, currentFileSize, fileDropData.TimeStamp, dstFileName, dstFullFilePath, &copyBuffer, &offset, isRecoverFile)
 		if dstTransResult != rtkMisc.SUCCESS {
 			if dstTransResult == rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL_BUSINESS ||
+				dstTransResult == rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_CANCEL_BUSINESS ||
 				dstTransResult == rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL_GUI {
 				needReTry = false // not need retry
 			} else {

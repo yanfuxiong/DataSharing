@@ -469,7 +469,10 @@ func BuildFmtTypeTalker(ctx context.Context, id string, fmtType rtkCommon.TransF
 		log.Printf("[%s] ID:[%s] IP[%s] get no stream info or stream is closed", rtkMisc.GetFuncInfo(), id, sInfo.ipAddr)
 		return rtkMisc.ERR_BIZ_GET_STREAM_EMPTY
 	}
-	clearOldFmtStream(id, fmtType)
+
+	if clearOldFmtStream(id, fmtType) {
+		time.Sleep(50 * time.Millisecond)
+	}
 
 	nodeMutex.RLock()
 	defer nodeMutex.RUnlock()

@@ -231,13 +231,23 @@ func processInbandRead(buffer []byte, len int, msg *Peer2PeerMessage) rtkMisc.Cr
 		}
 		msg.FmtType = rtkCommon.XCLIP_CB
 	case rtkCommon.XCLIP_CB:
-		var extDataXClip rtkCommon.ExtDataXClip
-		err = json.Unmarshal(temp.ExtData, &extDataXClip)
-		if err != nil {
-			log.Println("Err: decode ExtDataXClip:", err)
-			return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
+		if msg.Command == COMM_CB_TRANSFER_SRC_INTERRUPT || msg.Command == COMM_CB_TRANSFER_DST_INTERRUPT {
+			var resultCode rtkMisc.CrossShareErr
+			err = json.Unmarshal(temp.ExtData, &resultCode)
+			if err != nil {
+				log.Printf("[%s] Err: decode ExtDataImg:%+v", rtkMisc.GetFuncInfo(), err)
+				return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
+			}
+			msg.ExtData = resultCode
+		} else {
+			var extDataXClip rtkCommon.ExtDataXClip
+			err = json.Unmarshal(temp.ExtData, &extDataXClip)
+			if err != nil {
+				log.Println("Err: decode ExtDataXClip:", err)
+				return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
+			}
+			msg.ExtData = extDataXClip
 		}
-		msg.ExtData = extDataXClip
 	}
 	return rtkMisc.SUCCESS
 }
