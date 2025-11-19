@@ -70,7 +70,6 @@ func CheckAllStreamAlive(ctx context.Context) {
 	streamPoolMutex.RUnlock()
 
 	for key, sInfo := range tempStreamMap {
-
 		rtkMisc.GoSafeWithParam(func(args ...any) {
 			// Default timeout is 10 sec in Ping.go
 			// Use this context timeout instead of the timeout in Ping.go
@@ -331,19 +330,31 @@ func updateFmtTypeStreamDst(stream network.Stream, fmtType rtkCommon.TransFmtTyp
 	updateFmtTypeStreamInternal(stream, fmtType, true)
 }
 
-func clearOldFmtStream(id string, fmtType rtkCommon.TransFmtType) bool {
+func clearLastFmtStream(id string, fmtType rtkCommon.TransFmtType) bool {
 	streamPoolMutex.Lock()
 	defer streamPoolMutex.Unlock()
 
 	if sInfo, ok := streamPoolMap[id]; ok {
 		if fmtType == rtkCommon.XCLIP_CB {
 			if sInfo.sImage != nil {
-				log.Printf("[%s] ID:[%s] IP:[%s] found old XClip stream is alive, Reset it !", rtkMisc.GetFuncInfo(), id, sInfo.ipAddr)
+				log.Printf("[%s] ID:[%s] IP:[%s] found last XClip stream is alive, Reset it !", rtkMisc.GetFuncInfo(), id, sInfo.ipAddr)
 				sInfo.sImage.Reset()
 				sInfo.sImage = nil
 				streamPoolMap[id] = sInfo
 				return true
 			}
+		}
+	}
+	return false
+}
+
+func isLastXClipStreamExisted(id string) bool {
+	streamPoolMutex.RLock()
+	defer streamPoolMutex.RUnlock()
+
+	if sInfo, ok := streamPoolMap[id]; ok {
+		if sInfo.sImage != nil {
+			return true
 		}
 	}
 	return false

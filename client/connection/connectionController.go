@@ -118,7 +118,7 @@ func Run(ctx context.Context) {
 	defer cancelHostNode()
 	defer CancelAllStream(false)
 
-	if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformWindows { // only windows need watch network info
+	if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformWindows || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformMac { // only computer need watch network info
 		rtkMisc.GoSafe(func() { WatchNetworkInfo(ctx) })
 	}
 
@@ -269,6 +269,10 @@ func buildListener(ctx context.Context) {
 	})
 
 	node.SetStreamHandler(protocol.ID(rtkGlobal.ProtocolImageTransmission), func(stream network.Stream) {
+		id := stream.Conn().RemotePeer().String()
+		if isLastXClipStreamExisted(id) {
+			time.Sleep(50 * time.Millisecond)
+		}
 		updateFmtTypeStreamSrc(stream, rtkCommon.XCLIP_CB)
 		noticeFmtTypeStreamReady(stream.Conn().RemotePeer().String(), rtkCommon.XCLIP_CB)
 	})
@@ -277,7 +281,6 @@ func buildListener(ctx context.Context) {
 		updateFmtTypeStreamSrc(stream, rtkCommon.FILE_DROP)
 		noticeFmtTypeStreamReady(stream.Conn().RemotePeer().String(), rtkCommon.FILE_DROP)
 	})
-
 }
 
 func BuildFileDropItemStreamListener(timestamp uint64) {
@@ -470,7 +473,7 @@ func BuildFmtTypeTalker(ctx context.Context, id string, fmtType rtkCommon.TransF
 		return rtkMisc.ERR_BIZ_GET_STREAM_EMPTY
 	}
 
-	if clearOldFmtStream(id, fmtType) {
+	if clearLastFmtStream(id, fmtType) {
 		time.Sleep(50 * time.Millisecond)
 	}
 

@@ -455,7 +455,7 @@ func SetCallbackNotifyBrowseResult(cb C.CallbackNotifyBrowseResult) {
 }
 
 //export MainInit
-func MainInit(deviceName, rootPath, downloadPath, serverId, serverIpInfo, listenHost string, listenPort int) {
+func MainInit(deviceName, rootPath, downloadPath string) {
 	rtkPlatform.SetDeviceName(deviceName)
 
 	if rootPath == "" || !rtkMisc.FolderExists(rootPath) {
@@ -470,7 +470,7 @@ func MainInit(deviceName, rootPath, downloadPath, serverId, serverIpInfo, listen
 		rtkPlatform.GoUpdateDownloadPath(downloadPath)
 	}
 
-	rtkCmd.MainInit(serverId, serverIpInfo, listenHost, listenPort)
+	rtkCmd.Run()
 }
 
 //export SetMsgEventFunc
@@ -550,7 +550,6 @@ func SendMultiFilesDropRequest(multiFilesData string) int {
 			nFileCnt = len(fileList)
 			nFolderCnt = len(folderList)
 			nPathSize = totalSize
-			
 			rtkUtils.WalkPath(file, &folderList, &fileList, &totalSize)
 			log.Printf("[%s] walk a path:[%s], get [%d] files and [%d] folders, path total size:[%d]", rtkMisc.GetFuncInfo(), file, len(fileList)-nFileCnt, len(folderList)-nFolderCnt, totalSize-nPathSize)
 		} else if rtkMisc.FileExists(file) {
@@ -602,7 +601,7 @@ func SetNetWorkConnected(isConnect bool) {
 //export SetHostListenAddr
 func SetHostListenAddr(listenHost string, listenPort int) {
 	log.Printf("[%s] SetHostListAddr:[%s][%d]", rtkMisc.GetFuncInfo(), listenHost, listenPort)
-	if listenHost == "" || listenHost == rtkMisc.DefaultIp || listenHost == rtkMisc.LoopBackIp || listenPort <= rtkGlobal.DefaultPort {
+	/*if listenHost == "" || listenHost == rtkMisc.DefaultIp || listenHost == rtkMisc.LoopBackIp || listenPort <= rtkGlobal.DefaultPort {
 		return
 	}
 	if rtkGlobal.ListenHost != rtkMisc.DefaultIp &&
@@ -615,7 +614,7 @@ func SetHostListenAddr(listenHost string, listenPort int) {
 		rtkGlobal.ListenHost = listenHost
 		rtkGlobal.ListenPort = listenPort
 		rtkPlatform.GoTriggerNetworkSwitch()
-	}
+	}*/
 }
 
 //export SetMacAddress

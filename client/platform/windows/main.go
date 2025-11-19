@@ -314,7 +314,7 @@ func GoTriggerCallbackSetupDstPasteXClipData(text, image, html, rtf string) {
 		C.free(unsafe.Pointer(cRtf))
 	}()
 
-	log.Printf("[%s] text len:%d , image len:%d, html len:%d  rtf len:%d \n\n", rtkMisc.GetFuncInfo(), len(text), len(image), len(html), len(rtf))
+	log.Printf("[%s] text len:%d, image len:%d, html len:%d, rtf len:%d \n\n", rtkMisc.GetFuncInfo(), len(text), len(image), len(html), len(rtf))
 	C.SetupDstPasteXClipDataCallbackFunc(g_SetupDstPasteXClipDataCallback, cText, cImage, cHtml, cRtf)
 }
 
