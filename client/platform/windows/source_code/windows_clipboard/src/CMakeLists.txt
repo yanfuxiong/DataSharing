@@ -6,6 +6,12 @@ file(GLOB SRCS *.cpp *.c)
 file(GLOB HEADERS *.h *.hpp)
 file(GLOB UI_FILES *.ui)
 
+configure_file(
+    ${CMAKE_SOURCE_DIR}/ico.rc.in
+    ${CMAKE_CURRENT_SOURCE_DIR}/resource/ico.rc
+    @ONLY
+)
+
 file(COPY
     ${CMAKE_SOURCE_DIR}/licenses/README.txt
     ${CMAKE_SOURCE_DIR}/licenses/Qt_LGPLv3.txt

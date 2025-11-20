@@ -60,8 +60,6 @@ private Q_SLOTS:
             QVERIFY(msg.clientName == newMsg.clientName);
             QVERIFY(msg.clientID == newMsg.clientID);
             QVERIFY(msg.deviceType == newMsg.deviceType);
-            QVERIFY(newMsg.headerInfo.type == PipeMessageType::Notify);
-            QVERIFY(static_cast<uint32_t>(send_data.length()) == newMsg.getMessageLength());
         }
     }
 

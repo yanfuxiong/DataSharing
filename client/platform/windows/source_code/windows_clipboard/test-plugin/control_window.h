@@ -17,6 +17,7 @@ public:
     ~ControlWindow();
     void appendLogInfo(const QString &logString);
     void on_SetCancelFileTransfer(const char* ipPort, const char* clientID, uint64_t timeStamp);
+    void writeClipboardData(const QByteArray &textData, const QByteArray &imageData, const QByteArray &htmlData);
 
 private slots:
     void on_UpdateClientStatus_btn_clicked();
@@ -36,6 +37,9 @@ private slots:
     void on_UpdateMultipleProgress_btn_clicked();
     void on_UpdateClientVersion_btn_clicked();
     void on_NotifyErrorEvent_btn_clicked();
+    void on_SendXClipData_btn_clicked();
+    void on_LoadClipboardData_btn_clicked();
+    void on_UpdateClientStatusEx_btn_clicked();
 
 private:
     Ui::ControlWindow *ui;

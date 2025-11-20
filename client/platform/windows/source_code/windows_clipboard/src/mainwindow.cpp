@@ -13,6 +13,7 @@
 #include "worker_thread.h"
 #include "navibar_widget.h"
 #include "warning_dialog.h"
+#include "common_proxy_style.h"
 #include <windows.h>
 #include <QWindowStateChangeEvent>
 #include <QHBoxLayout>
@@ -36,6 +37,7 @@ MainWindow::MainWindow(QWidget *parent)
     , m_currentProgressVal(0)
 {
     ui->setupUi(this);
+    g_mainWindow = this;
     m_lastNormalState = windowState();
 
     {
@@ -104,7 +106,21 @@ MainWindow::MainWindow(QWidget *parent)
             pParentBox->setLayout(pHBoxLayout);
 
             auto fileExplorer = new FileExplorer;
-            pHBoxLayout->addWidget(fileExplorer->createNaviWindow());
+            {
+                QFrame *naviParent = new QFrame;
+                naviParent->setObjectName("NaviWindowParent");
+                naviParent->setMaximumWidth(220);
+                naviParent->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+                QVBoxLayout *pVBoxLayout = new QVBoxLayout;
+                pVBoxLayout->setMargin(0);
+                pVBoxLayout->setSpacing(0);
+                naviParent->setLayout(pVBoxLayout);
+                pVBoxLayout->addSpacing(10);
+                pVBoxLayout->addWidget(fileExplorer->createNaviWindow());
+
+                pHBoxLayout->addWidget(naviParent);
+            }
+
             pHBoxLayout->addWidget(fileExplorer);
         }
 
@@ -152,6 +168,7 @@ MainWindow::MainWindow(QWidget *parent)
 MainWindow::~MainWindow()
 {
     delete ui;
+    g_mainWindow = nullptr;
 }
 
 void MainWindow::onLogMessage(const QString &message)
@@ -567,6 +584,7 @@ void MainWindow::onModifyDefaulutDownloadPath()
     if (newDownloadPath.isEmpty()) {
         return;
     }
+    qInfo() << "oldDownloadPath:" << oldDownloadPath << "; newDownloadPath:" << newDownloadPath;
     g_getGlobalData()->localConfig["crossShareServer"]["downloadPath"] = newDownloadPath.toStdString();
 
     {
@@ -598,6 +616,7 @@ void MainWindow::onBugReport()
                                              ++s_index);
         fileName = downloadPath + "/" + fileName;
         CommonUtils::compressFolderToTarGz(CommonUtils::windowsLogFolderPath(), fileName);
+        Q_EMIT CommonSignals::getInstance()->showInfoMessageBox("Bug Report", "Export report to download path.");
     });
 }
 

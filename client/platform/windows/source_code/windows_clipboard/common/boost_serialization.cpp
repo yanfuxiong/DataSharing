@@ -4,4 +4,5 @@ void g_globalRegisterForBoostSerialize()
 {
     qRegisterMetaType<SystemConfigPtr>();
     qRegisterMetaType<UpdateLocalConfigInfoMsgPtr>();
+    qRegisterMetaType<UpdateClientStatusMsgPtr>();
 }

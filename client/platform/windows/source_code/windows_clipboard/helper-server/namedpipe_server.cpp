@@ -5,6 +5,7 @@ HelperServer::HelperServer(QObject *parent)
     : QObject(parent)
 {
     m_server = new QLocalServer;
+    m_server->setSocketOptions(QLocalServer::WorldAccessOption);
     connect(m_server, &QLocalServer::newConnection, this, &HelperServer::onNewConnection);
     connect(CommonSignals::getInstance(), &CommonSignals::broadcastData, this, &HelperServer::onBroadcastData);
 }
@@ -35,14 +36,6 @@ void HelperServer::onBroadcastData(const QByteArray &data)
     for (const auto &conn : m_connList) {
         conn->sendData(data);
     }
-}
-
-QStringList HelperServer::pasteProgressExePathList() const
-{
-    QStringList pathList;
-    pathList << qApp->applicationDirPath() + "/image-paste-progress.exe";
-    pathList << qApp->applicationDirPath() + "/../image-paste-progress/image-paste-progress.exe";
-    return pathList;
 }
 
 void HelperServer::removeConnection(const QString &connName)

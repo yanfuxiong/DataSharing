@@ -20,6 +20,7 @@
 #include <QContextMenuEvent>
 #include <QRubberBand>
 #include <QStyledItemDelegate>
+#include <boost/bimap.hpp>
 #include "common_utils.h"
 #include "common_signals.h"
 
@@ -39,7 +40,7 @@ protected:
     void mouseReleaseEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
     void leaveEvent(QEvent *event) override;
-    bool checkClickedPostion(const QPoint &pos) const;
+    bool checkClickedPosForRubberBand(const QPoint &pos) const;
 
 private:
     QModelIndex validIndexAt(const QPoint &pos) const;
@@ -53,7 +54,6 @@ private:
     QPointer<QRubberBand> m_rubberBand { nullptr };
     QPoint m_dragStartPos;
     bool m_isDragging { false };
-    QModelIndex m_initialIndex;
     QPoint m_clickedPos { 0, 0 };
     int m_hoverRow { -1 };
     QModelIndexList m_cacheSelectedIndexes;
@@ -83,10 +83,12 @@ public:
 private:
     void updateUI();
     void onClickedItem(const QString &currentPath);
+    bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
     QString m_currentPath;
     QPointer<QStackedWidget> m_stackedWidget;
+    boost::bimap<QPushButton*, QPushButton*> m_buttonMap;
 };
 
 class FileTableView : public TableViewEx

@@ -30,7 +30,7 @@ QGroupBox#top_box {
 
 QGroupBox#middle_box {
     /* CUSTOM_UI */
-    border:2px dashed #E41A2B;
+    border:2px solid #E41A2B;
     border-radius:4px;
     background-color:#F0F0F0;
 }
@@ -59,7 +59,8 @@ QLabel#more_icon:hover {
 
 QGroupBox#about_view_root_box, QGroupBox#license_view_root_box, QFrame#about_view_h_line {
     /* CUSTOM_UI */
-    border:1px solid #E41A2B;
+    border:2px solid #E41A2B;
+    border-radius:6px;
 }
 
 QLabel#title_label {
@@ -137,11 +138,12 @@ QLabel#clear_all_icon:hover {
 }
 
 QLabel#back_label {
-    border-image:url(:/resource/back.svg);
+    image:url(:/resource/back.svg);
+    padding:5px;
 }
 
 QLabel#back_label:hover {
-    border-image:url(:/resource/back_h.svg);
+    background-color: #C0C0C0;
 }
 
 QLabel#icon_left {
@@ -227,32 +229,72 @@ QPushButton#openFile:hover {
     border: 1px solid yellow;
 }
 
+
+/******************** fileExplorerButton [BEGIN] *****************/
+
 QPushButton#fileExplorerButton {
+    border: none;
+    background-color: transparent;
+    color: black;
+    border-radius: 3px;
+}
+
+QPushButton#fileExplorerButton[hover_tag="true"] {
+    background-color: #cce8ff;
+    color: black;
+}
+
+QPushButton#fileExplorerButton:pressed {
+    background-color: #cce8ff;
+    color: #0066cc;
+    padding: 6px 8px 4px 8px;
+    margin: 1px 0 -1px 0;
+}
+
+QPushButton#fileExplorerNextButton {
+    border: none;
+    background-color: transparent;
+    color: black;
+    border-radius: 3px;
+    image:url(:/resource/menu_icon/right-arrow.png);
+    padding:5px;
+}
+
+QTreeView#NaviView {
+    border:none;
+}
+QFrame#NaviWindowParent {
+    background-color:white;
+    border:none;
+}
+
+/******************** fileExplorerButton [END] *****************/
+
+QPushButton#customMenuButton {
+    color: rgb(108, 190, 241);
+    background-color: rgb(243, 243, 243);
+    border-radius: 4px;
+    border: 1px solid transparent;
+}
+
+/*
+QPushButton#customMenuButton:hover {
+    background-color: darkgrey;
+    color: white;
+}
+
+QPushButton#customMenuButton:pressed {
+    background-color: #555555;
+    color: white;
+    border: 1px solid #555555;
+    padding-top: 3px;
+    padding-left: 3px;
+}*/
+
+QPushButton#about_dialog_close_btn {
     color:black;
     background-color:lightgrey;
     border-radius: 4px;
-}
-
-QPushButton#fileExplorerButton:hover {
-    background-color: darkgrey;
-    color:white;
-}
-
-QPushButton#customMenuButton {
-    color:rgb(108,190,241);
-    background-color:rgb(243,243,243);
-    border-radius: 4px;
-}
-
-QPushButton#customMenuButton:hover {
-    background-color: darkgrey;
-    color:white;
-}
-
-QPushButton#about_dialog_close_btn {
-color:black;
-background-color:lightgrey;
-border-radius: 4px;
 }
 
 QPushButton#about_dialog_close_btn:hover {
@@ -260,11 +302,27 @@ QPushButton#about_dialog_close_btn:hover {
     color:white;
 }
 
+QMenu {
+    margin:4px;
+    padding:1px;
+    /* CUSTOM_UI */
+    border:2px solid #E41A2B;
+    border-radius:4px;
+    color:black;
+}
+
 QMenu::right-arrow {
     image: url(:/resource/menu_icon/right-arrow.png);
     width:20px;
     height:20px;
 }
+
+QMenu::item:selected {
+    /* CUSTOM_UI */
+    background-color: #DFDFDF;
+    color: black;
+}
+
 
 /* ---------------------- Vertical scrollbar settings -------------------------------------- */
 

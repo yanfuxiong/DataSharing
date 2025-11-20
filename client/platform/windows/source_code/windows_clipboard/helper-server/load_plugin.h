@@ -5,6 +5,25 @@
 #include "clipboard.h"
 #include <QLibrary>
 #include <QClipboard>
+#include <QMimeData>
+#include <QImage>
+#include <windows.h>
+
+class WindowsMimeData : public QMimeData
+{
+    Q_OBJECT
+public:
+    WindowsMimeData();
+    ~WindowsMimeData();
+    void setImage(const QImage &image);
+    QStringList formats() const override;
+    bool hasFormat(const QString &mimeType) const override;
+
+protected:
+    QVariant retrieveData(const QString &mimeType, QVariant::Type type) const override;
+
+    bool m_hasBitmap;
+};
 
 class LoadPlugin : public QObject
 {
@@ -40,6 +59,7 @@ private:
     static void onUpdateClientStatus(uint32_t status, const char* ipPort,
                                     const char* id, const wchar_t* name,
                                     const char* deviceType);
+    static void onUpdateClientStatusEx(const char *clientJson);
     static void onUpdateSystemInfo(const char* ipPort, const wchar_t* serviceVer);
     static void onNotiMessage(uint64_t timestamp, uint32_t notiCode,
                               const wchar_t* notiParam[], int paramCount);
@@ -51,6 +71,7 @@ private:
     static void onSetupDstPasteImage(const wchar_t* desc, IMAGE_HEADER imgHeader, uint32_t dataSize);
     static void onRequestUpdateClientVersion(const char *clientVersion);
     static void onNotifyErrEvent(const char *clientID, uint32_t errorCode, const char *ipPortString, const char *timeStamp, const char *arg3, const char *arg4);
+    static void onSetupDstPasteXClipData(const char *textData, const char *imageData, const char *htmlData);
 
 private:
     static std::pair<QString, uint16_t> getIpPort(const QString &ipPortString);

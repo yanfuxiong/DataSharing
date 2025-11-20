@@ -207,7 +207,7 @@ MonitorPlugEvent *MonitorPlugEvent::getInstance()
     return m_instance;
 }
 
-void MonitorPlugEvent::initDataImpl()
+void MonitorPlugEvent::initDataImpl(bool emitSignal)
 {
     const int vcpRetryCnt = 1;
     for (int i = 0; i < vcpRetryCnt; ++i) {
@@ -226,7 +226,9 @@ void MonitorPlugEvent::initDataImpl()
             qInfo() << "macAddress(hex):" << QByteArray::fromStdString(itemData.macAddress).toHex().toUpper().constData()
             << "; monitor desc:" << itemData.desc.toUtf8().constData();
         }
-        Q_EMIT statusChanged(true);
+        if (emitSignal) {
+            Q_EMIT statusChanged(true);
+        }
         break;
     }
 }
@@ -256,7 +258,7 @@ void MonitorPlugEvent::restartProcessDDCCI()
     m_currentTimeout = DDCCI_TIMEOUT;
 }
 
-void MonitorPlugEvent::initData()
+void MonitorPlugEvent::initData(bool emitSignal)
 {
     static bool s_initStatus = false;
     if (s_initStatus == false) {
@@ -264,7 +266,7 @@ void MonitorPlugEvent::initData()
         std::thread(std::bind(&MonitorPlugEvent::processDDCCI, this)).detach();
         return;
     }
-    initDataImpl();
+    initDataImpl(emitSignal);
     if (getCacheMonitorData().macAddress.empty() == false) {
         stopProcessDDCCI();
         return;
@@ -322,9 +324,27 @@ bool MonitorPlugEvent::nativeEvent(const QByteArray &, void *msg, long *)
     MSG *message = reinterpret_cast<MSG*>(msg);
     if (message->message == WM_DISPLAYCHANGE) {
         qWarning() << "-------------------------WM_DISPLAYCHANGE";
-        clearData();
-        QTimer::singleShot(0, this, [this] {
-            initData();
+        if (getCacheMonitorData().macAddress.empty()) {
+            qInfo() << "------------------WM_DISPLAYCHANGE: step 1";
+            return false;
+        }
+        QTimer::singleShot(500, Qt::TimerType::PreciseTimer, this, [this] {
+            if (getCacheMonitorData().macAddress.empty()) {
+                qInfo() << "------------------WM_DISPLAYCHANGE: step 2";
+                return;
+            }
+            clearData();
+            for (int i = 0; i < g_vcpRetryCnt; ++i) {
+                initData(false);
+                if (getCacheMonitorData().macAddress.empty() == false) {
+                    qInfo() << "------------------WM_DISPLAYCHANGE: step 3";
+                    return;
+                }
+                delayInEventLoop(50);
+            }
+            Q_ASSERT(getCacheMonitorData().macAddress.empty());
+            qInfo() << "--------------------WM_DISPLAYCHANGE: statusChanged(false)";
+            Q_EMIT statusChanged(false);
         });
         return false;
     }
@@ -403,6 +423,7 @@ bool MonitorPlugEvent::nativeEvent(const QByteArray &, void *msg, long *)
                                             return;
                                         }
                                         Q_EMIT statusChanged(false);
+                                        qInfo() << "---------------------------statusChanged(false)";
                                         doneStatus.store(true);
                                         stopProcessDDCCI();
                                     });

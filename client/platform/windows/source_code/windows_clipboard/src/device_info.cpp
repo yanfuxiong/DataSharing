@@ -23,13 +23,13 @@ const std::map<QByteArray, QByteArray> &DeviceInfo::deviceIconMap()
 {
     static std::map<QByteArray, QByteArray> s_deviceIconMap;
     if (s_deviceIconMap.empty()) {
-        s_deviceIconMap.insert({"HDMI1", ":/resource/device_icon/Device_HDMI1.png"});
-        s_deviceIconMap.insert({"HDMI2", ":/resource/device_icon/Device_HDMI2.png"});
-        s_deviceIconMap.insert({"USBC1", ":/resource/device_icon/Device_USBC1.png"});
-        s_deviceIconMap.insert({"USBC2", ":/resource/device_icon/Device_USBC2.png"});
-        s_deviceIconMap.insert({"DP1", ":/resource/device_icon/Device_DP1.png"});
-        s_deviceIconMap.insert({"DP2", ":/resource/device_icon/Device_DP2.png"});
-        s_deviceIconMap.insert({"Miracast", ":/resource/device_icon/Device_Miracast.png"});
+        s_deviceIconMap.insert({"HDMI1", ":/resource/device_icon/Device_HDMI1.svg"});
+        s_deviceIconMap.insert({"HDMI2", ":/resource/device_icon/Device_HDMI2.svg"});
+        s_deviceIconMap.insert({"USBC1", ":/resource/device_icon/Device_USBC1.svg"});
+        s_deviceIconMap.insert({"USBC2", ":/resource/device_icon/Device_USBC2.svg"});
+        s_deviceIconMap.insert({"DP1", ":/resource/device_icon/Device_DP1.svg"});
+        s_deviceIconMap.insert({"DP2", ":/resource/device_icon/Device_DP2.svg"});
+        s_deviceIconMap.insert({"Miracast", ":/resource/device_icon/Device_Miracast.svg"});
     }
     return s_deviceIconMap;
 }
@@ -41,7 +41,7 @@ QByteArray DeviceInfo::getIconPathByClientName(const QByteArray &clientName)
             return val.second;
         }
     }
-    return ":/resource/device_icon/Device_Computer.png";
+    return ":/resource/device_icon/Device_Computer.svg";
 }
 
 QByteArray DeviceInfo::getIconPathByDeviceType(const QByteArray &deviceType)
@@ -51,7 +51,7 @@ QByteArray DeviceInfo::getIconPathByDeviceType(const QByteArray &deviceType)
             return val.second;
         }
     }
-    return ":/resource/device_icon/Device_Computer.png";
+    return ":/resource/device_icon/Device_Computer.svg";
 }
 
 void DeviceInfo::setClientName(const QString &name)

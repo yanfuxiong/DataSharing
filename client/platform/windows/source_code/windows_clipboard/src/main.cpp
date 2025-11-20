@@ -25,6 +25,11 @@ int main(int argc, char *argv[])
     // Initialize logging operations after QApplication to prevent path-related information retrieval exceptions.
     qInstallMessageHandler(g_commonMessageOutput);
     g_boostLogSetup("windows_clipboard");
+#ifdef NDEBUG
+    g_setBoostLogLevel(QtSeverity::QLOG_INFO);
+#else
+    g_setBoostLogLevel(QtSeverity::QLOG_DEBUG);
+#endif
     windows_shared_memory shm;
     try {
         shm = windows_shared_memory(create_only, "cross_share_instance", read_write, 1);
@@ -101,7 +106,7 @@ int main(int argc, char *argv[])
             qInfo() << "crossShareServ old path:" << QDir::toNativeSeparators(crossShareServOldPath).toUtf8().constData();
             QString currentPath = qApp->applicationDirPath();
             QString crossShareServPath = currentPath + "/" + CROSS_SHARE_SERV_NAME;
-            if (CommonUtils::processIsRunning(crossShareServPath) == false && QFile::exists(crossShareServPath)) {
+            if (CommonUtils::crossShareServerIsRunning() == false && QFile::exists(crossShareServPath)) {
                 CommonUtils::startDetachedWithoutInheritance(crossShareServPath, {});
             }
         }
@@ -114,7 +119,7 @@ int main(int argc, char *argv[])
                     return;
                 }
                 while (true) {
-                    if (CommonUtils::processIsRunning(crossShareExePath)) {
+                    if (CommonUtils::crossShareServerIsRunning()) {
                         QThread::msleep(1000); // 1000ms
                         continue;
                     }

@@ -199,18 +199,18 @@ void MainWindow::onDispatchMessage(const QVariant &data)
 
     if (data.canConvert<UpdateDownloadPathMsgPtr>() == true) {
         UpdateDownloadPathMsgPtr ptr_msg = data.value<UpdateDownloadPathMsgPtr>();
-        qDebug() << *ptr_msg;
+        qInfo() << *ptr_msg;
         LoadPlugin::getInstance()->updateDownloadPath(ptr_msg->downloadPath);
         return;
     }
 
     if (data.canConvert<UpdateLocalConfigInfoMsgPtr>() == true) {
         UpdateLocalConfigInfoMsgPtr ptr_msg = data.value<UpdateLocalConfigInfoMsgPtr>();
-        qDebug() << *ptr_msg;
-        qDebug() << ptr_msg->appFilePath;
+        qInfo() << *ptr_msg;
+        qInfo() << ptr_msg->appFilePath;
         try {
             g_getGlobalData()->localConfig = nlohmann::json::parse(ptr_msg->configData.constData());
-            qDebug() << g_getGlobalData()->localConfig.dump(4).c_str();
+            qInfo() << g_getGlobalData()->localConfig.dump(4).c_str();
             updateSystemTrayIcon();
         } catch (const std::exception &e) {
             qWarning() << e.what();
@@ -246,7 +246,7 @@ void MainWindow::changeEvent(QEvent *event)
 
 void MainWindow::onSystemTrayIconActivated(QSystemTrayIcon::ActivationReason reason)
 {
-    if (reason == QSystemTrayIcon::ActivationReason::DoubleClick) {
+    if (reason == QSystemTrayIcon::ActivationReason::Trigger || reason == QSystemTrayIcon::ActivationReason::Context) {
         QString windowsClipboardExePath = qApp->applicationDirPath() + "/" + WINDOWS_CLIPBOARD_NAME;
 #ifndef NDEBUG
         windowsClipboardExePath = qApp->applicationDirPath() + "/../src/" + WINDOWS_CLIPBOARD_NAME;
@@ -259,13 +259,6 @@ void MainWindow::onSystemTrayIconActivated(QSystemTrayIcon::ActivationReason rea
             message.desc = "activateWindow";
             g_broadcastData(ShowWindowsClipboard_code, ShowWindowsClipboardMsg::toByteArray(message));
         }
-    } else if (reason == QSystemTrayIcon::ActivationReason::Context) {
-        QMenu menu;
-        menu.addAction(QIcon(":/resource/exit.svg"), "   Exit   ", [this] {
-            m_exitsStatus = true;
-            close();
-        });
-        menu.exec(QCursor::pos());
     }
 }
 

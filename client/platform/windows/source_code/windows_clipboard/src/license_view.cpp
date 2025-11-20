@@ -4,6 +4,7 @@
 #include "common_signals.h"
 #include "menu_manager.h"
 #include <QDebug>
+#include <windows.h>
 
 LicenseView::LicenseView(QWidget *parent)
     : QWidget(parent)
@@ -12,6 +13,9 @@ LicenseView::LicenseView(QWidget *parent)
     ui->setupUi(this);
     setWindowFlags(windowFlags() | (Qt::Popup | Qt::FramelessWindowHint));
     setAttribute(Qt::WA_DeleteOnClose, true);
+    setAttribute(Qt::WA_TranslucentBackground, true);
+    ui->verticalLayout->setContentsMargins(1, 1, 1, 1);
+    ui->horizontalLayout->setContentsMargins(1, 1, 1, 1);
     ui->license_icon_label->clear();
     ui->view_top_box->setFlat(true);
     QTimer::singleShot(0, this, [this] {
@@ -61,4 +65,17 @@ void LicenseView::clickedLeftArrow()
 {
     deleteLater();
     Q_EMIT CommonSignals::getInstance()->showOpenSourceLicenseMenu();
+}
+
+bool LicenseView::event(QEvent *event)
+{
+    static bool s_initStatus = false;
+    if (event->type() == QEvent::WinIdChange && s_initStatus == false) {
+        s_initStatus = true;
+        auto hwnd = reinterpret_cast<HWND>(winId());
+        auto classStyle = ::GetClassLong(hwnd, GCL_STYLE);
+        classStyle &= ~CS_DROPSHADOW;
+        ::SetClassLong(hwnd, GCL_STYLE, classStyle);
+    }
+    return QWidget::event(event);
 }

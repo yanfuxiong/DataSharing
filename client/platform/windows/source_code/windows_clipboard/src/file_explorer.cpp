@@ -3,6 +3,7 @@
 #include "device_info.h"
 #include "windows_event_monitor.h"
 #include "event_filter_process.h"
+#include "menu_manager.h"
 #include <QDesktopServices>
 #include <QStandardPaths>
 #include <QFileIconProvider>
@@ -145,7 +146,7 @@ int TableViewEx::getIconColumnWidth() const
     return totalWidth;
 }
 
-bool TableViewEx::checkClickedPostion(const QPoint &pos) const
+bool TableViewEx::checkClickedPosForRubberBand(const QPoint &pos) const
 {
     const int columnCount = 4;
     if (m_cacheSelectedIndexes.size() > columnCount) {
@@ -197,14 +198,7 @@ void TableViewEx::mousePressEvent(QMouseEvent *event)
     m_clickedPos = event->globalPos();
     if (event->button() == Qt::LeftButton) {
         m_dragStartPos = event->pos();
-        m_initialIndex = validIndexAt(m_dragStartPos);
         m_isDragging = false;
-
-        // Allow dragging to start in empty regions.
-        if (!m_initialIndex.isValid()) {
-            const int row = rowAtPosition(m_dragStartPos.y());
-            m_initialIndex = model()->index(row, 0, rootIndex());
-        }
     }
 
     QTableView::mousePressEvent(event);
@@ -220,8 +214,24 @@ void TableViewEx::mouseReleaseEvent(QMouseEvent *event)
         m_rubberBand->hide();
     }
 
+    do {
+        if (indexAt(m_dragStartPos).isValid() || selectedIndexes().isEmpty()) {
+            break;
+        }
+
+        auto pos = viewport()->mapFromGlobal(event->globalPos());
+        if (viewport()->rect().contains(pos)) {
+            break;
+        }
+
+        QTimer::singleShot(0, this, [this, currentSelectedIndexes = selectedIndexes()] {
+            if (selectedIndexes().isEmpty()) {
+                selectionModel()->select(createSelection(currentSelectedIndexes.first(), currentSelectedIndexes.last()), QItemSelectionModel::ClearAndSelect);
+            }
+        });
+    } while (false);
+
     m_isDragging = false;
-    m_initialIndex = QModelIndex();
     m_cacheSelectedIndexes.clear();
     QTableView::mouseReleaseEvent(event);
 }
@@ -252,7 +262,7 @@ void TableViewEx::mouseMoveEvent(QMouseEvent *event)
                 );
             }
             m_rubberBand->setGeometry(QRect(m_dragStartPos, QSize()));
-            if (checkClickedPostion(m_clickedPos)) {
+            if (checkClickedPosForRubberBand(m_clickedPos)) {
                 m_rubberBand->show();
             } else {
                 m_rubberBand->hide();
@@ -278,6 +288,10 @@ void TableViewEx::leaveEvent(QEvent *event)
 void TableViewEx::updateSelection(const QPoint &currentPos, Qt::KeyboardModifiers modifiers)
 {
     if (m_rubberBand == nullptr || m_rubberBand->isHidden()) {
+        return;
+    }
+    // Avoid the selection operation on blank areas.
+    if (indexAt(currentPos).isValid() == false) {
         return;
     }
     const QModelIndex parent = rootIndex();
@@ -408,6 +422,8 @@ void DirectoryJumpWidget::updateUI()
     QString cacheCurrentPath;
     QFont buttonFont;
     buttonFont.setPointSize(10);
+    int index = 0;
+    m_buttonMap.clear();
     for (const auto &itemName : dirList) {
         Q_ASSERT(itemName.isEmpty() == false);
         if (cacheCurrentPath.isEmpty()) {
@@ -419,9 +435,23 @@ void DirectoryJumpWidget::updateUI()
         itemButton->setFont(buttonFont);
         itemButton->setObjectName("fileExplorerButton");
         itemButton->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
-        itemButton->setFixedWidth(QFontMetrics(buttonFont).horizontalAdvance(itemName + QByteArray(4, 'Q')) + itemName.size());
+        itemButton->setFixedWidth(QFontMetrics(buttonFont).horizontalAdvance(itemName + QByteArray(4, 'Q')) + itemName.size() / 2);
         itemButton->setText(itemName);
         pHBoxLayout->addWidget(itemButton);
+        itemButton->installEventFilter(this);
+
+        if (++index < dirList.size()) {
+            QPushButton *nextButton = new QPushButton;
+            nextButton->setObjectName("fileExplorerNextButton");
+            nextButton->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
+            nextButton->setFixedWidth(20);
+            pHBoxLayout->addWidget(nextButton);
+            nextButton->installEventFilter(this);
+
+            m_buttonMap.insert({ itemButton, nextButton});
+        } else {
+            m_buttonMap.insert({ itemButton, nullptr });
+        }
 
         connect(itemButton, &QPushButton::clicked, this, std::bind(&DirectoryJumpWidget::onClickedItem, this, cacheCurrentPath));
     }
@@ -433,6 +463,51 @@ void DirectoryJumpWidget::onClickedItem(const QString &currentPath)
     Q_EMIT CommonSignals::getInstance()->directoryJump(currentPath);
 }
 
+bool DirectoryJumpWidget::eventFilter(QObject *watched, QEvent *event)
+{
+    do {
+        if (QPushButton *button = qobject_cast<QPushButton*>(watched)) {
+            if (event->type() != QEvent::HoverEnter && event->type() != QEvent::HoverLeave) {
+                break;
+            }
+            QPushButton *nextButton = nullptr;
+            {
+                auto itr = m_buttonMap.left.find(button);
+                if (itr != m_buttonMap.left.end()) {
+                    Q_ASSERT(itr->first == button);
+                    nextButton = itr->second;
+                }
+            }
+            if (nextButton == nullptr) {
+                auto itr = m_buttonMap.right.find(button);
+                if (itr != m_buttonMap.right.end()) {
+                    Q_ASSERT(itr->first == button);
+                    nextButton = itr->second;
+                }
+            }
+
+            if (event->type() == QEvent::HoverEnter) {
+                button->setProperty("hover_tag", true);
+                button->setStyleSheet(qApp->styleSheet());
+
+                if (nextButton) {
+                    nextButton->setProperty("hover_tag", true);
+                    nextButton->setStyleSheet(qApp->styleSheet());
+                }
+            } else {
+                button->setProperty("hover_tag", false);
+                button->setStyleSheet(qApp->styleSheet());
+
+                if (nextButton) {
+                    nextButton->setProperty("hover_tag", false);
+                    nextButton->setStyleSheet(qApp->styleSheet());
+                }
+            }
+        }
+    } while (false);
+    return QWidget::eventFilter(watched, event);
+}
+
 //------------------------------------------------------- FileTableView
 
 FileTableView::FileTableView(QWidget *parent)
@@ -440,13 +515,8 @@ FileTableView::FileTableView(QWidget *parent)
 {
     {
         setShowGrid(false);
-        {
-            setSortingEnabled(false);
-            horizontalHeader()->setSectionsClickable(false);
-            horizontalHeader()->setStyleSheet(
-                "QHeaderView::section {background-color:#F0F0F0;border:none;border-right:1px solid lightgrey;}"
-            );
-        }
+        setSortingEnabled(true);
+        horizontalHeader()->setSectionsClickable(true);
         setContextMenuPolicy(Qt::ContextMenuPolicy::CustomContextMenu);
     }
 
@@ -565,11 +635,14 @@ void FileTableView::processMouseMovingTask()
 {
     if (m_cacheSelectedIndexes.isEmpty() ||
         m_cacheSelectedIndexes != selectedIndexes() ||
-        checkClickedPostion(m_clickedPos)) {
+        checkClickedPosForRubberBand(m_clickedPos)) {
         return;
     }
     const int columnCount = 4;
     if (m_cacheSelectedIndexes.size() == columnCount && indexAt(viewport()->mapFromGlobal(m_clickedPos)).column() != 0) {
+        return;
+    }
+    if (m_cacheSelectedIndexes.contains(indexAt(viewport()->mapFromGlobal(m_clickedPos))) == false) {
         return;
     }
     auto fsModel = qobject_cast<QFileSystemModel*>(model());
@@ -741,6 +814,7 @@ QTreeView *FileExplorer::createNaviWindow()
         return m_naviView.data();
     }
     m_naviView = new QTreeView;
+    m_naviView->setObjectName("NaviView");
     m_naviView->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_naviView->setMaximumWidth(220);
     m_naviView->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Preferred);
@@ -905,7 +979,11 @@ void FileExplorer::onCustomContextMenu(const QPoint &pos)
     if (index.isValid() == false) {
         return;
     }
+    QFont font;
+    font.setPointSize(9);
+
     QMenu menu;
+    menu.setProperty("FileExplorerMenu", true);
     menu.addAction("open", [index, this] {
         auto fsModel = qobject_cast<QFileSystemModel*>(m_tableView->model());
         QFileInfo fileInfo = fsModel->fileInfo(index);
@@ -917,12 +995,17 @@ void FileExplorer::onCustomContextMenu(const QPoint &pos)
         } else if (fileInfo.isFile()) {
             QDesktopServices::openUrl(QUrl::fromLocalFile(fileInfo.absoluteFilePath()));
         }
-    });
+    })->setFont(font);
 
-    menu.addSeparator();
+    menu.addAction(new HLineItemAction);
 
     {
         auto subMenu = menu.addMenu("send to");
+        subMenu->setProperty("FileExplorerMenu", true);
+        subMenu->menuAction()->setFont(font);
+        if (g_getGlobalData()->m_clientVec.empty()) {
+            subMenu->setDisabled(true);
+        }
         for (const auto &client : g_getGlobalData()->m_clientVec) {
             QByteArray clientID = client->clientID;
             QString clientName = client->clientName;
@@ -976,7 +1059,7 @@ void FileExplorer::onCustomContextMenu(const QPoint &pos)
 
                 QByteArray send_data = SendFileRequestMsg::toByteArray(msg);
                 Q_EMIT CommonSignals::getInstance()->sendDataToServer(send_data);
-            });
+            })->setFont(font);
         }
     }
 

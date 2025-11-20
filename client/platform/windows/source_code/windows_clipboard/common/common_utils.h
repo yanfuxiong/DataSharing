@@ -51,6 +51,8 @@ public:
 
     static bool processIsRunning(const QString &exePath);
     static int processRunningCount(const QString &exePath);
+    static bool crossShareServerIsRunning();
+    static bool crosstoolIsRunning();
 
     static void killServer();
     static void killWindowsClipboard();

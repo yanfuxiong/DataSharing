@@ -48,17 +48,17 @@ typedef void (*UpdateMultipleProgressBarCallback)(const char *ipPort,
                                                   uint64_t sentSize,
                                                   uint64_t timestamp);
 
-typedef void (*DataTransferCallback)(const unsigned char *data, uint32_t size);
 typedef void (*UpdateClientStatusCallback)(uint32_t status, const char *ipPort, const char *id, const wchar_t *name, const char *deviceType);
+typedef void (*UpdateClientStatusExCallback)(const char *clientJson);
 typedef void (*UpdateSystemInfoCallback)(const char *ipPort, const wchar_t *serviceVer);
 typedef void (*NotiMessageCallback)(uint64_t timestamp, uint32_t notiCode, const wchar_t *notiParam[], int paramCount);
 typedef void (*CleanClipboardCallback)();
 typedef void (*AuthViaIndexCallback)(uint32_t index);
 typedef void (*DIASStatusCallback)(uint32_t statusCode);
 typedef void (*RequestSourceAndPortCallback)();
-typedef void (*SetupDstPasteImageCallback)(const wchar_t* desc, IMAGE_HEADER imgHeader, uint32_t dataSize);
 typedef void (*RequestUpdateClientVersionCallback)(const char *clientVersion);
 typedef void (*NotifyErrEventCallback)(const char *clientID, uint32_t errorCode, const char *ipPortString, const char *timeStamp, const char *arg3, const char *arg4);
+typedef void (*SetupDstPasteXClipDataCallback)(const char *textData, const char *imageData, const char *htmlData);
 
 }
 
@@ -67,8 +67,8 @@ extern StopClipboardMonitorCallback g_StopClipboardMonitor;
 extern DragFileListNotifyCallback g_DragFileListNotify;
 extern MultiFilesDropNotifyCallback g_MultiFilesDropNotify;
 extern UpdateMultipleProgressBarCallback g_UpdateMultipleProgressBar;
-extern DataTransferCallback g_DataTransfer;
 extern UpdateClientStatusCallback g_UpdateClientStatus;
+extern UpdateClientStatusExCallback g_UpdateClientStatusExCallback;
 extern UpdateSystemInfoCallback g_UpdateSystemInfo;
 extern NotiMessageCallback g_NotiMessage;
 extern CleanClipboardCallback g_CleanClipboard;
@@ -77,6 +77,7 @@ extern DIASStatusCallback g_DIASStatus;
 extern RequestSourceAndPortCallback g_RequestSourceAndPort;
 extern RequestUpdateClientVersionCallback g_RequestUpdateClientVersionCallback;
 extern NotifyErrEventCallback g_NotifyErrEventCallback;
+extern SetupDstPasteXClipDataCallback g_SetupDstPasteXClipDataCallback;
 
 class ControlWindow;
 extern ControlWindow *g_testWindow;

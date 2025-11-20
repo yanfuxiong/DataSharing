@@ -20,6 +20,7 @@ public:
 
 private:
     void clickedLeftArrow();
+    bool event(QEvent *event) override;
 
 private:
     Ui::LicenseView *ui;

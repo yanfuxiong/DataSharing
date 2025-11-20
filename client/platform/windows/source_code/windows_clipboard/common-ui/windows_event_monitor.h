@@ -64,7 +64,7 @@ public:
     };
     ~MonitorPlugEvent();
     static MonitorPlugEvent *getInstance();
-    void initData();
+    void initData(bool emitSignal = true);
     void clearData();
 
     const QList<MonitorData> &getMonitorData() const { return m_monitorDataList; }
@@ -93,7 +93,7 @@ private:
     void getCurrentAllMonitroData(QList<MonitorData> &data);
     static BOOL monitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor, LPRECT lprcMonitor, LPARAM dwData);
     void processDDCCI();
-    void initDataImpl();
+    void initDataImpl(bool emitSignal = true);
     void updateCacheMonitorData();
     void stopProcessDDCCI();
     void restartProcessDDCCI();

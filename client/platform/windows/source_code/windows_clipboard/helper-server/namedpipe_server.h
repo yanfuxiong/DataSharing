@@ -21,7 +21,6 @@ private Q_SLOTS:
 
 private:
     void removeConnection(const QString &connName);
-    QStringList pasteProgressExePathList() const;
 
 private:
     QPointer<QLocalServer> m_server;

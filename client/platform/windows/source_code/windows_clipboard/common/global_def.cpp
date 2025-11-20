@@ -123,124 +123,6 @@ QList<QString> g_getPipeServerExePathList()
     return pathList;
 }
 
-QByteArray UpdateClientStatusMsg::toByteArray(const UpdateClientStatusMsg &msg)
-{
-    Buffer data;
-    data.append(msg.headerInfo.header.toUtf8());
-    data.append(&msg.headerInfo.type, sizeof (msg.headerInfo.type));
-    data.append(&msg.headerInfo.code, sizeof (msg.headerInfo.code));
-
-    {
-        Buffer tmpBuffer;
-        tmpBuffer.append(&msg.status, sizeof (msg.status));
-        uint32_t ipValue = QHostAddress(msg.ip).toIPv4Address();
-        tmpBuffer.appendUInt32(ipValue);
-        tmpBuffer.appendUInt16(msg.port);
-        Q_ASSERT(msg.clientID.length() == 46);
-        tmpBuffer.append(msg.clientID);
-        {
-            QByteArray clientName_utf16 = CommonUtils::toUtf16LE(msg.clientName);
-            tmpBuffer.appendUInt32(static_cast<uint32_t>(clientName_utf16.length()));
-            tmpBuffer.append(clientName_utf16);
-        }
-
-        {
-            tmpBuffer.appendUInt32(static_cast<uint32_t>(msg.deviceType.length()));
-            tmpBuffer.append(msg.deviceType);
-        }
-
-        // Processing content length
-        data.appendUInt32(static_cast<uint32_t>(tmpBuffer.readableBytes()));
-        data.append(tmpBuffer.retrieveAllAsByteArray());
-    }
-    return data.retrieveAllAsByteArray();
-}
-
-bool UpdateClientStatusMsg::fromByteArray(const QByteArray &data, UpdateClientStatusMsg &msg)
-{
-    if (data.length() < MsgHeader::messageLength()) {
-        return false;
-    }
-    Buffer buffer;
-    buffer.append(data);
-    QByteArray header = QByteArray(buffer.peek(), g_tagNameLength);
-    buffer.retrieve(g_tagNameLength);
-    if (header != TAG_NAME) {
-        qWarning() << "Illegal message HEADER:" << header.constData();
-        return false;
-    }
-
-    msg.headerInfo.header = header.constData();
-
-    {
-        uint8_t type = 0;
-        memcpy(&type, buffer.peek(), sizeof (uint8_t));
-        buffer.retrieve(sizeof (uint8_t));
-        msg.headerInfo.type = type;
-    }
-
-    {
-        uint8_t code = 0;
-        memcpy(&code, buffer.peek(), sizeof (uint8_t));
-        buffer.retrieve(sizeof (uint8_t));
-        msg.headerInfo.code = code;
-    }
-
-    {
-        uint32_t contentLength = buffer.peekUInt32();
-        buffer.retrieveUInt32();
-        if (contentLength > buffer.readableBytes()) {
-            return false; // At this point, it indicates that the data is not complete and we need to continue waiting
-        }
-        msg.headerInfo.contentLength = contentLength;
-    }
-
-    {
-        Buffer contentBuffer;
-        contentBuffer.append(buffer.peek(), msg.headerInfo.contentLength);
-        buffer.retrieve(msg.headerInfo.contentLength);
-
-        {
-            uint8_t status = 0;
-            memcpy(&status, contentBuffer.peek(), sizeof (uint8_t));
-            contentBuffer.retrieve(sizeof (uint8_t));
-            msg.status = status;
-        }
-
-        {
-            uint32_t ipValue = contentBuffer.peekUInt32();
-            contentBuffer.retrieveUInt32();
-            msg.ip = QHostAddress(ipValue).toString();
-        }
-
-        {
-            msg.port = contentBuffer.peekUInt16();
-            contentBuffer.retrieveUInt16();
-        }
-
-        {
-            msg.clientID = QByteArray(contentBuffer.peek(), 46);
-            contentBuffer.retrieve(46);
-        }
-
-        {
-            uint32_t dataLen = contentBuffer.peekUInt32();
-            contentBuffer.retrieveUInt32();
-            QByteArray clientName_utf16(contentBuffer.peek(), dataLen);
-            contentBuffer.retrieve(dataLen);
-            msg.clientName = CommonUtils::toUtf8(clientName_utf16).constData();
-        }
-
-        {
-            uint32_t dataLen = contentBuffer.peekUInt32();
-            contentBuffer.retrieveUInt32();
-            msg.deviceType = QByteArray(contentBuffer.peek(), dataLen);
-            contentBuffer.retrieve(dataLen);
-        }
-    }
-    return true;
-}
-
 //-----------------------------------
 
 QByteArray SendFileRequestMsg::toByteArray(const SendFileRequestMsg &msg)
@@ -1874,10 +1756,6 @@ const char *g_goErrorCodeToString(uint32_t errorCode)
 
 uint32_t g_getCustomerIDForUITheme(bool &isInited)
 {
-    if (g_loadLocalConfig() == false) {
-        isInited = false;
-        return 0;
-    }
     try {
         uint32_t customerID = g_getGlobalData()->localConfig.at("UITheme").at("customerID").get<uint32_t>();
         isInited = g_getGlobalData()->localConfig.at("UITheme").at("isInited").get<bool>();

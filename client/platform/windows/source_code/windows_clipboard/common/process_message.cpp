@@ -71,16 +71,6 @@ void ProcessMessage::onRecvServerData(const QByteArray &data)
         case GetClientList_code: {
             break;
         }
-        case UpdateClientStatus_code: {
-            UpdateClientStatusMsg message;
-            if (UpdateClientStatusMsg::fromByteArray(QByteArray(m_buffer.peek(), m_buffer.readableBytes()), message)) {
-                m_buffer.retrieve(message.getMessageLength());
-                QVariant sendData = QVariant::fromValue<UpdateClientStatusMsgPtr>(std::make_shared<UpdateClientStatusMsg>(message));
-                Q_ASSERT(sendData.canConvert<UpdateClientStatusMsgPtr>() == true);
-                Q_EMIT CommonSignals::getInstance()->dispatchMessage(sendData);
-            }
-            break;
-        }
         case SendFile_code: {
             if (typeValue == PipeMessageType::Request) {
                 SendFileRequestMsg message;
@@ -208,6 +198,15 @@ void ProcessMessage::processAnyMsg(const AnyMsg &message)
         if (NotifyErrorEventMsg::fromByteArray(message.msgData, newMessage)) {
             QVariant sendData = QVariant::fromValue<NotifyErrorEventMsgPtr>(std::make_shared<NotifyErrorEventMsg>(std::move(newMessage)));
             Q_ASSERT(sendData.canConvert<NotifyErrorEventMsgPtr>() == true);
+            Q_EMIT CommonSignals::getInstance()->dispatchMessage(sendData);
+        }
+        break;
+    }
+    case AnyMsgFuncCode::UpdateClientStatus_code: {
+        UpdateClientStatusMsg newMessage;
+        if (UpdateClientStatusMsg::fromByteArray(message.msgData, newMessage)) {
+            QVariant sendData = QVariant::fromValue<UpdateClientStatusMsgPtr>(std::make_shared<UpdateClientStatusMsg>(std::move(newMessage)));
+            Q_ASSERT(sendData.canConvert<UpdateClientStatusMsgPtr>() == true);
             Q_EMIT CommonSignals::getInstance()->dispatchMessage(sendData);
         }
         break;

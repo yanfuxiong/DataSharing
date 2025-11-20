@@ -2,6 +2,8 @@
 #define ABOUT_VIEW_H
 
 #include <QWidget>
+#include <QPaintEvent>
+#include <QPainter>
 
 namespace Ui {
 class AboutView;
@@ -18,6 +20,9 @@ public:
     QString getVersionInfoKey() const;
     QString getVersionInfo() const;
     QString getReadmeInfo() const;
+
+private:
+    bool event(QEvent *event) override;
 
 private:
     Ui::AboutView *ui;

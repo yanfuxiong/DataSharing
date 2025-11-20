@@ -15,7 +15,6 @@ typedef struct IMAGE_HEADER
 } IMAGE_HEADER;
 
 typedef void (*InitGoServer)(const wchar_t *rootPath, const wchar_t *downloadPath, const wchar_t *deviceName);
-typedef void (*SetClipboardCopyImg)(IMAGE_HEADER picHeader, unsigned char *bitmapData, unsigned long dataSize);
 typedef void (*SetMacAddress)(const char *macAddress, int length);
 typedef void (*SetExtractDIAS)();
 typedef void (*SetAuthStatusCode)(unsigned char authResult);
@@ -24,6 +23,8 @@ typedef void (*SetDragFileListRequest)(const wchar_t *filePathArry[], uint32_t a
 typedef void (*SetCancelFileTransfer)(const char *ipPort, const char *clientID, uint64_t timeStamp);
 typedef void (*SetMultiFilesDropRequest)(const char *ipPort, const char *clientID, uint64_t timeStamp, const wchar_t *filePathArry[], uint32_t arryLength);
 typedef void (*RequestUpdateDownloadPath)(const wchar_t *downloadPath);
+typedef void (*SendXClipData)(const char *textData, const char *imageData, const char *htmlData);
+typedef const char* (*GetClientList)();
 
 typedef void (*StartClipboardMonitorCallback)();
 typedef void (*SetStartClipboardMonitorCallback)(StartClipboardMonitorCallback callback);
@@ -60,11 +61,11 @@ typedef void (*UpdateMultipleProgressBarCallback)(const char *ipPort,
                                           uint64_t timestamp);
 typedef void (*SetUpdateMultipleProgressBarCallback)(UpdateMultipleProgressBarCallback callback);
 
-typedef void (*DataTransferCallback)(const unsigned char *data, uint32_t size);
-typedef void (*SetDataTransferCallback)(DataTransferCallback callback);
-
 typedef void (*UpdateClientStatusCallback)(uint32_t status, const char *ipPort, const char *id, const wchar_t *name, const char *deviceType);
 typedef void (*SetUpdateClientStatusCallback)(UpdateClientStatusCallback callback);
+
+typedef void (*UpdateClientStatusExCallback)(const char *clientJson);
+typedef void (*SetUpdateClientStatusExCallback)(UpdateClientStatusExCallback callback);
 
 typedef void (*UpdateSystemInfoCallback)(const char *ipPort, const wchar_t *serviceVer);
 typedef void (*SetUpdateSystemInfoCallback)(UpdateSystemInfoCallback callback);
@@ -84,14 +85,14 @@ typedef void (*SetDIASStatusCallback)(DIASStatusCallback callback);
 typedef void (*RequestSourceAndPortCallback)();
 typedef void (*SetRequestSourceAndPortCallback)(RequestSourceAndPortCallback callback);
 
-typedef void (*SetupDstPasteImageCallback)(const wchar_t* desc, IMAGE_HEADER imgHeader, uint32_t dataSize);
-typedef void (*SetSetupDstPasteImageCallback)(SetupDstPasteImageCallback callback);
-
 typedef void (*RequestUpdateClientVersionCallback)(const char *clientVersion);
 typedef void (*SetRequestUpdateClientVersionCallback)(RequestUpdateClientVersionCallback callback);
 
 typedef void (*NotifyErrEventCallback)(const char *clientID, uint32_t errorCode, const char *ipPortString, const char *timeStamp, const char *arg3, const char *arg4);
 typedef void (*SetNotifyErrEventCallback)(NotifyErrEventCallback callback);
+
+typedef void (*SetupDstPasteXClipDataCallback)(const char *textData, const char *imageData, const char *htmlData);
+typedef void (*SetSetupDstPasteXClipDataCallback)(SetupDstPasteXClipDataCallback callback);
 
 #ifdef __cplusplus
 }

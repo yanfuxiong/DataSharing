@@ -4,6 +4,7 @@
 #include "common_utils.h"
 #include <QDebug>
 #include <QFrame>
+#include <windows.h>
 
 #define COPYRIGHT_INFO_STR \
 "© 2025 Realtek Semiconductor Corp. All rights reserved"
@@ -15,6 +16,9 @@ AboutView::AboutView(QWidget *parent)
     ui->setupUi(this);
     setWindowFlags(windowFlags() | (Qt::Popup | Qt::FramelessWindowHint));
     setAttribute(Qt::WA_DeleteOnClose, true);
+    setAttribute(Qt::WA_TranslucentBackground, true);
+    ui->aboutViewLayout->setContentsMargins(1, 1, 1, 1);
+    ui->horizontalLayout->setContentsMargins(1, 1, 1, 1);
     ui->about_title_label->setText("About");
 
     {
@@ -111,4 +115,17 @@ QString AboutView::getVersionInfo() const
 QString AboutView::getReadmeInfo() const
 {
     return CommonUtils::getFileContent(":/resource/about_view_content.txt");
+}
+
+bool AboutView::event(QEvent *event)
+{
+    static bool s_initStatus = false;
+    if (event->type() == QEvent::WinIdChange && s_initStatus == false) {
+        s_initStatus = true;
+        auto hwnd = reinterpret_cast<HWND>(winId());
+        auto classStyle = ::GetClassLong(hwnd, GCL_STYLE);
+        classStyle &= ~CS_DROPSHADOW;
+        ::SetClassLong(hwnd, GCL_STYLE, classStyle);
+    }
+    return QWidget::event(event);
 }

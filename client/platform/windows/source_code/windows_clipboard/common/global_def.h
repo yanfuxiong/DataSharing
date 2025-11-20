@@ -45,6 +45,7 @@
 #define PIPE_SERVER_EXE_NAME "client_windows.exe"
 #define CROSS_SHARE_SERV_NAME "cross_share_serv.exe"
 #define WINDOWS_CLIPBOARD_NAME "windows_clipboard.exe"
+#define CROSS_TOOL_NAME "crosstool.exe"
 #define STABLE_VERSION_CONTROL 0
 #define SQLITE_CONN_NAME "__cross_share_sqlite_conn__"
 #define SQLITE_DB_NAME "cross_share_v7.db"
@@ -67,7 +68,7 @@ Q_DECLARE_METATYPE(EventCallbackWithEvent)
 
 extern const int g_tagNameLength;
 extern const int g_clientIDLength;
-// 这个变量可能修改, 不使用const
+// This variable may be modified, so don't use const.
 extern QString g_namedPipeServerName;
 extern const QString g_helperServerName;
 extern const QString g_drop_table_sql;
@@ -84,7 +85,6 @@ enum PipeMessageCode
 {
     GetConnStatus_code = 1,
     GetClientList_code = 2, // Not currently used
-    UpdateClientStatus_code = 3,
     SendFile_code = 4,
     UpdateProgress_code = 5,
     UpdateImageProgress_code = 6,
@@ -102,7 +102,8 @@ enum AnyMsgFuncCode
     UpdateClientVersion_code = 2,
     ShowWindowsClipboard_code = 3,
     NotifyErrorEvent_code = 4,
-    UpdateLocalConfigInfo_code = 5
+    UpdateLocalConfigInfo_code = 5,
+    UpdateClientStatus_code = 6
 };
 
 enum GoErrorCode
@@ -156,27 +157,6 @@ struct MsgHeader
 
     static int messageLength();
 };
-
-struct UpdateClientStatusMsg
-{
-    MsgHeader headerInfo {PipeMessageType::Notify, UpdateClientStatus_code};
-    // Content section
-    uint8_t status; // 0: Disconnected state, 1: Connected state
-    QString ip;
-    uint16_t port;
-    QByteArray clientID; // Fixed 46 bytes
-    QString clientName; // Client name, device name
-    QByteArray deviceType;
-
-    uint32_t getMessageLength() const
-    { return static_cast<uint32_t>(MsgHeader::messageLength() + headerInfo.contentLength); }
-
-    static QByteArray toByteArray(const UpdateClientStatusMsg &msg);
-    static bool fromByteArray(const QByteArray &data, UpdateClientStatusMsg &msg);
-};
-
-typedef std::shared_ptr<UpdateClientStatusMsg> UpdateClientStatusMsgPtr;
-Q_DECLARE_METATYPE(UpdateClientStatusMsgPtr)
 
 struct SendFileRequestMsg
 {

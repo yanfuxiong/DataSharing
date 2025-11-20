@@ -195,3 +195,35 @@ struct UpdateLocalConfigInfoMsg
 typedef std::shared_ptr<UpdateLocalConfigInfoMsg> UpdateLocalConfigInfoMsgPtr;
 Q_DECLARE_METATYPE(UpdateLocalConfigInfoMsgPtr)
 BOOST_CLASS_VERSION(UpdateLocalConfigInfoMsg, BSV_V1)
+
+struct UpdateClientStatusMsg
+{
+    // Content section
+    uint8_t status { 0 }; // 0: Disconnected state, 1: Connected state
+    QString ip;
+    uint16_t port { 0 };
+    QByteArray clientID; // Fixed 46 bytes
+    QString clientName; // Client name, device name
+    QByteArray deviceType;
+    uint64_t timeStamp { 0 };
+    QString serverVersion;
+    QString platform;
+
+    BOOST_SERIALIZE(UpdateClientStatusMsg)
+    {
+        Q_UNUSED(version)
+        BS_ADD_ITEM(status);
+        BS_ADD_ITEM(ip);
+        BS_ADD_ITEM(port);
+        BS_ADD_ITEM(clientID);
+        BS_ADD_ITEM(clientName);
+        BS_ADD_ITEM(deviceType);
+
+        BS_ADD_ITEM(timeStamp);
+        BS_ADD_ITEM(serverVersion);
+        BS_ADD_ITEM(platform);
+    }
+};
+typedef std::shared_ptr<UpdateClientStatusMsg> UpdateClientStatusMsgPtr;
+Q_DECLARE_METATYPE(UpdateClientStatusMsgPtr)
+BOOST_CLASS_VERSION(UpdateClientStatusMsg, BSV_V1)

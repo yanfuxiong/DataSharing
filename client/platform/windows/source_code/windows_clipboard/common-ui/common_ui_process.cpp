@@ -40,7 +40,7 @@ void CommonUiProcess::onShowInfoMessageBox(const QString &title, const QString &
     QPushButton *button = new QPushButton;
     {
         button->setFixedSize(85, 36);
-        button->setText("Confirm");
+        button->setText("OK");
     }
 
     box.addButton(button, QMessageBox::ButtonRole::AcceptRole);
@@ -60,7 +60,7 @@ void CommonUiProcess::onShowWarningMessageBox(const QString &title, const QStrin
     QPushButton *button = new QPushButton;
     {
         button->setFixedSize(85, 36);
-        button->setText("Confirm");
+        button->setText("OK");
     }
 
     box.addButton(button, QMessageBox::ButtonRole::AcceptRole);

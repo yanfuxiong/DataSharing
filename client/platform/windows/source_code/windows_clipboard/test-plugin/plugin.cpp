@@ -7,24 +7,22 @@ StopClipboardMonitorCallback g_StopClipboardMonitor = nullptr;
 DragFileListNotifyCallback g_DragFileListNotify = nullptr;
 MultiFilesDropNotifyCallback g_MultiFilesDropNotify = nullptr;
 UpdateMultipleProgressBarCallback g_UpdateMultipleProgressBar = nullptr;
-DataTransferCallback g_DataTransfer = nullptr;
 UpdateClientStatusCallback g_UpdateClientStatus = nullptr;
+UpdateClientStatusExCallback g_UpdateClientStatusExCallback = nullptr;
 UpdateSystemInfoCallback g_UpdateSystemInfo = nullptr;
 NotiMessageCallback g_NotiMessage = nullptr;
 CleanClipboardCallback g_CleanClipboard = nullptr;
 AuthViaIndexCallback g_AuthViaIndex = nullptr;
 DIASStatusCallback g_DIASStatus = nullptr;
 RequestSourceAndPortCallback g_RequestSourceAndPort = nullptr;
-SetupDstPasteImageCallback g_SetupDstPasteImage = nullptr;
 RequestUpdateClientVersionCallback g_RequestUpdateClientVersionCallback = nullptr;
 NotifyErrEventCallback g_NotifyErrEventCallback = nullptr;
+SetupDstPasteXClipDataCallback g_SetupDstPasteXClipDataCallback = nullptr;
 
 ControlWindow *g_testWindow = nullptr;
 QString g_rootPath;
 QString g_downloadPath;
 QString g_deviceName;
-
-void testFunc();
 
 EXPORT_FUNC void InitGoServer(const wchar_t *rootPath, const wchar_t *downloadPath, const wchar_t *deviceName)
 {
@@ -41,27 +39,6 @@ EXPORT_FUNC void InitGoServer(const wchar_t *rootPath, const wchar_t *downloadPa
         g_testWindow->show();
 
         g_UpdateSystemInfo("192.168.6.123:99", L"server_v1.0.9");
-    });
-}
-
-EXPORT_FUNC void SetClipboardCopyImg(IMAGE_HEADER picHeader, unsigned char* bitmapData, unsigned long dataSize)
-{
-    Q_UNUSED(bitmapData)
-    nlohmann::json jsonInfo;
-    jsonInfo["desc"] = "SetClipboardCopyImg";
-    jsonInfo["width"] = picHeader.width;
-    jsonInfo["height"] = picHeader.height;
-    jsonInfo["planes"] = picHeader.planes;
-    jsonInfo["bitCount"] = picHeader.bitCount;
-    jsonInfo["compression"] = picHeader.compression;
-    jsonInfo["dataSize"] = dataSize;
-    Q_EMIT CommonSignals::getInstance()->logMessage(jsonInfo.dump(4).c_str());
-
-    std::string imageData(reinterpret_cast<const char*>(bitmapData), dataSize);
-    QTimer::singleShot(1000, qApp, [picHeader, imageData] {
-        g_CleanClipboard();
-        g_SetupDstPasteImage(L"test image paste......", picHeader, imageData.size());
-        g_DataTransfer(reinterpret_cast<const unsigned char*>(imageData.data()), imageData.size());
     });
 }
 
@@ -121,6 +98,19 @@ EXPORT_FUNC void RequestUpdateDownloadPath(const wchar_t *downloadPath)
     qInfo() << QString::fromStdWString(downloadPath);
 }
 
+EXPORT_FUNC void SendXClipData(const char *textData, const char *imageData, const char *htmlData)
+{
+    g_testWindow->writeClipboardData(textData, imageData, htmlData);
+}
+
+EXPORT_FUNC const char *GetClientList()
+{
+    static std::string s_cacheClientListJsonData;
+    static std::mutex s_mutex;
+    std::lock_guard<std::mutex> locker(s_mutex);
+    return s_cacheClientListJsonData.data();
+}
+
 //--------------------------------------callback----------------------------------------
 EXPORT_FUNC void SetStartClipboardMonitorCallback(StartClipboardMonitorCallback callback)
 {
@@ -157,18 +147,18 @@ EXPORT_FUNC void SetUpdateMultipleProgressBarCallback(UpdateMultipleProgressBarC
     g_UpdateMultipleProgressBar = callback;
 }
 
-EXPORT_FUNC void SetDataTransferCallback(DataTransferCallback callback)
-{
-    qInfo() << "[SetDataTransferCallback] Address: "
-              << reinterpret_cast<void*>(callback);
-    g_DataTransfer = callback;
-}
-
 EXPORT_FUNC void SetUpdateClientStatusCallback(UpdateClientStatusCallback callback)
 {
     qInfo() << "[SetUpdateClientStatusCallback] Address: "
               << reinterpret_cast<void*>(callback);
     g_UpdateClientStatus = callback;
+}
+
+EXPORT_FUNC void SetUpdateClientStatusExCallback(UpdateClientStatusExCallback callback)
+{
+    qInfo() << "[SetUpdateClientStatusExCallback] Address: "
+            << reinterpret_cast<void*>(callback);
+    g_UpdateClientStatusExCallback = callback;
 }
 
 EXPORT_FUNC void SetUpdateSystemInfoCallback(UpdateSystemInfoCallback callback)
@@ -213,13 +203,6 @@ EXPORT_FUNC void SetRequestSourceAndPortCallback(RequestSourceAndPortCallback ca
     g_RequestSourceAndPort = callback;
 }
 
-EXPORT_FUNC void SetSetupDstPasteImageCallback(SetupDstPasteImageCallback callback)
-{
-    qInfo() << "[SetSetupDstPasteImageCallback] Address: "
-              << reinterpret_cast<void*>(callback);
-    g_SetupDstPasteImage = callback;
-}
-
 EXPORT_FUNC void SetRequestUpdateClientVersionCallback(RequestUpdateClientVersionCallback callback)
 {
     qInfo() << "[SetRequestUpdateClientVersionCallback] Address: "
@@ -232,6 +215,13 @@ EXPORT_FUNC void SetNotifyErrEventCallback(NotifyErrEventCallback callback)
     qInfo() << "[SetNotifyErrEventCallback] Address: "
             << reinterpret_cast<void*>(callback);
     g_NotifyErrEventCallback = callback;
+}
+
+EXPORT_FUNC void SetSetupDstPasteXClipDataCallback(SetupDstPasteXClipDataCallback callback)
+{
+    qInfo() << "[SetSetupDstPasteXClipDataCallback] Address: "
+            << reinterpret_cast<void*>(callback);
+    g_SetupDstPasteXClipDataCallback = callback;
 }
 
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReserved)

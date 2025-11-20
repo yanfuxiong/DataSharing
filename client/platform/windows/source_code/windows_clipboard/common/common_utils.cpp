@@ -271,11 +271,33 @@ int CommonUtils::processRunningCount(const QString &exePath)
     return runningCount;
 }
 
+bool CommonUtils::crossShareServerIsRunning()
+{
+    QProcess process;
+    process.setProcessChannelMode(QProcess::ProcessChannelMode::MergedChannels);
+    process.start(QString("tasklist"));
+    process.waitForFinished();
+    QString data = QString::fromLocal8Bit(process.readAll());
+    //qDebug() << data.toUtf8().constData();
+    return data.contains(CROSS_SHARE_SERV_NAME, Qt::CaseInsensitive);
+}
+
+bool CommonUtils::crosstoolIsRunning()
+{
+    QProcess process;
+    process.setProcessChannelMode(QProcess::ProcessChannelMode::MergedChannels);
+    process.start(QString("tasklist"));
+    process.waitForFinished();
+    QString data = QString::fromLocal8Bit(process.readAll());
+    //qDebug() << data.toUtf8().constData();
+    return data.contains(CROSS_TOOL_NAME, Qt::CaseInsensitive);
+}
+
 void CommonUtils::killServer()
 {
     QProcess process;
     process.setProcessChannelMode(QProcess::ProcessChannelMode::MergedChannels);
-    process.start(QString("taskkill /F /IM %1 /T").arg(CROSS_SHARE_SERV_NAME));
+    process.start(QString("taskkill /F /IM %1").arg(CROSS_SHARE_SERV_NAME));
     process.waitForFinished();
     qDebug() << QString::fromLocal8Bit(process.readAll()).toUtf8().constData();
 }

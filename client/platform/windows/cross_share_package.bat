@@ -1,14 +1,30 @@
 @echo off
 chcp 65001 > nul
 
+set CLIENT_FOLDER=CrossShareWindowsClient
+set MAIN_EXE=windows_clipboard.exe
+set "exe_path=%~dp0%CLIENT_FOLDER%\%MAIN_EXE%"
+
+if not exist "%exe_path%" (
+    echo ERROR: %exe_path% does not exist
+    exit /b 1
+)
+
+for /f "delims=" %%v in (
+    'powershell -command "(Get-Item -LiteralPath '%exe_path%').VersionInfo.FileVersion"'
+) do set "exe_version=%%v"
+
+if not defined exe_version (
+    echo ERROR: Failed to obtain version information
+    exit /b 1
+)
+
 :: ================= CONFIGURATION =================
 set NSIS_SCRIPT="%~dp0nsis_setup.nsi"
-set PRODUCT_VERSION=2.1.17.0
+set PRODUCT_VERSION=%exe_version%
 set COMPANY_NAME=Realtek
 set PRODUCT_NAME=CrossShare
-set MAIN_EXE=windows_clipboard.exe
 set SERVICE_EXE=cross_share_serv.exe
-set CLIENT_FOLDER=CrossShareWindowsClient
 set APP_ICON=application.ico
 set OUTPUT_EXE="%~dp0CrossShareSetup.exe"
 set GO_SERVER_DLL=%CLIENT_FOLDER%\client_windows.dll

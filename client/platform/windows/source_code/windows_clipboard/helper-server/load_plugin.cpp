@@ -7,12 +7,16 @@
 #include <QSysInfo>
 #include <QApplication>
 #include <QImage>
+#include <QMimeData>
+#include <QBuffer>
+#include <QPainter>
+#include <QRegularExpression>
 #include <windows.h>
+#define CLIPBOARD_IMAGE_FORMAT "JPEG"
 
 namespace {
 
 InitGoServer g_InitGoServer = nullptr;
-SetClipboardCopyImg g_SetClipboardCopyImg = nullptr;
 SetMacAddress g_SetMacAddress = nullptr;
 SetExtractDIAS g_SetExtractDIAS = nullptr;
 SetAuthStatusCode g_SetAuthStatusCode = nullptr;
@@ -21,23 +25,25 @@ SetDragFileListRequest g_SetDragFileListRequest = nullptr;
 SetCancelFileTransfer g_SetCancelFileTransfer = nullptr;
 SetMultiFilesDropRequest g_SetMultiFilesDropRequest = nullptr;
 RequestUpdateDownloadPath g_RequestUpdateDownloadPath = nullptr;
+SendXClipData g_SendXClipData = nullptr;
+GetClientList g_GetClientList = nullptr;
 
 SetStartClipboardMonitorCallback g_SetStartClipboardMonitorCallback = nullptr;
 SetStopClipboardMonitorCallback g_SetStopClipboardMonitorCallback = nullptr;
 SetDragFileListNotifyCallback g_SetDragFileListNotifyCallback = nullptr;
 SetMultiFilesDropNotifyCallback g_SetMultiFilesDropNotifyCallback = nullptr;
 SetUpdateMultipleProgressBarCallback g_SetUpdateMultipleProgressBarCallback = nullptr;
-SetDataTransferCallback g_SetDataTransferCallback = nullptr;
 SetUpdateClientStatusCallback g_SetUpdateClientStatusCallback = nullptr;
+SetUpdateClientStatusExCallback g_SetUpdateClientStatusExCallback = nullptr;
 SetUpdateSystemInfoCallback g_SetUpdateSystemInfoCallback = nullptr;
 SetNotiMessageCallback g_SetNotiMessageCallback = nullptr;
 SetCleanClipboardCallback g_SetCleanClipboardCallback = nullptr;
 SetAuthViaIndexCallback g_SetAuthViaIndexCallback = nullptr;
 SetDIASStatusCallback g_SetDIASStatusCallback = nullptr;
 SetRequestSourceAndPortCallback g_SetRequestSourceAndPortCallback = nullptr;
-SetSetupDstPasteImageCallback g_SetSetupDstPasteImageCallback = nullptr;
 SetRequestUpdateClientVersionCallback g_SetRequestUpdateClientVersionCallback = nullptr;
 SetNotifyErrEventCallback g_SetNotifyErrEventCallback = nullptr;
+SetSetupDstPasteXClipDataCallback g_SetSetupDstPasteXClipDataCallback = nullptr;
 
 //----------------------------------------------------------------------------
 UpdateSystemInfoMsgPtr g_cacheUpdateSystemInfoMsg = nullptr;
@@ -64,44 +70,6 @@ QString g_getDownloadPath()
         return g_getGlobalData()->localConfig.at("crossShareServer").at("downloadPath").get<std::string>().c_str();
     } catch (const std::exception &e) {
         return CommonUtils::downloadDirectoryPath();
-    }
-}
-
-void getBitmapData(HBITMAP hBitmap)
-{
-    BITMAP bitmap;
-    if (GetObject(hBitmap, sizeof(BITMAP), &bitmap)) {
-        HDC hdc = GetDC(NULL);
-        BITMAPINFO bmpInfo;
-        std::memset(&bmpInfo, 0, sizeof (bmpInfo));
-        bmpInfo.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-        bmpInfo.bmiHeader.biWidth = bitmap.bmWidth;
-        bmpInfo.bmiHeader.biHeight = bitmap.bmHeight;
-        bmpInfo.bmiHeader.biPlanes = bitmap.bmPlanes;
-        bmpInfo.bmiHeader.biBitCount = bitmap.bmBitsPixel;
-        bmpInfo.bmiHeader.biCompression = BI_RGB;
-
-        const int dataSize = bitmap.bmWidthBytes * bitmap.bmHeight;
-        BYTE* bitmapData = new BYTE[dataSize];
-        if (!GetDIBits(hdc, hBitmap, 0, bitmap.bmHeight, bitmapData, &bmpInfo, DIB_RGB_COLORS)) {
-            qWarning() << "Get DIBits failed......";
-        }
-
-        IMAGE_HEADER picHeader = {
-            .width = bmpInfo.bmiHeader.biWidth,
-            .height = bmpInfo.bmiHeader.biHeight,
-            .planes = bmpInfo.bmiHeader.biPlanes,
-            .bitCount = bmpInfo.bmiHeader.biBitCount,
-            .compression = bmpInfo.bmiHeader.biCompression
-        };
-        qInfo("[Copy] Trigger copy image. H=%d,W=%d,Planes=%d,BitCnt=%d,Compress=%lu",
-                 picHeader.height, picHeader.width, picHeader.planes, picHeader.bitCount, picHeader.compression);
-        g_SetClipboardCopyImg(picHeader, bitmapData, dataSize);
-
-        delete[] bitmapData;
-        ReleaseDC(NULL, hdc);
-    } else {
-        qWarning() << "Failed to get bitmap object details......";
     }
 }
 
@@ -176,6 +144,104 @@ void setupDstPasteImage_helper(const wchar_t* desc, IMAGE_HEADER imgHeader, uint
     });
 }
 
+void g_startClipboardMonitor()
+{
+    if (g_clipboardMonitoringStatus.load() == true) {
+        return;
+    }
+    qDebug() << "Clipboard monitor started......";
+    QObject::connect(QApplication::clipboard(), &QClipboard::changed, LoadPlugin::getInstance(), &LoadPlugin::onClipboardChanged);
+    g_clipboardMonitoringStatus.store(true);
+}
+
+void g_stopClipboardMonitor()
+{
+    if (g_clipboardMonitoringStatus.load() == false) {
+        return;
+    }
+    qDebug() << "Clipboard monitor stopped......";
+    QObject::disconnect(QApplication::clipboard(), &QClipboard::changed, LoadPlugin::getInstance(), &LoadPlugin::onClipboardChanged);
+    g_clipboardMonitoringStatus.store(false);
+}
+
+void g_cache_file_data_for_debug(const QString &fileName, const QByteArray &data)
+{
+#ifndef NDEBUG
+    QString cacheDir = CommonUtils::downloadDirectoryPath() + "/cross_share_cache";
+    QDir().mkpath(cacheDir);
+    QString filePath = cacheDir+ "/" + fileName;
+    if (data.isEmpty()) {
+        return;
+    }
+    QFile writeFile(filePath);
+    if (writeFile.open(QFile::WriteOnly)) {
+        writeFile.write(data);
+    }
+#else
+    Q_UNUSED(fileName)
+    Q_UNUSED(data)
+#endif
+}
+
+QString g_convertImagesToBase64(const QString &html)
+{
+    QString result = html;
+    QRegularExpression imgRegex(R"(<img[^>]+src\s*=\s*['"]([^'"]+)['"][^>]*>)", QRegularExpression::CaseInsensitiveOption);
+
+    int pos = 0;
+    while (pos < result.length()) {
+        QRegularExpressionMatch match = imgRegex.match(result, pos);
+        if (!match.hasMatch()) break;
+
+        int start = match.capturedStart();
+        int length = match.capturedLength();
+        QString fullTag = match.captured(0);
+        QString srcValue = match.captured(1);
+        QString base64Data;
+
+        if (srcValue.startsWith("file://")) {
+            QString filePath = QUrl(srcValue).toLocalFile();
+            QFile file(filePath);
+            if (file.exists() && file.open(QIODevice::ReadOnly)) {
+                QByteArray imageData = file.readAll();
+                file.close();
+
+                QString format = "png";
+                if (filePath.endsWith(".jpg", Qt::CaseInsensitive) ||
+                    filePath.endsWith(".jpeg", Qt::CaseInsensitive)) {
+                    format = "jpeg";
+                } else if (filePath.endsWith(".gif", Qt::CaseInsensitive)) {
+                    format = "gif";
+                } else if (filePath.endsWith(".bmp", Qt::CaseInsensitive)) {
+                    format = "bmp";
+                } else if (filePath.endsWith(".ico", Qt::CaseInsensitive)) {
+                    format = "x-icon";
+                }
+
+                base64Data = QString("data:image/%1;base64,%2")
+                                 .arg(format)
+                                 .arg(QString(imageData.toBase64()));
+            } else {
+                qWarning() << "Can't open the image file:" << filePath;
+            }
+        } else if (srcValue.startsWith("data:image/")) {
+            base64Data = srcValue;
+        }
+
+        if (!base64Data.isEmpty()) {
+            QString newTag = fullTag;
+            newTag.replace(srcValue, base64Data);
+            result.replace(start, length, newTag);
+            pos = start + newTag.length();
+        } else {
+            pos = start + length;
+        }
+    }
+
+    return result;
+}
+
+
 struct RecvImageInfo
 {
     QString desc;
@@ -195,6 +261,30 @@ struct RecvImageInfo
 };
 
 std::unique_ptr<RecvImageInfo> g_cacheImageInfo { nullptr };
+
+// https://vendorjira.realtek.com/browse/TSTAS-384
+struct ClientStatusInfoHelper
+{
+    uint64_t TimeStamp { 0 };
+    uint8_t Status { 0 }; // 0: Disconnected state, 1: Connected state
+    QByteArray ID; // Fixed 46 bytes
+    QString IpAddr;
+    QString Platform;
+    QByteArray DeviceName;
+    QByteArray SourcePortType;
+    QString Version;
+
+    JSON_SERIALIZE(ClientStatusInfoHelper,
+                   TimeStamp,
+                   Status,
+                   ID,
+                   IpAddr,
+                   Platform,
+                   DeviceName,
+                   SourcePortType,
+                   Version
+                   )
+};
 
 }
 
@@ -288,6 +378,7 @@ void LoadPlugin::updateDownloadPath(const QString &downloadPath)
         g_updateLocalConfig();
     }
     std::wstring w_downloadPath = QDir::toNativeSeparators(downloadPath).toStdWString();
+    qInfo() << "g_RequestUpdateDownloadPath:" << QString::fromStdWString(w_downloadPath);
     g_RequestUpdateDownloadPath(w_downloadPath.c_str());
 }
 
@@ -308,7 +399,6 @@ bool LoadPlugin::initDllFunctions()
     }()
 
     g_InitGoServer = RESOLVE_SYMBOL(InitGoServer);
-    g_SetClipboardCopyImg = RESOLVE_SYMBOL(SetClipboardCopyImg);
     g_SetMacAddress = RESOLVE_SYMBOL(SetMacAddress);
     g_SetExtractDIAS = RESOLVE_SYMBOL(SetExtractDIAS);
     g_SetAuthStatusCode = RESOLVE_SYMBOL(SetAuthStatusCode);
@@ -317,23 +407,25 @@ bool LoadPlugin::initDllFunctions()
     g_SetCancelFileTransfer = RESOLVE_SYMBOL(SetCancelFileTransfer);
     g_SetMultiFilesDropRequest = RESOLVE_SYMBOL(SetMultiFilesDropRequest);
     g_RequestUpdateDownloadPath = RESOLVE_SYMBOL(RequestUpdateDownloadPath);
+    g_SendXClipData = RESOLVE_SYMBOL(SendXClipData);
+    g_GetClientList = RESOLVE_SYMBOL(GetClientList);
 
     g_SetStartClipboardMonitorCallback = RESOLVE_SYMBOL(SetStartClipboardMonitorCallback);
     g_SetStopClipboardMonitorCallback = RESOLVE_SYMBOL(SetStopClipboardMonitorCallback);
     g_SetDragFileListNotifyCallback = RESOLVE_SYMBOL(SetDragFileListNotifyCallback);
     g_SetMultiFilesDropNotifyCallback = RESOLVE_SYMBOL(SetMultiFilesDropNotifyCallback);
     g_SetUpdateMultipleProgressBarCallback = RESOLVE_SYMBOL(SetUpdateMultipleProgressBarCallback);
-    g_SetDataTransferCallback = RESOLVE_SYMBOL(SetDataTransferCallback);
     g_SetUpdateClientStatusCallback = RESOLVE_SYMBOL(SetUpdateClientStatusCallback);
+    g_SetUpdateClientStatusExCallback = RESOLVE_SYMBOL(SetUpdateClientStatusExCallback);
     g_SetUpdateSystemInfoCallback = RESOLVE_SYMBOL(SetUpdateSystemInfoCallback);
     g_SetNotiMessageCallback = RESOLVE_SYMBOL(SetNotiMessageCallback);
     g_SetCleanClipboardCallback = RESOLVE_SYMBOL(SetCleanClipboardCallback);
     g_SetAuthViaIndexCallback = RESOLVE_SYMBOL(SetAuthViaIndexCallback);
     g_SetDIASStatusCallback = RESOLVE_SYMBOL(SetDIASStatusCallback);
     g_SetRequestSourceAndPortCallback = RESOLVE_SYMBOL(SetRequestSourceAndPortCallback);
-    g_SetSetupDstPasteImageCallback = RESOLVE_SYMBOL(SetSetupDstPasteImageCallback);
     g_SetRequestUpdateClientVersionCallback = RESOLVE_SYMBOL(SetRequestUpdateClientVersionCallback);
     g_SetNotifyErrEventCallback = RESOLVE_SYMBOL(SetNotifyErrEventCallback);
+    g_SetSetupDstPasteXClipDataCallback = RESOLVE_SYMBOL(SetSetupDstPasteXClipDataCallback);
 
     if (g_SetStartClipboardMonitorCallback) {
         g_SetStartClipboardMonitorCallback(onStartClipboardMonitor);
@@ -355,12 +447,12 @@ bool LoadPlugin::initDllFunctions()
         g_SetUpdateMultipleProgressBarCallback(onUpdateMultipleProgressBar);
     }
 
-    if (g_SetDataTransferCallback) {
-        g_SetDataTransferCallback(onDataTransfer);
-    }
-
     if (g_SetUpdateClientStatusCallback) {
         g_SetUpdateClientStatusCallback(onUpdateClientStatus);
+    }
+
+    if (g_SetUpdateClientStatusExCallback) {
+        g_SetUpdateClientStatusExCallback(onUpdateClientStatusEx);
     }
 
     if (g_SetUpdateSystemInfoCallback) {
@@ -387,16 +479,16 @@ bool LoadPlugin::initDllFunctions()
         g_SetRequestSourceAndPortCallback(onRequestSourceAndPort);
     }
 
-    if (g_SetSetupDstPasteImageCallback) {
-        g_SetSetupDstPasteImageCallback(onSetupDstPasteImage);
-    }
-
     if (g_SetRequestUpdateClientVersionCallback) {
         g_SetRequestUpdateClientVersionCallback(onRequestUpdateClientVersion);
     }
 
     if (g_SetNotifyErrEventCallback) {
         g_SetNotifyErrEventCallback(onNotifyErrEvent);
+    }
+
+    if (g_SetSetupDstPasteXClipDataCallback) {
+        g_SetSetupDstPasteXClipDataCallback(onSetupDstPasteXClipData);
     }
 
     qInfo() << "DLL functions initialized successfully......";
@@ -406,22 +498,14 @@ bool LoadPlugin::initDllFunctions()
 //---------------------------------------------------------------------------------------
 void LoadPlugin::onStartClipboardMonitor()
 {
-    if (g_clipboardMonitoringStatus.load() == true) {
-        return;
-    }
+    g_startClipboardMonitor();
     qInfo() << "[Callback] Clipboard monitor started";
-    connect(QApplication::clipboard(), &QClipboard::changed, LoadPlugin::getInstance(), &LoadPlugin::onClipboardChanged);
-    g_clipboardMonitoringStatus.store(true);
 }
 
 void LoadPlugin::onStopClipboardMonitor()
 {
-    if (g_clipboardMonitoringStatus.load() == false) {
-        return;
-    }
+    g_stopClipboardMonitor();
     qInfo() << "[Callback] Clipboard monitor stopped";
-    disconnect(QApplication::clipboard(), &QClipboard::changed, LoadPlugin::getInstance(), &LoadPlugin::onClipboardChanged);
-    g_clipboardMonitoringStatus.store(false);
 }
 
 void LoadPlugin::onDragFileListNotify(const char* ipPortString, const char* clientID,
@@ -489,6 +573,7 @@ void LoadPlugin::onUpdateMultipleProgressBar(const char* ipPortString, const cha
 void LoadPlugin::onUpdateClientStatus(uint32_t status, const char* ipPortString,
                           const char* id, const wchar_t* name,
                           const char* deviceType) {
+#if 0
     UpdateClientStatusMsg message;
     message.status = static_cast<uint8_t>(status);
     const auto &ipPort = getIpPort(ipPortString);
@@ -517,11 +602,65 @@ void LoadPlugin::onUpdateClientStatus(uint32_t status, const char* ipPortString,
         if (exists == false && ptr_msg->status == 1) {
             clientVec.push_back(ptr_msg);
         }
-
-        Q_EMIT CommonSignals::getInstance()->broadcastData(UpdateClientStatusMsg::toByteArray(*ptr_msg));
+        g_broadcastData(UpdateClientStatus_code, UpdateClientStatusMsg::toByteArray(*ptr_msg));
 
         for (const auto &clientStatus : g_getGlobalData()->m_clientVec) {
-            Q_EMIT CommonSignals::getInstance()->broadcastData(UpdateClientStatusMsg::toByteArray(*clientStatus));
+            g_broadcastData(UpdateClientStatus_code, UpdateClientStatusMsg::toByteArray(*clientStatus));
+        }
+    });
+#else
+    Q_UNUSED(status)
+    Q_UNUSED(ipPortString)
+    Q_UNUSED(id)
+    Q_UNUSED(name)
+    Q_UNUSED(deviceType)
+#endif
+}
+
+void LoadPlugin::onUpdateClientStatusEx(const char *clientJson)
+{
+    std::string clientJsonData = clientJson;
+    LoadPlugin::getInstance()->runInLoop([clientJsonData] {
+        qInfo() << "---------------------onUpdateClientStatusEx [RECV]:\n" << clientJsonData.c_str();
+        UpdateClientStatusMsgPtr ptr_msg = nullptr;
+        {
+            ClientStatusInfoHelper statusInfo;
+            ClientStatusInfoHelper::fromByteArray(clientJsonData.c_str(), statusInfo);
+            qDebug() << "---------------onUpdateClientStatusEx:\n" << nlohmann::json(statusInfo).dump(4).c_str();
+            UpdateClientStatusMsg message;
+            const auto &ipPort = getIpPort(statusInfo.IpAddr);
+            message.status = statusInfo.Status;
+            message.ip = ipPort.first;
+            message.port = ipPort.second;
+            message.clientID = statusInfo.ID;
+            message.clientName = statusInfo.DeviceName;
+            message.deviceType = statusInfo.SourcePortType;
+            message.timeStamp = statusInfo.TimeStamp;
+            message.serverVersion = statusInfo.Version;
+            message.platform = statusInfo.Platform;
+            ptr_msg = std::make_shared<UpdateClientStatusMsg>(message);
+        }
+        Q_ASSERT(ptr_msg != nullptr);
+        auto &clientVec = g_getGlobalData()->m_clientVec;
+        bool exists = false;
+        for (auto itr = clientVec.begin(); itr != clientVec.end(); ++itr) {
+            if ((*itr)->clientID == ptr_msg->clientID) {
+                exists = true;
+                if (ptr_msg->status == 0) {
+                    clientVec.erase(itr);
+                } else {
+                    *itr = ptr_msg;
+                }
+                break;
+            }
+        }
+        if (exists == false && ptr_msg->status == 1) {
+            clientVec.push_back(ptr_msg);
+        }
+        g_broadcastData(UpdateClientStatus_code, UpdateClientStatusMsg::toByteArray(*ptr_msg));
+
+        for (const auto &clientStatus : g_getGlobalData()->m_clientVec) {
+            g_broadcastData(UpdateClientStatus_code, UpdateClientStatusMsg::toByteArray(*clientStatus));
         }
     });
 }
@@ -682,6 +821,56 @@ void LoadPlugin::onNotifyErrEvent(const char *clientID, uint32_t errorCode, cons
     g_broadcastData(NotifyErrorEvent_code, NotifyErrorEventMsg::toByteArray(message));
 }
 
+void LoadPlugin::onSetupDstPasteXClipData(const char *textData, const char *imageData, const char *htmlData)
+{
+    QByteArray tmpTextData(textData ? textData : "");
+    QByteArray tmpImageData(imageData ? imageData : "");
+    QByteArray tmpHtmlData(htmlData ? htmlData : "");
+    if (tmpHtmlData.isEmpty() == false && (tmpHtmlData.startsWith("<html") == false || tmpHtmlData.startsWith("<HTML") == false)) {
+        QString fullHtml = QString(
+                               "<!DOCTYPE html>"
+                               "<html>"
+                               "<head>"
+                               "<meta charset=\"UTF-8\">"
+                               "<title>Android Fragment</title>"
+                               "<style>body { font-family: sans-serif; }</style>"
+                               "</head>"
+                               "<body>%1</body>"
+                               "</html>"
+                               ).arg(tmpHtmlData.constData());
+        tmpHtmlData = fullHtml.toUtf8();
+    }
+    qInfo() << "-------------------------onSetupDstPasteXClipData";
+    qDebug() << "recv text:\n" << tmpTextData.constData();
+    qDebug() << "recv image data(base64): size=" << tmpImageData.size();
+    qDebug() << "recv html:\n" << tmpHtmlData.constData();
+
+    LoadPlugin::getInstance()->runInLoop([tmpTextData, tmpImageData, tmpHtmlData] {
+        WindowsMimeData *mimeData = new WindowsMimeData;
+        if (tmpTextData.isEmpty() == false) {
+            mimeData->setText(QString::fromUtf8(tmpTextData));
+            g_cache_file_data_for_debug("received_text_data.txt", tmpTextData);
+        }
+
+        if (tmpImageData.isEmpty() == false) {
+            mimeData->setImage(QImage::fromData(QByteArray::fromBase64(tmpImageData), CLIPBOARD_IMAGE_FORMAT));
+            g_cache_file_data_for_debug("received_image_data.jpg", QByteArray::fromBase64(tmpImageData));
+        }
+
+        if (tmpHtmlData.isEmpty() == false) {
+            mimeData->setHtml(QString::fromUtf8(tmpHtmlData));
+            g_cache_file_data_for_debug("received_html_data.html", tmpHtmlData);
+        }
+
+        g_stopClipboardMonitor();
+        qApp->clipboard()->clear();
+        qApp->clipboard()->setMimeData(mimeData);
+        QTimer::singleShot(0, qApp, [] {
+            g_startClipboardMonitor();
+        });
+    });
+}
+
 std::pair<QString, uint16_t> LoadPlugin::getIpPort(const QString &ipPortString)
 {
     auto pos = ipPortString.indexOf(':');
@@ -710,7 +899,7 @@ void LoadPlugin::onPipeConnected()
 
         {
             for (const auto &clientStatus : g_getGlobalData()->m_clientVec) {
-                Q_EMIT CommonSignals::getInstance()->broadcastData(UpdateClientStatusMsg::toByteArray(*clientStatus));
+                g_broadcastData(UpdateClientStatus_code, UpdateClientStatusMsg::toByteArray(*clientStatus));
             }
         }
     });
@@ -720,23 +909,64 @@ void LoadPlugin::onClipboardChanged(QClipboard::Mode mode)
 {
     Q_ASSERT(mode == QClipboard::Mode::Clipboard);
     uint64_t currentIndex = ++m_copyIndex;
-    QTimer::singleShot(100, qApp, [currentIndex, this] {
+    qDebug() << "onClipboardChanged:" << qApp->clipboard()->mimeData()->formats();
+    QTimer::singleShot(300, qApp, [currentIndex, this] {
         if (currentIndex != m_copyIndex) {
             return;
         }
-        if (::OpenClipboard(nullptr)) {
-            if (::IsClipboardFormatAvailable(CF_BITMAP)) {
-                HBITMAP hBitmap = static_cast<HBITMAP>(GetClipboardData(CF_BITMAP));
-                if (hBitmap) {
-                    getBitmapData(hBitmap);
-                } else {
-                    qWarning() << "GetClipboardData failed:" << ::GetLastError();
+
+        QByteArray textData;
+        QByteArray imageData;
+        QByteArray htmlData;
+        {
+            const QMimeData *mimeData = qApp->clipboard()->mimeData();
+            if (mimeData) {
+                if (mimeData->hasText()) {
+                    textData = mimeData->text().toUtf8();
+                    g_cache_file_data_for_debug("sent_text_data.txt", textData);
                 }
+
+                if (mimeData->hasImage()) {
+                    {
+                        QImage image = qApp->clipboard()->image();
+                        if (image.hasAlphaChannel()) {
+                            QImage opaque(image.size(), QImage::Format_RGB32);
+                            opaque.fill(Qt::white);
+                            QPainter painter(&opaque);
+                            painter.drawImage(0, 0, image);
+                            image = opaque;
+                        }
+
+                        image = image.convertToFormat(QImage::Format_RGB888);
+                        QBuffer buffer(&imageData);
+                        buffer.open(QIODevice::WriteOnly);
+                        image.save(&buffer, CLIPBOARD_IMAGE_FORMAT);
+                    }
+                    g_cache_file_data_for_debug("sent_image_data.jpg", imageData);
+                }
+
+                if (mimeData->hasHtml()) {
+                    htmlData = mimeData->html().toUtf8();
+                    htmlData = g_convertImagesToBase64(htmlData).toUtf8();
+                    g_cache_file_data_for_debug("sent_html_data.html", htmlData);
+                }
+
+                do {
+                    if (!mimeData->hasText() || !mimeData->hasImage() || mimeData->hasHtml()) {
+                        break;
+                    }
+                    if (!mimeData->hasUrls()) {
+                        break;
+                    }
+                    if (QUrl(textData) == mimeData->urls().front()) {
+                        textData.clear();
+                    }
+                } while (false);
             }
-            ::CloseClipboard();
-        } else {
-            qWarning() << "OpenClipboard failed:" << ::GetLastError();
         }
+
+        QByteArray base64_imageData = imageData.toBase64();
+        g_SendXClipData(textData.constData(), base64_imageData.constData(), htmlData.constData());
     });
 }
 
@@ -753,4 +983,43 @@ void LoadPlugin::onDIASStatusChanged(bool status)
         g_SetExtractDIAS();
         MonitorPlugEvent::getInstance()->clearData();
     }
+}
+
+//------------------------------------ WindowsMimeData ---------------------------------
+
+WindowsMimeData::WindowsMimeData()
+    : QMimeData()
+    , m_hasBitmap(false)
+{
+}
+
+WindowsMimeData::~WindowsMimeData()
+{
+
+}
+
+void WindowsMimeData::setImage(const QImage &image)
+{
+    setImageData(QVariant::fromValue(image));
+    m_hasBitmap = true;
+}
+
+QStringList WindowsMimeData::formats() const
+{
+    QStringList list = QMimeData::formats();
+    if (m_hasBitmap) {
+        list << "Bitmap";
+    }
+
+    return list;
+}
+
+bool WindowsMimeData::hasFormat(const QString &mimeType) const
+{
+    return QMimeData::hasFormat(mimeType);
+}
+
+QVariant WindowsMimeData::retrieveData(const QString &mimeType, QVariant::Type type) const
+{
+    return QMimeData::retrieveData(mimeType, type);
 }

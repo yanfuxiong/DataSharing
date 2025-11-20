@@ -68,13 +68,13 @@
         <file>resource/loading/5.png</file>
         <file>resource/loading/6.png</file>
         <file>resource/loading/7.png</file>
-        <file>resource/device_icon/Device_Computer.png</file>
-        <file>resource/device_icon/Device_DP1.png</file>
-        <file>resource/device_icon/Device_DP2.png</file>
-        <file>resource/device_icon/Device_HDMI1.png</file>
-        <file>resource/device_icon/Device_HDMI2.png</file>
-        <file>resource/device_icon/Device_Miracast.png</file>
-        <file>resource/device_icon/Device_USBC1.png</file>
-        <file>resource/device_icon/Device_USBC2.png</file>
+        <file>resource/device_icon/Device_Computer.svg</file>
+        <file>resource/device_icon/Device_DP1.svg</file>
+        <file>resource/device_icon/Device_DP2.svg</file>
+        <file>resource/device_icon/Device_HDMI1.svg</file>
+        <file>resource/device_icon/Device_HDMI2.svg</file>
+        <file>resource/device_icon/Device_Miracast.svg</file>
+        <file>resource/device_icon/Device_USBC1.svg</file>
+        <file>resource/device_icon/Device_USBC2.svg</file>
     </qresource>
 </RCC>

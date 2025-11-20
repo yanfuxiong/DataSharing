@@ -67,11 +67,11 @@ void FileRecordWidget::processClickedOpenFileIcon()
             filePath = CommonUtils::downloadDirectoryPath() + "/" + filePath;
         }
         filePath = QFileInfo(filePath).absoluteFilePath();
+        qInfo() << "open file: " << filePath;
         if (QFileInfo::exists(filePath) == false) {
             Q_EMIT CommonSignals::getInstance()->showWarningMessageBox("warning", QString("The file does not exist. path: %1").arg(filePath));
             return;
         }
-        qInfo() << "open file: " << filePath;
         QDesktopServices::openUrl(QUrl::fromLocalFile(filePath));
     } else if (m_fileOptRecord.direction == FileOperationRecord::DirectionType::DragMultiFileType) {
         QString folderPath = CommonUtils::downloadDirectoryPath();

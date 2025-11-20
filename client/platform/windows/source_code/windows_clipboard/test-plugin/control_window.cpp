@@ -1,6 +1,12 @@
 #include "control_window.h"
 #include "ui_control_window.h"
 #include "plugin.h"
+#include <QMimeData>
+#include <QApplication>
+#include <QClipboard>
+#include <QBuffer>
+#include <QPainter>
+#include <random>
 
 ControlWindow::ControlWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -285,5 +291,131 @@ void ControlWindow::on_NotifyErrorEvent_btn_clicked()
     QByteArray timeStamp = QByteArray::number(s_timeStamp_for_list);
     s_runningStatus_for_list.store(false);
     g_NotifyErrEventCallback(clientID.constData(), errorCode, ipPortString.constData(), timeStamp.constData(), "", "");
+}
+
+void ControlWindow::on_SendXClipData_btn_clicked()
+{
+    QByteArray textData("hello world 123456 !!!");
+    QByteArray imageData = CommonUtils::getFileContent(":/resource/test.jpg").toBase64();
+    QByteArray htmlData = CommonUtils::getFileContent(CommonUtils::downloadDirectoryPath() + "/test.html");
+    g_SetupDstPasteXClipDataCallback(textData.constData(), imageData.constData(), htmlData.constData());
+}
+
+void ControlWindow::on_LoadClipboardData_btn_clicked()
+{
+    auto writeFileFunc = [] (const QString &fileName, const QByteArray &data) {
+        QString filePath = CommonUtils::downloadDirectoryPath() + "/" + fileName;
+        QFile file(filePath);
+        if (file.open(QFile::WriteOnly)) {
+            file.write(data);
+            Q_EMIT CommonSignals::getInstance()->logMessage("write: " + filePath);
+        }
+    };
+    const QMimeData *mimeData = qApp->clipboard()->mimeData();
+    if (mimeData) {
+        if (mimeData->hasText()) {
+            writeFileFunc("test.txt", mimeData->text().toUtf8());
+            qInfo() << "---------------------write test.txt";
+        }
+
+        if (mimeData->hasImage()) {
+            QByteArray jpegData;
+            {
+                QImage image = qApp->clipboard()->image();
+                if (image.hasAlphaChannel()) {
+                    QImage opaque(image.size(), QImage::Format_RGB32);
+                    opaque.fill(Qt::white);
+                    QPainter painter(&opaque);
+                    painter.drawImage(0, 0, image);
+                    image = opaque;
+                }
+
+                image = image.convertToFormat(QImage::Format_RGB888);
+                QBuffer buffer(&jpegData);
+                buffer.open(QIODevice::WriteOnly);
+                image.save(&buffer, "JPEG");
+            }
+            writeFileFunc("test.jpg", jpegData);
+            qInfo() << "---------------------write test.jpg";
+        }
+
+        if (mimeData->hasHtml()) {
+            writeFileFunc("test.html", mimeData->html().toUtf8());
+            qInfo() << "---------------------write test.html";
+        }
+    }
+}
+
+void ControlWindow::writeClipboardData(const QByteArray &textData, const QByteArray &imageData, const QByteArray &htmlData)
+{
+    QTimer::singleShot(0, qApp, [textData, imageData, htmlData] {
+        auto writeFileFunc = [] (const QString &fileName, const QByteArray &data) {
+            QString filePath = CommonUtils::downloadDirectoryPath() + "/" + fileName;
+            QFile file(filePath);
+            if (file.open(QFile::WriteOnly)) {
+                file.write(data);
+                Q_EMIT CommonSignals::getInstance()->logMessage("write: " + filePath);
+                qInfo() << "write:" << filePath.toUtf8().constData();
+            }
+        };
+
+        if (!textData.isEmpty()) {
+            writeFileFunc("recv_test.txt", textData);
+        }
+
+        if (!imageData.isEmpty()) {
+            writeFileFunc("recv_test.jpg", QByteArray::fromBase64(imageData));
+        }
+
+        if (!htmlData.isEmpty()) {
+            writeFileFunc("recv_test.html", htmlData);
+        }
+    });
+}
+
+// https://vendorjira.realtek.com/browse/TSTAS-384
+void ControlWindow::on_UpdateClientStatusEx_btn_clicked()
+{
+    m_workerThread.runInThread([] {
+        static const wchar_t *s_nameArry[] = { L"HDMI1-\nTEST", L"HDMI2", L"Miracast", L"USBC1", L"DP2" };
+        Q_ASSERT(sizeof(s_nameArry) / sizeof (s_nameArry[0]) == 5);
+        static const char *s_deviceType[] = { "HDMI1", "HDMI2", "Miracast", "USBC1", "DP2" };
+        Q_ASSERT(sizeof(s_deviceType) / sizeof (s_deviceType[0]) == 5);
+        std::string clientID { "QmQ7obXFx1XMFr6hCYXtovn9zREFqSXEtH5hdtpBDLjrAz" };
+        static int s_index = 0;
+        ++s_index;
+        std::random_device currentRandomDevice;
+        for (int index = 0; index < 5; ++index) {
+            std::string newClientID = clientID;
+            newClientID.back() = std::to_string(index + 1).back();
+            std::string ip { "192.168.0.1" };
+            uint8_t port = 80 + index;
+            std::string ipPortString = ip + ":" + std::to_string(port);
+            int arryIndex = std::uniform_int_distribution<int>(0, 4)(currentRandomDevice);
+            if (s_index % 2 == 0) {
+                nlohmann::json jsonInfo;
+                jsonInfo["TimeStamp"] = QDateTime::currentDateTime().toMSecsSinceEpoch();
+                jsonInfo["Status"] = 1;
+                jsonInfo["ID"] = newClientID.c_str();
+                jsonInfo["IpAddr"] = ipPortString.c_str();
+                jsonInfo["Platform"] = "Windows";
+                jsonInfo["DeviceName"] = s_nameArry[arryIndex];
+                jsonInfo["SourcePortType"] = s_deviceType[arryIndex];
+                jsonInfo["Version"] = "server_v1.2.3";
+                g_UpdateClientStatusExCallback(jsonInfo.dump().c_str());
+            } else {
+                nlohmann::json jsonInfo;
+                jsonInfo["TimeStamp"] = QDateTime::currentDateTime().toMSecsSinceEpoch();
+                jsonInfo["Status"] = (index % 2 == 0) ? 0 : 1;
+                jsonInfo["ID"] = newClientID.c_str();
+                jsonInfo["IpAddr"] = ipPortString.c_str();
+                jsonInfo["Platform"] = "Windows";
+                jsonInfo["DeviceName"] = s_nameArry[arryIndex];
+                jsonInfo["SourcePortType"] = s_deviceType[arryIndex];
+                jsonInfo["Version"] = "server_v1.2.3";
+                g_UpdateClientStatusExCallback(jsonInfo.dump().c_str());
+            }
+        }
+    });
 }
 

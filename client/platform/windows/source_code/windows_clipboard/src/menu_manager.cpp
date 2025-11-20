@@ -8,6 +8,7 @@
 #include "device_info.h"
 #include <QScreen>
 #include <QApplication>
+#include <QGraphicsDropShadowEffect>
 
 namespace {
 
@@ -41,7 +42,7 @@ void SystemInfoMenuManager::updateMenuPos(QMenu *menu)
 {
     QTimer::singleShot(0, menu, [menu] {
         auto point = g_menuPos;
-        point -= QPoint(menu->width() + 2, 0);
+        point -= QPoint(menu->width() + 2, -2);
         menu->move(point);
     });
 }
@@ -57,6 +58,7 @@ QMenu *SystemInfoMenuManager::createMainMenu()
     {
         auto subMenu = mainMenu->addMenu(QIcon(":/resource/menu_icon/settings.png"), "Settings");
         subMenu->setProperty("SystemInfoMenuManager", true);
+        subMenu->setProperty("IsSubMenu", true);
         subMenu->menuAction()->setFont(font);
         {
             auto action = new DownloadPathItemAction;
@@ -80,9 +82,11 @@ QMenu *SystemInfoMenuManager::createMainMenu()
     {
         auto subMenu = mainMenu->addMenu(QIcon(":/resource/menu_icon/info.png"), "Info");
         subMenu->setProperty("SystemInfoMenuManager", true);
+        subMenu->setProperty("IsSubMenu", true);
         subMenu->menuAction()->setFont(font);
         subMenu->addAction(QIcon(":/resource/menu_icon/info_about.png"), "About", [] {
             auto *viewWindow = new AboutView;
+            viewWindow->move(QPoint(-1920, -1080));
             viewWindow->show();
             QTimer::singleShot(0, viewWindow, [viewWindow] {
                 viewWindow->move(g_menuPos - QPoint(viewWindow->width() + 4, -2));
@@ -124,6 +128,7 @@ QMenu *SystemInfoMenuManager::createOpenSourceLicenseMenu()
                 auto *viewWindow = new LicenseView;
                 viewWindow->setTitle(licenseItem.name);
                 viewWindow->setDisplayInfo(CommonUtils::getFileContent(licenseItem.licenseFilePath));
+                viewWindow->move(QPoint(-1920, -1080));
                 viewWindow->show();
                 QTimer::singleShot(0, viewWindow, [viewWindow] {
                     viewWindow->move(g_menuPos - QPoint(viewWindow->width() + 4, -2));
@@ -145,6 +150,8 @@ QMenu *SystemInfoMenuManager::createClientInfoListMenu()
 {
     QMenu *clientInfoListMenu = new QMenu;
     clientInfoListMenu->setProperty("SystemInfoMenuManager", true);
+    clientInfoListMenu->setProperty("createClientInfoListMenu", true);
+    clientInfoListMenu->setProperty("g_is_ROG_Theme", g_is_ROG_Theme());
 
     for (const auto &data : g_getGlobalData()->m_clientVec) {
         QString info;
@@ -211,13 +218,13 @@ LicenseItem::~LicenseItem()
 
 void LicenseItem::enterEvent(QEvent *event)
 {
-    setStyleSheet("background-color: rgb(0,120, 215);color:white;");
+    setStyleSheet("background-color: #DFDFDF; color:black;");
     QWidget::enterEvent(event);
 }
 
 void LicenseItem::leaveEvent(QEvent *event)
 {
-    setStyleSheet("background-color: rgb(240, 240, 240);color:black;");
+    setStyleSheet("background-color: #F0F0F0; color:black;");
     QWidget::leaveEvent(event);
 }
 
@@ -374,12 +381,26 @@ DownloadPathItem::DownloadPathItem(QWidget *parent)
 
     {
         QPushButton *button = new QPushButton(QIcon(":/resource/menu_icon/settings_folder.png"), "  Default");
+        {
+            QGraphicsDropShadowEffect *effect = new QGraphicsDropShadowEffect(button);
+            effect->setBlurRadius(4);
+            effect->setOffset(2, 2);
+            effect->setColor(QColor(0, 0, 0, 80));
+            button->setGraphicsEffect(effect);
+        }
         button->setObjectName("customMenuButton");
         button->setFixedSize(100, g_getMenuItemHeight() - 6);
         button->setProperty(PR_ADJUST_WINDOW_X_SIZE, true);
         pHBoxLayout->addWidget(button);
         button->setFont(font);
-        connect(button, &QPushButton::clicked, this, &DownloadPathItem::actionTriggered);
+        connect(button, &QPushButton::released, this, &DownloadPathItem::actionTriggered);
+        connect(button, &QPushButton::pressed, this, [button] {
+            QGraphicsDropShadowEffect *effect = new QGraphicsDropShadowEffect(button);
+            effect->setBlurRadius(4);
+            effect->setOffset(-2, -2);
+            effect->setColor(QColor(0, 0, 0, 80));
+            button->setGraphicsEffect(effect);
+        });
     }
 
     pHBoxLayout->addSpacing(8);
@@ -442,12 +463,26 @@ BugReportItem::BugReportItem(QWidget *parent)
 
     {
         QPushButton *button = new QPushButton(QIcon(":/resource/menu_icon/settings_fileExport.png"), "  Export");
+        {
+            QGraphicsDropShadowEffect *effect = new QGraphicsDropShadowEffect(button);
+            effect->setBlurRadius(4);
+            effect->setOffset(2, 2);
+            effect->setColor(QColor(0, 0, 0, 80));
+            button->setGraphicsEffect(effect);
+        }
         button->setObjectName("customMenuButton");
         button->setFixedSize(100, g_getMenuItemHeight() - 6);
         button->setProperty(PR_ADJUST_WINDOW_X_SIZE, true);
         pHBoxLayout->addWidget(button);
         button->setFont(font);
         connect(button, &QPushButton::clicked, this, &BugReportItem::actionTriggered);
+        connect(button, &QPushButton::pressed, this, [button] {
+            QGraphicsDropShadowEffect *effect = new QGraphicsDropShadowEffect(button);
+            effect->setBlurRadius(4);
+            effect->setOffset(-2, -2);
+            effect->setColor(QColor(0, 0, 0, 80));
+            button->setGraphicsEffect(effect);
+        });
     }
 
     pHBoxLayout->addSpacing(8);
