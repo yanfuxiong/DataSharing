@@ -88,25 +88,34 @@ func NewHeartBeatTicker(interval time.Duration) *HeartBeatTicker {
 
 func (t *HeartBeatTicker) Start() {
 	t.mu.Lock()
-	defer t.mu.Unlock()
-
 	if t.ticker != nil {
 		t.stopTicker()
+		t.mu.Unlock()
+
+		time.Sleep(10 * time.Millisecond) // this delay let old Ticker goroutine get lock and stop it!
+		t.mu.Lock()
 	}
 
 	t.ticker = time.NewTicker(t.interval)
 	t.stopCh = make(chan struct{})
+	t.mu.Unlock()
 
-	go func() {
+	rtkMisc.GoSafe(func() {
 		for {
 			select {
 			case tickTime := <-t.ticker.C:
 				t.proxyCh <- tickTime
 			case <-t.stopCh:
+				t.mu.Lock()
+				if t.ticker != nil {
+					t.ticker.Stop()
+					t.ticker = nil
+				}
+				t.mu.Unlock()
 				return
 			}
 		}
-	}()
+	})
 }
 
 func (t *HeartBeatTicker) Stop() {
@@ -116,11 +125,7 @@ func (t *HeartBeatTicker) Stop() {
 }
 
 func (t *HeartBeatTicker) stopTicker() {
-	if t.ticker != nil {
-		t.ticker.Stop()
-		t.ticker = nil
-		close(t.stopCh)
-	}
+	close(t.stopCh)
 }
 
 func (t *HeartBeatTicker) C() <-chan time.Time {
