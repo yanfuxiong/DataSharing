@@ -64,7 +64,7 @@ class UniversalDDC{
                     service: self.arm64avService,
                     command: command,
                     value: value,
-                    numOfRetryAttemps: 5,
+                    numOfRetryAttemps: 0,
                     retrySleepTime: 50000
                 )
                 return result
@@ -74,7 +74,7 @@ class UniversalDDC{
             }
         }else{
             if(self.intelddc != nil){
-                result = self.intelddc?.write(command: command, value: value, errorRecoveryWaitTime: 50000,numofWriteCycles: 5) ?? false
+                result = self.intelddc?.write(command: command, value: value, errorRecoveryWaitTime: 50000,numofWriteCycles: 0) ?? false
                 return result
             }else{
                 print("you need init intelddc first")

@@ -13,15 +13,14 @@ class CrossShareHelperApp: NSObject {
     
     private var xpcListener: NSXPCListener?
     private var xpcService: HelperXPCService?
-    private let logger = XPCLogger.shared
+    private let logger = CSLogger.shared
     private var mainAppMonitorTimer: Timer?
     private var gcdTimer: DispatchSourceTimer?
     
     func run() {
         print("CrossShare Helper started at \(Date())")
-        
-        let logPath = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-            .appendingPathComponent("CrossShare/Logs/Helper").path
+
+        let logPath = getLogPath()
         print("Helper log files location: \(logPath)")
         logger.log("Helper started - Log path: \(logPath)", level: .info)
         
@@ -44,15 +43,24 @@ class CrossShareHelperApp: NSObject {
         xpcService = HelperXPCService()
         let serviceName = "com.realtek.crossshare.macos.helper"
         
+        logger.log("Creating NSXPCListener with machServiceName: \(serviceName)", level: .info)
         xpcListener = NSXPCListener(machServiceName: serviceName)
         
-        if let listener = xpcListener {
-            listener.delegate = self
-            listener.resume()
-            logger.log("XPC listener started for service: \(serviceName)", level: .info)
-        } else {
-            logger.log("Failed to create XPC listener", level: .error)
+        guard let listener = xpcListener else {
+            logger.log("❌ CRITICAL: Failed to create XPC listener!", level: .error)
+            logger.log("This means the Mach Service could not be registered", level: .error)
+            logger.log("Check Info.plist MachServices configuration", level: .error)
+            return
         }
+        
+        logger.log("XPC listener created successfully", level: .info)
+        listener.delegate = self
+        logger.log("Delegate set to self", level: .info)
+        
+        listener.resume()
+        logger.log("✅ XPC listener RESUMED and ready for connections", level: .info)
+        logger.log("Service name: \(serviceName)", level: .info)
+        logger.log("Waiting for XPC connections from main app...", level: .info)
     }
     
     private func initializeGoService() {
@@ -175,7 +183,10 @@ class CrossShareHelperApp: NSObject {
 extension CrossShareHelperApp: NSXPCListenerDelegate {
     
     func listener(_ listener: NSXPCListener, shouldAcceptNewConnection newConnection: NSXPCConnection) -> Bool {
-        logger.log("New XPC connection request from pid: \(newConnection.processIdentifier)", level: .info)
+        logger.log("📥 NEW XPC CONNECTION REQUEST", level: .info)
+        logger.log("   - From PID: \(newConnection.processIdentifier)", level: .info)
+        logger.log("   - Effective UID: \(newConnection.effectiveUserIdentifier)", level: .info)
+        logger.log("   - Effective GID: \(newConnection.effectiveGroupIdentifier)", level: .info)
         
         newConnection.exportedInterface = NSXPCInterface(with: CrossShareHelperXPCProtocol.self)
         newConnection.exportedObject = xpcService
@@ -183,15 +194,16 @@ extension CrossShareHelperApp: NSXPCListenerDelegate {
         newConnection.remoteObjectInterface = NSXPCInterface(with: CrossShareHelperXPCDelegate.self)
         
         newConnection.invalidationHandler = { [weak self] in
-            self?.logger.log("XPC connection invalidated", level: .info)
+            self?.logger.log("XPC connection invalidated (PID: \(newConnection.processIdentifier))", level: .info)
             self?.xpcService?.removeXPCConnection(newConnection)
         }
 
         newConnection.interruptionHandler = { [weak self] in
-            self?.logger.log("XPC connection interrupted", level: .warn)
+            self?.logger.log("XPC connection interrupted (PID: \(newConnection.processIdentifier))", level: .warn)
         }
 
         newConnection.resume()
+        logger.log("   - Connection resumed and accepted ✅", level: .info)
 
         // Add the connection to track it for callbacks
         xpcService?.addXPCConnection(newConnection)

@@ -41,8 +41,8 @@ class UtilsHelper: NSObject {
     static func getVersionNumber() -> String {
         if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String,
            let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String {
-            print("App 版本号: \(version)")
-            print("App 构建号: \(build)")
+            logger.info("App 版本号: \(version)")
+            logger.info("App 构建号: \(build)")
             return "v\(version)"
         }
         return "1.0.0"
@@ -54,28 +54,28 @@ class UtilsHelper: NSObject {
             for fileURL in fileURLs {
                 if let fileType = UTType(filenameExtension: fileURL.pathExtension) {
                     if fileType.conforms(to: .text) {
-                        print("文件: \(fileURL.lastPathComponent) 是文字")
+                        logger.info("文件: \(fileURL.lastPathComponent) 是文字")
                     } else if fileType.conforms(to: .image) {
-                        print("文件: \(fileURL.lastPathComponent) 是图片")
+                        logger.info("文件: \(fileURL.lastPathComponent) 是图片")
                     } else if fileType.conforms(to: .video) {
-                        print("文件: \(fileURL.lastPathComponent) 是视频")
+                        logger.info("文件: \(fileURL.lastPathComponent) 是视频")
                     } else if fileType.conforms(to: .audio) {
-                        print("文件: \(fileURL.lastPathComponent) 是音频")
+                        logger.info("文件: \(fileURL.lastPathComponent) 是音频")
                     } else if fileType.conforms(to: .pdf) {
-                        print("文件: \(fileURL.lastPathComponent) 是 PDF 文档")
+                        logger.info("文件: \(fileURL.lastPathComponent) 是 PDF 文档")
                     } else if fileType.conforms(to: UTType.word) || fileType.conforms(to: UTType.wordLegacy) {
-                        print("文件: \(fileURL.lastPathComponent) 是 Word 文件")
+                        logger.info("文件: \(fileURL.lastPathComponent) 是 Word 文件")
                     } else if fileType.conforms(to: UTType.powerpoint) || fileType.conforms(to: UTType.powerpointLegacy) {
-                        print("文件: \(fileURL.lastPathComponent) 是 PowerPoint 文件")
+                        logger.info("文件: \(fileURL.lastPathComponent) 是 PowerPoint 文件")
                     } else if fileType.conforms(to: UTType.excel) || fileType.conforms(to: UTType.excelLegacy) {
-                        print("文件: \(fileURL.lastPathComponent) 是 Excel 文件")
+                        logger.info("文件: \(fileURL.lastPathComponent) 是 Excel 文件")
                     } else {
-                        print("文件: \(fileURL.lastPathComponent) 类型未知")
+                        logger.info("文件: \(fileURL.lastPathComponent) 类型未知")
                     }
                 }
             }
         } else {
-            print("剪贴板没有文件")
+            logger.info("剪贴板没有文件")
         }
     }
     

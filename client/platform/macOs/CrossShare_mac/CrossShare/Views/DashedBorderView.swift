@@ -46,7 +46,7 @@ class DashedBorderView: NSView {
         let distanceDragged = hypot(currentPoint.x - startPoint.x, currentPoint.y - startPoint.y)
         
         if distanceDragged > uploadThreshold {
-            print("🚀 拖拽超过 60px，开始上传文件")
+            logger.info("🚀 拖拽超过 60px，开始上传文件")
             if let files = getDraggedFileURLs(from: sender) {
                 for file in files {
                     uploadFileToServer(file)
@@ -76,6 +76,6 @@ class DashedBorderView: NSView {
 
 extension DashedBorderView {
     @objc private func uploadFileToServer(_ fileUrl:URL) {
-        print("🚀 准备上传的文件：\(fileUrl.absoluteString) \(fileUrl.lastPathComponent)")
+        logger.info("🚀 准备上传的文件：\(fileUrl.absoluteString) \(fileUrl.lastPathComponent)")
     }
 }

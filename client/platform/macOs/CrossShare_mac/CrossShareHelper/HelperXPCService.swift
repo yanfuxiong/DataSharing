@@ -50,7 +50,7 @@ class HelperXPCService: NSObject, CrossShareHelperXPCProtocol, CrossShareHelperX
         }
     }
 
-    private let logger = XPCLogger.shared
+    private let logger = CSLogger.shared
     private let goBridge = GoServiceBridge.shared
     private var xpcConnections: [NSXPCConnection] = []
     private let connectionsLock = NSLock()
@@ -63,10 +63,19 @@ class HelperXPCService: NSObject, CrossShareHelperXPCProtocol, CrossShareHelperX
         super.init()
         setupGoCallbacks()
         logger.log("HelperXPCService initialized", level: .info)
-        
+
         HelperDisplayManager.shared.startMonitoring()
-        
+
         screenMonitor = HelperScreenMonitor(xpcService: self)
+
+        startClipboardMonitoringAutomatically()
+    }
+
+    private func startClipboardMonitoringAutomatically() {
+        logger.log("Auto-starting clipboard monitoring in Helper", level: .info)
+        ClipboardMonitor.shareInstance().setDelegate(self)
+        ClipboardMonitor.shareInstance().startMonitoring()
+        logger.log("Clipboard monitoring started automatically", level: .info)
     }
     
     private func setupGoCallbacks() {
@@ -243,6 +252,20 @@ class HelperXPCService: NSObject, CrossShareHelperXPCProtocol, CrossShareHelperX
             delegate.didReceiveDIASStatus?(status)
         }
     }
+    
+    func didReceiveErrorEvent(_ errorInfo: [String: Any]) {
+        logger.log("didReceiveErrorEvent: \(errorInfo)", level: .info)
+        notifyDelegates { delegate in
+            delegate.didReceiveErrorEvent?(errorInfo)
+        }
+    }
+
+    func didReceiveSystemInfoUpdate(_ systemInfo: [String: Any]) {
+        logger.log("didReceiveSystemInfoUpdate - systemInfo:\(systemInfo)", level: .info)
+        notifyDelegates { delegate in
+            delegate.didReceiveSystemInfoUpdate?(systemInfo)
+        }
+    }
 
     func didDetectScreenCountChange(change: String, currentCount: Int, previousCount: Int) {
         logger.log("Screen count changed - \(change) (\(previousCount) -> \(currentCount))", level: .info)
@@ -274,7 +297,15 @@ class HelperXPCService: NSObject, CrossShareHelperXPCProtocol, CrossShareHelperX
             }
         }
     }
-    
+
+    private func handleUpdateMousePosRequest(width: UInt16, height: UInt16, posX: Int16, posY: Int16) {
+        guard let displayID = GoCallbackManager.shared.getCurrentActiveDisplayID() else {
+            logger.log("No valid display ID found for auth request", level: .error)
+            return
+        }
+        HelperDisplayManager.shared.updateMousePos(for: displayID, width: width, height: height, posX: posX, posY: posY)
+    }
+
     func updateDisplayMapping(mac: String, displayID: UInt32, completion: @escaping (Bool) -> Void) {
         logger.log("Updating display mapping: \(mac) -> \(displayID)", level: .info)
         GoCallbackManager.shared.updateDisplayMapping(mac: mac, displayID: CGDirectDisplayID(displayID))
@@ -301,11 +332,8 @@ class HelperXPCService: NSObject, CrossShareHelperXPCProtocol, CrossShareHelperX
     }
     
     func startClipboardMonitoring(completion: @escaping (Bool) -> Void) {
-        logger.log("Starting clipboard monitoring", level: .info)
-        
-        ClipboardMonitor.shareInstance().setDelegate(self)
-        ClipboardMonitor.shareInstance().startMonitoring()
-        
+        logger.log("Clipboard monitoring start requested (already auto-started)", level: .info)
+        // Monitoring is already started in init(), this is just for compatibility
         completion(true)
     }
     
@@ -341,6 +369,17 @@ class HelperXPCService: NSObject, CrossShareHelperXPCProtocol, CrossShareHelperX
         logger.log("Cancelling file transfer - IPPort: \(ipPort), ClientID: \(clientID), TimeStamp: \(timeStamp)", level: .info)
         goBridge.setCancelFileTransfer(ipPort: ipPort, clientID: clientID, timeStamp: timeStamp, completion: completion)
     }
+    
+    func setDragFileListRequest(multiFilesData: String, timestamp: UInt64, width: UInt16, height: UInt16, posX: Int16, posY: Int16, completion: @escaping (Bool, String?) -> Void) {
+        logger.log("Sending multi-files drag request", level: .info)
+        goBridge.setDragFileListRequest(multiFilesData: multiFilesData, timestamp: timestamp, completion: completion)
+        handleUpdateMousePosRequest(width: width, height: height, posX: posX, posY: posY)
+    }
+    
+    func requestUpdateDownloadPath(downloadPath: String, completion: @escaping (Bool, String?) -> Void) {
+        logger.log("Updating download path: \(downloadPath)", level: .info)
+        goBridge.requestUpdateDownloadPath(downloadPath: downloadPath, completion: completion)
+    }
 
     func clearDeviceList() {
         deviceListLock.lock()
@@ -371,24 +410,42 @@ class HelperXPCService: NSObject, CrossShareHelperXPCProtocol, CrossShareHelperX
 }
 
 extension HelperXPCService: ClipboardMonitorDelegate {
-    func clipboardDidChange(_ content: ClipboardContent) {
-        logger.log("Local clipboard changed: \(content.description)", level: .info)
-        let contentDict = content.toDictionary()
-        notifyDelegates { delegate in
-            delegate.didDetectLocalClipboardChange?(content: contentDict)
+    func clipboardDidChange(text: String?, image: NSImage?, html: String?) {
+        logger.log("Local clipboard changed", level: .info)
+
+        var textDataStr = ""
+        var imageDataStr = ""
+        var htmlDataStr = ""
+
+        if let text = text, !text.isEmpty {
+            textDataStr = text
+            logger.log("Found text data: \(text.prefix(100))...", level: .info)
         }
-        
-        switch content.type {
-        case .text(let text):
-            sendTextToRemote(text) { _, _ in }
-        case .image(let image):
-            if let imageData = image.pngData {
-                sendImageToRemote(imageData) { _, _ in }
+
+        if let image = image {
+            if let imageData = image.jpegData {
+                imageDataStr = imageData.base64EncodedString()
+                logger.log("Found image data, size: \(imageData.count) bytes", level: .info)
+            } else {
+                logger.log("Failed to convert image to base64", level: .error)
             }
-        case .files(_):
-            logger.log("File clipboard content not yet supported", level: .info)
-        case .unknown:
-            logger.log("Unknown clipboard content type", level: .warn)
+        }
+
+        if let html = html, !html.isEmpty {
+            let result = ClipboardMonitor.shareInstance().processHTMLForSending(html)
+            htmlDataStr = result.processedHTML
+            logger.log("Found HTML data, length: \(htmlDataStr.count)", level: .info)
+        }
+
+        if !textDataStr.isEmpty || !imageDataStr.isEmpty || !htmlDataStr.isEmpty {
+            SendXClipData(
+                textDataStr.toGoStringXPC(),
+                imageDataStr.toGoStringXPC(),
+                htmlDataStr.toGoStringXPC()
+            )
+            logger.log("Sent clipboard data - text: \(!textDataStr.isEmpty), image: \(!imageDataStr.isEmpty), html: \(!htmlDataStr.isEmpty)", level: .info)
+        } else {
+            logger.log("No valid clipboard content to send", level: .warn)
         }
     }
 }

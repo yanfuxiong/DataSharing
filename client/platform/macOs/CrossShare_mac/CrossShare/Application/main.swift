@@ -15,8 +15,6 @@ var app: AppDelegate!
 
 let prefs = UserDefaults.standard
 
-private let storyboard = NSStoryboard(name: "Main", bundle: Bundle.main)
-
 autoreleasepool { () in
   let mc = NSApplication.shared
   let mcDelegate = AppDelegate()

@@ -27,27 +27,73 @@ private let updateClientStatusCallback: @convention(c) (UnsafeMutablePointer<CCh
     globalGoServiceBridge?.handleUpdateClientStatus(clientJsonStr: clientJsonStr)
 }
 
+private let updateSystemInfoCallback: @convention(c) (UnsafeMutablePointer<CChar>?, UnsafeMutablePointer<CChar>?) -> Void = { ipInfo, verInfo in
+    globalGoServiceBridge?.handleUpdateSystemInfo(ipInfo: ipInfo, verInfo: verInfo)
+}
+
 private let pasteXClipDataCallback: @convention(c) (UnsafeMutablePointer<CChar>?, UnsafeMutablePointer<CChar>?, UnsafeMutablePointer<CChar>?) -> Void = { textPtr, imagePtr, htmlPtr in
+    // Decode text with multiple encoding support
+    var text: String? = nil
     if let textPtr = textPtr {
-        let text = String(cString: textPtr)
-        if !text.isEmpty {
-            GoCallbackManager.shared.handleRemoteText(text)
+        let textData = Data(bytes: textPtr, count: strlen(textPtr))
+
+        if let utf8Text = String(data: textData, encoding: .utf8),
+           !utf8Text.contains("�") && !utf8Text.contains("\u{FFFD}") {
+            text = utf8Text
+        } else {
+            // Try GB18030 encoding
+            let encoding = CFStringConvertEncodingToNSStringEncoding(
+                CFStringEncoding(CFStringEncodings.GB_18030_2000.rawValue))
+            if let gb18030Text = String(data: textData, encoding: String.Encoding(rawValue: encoding)) {
+                text = gb18030Text
+            } else if let utf16Text = String(data: textData, encoding: .utf16) {
+                text = utf16Text
+            } else if let latinText = String(data: textData, encoding: .isoLatin1) {
+                text = latinText
+            } else {
+                text = String(cString: textPtr)
+            }
         }
     }
 
-    if let imagePtr = imagePtr {
-        let base64Data = String(cString: imagePtr)
-        if !base64Data.isEmpty {
-            GoCallbackManager.shared.handleRemoteImage(base64Data)
-        }
-    }
+    // Decode image base64
+    let imageBase64 = imagePtr != nil ? String(cString: imagePtr!) : nil
 
+    // Decode HTML with multiple encoding support
+    var html: String? = nil
     if let htmlPtr = htmlPtr {
-        let htmlData = String(cString: htmlPtr)
-        if !htmlData.isEmpty {
-            // Handle HTML data if needed
-            // GoCallbackManager.shared.handleRemoteHTML(htmlData)
+        let data = Data(bytes: htmlPtr, count: strlen(htmlPtr))
+
+        // Check for UTF-8 BOM
+        let hasUTF8BOM = data.count >= 3 && data[0] == 0xEF && data[1] == 0xBB && data[2] == 0xBF
+        let utf8Data = hasUTF8BOM ? data.subdata(in: 3..<data.count) : data
+
+        if let utf8String = String(data: utf8Data, encoding: .utf8),
+           !utf8String.contains("�") && !utf8String.contains("\u{FFFD}") {
+            html = utf8String
+        } else {
+            // Try GB18030 encoding
+            let encoding = CFStringConvertEncodingToNSStringEncoding(
+                CFStringEncoding(CFStringEncodings.GB_18030_2000.rawValue))
+            if let gb18030String = String(data: data, encoding: String.Encoding(rawValue: encoding)) {
+                html = gb18030String
+            } else if let utf16String = String(data: data, encoding: .utf16) {
+                html = utf16String
+            } else if let utf16LEString = String(data: data, encoding: .utf16LittleEndian) {
+                html = utf16LEString
+            } else if let utf16BEString = String(data: data, encoding: .utf16BigEndian) {
+                html = utf16BEString
+            } else if let latinString = String(data: data, encoding: .isoLatin1) {
+                html = latinString
+            } else {
+                html = String(cString: htmlPtr)
+            }
         }
+    }
+
+    // Handle clipboard data with new unified method
+    if text != nil || imageBase64 != nil || html != nil {
+        GoCallbackManager.shared.handleRemoteData(text: text, imageBase64: imageBase64, html: html)
     }
 }
 
@@ -59,10 +105,14 @@ private let fileListNotifyCallback: @convention(c) (Optional<UnsafeMutablePointe
     globalGoServiceBridge?.handleFileListNotify(ip: ip, id: id, platform: platform, fileCnt: fileCnt, totalSize: totalSize, timestamp: timestamp, firstFileName: firstFileName, firstFileSize: firstFileSize)
 }
 
+private let notifyErrEventCallback: @convention(c) (Optional<UnsafeMutablePointer<Int8>>, UInt32, Optional<UnsafeMutablePointer<Int8>>, Optional<UnsafeMutablePointer<Int8>>, Optional<UnsafeMutablePointer<Int8>>, Optional<UnsafeMutablePointer<Int8>>) -> Void = { clientID, errCode, ipaddr, timestamp, arg3, arg4 in
+    globalGoServiceBridge?.handleNotifyErrEvent(clientID: clientID, errCode: errCode, ipaddr: ipaddr, timestamp: timestamp, arg3: arg3, arg4: arg4)
+}
+
 
 class GoServiceBridge: CrossShareHelperXPCDelegate {
     
-    private let logger = XPCLogger.shared
+    private let logger = CSLogger.shared
     private var isServiceRunning = false
     private var currentConfig: [String: Any] = [:]
     
@@ -88,10 +138,12 @@ class GoServiceBridge: CrossShareHelperXPCDelegate {
         SetCallbackAuthViaIndex(authViaIndexCallback)
         SetCallbackDIASStatus(setDIASStatusCallback)
         SetCallbackUpdateClientStatus(updateClientStatusCallback)
+        SetCallbackUpdateSystemInfo(updateSystemInfoCallback)
         SetCallbackRequestSourceAndPort(requestSourceAndPortCallback)
         SetCallbackPasteXClipData(pasteXClipDataCallback)
         SetCallbackUpdateMultipleProgressBar(multipleProgressBarCallback)
         SetCallbackMethodFileListNotify(fileListNotifyCallback)
+        SetCallbackNotifyErrEvent(notifyErrEventCallback)
     }
     
     func startService(config: [String: Any], completion: @escaping (Bool, String?) -> Void) {
@@ -105,6 +157,7 @@ class GoServiceBridge: CrossShareHelperXPCDelegate {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let deviceName = config["deviceName"] as? String,
                   let rootPath = config["rootPath"] as? String,
+                  let downloadPath = config["downloadPath"] as? String,
                   let serverId = config["serverId"] as? String,
                   let serverIpInfo = config["serverIpInfo"] as? String,
                   let listenHost = config["listenHost"] as? String,
@@ -132,6 +185,7 @@ class GoServiceBridge: CrossShareHelperXPCDelegate {
                     self?.callMainInit(
                         deviceName: deviceName,
                         rootPath: rootPath,
+                        downloadPath: downloadPath,
                         serverId: serverId,
                         serverIpInfo: serverIpInfo,
                         listenHost: listenHost,
@@ -143,10 +197,11 @@ class GoServiceBridge: CrossShareHelperXPCDelegate {
         }
     }
     
-    private func callMainInit(deviceName: String,rootPath:String, serverId: String, serverIpInfo: String, listenHost: String, listenPort: Int32, completion: @escaping (Bool, String?) -> Void) {
+    private func callMainInit(deviceName: String,rootPath:String,downloadPath:String,serverId: String, serverIpInfo: String, listenHost: String, listenPort: Int32, completion: @escaping (Bool, String?) -> Void) {
         logger.info("Converting parameters for MainInit...")
         let deviceNameGo = deviceName.toGoStringXPC()
         let rootPathGo = rootPath.toGoStringXPC()
+        let downloadPathGo = downloadPath.toGoStringXPC()
         let serverIdGo = serverId.toGoStringXPC()
         let serverIpInfoGo = serverIpInfo.toGoStringXPC()
         let listenHostGo = listenHost.toGoStringXPC()
@@ -156,7 +211,7 @@ class GoServiceBridge: CrossShareHelperXPCDelegate {
         
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             self?.logger.info("Calling MainInit in background thread...")
-            MainInit(deviceNameGo, rootPathGo,serverIdGo, serverIpInfoGo, listenHostGo, GoInt(listenPort))
+            MainInit(deviceNameGo, rootPathGo,downloadPathGo,serverIdGo, serverIpInfoGo, listenHostGo, GoInt(listenPort))
             self?.logger.info("MainInit call returned (this may not be reached if MainInit runs indefinitely)")
         }
         
@@ -444,7 +499,53 @@ class GoServiceBridge: CrossShareHelperXPCDelegate {
             }
         }
     }
+
+    func setDragFileListRequest(multiFilesData: String, timestamp: UInt64, completion: @escaping (Bool, String?) -> Void) {
+        guard isServiceRunning else {
+            let error = "Go service is not running"
+            logger.error(error)
+            completion(false, error)
+            return
+        }
+        logger.info("Sending multi-files drag request with data length: \(multiFilesData.count)")
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            SetDragFileListRequest(multiFilesData.toGoStringXPC(), timestamp)
+            DispatchQueue.main.async {
+                completion(true, nil)
+            }
+        }
+    }
     
+    func requestUpdateDownloadPath(downloadPath: String, completion: @escaping (Bool, String?) -> Void) {
+        logger.info("Updating download path: \(downloadPath)")
+        
+        guard isServiceRunning else {
+            let error = "Go service is not running"
+            logger.error(error)
+            completion(false, error)
+            return
+        }
+        
+        guard !downloadPath.isEmpty else {
+            let error = "Invalid download path parameter"
+            logger.error(error)
+            completion(false, error)
+            return
+        }
+        
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let downloadPathGo = downloadPath.toGoStringXPC()
+            
+            RequestUpdateDownloadPath(downloadPathGo)
+            
+            self?.logger.info("RequestUpdateDownloadPath called successfully with path: \(downloadPath)")
+            
+            DispatchQueue.main.async {
+                completion(true, nil)
+            }
+        }
+    }
+
     func handAuthViaIndex(idx: UInt32) {
         logger.info("Received auth index from Go: \(idx)")
         guard isServiceRunning else {
@@ -472,6 +573,23 @@ class GoServiceBridge: CrossShareHelperXPCDelegate {
             return
         }
         GoCallbackManager.shared.handleClientStatus(clientStatus)
+    }
+    
+    func handleUpdateSystemInfo(ipInfo: UnsafeMutablePointer<CChar>?, verInfo: UnsafeMutablePointer<CChar>?) {
+        guard let ipInfo = ipInfo else {
+            logger.error("Received nil ipInfo")
+            return
+        }
+        
+        let ipInfoString = String(cString: ipInfo)
+        let verInfoString = verInfo != nil ? String(cString: verInfo!) : ""
+        
+        logger.info("Received system info update from Go - IP: \(ipInfoString), Version: \(verInfoString)")
+        guard isServiceRunning else {
+            logger.error("Go service is not running")
+            return
+        }
+        GoCallbackManager.shared.handleSystemInfoUpdate(ipInfo: ipInfoString, verInfo: verInfoString)
     }
     
     func handleRequestSourceAndPort() {
@@ -566,6 +684,19 @@ class GoServiceBridge: CrossShareHelperXPCDelegate {
         
         GoCallbackManager.shared.handReceiveFilesData(userInfo)
         logger.info("File transfer session started notification sent - \(session.sessionId)")
+    }
+    
+    func handleNotifyErrEvent(clientID: Optional<UnsafeMutablePointer<Int8>>, errCode: UInt32, ipaddr: Optional<UnsafeMutablePointer<Int8>>, timestamp: Optional<UnsafeMutablePointer<Int8>>, arg3: Optional<UnsafeMutablePointer<Int8>>, arg4: Optional<UnsafeMutablePointer<Int8>>) {
+        
+        let idString = clientID != nil ? String(cString: clientID!) : ""
+        let arg1String = ipaddr != nil ? String(cString: ipaddr!) : ""
+        let arg2String = timestamp != nil ? String(cString: timestamp!) : ""
+        let arg3String = arg3 != nil ? String(cString: arg3!) : ""
+        let arg4String = arg4 != nil ? String(cString: arg4!) : ""
+        
+        logger.error("Error event received - ID: \(idString), ErrCode: \(errCode), Args: [\(arg1String), \(arg2String), \(arg3String), \(arg4String)]")
+        
+        GoCallbackManager.shared.handleErrEvent(id: idString, errCode: errCode, arg1: arg1String, arg2: arg2String, arg3: arg3String, arg4: arg4String)
     }
 }
 

@@ -11,13 +11,19 @@ import CoreGraphics
 class HelperDisplayManager {
     static let shared = HelperDisplayManager()
     
-    private let logger = XPCLogger.shared
+    private let logger = CSLogger.shared
     private let vcpCtrl = CrossShareVcpCtrl()
     private var gcdTimer: DispatchSourceTimer?
     
     // Cache for display state to avoid unnecessary DIAS checks
     private var lastDisplayIDs: Set<CGDirectDisplayID> = []
     private var checkedDIASDisplays: Set<CGDirectDisplayID> = []
+    var activeDisplays = [CGDirectDisplayID](repeating: 0, count: 10)
+    var displayCount: UInt32 = 0
+    
+    // Store DIAS display ID when successfully set
+    var currentDIASDisplayID: CGDirectDisplayID? = nil
+
     
     private init() {
         DisplayManager.shared.configureDisplays()
@@ -38,17 +44,9 @@ class HelperDisplayManager {
     
     func startMonitoring() {
         logger.log("Starting display monitoring in Helper", level: .info)
-        
+        _ = updateScreenCount()
         ensureDisplayManagerConfigured {
             self.checkDisplays()
-            
-            let queue = DispatchQueue(label: "com.crossShare.display.queue", qos: .background)
-            self.gcdTimer = DispatchSource.makeTimerSource(queue: queue)
-            self.gcdTimer?.schedule(deadline: .now(), repeating: 5.0)
-            self.gcdTimer?.setEventHandler { [weak self] in
-                self?.checkDisplays()
-            }
-            self.gcdTimer?.resume()
         }
     }
     
@@ -59,6 +57,7 @@ class HelperDisplayManager {
     }
     
     func checkDisplaysNow() {
+        _ = updateScreenCount()
         checkDisplays()
     }
     
@@ -68,25 +67,49 @@ class HelperDisplayManager {
         lastDisplayIDs.removeAll()
     }
     
-    func forceCheckAllDisplaysForDIAS() {
-        logger.log("Forcing DIAS check for all displays", level: .info)
-        resetDIASCache()
-        checkDisplays()
+    func setCurrentDIASDisplayID(_ displayID: CGDirectDisplayID) {
+        currentDIASDisplayID = displayID
+        logger.log("Set current DIAS display ID: \(displayID)", level: .info)
     }
     
-    private func checkDisplays() {
+    func clearCurrentDIASDisplayID() {
+        if let id = currentDIASDisplayID {
+            logger.log("Clearing current DIAS display ID: \(id)", level: .info)
+            currentDIASDisplayID = nil
+        }
+    }
+        
+//    func forceCheckAllDisplaysForDIAS() {
+//        logger.log("Forcing DIAS check for all displays", level: .info)
+//        resetDIASCache()
+//        checkDisplays()
+//    }
+    
+   func updateScreenCount() -> Int {
         let maxDisplays: UInt32 = 10
         var activeDisplays = [CGDirectDisplayID](repeating: 0, count: Int(maxDisplays))
         var displayCount: UInt32 = 0
         
-        // Use online display list so mirrored displays are also enumerated (CGGetActiveDisplayList collapses mirrors)
         let result = CGGetOnlineDisplayList(maxDisplays, &activeDisplays, &displayCount)
+//        logger.log("HelperScreenMonitor HelperScreenMonitor currentCount:\(displayCount)", level: .info)
         guard result == .success else {
             logger.log("Failed to get active display list", level: .error)
-            return
+            return 0
         }
         
-        if displayCount == 0 {
+        self.activeDisplays = activeDisplays
+        self.displayCount = displayCount
+
+        return Int(displayCount)
+    }
+
+    
+    private func checkDisplays() {
+        let activeDisplays = self.activeDisplays
+//        var displayCount: UInt32 = self.displayCount
+        
+        
+        if self.displayCount == 0 {
             logger.log("No displays found", level: .debug)
             lastDisplayIDs.removeAll()
             checkedDIASDisplays.removeAll()
@@ -144,7 +167,7 @@ class HelperDisplayManager {
         checkedDIASDisplays.insert(displayID)
         
         DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
+            guard let _ = self else { return }
             
             var displayName = "Display \(displayID)"
             
@@ -165,6 +188,11 @@ class HelperDisplayManager {
     func queryAuthStatus(for displayID: CGDirectDisplayID, index: UInt16, completion: @escaping (Bool) -> Void) {
         logger.log("Querying auth status for display \(displayID) with index \(index)", level: .info)
         vcpCtrl.querySmartMonitorAuthStatus(for: displayID, index: index, completed: completion)
+    }
+
+    func updateMousePos(for displayID: CGDirectDisplayID, width: UInt16, height: UInt16, posX: Int16, posY: Int16) {
+        logger.log("Update mouse position for display \(displayID) with resolution: \(width)x\(height), (x,y): (\(posX), \(posY))", level: .info)
+        vcpCtrl.updateMousePos(for: displayID, width: width, height: height, posX: posX, posY: posY)
     }
     
     func getPortInfo(for displayID: CGDirectDisplayID) -> (source: UInt8, port: UInt8)? {

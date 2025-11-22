@@ -23,7 +23,7 @@ class LoginItemManager {
         // 如果是首次启动，直接静默安装 Helper
         if !hasRequestedLoginItemBefore() {
             #if DEBUG
-            print("首次启动，自动请求后台运行权限")
+            logger.info("首次启动，自动请求后台运行权限")
             #endif
 
             // 直接启用登录项，不显示对话框
@@ -32,11 +32,11 @@ class LoginItemManager {
                     self?.showSuccessNotification()
                     self?.markLoginItemRequested()
                     #if DEBUG
-                    print("后台权限请求成功")
+                    logger.info("后台权限请求成功")
                     #endif
                 } else {
                     #if DEBUG
-                    print("后台权限请求失败")
+                    logger.info("后台权限请求失败")
                     #endif
                 }
             }
@@ -50,7 +50,7 @@ class LoginItemManager {
                     let (status, isUserDisabled) = self?.helperCommunication.getHelperDetailedStatus() ?? (.notFound, false)
 
                     #if DEBUG
-                    print("Helper status: \(status), isUserDisabled: \(isUserDisabled)")
+                    logger.info("Helper status: \(status), isUserDisabled: \(isUserDisabled)")
                     #endif
 
                     // 只有在用户手动禁用的情况下才显示对话框
@@ -62,17 +62,17 @@ class LoginItemManager {
         }
         
         #if DEBUG
-        print("=== LoginItemManager Debug Info ===")
-        print("Has requested before: \(hasRequestedLoginItemBefore())")
-        print("Is login item enabled: \(isLoginItemEnabled)")
-        print("Helper installed: \(helperCommunication.isHelperInstalled)")
-        print("Helper running: \(helperCommunication.isHelperRunning)")
-        print("Helper path: \(helperCommunication.helperPath ?? "nil")")
+        logger.info("=== LoginItemManager Debug Info ===")
+        logger.info("Has requested before: \(hasRequestedLoginItemBefore())")
+        logger.info("Is login item enabled: \(isLoginItemEnabled)")
+        logger.info("Helper installed: \(helperCommunication.isHelperInstalled)")
+        logger.info("Helper running: \(helperCommunication.isHelperRunning)")
+        logger.info("Helper path: \(helperCommunication.helperPath ?? "nil")")
         if #available(macOS 13.0, *) {
             let (status, _) = helperCommunication.getHelperDetailedStatus()
-            print("Helper detailed status: \(status)")
+            logger.info("Helper detailed status: \(status)")
         }
-        print("==================================")
+        logger.info("==================================")
         #endif
     }
     
@@ -172,14 +172,36 @@ class LoginItemManager {
         }
     }
     
-    /// 显示成功启用后台运行的通知
+    /// launched successfully dialog
     private func showSuccessNotification() {
         let notification = NSUserNotification()
-        notification.title = "CrossShare 后台运行已启用"
-        notification.informativeText = "应用现在可以在后台持续运行，即使主窗口关闭也能快速分享文件。"
+        notification.title = "CrossShare service has been launched"
+        notification.informativeText = "To use CrossShare service,\nconnect an CrossShare-compatible display."
         notification.soundName = NSUserNotificationDefaultSoundName
         NSUserNotificationCenter.default.deliver(notification)
-        print("后台运行权限已成功启用")
+        logger.info("CrossShare service has been launched")
+    }
+    
+    /// manual action dialog
+    func showHelperNotStartedDialog() {
+        DispatchQueue.main.async {
+            let alert = NSAlert()
+            alert.messageText = "CrossShare service needs to be started manually"
+            alert.informativeText = "CrossShare has been registered, but manual action is required to ensure it starts properly:\n\n1. Open 「System Settings」 → 「General」 → 「Login Items」\n2. Find 「CrossShare」\n3. Turn the switch on, or toggle it off and back on\n\nThis ensures CrossShare service functions correctly."
+            alert.addButton(withTitle: "Open 「System Settings」 now")
+            alert.addButton(withTitle: "Set it up later")
+            alert.alertStyle = .informational
+            
+            if let appIcon = NSApp.applicationIconImage {
+                alert.icon = appIcon
+            }
+            
+            let response = alert.runModal()
+            
+            if response == .alertFirstButtonReturn {
+                self.openLoginItemsSettings()
+            }
+        }
     }
     
     /// Check if login item is currently enabled
@@ -228,12 +250,12 @@ class LoginItemManager {
             DispatchQueue.main.async {
                 if success {
                     self?.userDefaults.set(true, forKey: self?.isLoginItemEnabledKey ?? "")
-                    print("Helper installed and login item enabled successfully")
+                    logger.info("Helper installed and login item enabled successfully")
                     
                     self?.helperCommunication.notifyHelperAppStatus(isActive: true)
                     completion(true)
                 } else {
-                    print("Failed to install helper and enable login item")
+                    logger.info("Failed to install helper and enable login item")
                     completion(false)
                 }
             }
@@ -245,9 +267,9 @@ class LoginItemManager {
             DispatchQueue.main.async {
                 if success {
                     self?.userDefaults.set(false, forKey: self?.isLoginItemEnabledKey ?? "")
-                    print("Helper uninstalled and login item disabled successfully")
+                    logger.info("Helper uninstalled and login item disabled successfully")
                 } else {
-                    print("Failed to uninstall helper and disable login item")
+                    logger.info("Failed to uninstall helper and disable login item")
                 }
             }
         }
@@ -259,12 +281,12 @@ extension LoginItemManager {
     func resetRequestedFlag() {
         userDefaults.removeObject(forKey: hasRequestedLoginItemKey)
         userDefaults.removeObject(forKey: isLoginItemEnabledKey)
-        print("已重置权限请求状态，下次启动将重新请求")
+        logger.info("已重置权限请求状态，下次启动将重新请求")
     }
     
 
     func forceRequestPermission() {
-        print("强制显示权限请求对话框")
+        logger.info("强制显示权限请求对话框")
         requestLoginItemPermission()
     }
     
@@ -298,7 +320,7 @@ extension LoginItemManager {
     
     func checkHelperStatus() {
         if !helperCommunication.isHelperInstalled && userDefaults.bool(forKey: isLoginItemEnabledKey) {
-            print("Helper was enabled but not found, reinstalling...")
+            logger.info("Helper was enabled but not found, reinstalling...")
             enableLoginItem()
         }
     }

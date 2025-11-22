@@ -28,7 +28,7 @@ class P2PServiceManager: NSObject {
         let serviceConfig = config ?? P2PConfig.defaultConfig()
         currentConfig = serviceConfig
         
-        print("Starting P2P service via Helper with config: \(serviceConfig)")
+        logger.info("Starting P2P service via Helper with config: \(serviceConfig)")
         
         helperClient.connect { [weak self] (helperConnected: Bool, error: String?) in
             guard helperConnected else {
@@ -39,7 +39,7 @@ class P2PServiceManager: NSObject {
             self?.helperClient.startGoService(config: serviceConfig.toXPCDict()) { success, errorMsg in
                 if success {
                     self?.isServiceRunning = true
-                    print("P2P service started successfully")
+                    logger.info("P2P service started successfully")
                 }
             }
         }

@@ -216,8 +216,8 @@ class CrossShareVcpCtrl {
     func updateMousePos(for displayID: CGDirectDisplayID,
                               width: UInt16,
                               height: UInt16,
-                              posX: UInt16,
-                              posY: UInt16){
+                              posX: Int16,
+                              posY: Int16){
         guard displayID != 0 else {
             print("The input display ID is invalid.")
             return
@@ -255,8 +255,6 @@ class CrossShareVcpCtrl {
             print("write width fail")
         }
         
-        // 延迟 50ms (50,000 微秒)
-        usleep(50000)
         let writeHeightResult = universalDDc.writeDDCValues(command: DDCCI_CrossShare_CMD_SET_DESKTOP_RESOLUTION_H, value: height)
         if(writeHeightResult){
             print("write height sucess")
@@ -264,19 +262,18 @@ class CrossShareVcpCtrl {
             print("write height fail")
         }
         
-        // 延迟 50ms (50,000 微秒)
-        usleep(50000)
-        let writePosXResult = universalDDc.writeDDCValues(command: DDCCI_CrossShare_CMD_SET_CURSOR_POSITION_X, value: height)
+        // TODO: posX should be signed integer
+        let posX: UInt16 = (posX < 0) ? (width/2) : UInt16(posX)
+        let writePosXResult = universalDDc.writeDDCValues(command: DDCCI_CrossShare_CMD_SET_CURSOR_POSITION_X, value: posX)
         if(writePosXResult){
             print("write posX sucess")
         }else{
             print("write posX fail")
         }
 
-        
-        // 延迟 50ms (50,000 微秒)
-        usleep(50000)
-        let writePosYResult = universalDDc.writeDDCValues(command: DDCCI_CrossShare_CMD_SET_CURSOR_POSITION_Y, value: height)
+        // TODO: posY should be signed integer
+        let posY: UInt16 = (posY < 0) ? (height/2) : UInt16(posY)
+        let writePosYResult = universalDDc.writeDDCValues(command: DDCCI_CrossShare_CMD_SET_CURSOR_POSITION_Y, value: posY)
         if(writePosYResult){
             print("write posY sucess")
         }else{

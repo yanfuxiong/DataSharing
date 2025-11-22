@@ -44,8 +44,8 @@ class CSBottomTableViewCell: NSTableCellView {
     }()
     
     // 自定义进度条视图
-    private lazy var customProgressView: CustomProgressView = {
-        let view = CustomProgressView()
+    private lazy var customProgressView: CSCustomProgressView = {
+        let view = CSCustomProgressView()
         view.isHidden = true
         return view
     }()
@@ -264,10 +264,10 @@ class CSBottomTableViewCell: NSTableCellView {
     
     // Handle open button click
     @objc private func handleOpenButtonClick() {
-//        print("filePath:\(self.currentFileInfo?.session.currentFileName)")
+//        logger.info("filePath:\(self.currentFileInfo?.session.currentFileName)")
         // Ensure currentFileInfo and file path are not empty
         guard let filePath = self.currentFileInfo?.session.currentFileName, !filePath.isEmpty else {
-            showAlert(message: "Invalid file path")
+            CSAlertManager.shared.showInvalidFilePath()
             return
         }
         
@@ -277,18 +277,8 @@ class CSBottomTableViewCell: NSTableCellView {
         if FileManager.default.fileExists(atPath: url.path) {
             NSWorkspace.shared.open(url)
         } else {
-            showAlert(message: "File does not exist\n\(filePath)")
+            CSAlertManager.shared.showFileNotFound(filePath: filePath)
         }
-    }
-    
-    // Show alert dialog
-    private func showAlert(message: String) {
-        let alert = NSAlert()
-        alert.messageText = "Notification"
-        alert.informativeText = message
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
     }
     
     // Handle delete/cancel button click
@@ -317,7 +307,7 @@ class CSBottomTableViewCell: NSTableCellView {
         } else {
             // If CSFile icon not found, use default document icon
             customImageView.image = NSWorkspace.shared.icon(for: UTType.data)
-            print("Warning: CSFile icon not found, using default document icon")
+            logger.info("Warning: CSFile icon not found, using default document icon")
         }
         
         let dateFormatter = DateFormatter()
@@ -370,7 +360,21 @@ class CSBottomTableViewCell: NSTableCellView {
             statusLabel.stringValue = "Transmission completed"
             statusLabel.isHidden = false
             openBtn.isHidden = false
+            openBtn.isEnabled = true  // 允许点击
             receiveBtn.isHidden = false
+            statusLabel.textColor = NSColor.gray
+
+            if let image = NSImage(named: "receiveTickSucess") {
+                image.size = NSSize(width: 16, height: 16)
+                receiveBtn.image = image
+            }
+
+            
+            // 恢复 openBtn 原来的图标
+            if let openImage = NSImage(named: "open") {
+                openImage.size = NSSize(width: 16, height: 16)
+                openBtn.image = openImage
+            }
             
             // 设置为删除图标
             if let deleteImage = NSImage(named: "delete") {
@@ -379,19 +383,47 @@ class CSBottomTableViewCell: NSTableCellView {
             }
         } else if fileInfo.progress > 0 && fileInfo.progress < 1 {
             // 传输中：显示取消按钮
-            subTextField.stringValue = date + " from: " + fileInfo.session.deviceName 
-            customProgressView.isHidden = false
-            customProgressView.progress = fileInfo.progress
-            
-            statusLabel.isHidden = true
-            openBtn.isHidden = true
-            receiveBtn.isHidden = true
-            
-            // 设置为关闭图标
-            if let closeImage = NSImage(named: "close") {
-                closeImage.size = NSSize(width: 16, height: 16)
-                deleteBtn.image = closeImage
+            subTextField.stringValue = date + " from: " + fileInfo.session.deviceName
+            // 打印 errCode
+            if let errCode = fileInfo.errCode {
+                logger.info("CSBottomTableViewCell - errCode: \(errCode)")
+                customProgressView.isHidden = true
+                customProgressView.progress = fileInfo.progress
+                
+                // 设置为删除图标
+                if let deleteImage = NSImage(named: "delete") {
+                    deleteImage.size = NSSize(width: 16, height: 16)
+                    deleteBtn.image = deleteImage
+                }
+                
+                statusLabel.isHidden = false
+                statusLabel.stringValue = useErrorCodeBackVauleTex(errCode)
+                statusLabel.textColor = NSColor.red
+                
+                openBtn.isHidden = true
+                receiveBtn.isHidden = false
+                
+                if let receiveTickFailImage = NSImage(named: "receiveTickFail") {
+                    receiveTickFailImage.size = NSSize(width: 16, height: 16)
+                    receiveBtn.image = receiveTickFailImage
+                }
+
+            } else {
+                logger.info("CSBottomTableViewCell - errCode: nil")
+                customProgressView.isHidden = false
+                customProgressView.progress = fileInfo.progress
+                
+                statusLabel.isHidden = true
+                openBtn.isHidden = true
+                receiveBtn.isHidden = true
+                
+                // 设置为关闭图标
+                if let closeImage = NSImage(named: "close") {
+                    closeImage.size = NSSize(width: 16, height: 16)
+                    deleteBtn.image = closeImage
+                }
             }
+
         } else {
             // 传输开始：显示取消按钮
             customProgressView.isHidden = true
@@ -411,17 +443,15 @@ class CSBottomTableViewCell: NSTableCellView {
         // For example, displaying transfer direction, device name, etc.
     }
     
-    // Helper method to format file size
-    private func formatFileSize(_ bytes: Int64) -> String {
-        guard bytes > 0 else {
-            return "0 B"
+    private func useErrorCodeBackVauleTex(_ errorCode:Int) -> String{
+        switch errorCode {
+        case 5520:
+            return "Transmission cancel"
+        case 5502, 550,5509,5510,5513,5514,5511,5515,5518,5519,5516:
+            return "Transmission Fail"
+        default:
+            return "Unknown error"
         }
-        
-        let units = ["B", "KB", "MB", "GB", "TB"]
-        let bytesDouble = Double(bytes)
-        let exponent = min(Int(log2(bytesDouble) / 10), units.count - 1)
-        let converted = bytesDouble / pow(1024, Double(exponent))
-        
-        return String(format: "%.1f %@", converted, units[exponent])
     }
+    
 }

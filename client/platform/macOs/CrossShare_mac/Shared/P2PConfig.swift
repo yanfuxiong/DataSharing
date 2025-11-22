@@ -11,6 +11,7 @@ import Foundation
 struct P2PConfig {
     let deviceName: String
     let rootPath: String
+    let downloadPath: String
     let serverId: String
     let serverIpInfo: String
     let listenHost: String
@@ -20,6 +21,7 @@ struct P2PConfig {
         return [
             "deviceName": deviceName,
             "rootPath": rootPath,
+            "downloadPath":downloadPath,
             "serverId": serverId,
             "serverIpInfo": serverIpInfo,
             "listenHost": listenHost,
@@ -28,7 +30,9 @@ struct P2PConfig {
     }
     
     static func defaultConfig() -> P2PConfig {
-        let rootPath = NSHomeDirectory() + "/CrossShare/Logs"
+        // Get saved path from user preferences, or use default
+        let rootPath = getRootPath()
+        let downloadPath = CSUserPreferences.shared.getDownloadPathOrDefault()
         let fileManager = FileManager.default
         if !fileManager.fileExists(atPath: rootPath) {
             do {
@@ -42,6 +46,7 @@ struct P2PConfig {
         return P2PConfig(
             deviceName: Host.current().localizedName ?? "Mac",
             rootPath: rootPath,
+            downloadPath: downloadPath,
             serverId: getLocalIPAddress() ?? "192.168.1.1",
             serverIpInfo: UUID().uuidString,
             listenHost: getLocalIPAddress() ?? "192.168.1.1",

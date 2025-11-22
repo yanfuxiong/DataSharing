@@ -13,7 +13,7 @@ class HelperOptimizedDisplayMacQuery {
     private var timers: [Timer] = []
     var foundMacAddress = false
     private let displayManager = CrossShareVcpCtrl()
-    private let logger = XPCLogger.shared
+    private let logger = CSLogger.shared
     
     public var macToDisplayID: [String: CGDirectDisplayID] = [:]
     public var displayIDToMac: [CGDirectDisplayID: String] = [:]
@@ -63,6 +63,8 @@ class HelperOptimizedDisplayMacQuery {
         GoServiceBridge.shared.setDIASID(diasID: mac) { [weak self] success, error in
             if success {
                 self?.logger.log("Successfully set DIAS ID in Go service", level: .info)
+                // Store the DIAS display ID when successfully set
+                HelperDisplayManager.shared.setCurrentDIASDisplayID(displayID)
             } else {
                 self?.logger.log("Failed to set DIAS ID: \(error ?? "Unknown"), but request may be queued", level: .warn)
             }

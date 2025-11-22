@@ -23,7 +23,7 @@ class ExecuteCmdHelper: NSObject {
         do {
             try process.run()
         } catch {
-            print("executeCmdAndGetResult: Task failed to launch.")
+            logger.info("executeCmdAndGetResult: Task failed to launch.")
             return ""
         }
         
@@ -34,9 +34,9 @@ class ExecuteCmdHelper: NSObject {
         
         let status = process.terminationStatus
         if status == 0 {
-            print("executeCmdAndGetResult: Task succeeded.")
+            logger.info("executeCmdAndGetResult: Task succeeded.")
         } else {
-            print("executeCmdAndGetResult: Task failed.")
+            logger.info("executeCmdAndGetResult: Task failed.")
         }
         
         // 关闭文件

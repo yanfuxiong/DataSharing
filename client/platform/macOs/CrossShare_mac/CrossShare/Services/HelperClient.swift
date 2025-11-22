@@ -28,6 +28,9 @@ class HelperClient: NSObject {
 
     private var deviceList: [CrossShareDevice] = []
     private let deviceListLock = NSLock()
+    
+    // UserDefaults key for system info storage
+    private let systemInfoKey = "CrossShareSystemInfo"
 
     // Queue for pending requests when not connected
     private var pendingRequests: [() -> Void] = []
@@ -43,30 +46,30 @@ class HelperClient: NSObject {
     
     private func setupConnection(completion: @escaping (Bool) -> Void) {
         if connection != nil {
-            print("Cleaning up existing Helper connection...")
+            logger.info("Cleaning up existing Helper connection...")
             connection?.invalidate()
             connection = nil
             Thread.sleep(forTimeInterval: 0.2)
         }
         
-        print("=== Helper Connection Setup ===")
-        print("Helper Service Name: \(helperServiceName)")
-        print("Checking if Helper is running...")
+        logger.info("=== Helper Connection Setup ===")
+        logger.info("Helper Service Name: \(helperServiceName)")
+        logger.info("Checking if Helper is running...")
         
         let helperRunning = HelperCommunication.shared.isHelperRunning
-        print("Helper running status: \(helperRunning)")
+        logger.info("Helper running status: \(helperRunning)")
         
         if !helperRunning {
-            print("Helper is not running, attempting to start it...")
+            logger.info("Helper is not running, attempting to start it...")
             #if DEBUG
             HelperCommunication.shared.launchHelper { success in
                 if success {
-                    print("Helper launched successfully")
+                    logger.info("Helper launched successfully, waiting for XPC service...")
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                        self.createConnection(completion: completion)
+                        self.createConnectionWithRetry(completion: completion, attempt: 1, maxAttempts: 3)
                     }
                 } else {
-                    print("Failed to launch Helper")
+                    logger.info("Failed to launch Helper")
                     completion(false)
                 }
             }
@@ -74,37 +77,78 @@ class HelperClient: NSObject {
             completion(false)
             #endif
         } else {
-            createConnection(completion: completion)
+            createConnectionWithRetry(completion: completion, attempt: 1, maxAttempts: 3)
+        }
+    }
+    
+    private func createConnectionWithRetry(completion: @escaping (Bool) -> Void, attempt: Int, maxAttempts: Int) {
+        logger.info("Attempting to create XPC connection (attempt \(attempt)/\(maxAttempts))")
+        
+        createConnection { success in
+            if success {
+                logger.info("XPC connection established successfully")
+                completion(true)
+            } else if attempt < maxAttempts {
+                logger.info("XPC connection failed, retrying in 1 second...")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    self.createConnectionWithRetry(completion: completion, attempt: attempt + 1, maxAttempts: maxAttempts)
+                }
+            } else {
+                logger.info("Failed to establish XPC connection after \(maxAttempts) attempts")
+                completion(false)
+            }
         }
     }
     
     private func createConnection(completion: @escaping (Bool) -> Void) {
+        logger.info("Creating NSXPCConnection to Mach Service: \(helperServiceName)")
         connection = NSXPCConnection(machServiceName: helperServiceName)
-        connection?.remoteObjectInterface = NSXPCInterface(with: CrossShareHelperXPCProtocol.self)
-        connection?.exportedInterface = NSXPCInterface(with: CrossShareHelperXPCDelegate.self)
-        connection?.exportedObject = self
-        connection?.invalidationHandler = { [weak self] in
+        
+        guard let conn = connection else {
+            logger.info("CRITICAL: Failed to create NSXPCConnection!")
+            completion(false)
+            return
+        }
+        
+        logger.info("NSXPCConnection object created")
+        conn.remoteObjectInterface = NSXPCInterface(with: CrossShareHelperXPCProtocol.self)
+        logger.info("   - Set remoteObjectInterface: CrossShareHelperXPCProtocol")
+        
+        conn.exportedInterface = NSXPCInterface(with: CrossShareHelperXPCDelegate.self)
+        logger.info("   - Set exportedInterface: CrossShareHelperXPCDelegate")
+        
+        conn.exportedObject = self
+        logger.info("   - Set exportedObject: self")
+        
+        conn.invalidationHandler = { [weak self] in
             DispatchQueue.main.async {
-                print("Helper connection invalidated")
+                logger.info("Helper connection invalidated")
                 self?.handleConnectionLost()
             }
         }
-        connection?.interruptionHandler = { [weak self] in
+        logger.info("   - Set invalidationHandler")
+        
+        conn.interruptionHandler = { [weak self] in
             DispatchQueue.main.async {
-                print("Helper connection interrupted")
+                logger.info("Helper connection interrupted")
                 self?.handleConnectionInterrupted()
             }
         }
-        connection?.resume()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+        logger.info("   - Set interruptionHandler")
+        
+        conn.resume()
+        logger.info("XPC connection.resume() called, waiting for Helper to be ready...")
+        // Wait longer (1 second) to ensure Helper's XPC service is fully ready
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            logger.info("Testing XPC connection to Helper...")
             self?.testConnection { success in
                 if success {
-                    print("Helper connection established successfully")
-                    print("=============================")
+                    logger.info("Helper connection established successfully")
+                    logger.info("=============================")
                     self?.isConnected = true
                     completion(true)
                 } else {
-                    print("Helper connection test failed")
+                    logger.info("Helper connection test failed")
                     self?.connection?.invalidate()
                     self?.connection = nil
                     completion(false)
@@ -115,23 +159,64 @@ class HelperClient: NSObject {
     
     private func testConnection(completion: @escaping (Bool) -> Void) {
         guard let connection = connection else {
+            logger.info("Test connection failed: no connection")
             completion(false)
             return
+        }
+        
+        var hasCompleted = false
+        let completionLock = NSLock()
+        
+        // Timeout after 3 seconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+            completionLock.lock()
+            if !hasCompleted {
+                hasCompleted = true
+                completionLock.unlock()
+                logger.info("Helper connection test timed out after 3 seconds")
+                completion(false)
+            } else {
+                completionLock.unlock()
+            }
         }
         
         let proxy = connection.remoteObjectProxyWithErrorHandler { error in
-            print("Failed to get Helper proxy: \(error)")
-            completion(false)
+            logger.info("Failed to get Helper proxy: \(error)")
+            completionLock.lock()
+            if !hasCompleted {
+                hasCompleted = true
+                completionLock.unlock()
+                completion(false)
+            } else {
+                completionLock.unlock()
+            }
         }
         
         guard let helperProxy = proxy as? CrossShareHelperXPCProtocol else {
-            completion(false)
+            logger.info("Failed to cast proxy to CrossShareHelperXPCProtocol")
+            completionLock.lock()
+            if !hasCompleted {
+                hasCompleted = true
+                completionLock.unlock()
+                completion(false)
+            } else {
+                completionLock.unlock()
+            }
             return
         }
         
+        logger.info("Calling Helper test method (getServiceStatus)...")
         helperProxy.getServiceStatus { isRunning, info in
-            print("Helper test call successful, service running: \(isRunning)")
-            completion(true)
+            logger.info("Helper test call response received: service running: \(isRunning)")
+            completionLock.lock()
+            if !hasCompleted {
+                hasCompleted = true
+                completionLock.unlock()
+                completion(true)
+            } else {
+                completionLock.unlock()
+                logger.info("Helper test completed but response came too late")
+            }
         }
     }
     
@@ -150,13 +235,13 @@ class HelperClient: NSObject {
                     if success {
                         self?.isConnected = true
                         self?.setupCallbacks()
-                        print("Helper client connected successfully")
+                        logger.info("Helper client connected successfully")
 
                         self?.processPendingRequests()
 
                         completion(true, nil)
                     } else {
-                        print("Failed to connect to Helper")
+                        logger.info("Failed to connect to Helper")
                         completion(false, "Failed to establish Helper connection")
                     }
                 }
@@ -165,10 +250,10 @@ class HelperClient: NSObject {
     }
     
     private func setupCallbacks() {
-        print("Callback delegate already configured via XPC connection setup")
+        logger.info("Callback delegate already configured via XPC connection setup")
         if eventHandlers.onAuthRequested == nil {
             eventHandlers.onAuthRequested = { index in
-                print("Default handler: Auth requested for index: \(index)")
+                logger.info("Default handler: Auth requested for index: \(index)")
             }
         }
     }
@@ -204,23 +289,23 @@ class HelperClient: NSObject {
     
     private func attemptReconnect() {
         guard reconnectAttempts < maxReconnectAttempts else {
-            print("Max reconnection attempts reached for Helper")
+            logger.info("Max reconnection attempts reached for Helper")
             return
         }
         
         reconnectAttempts += 1
         let delay = Double(reconnectAttempts) * 2.0
         
-        print("Attempting to reconnect to Helper in \(delay) seconds (attempt \(reconnectAttempts)/\(maxReconnectAttempts))")
+        logger.info("Attempting to reconnect to Helper in \(delay) seconds (attempt \(reconnectAttempts)/\(maxReconnectAttempts))")
         
         reconnectTimer?.invalidate()
         reconnectTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
             self?.connect { success, error in
                 if success {
-                    print("Reconnected to Helper successfully")
+                    logger.info("Reconnected to Helper successfully")
                     self?.reconnectAttempts = 0
                 } else {
-                    print("Failed to reconnect to Helper: \(error ?? "Unknown error")")
+                    logger.info("Failed to reconnect to Helper: \(error ?? "Unknown error")")
                 }
             }
         }
@@ -276,12 +361,12 @@ class HelperClient: NSObject {
     }
 
     func getDeviceListFromHelper(completion: @escaping ([[String: Any]]) -> Void) {
-        print("Requesting device list from Helper...")
+        logger.info("Requesting device list from Helper...")
 
         executeWhenConnected("Get Device List") { [weak self] in
             guard let proxy = self?.getRemoteProxy(completion: { completion([]) }) else { return }
             proxy.getDeviceList(completion: completion)
-            print("Device list request sent to Helper")
+            logger.info("Device list request sent to Helper")
         }
     }
 
@@ -296,6 +381,20 @@ class HelperClient: NSObject {
         executeWhenConnected("Cancel File Transfer") { [weak self] in
             guard let proxy = self?.getRemoteProxy(completion: { completion(false, "No connection") }) else { return }
             proxy.setCancelFileTransfer(ipPort: ipPort, clientID: clientID, timeStamp: timeStamp, completion: completion)
+        }
+    }
+    
+    func requestUpdateDownloadPath(downloadPath: String, completion: @escaping (Bool, String?) -> Void) {
+        executeWhenConnected("Update Download Path") { [weak self] in
+            guard let proxy = self?.getRemoteProxy(completion: { completion(false, "No connection") }) else { return }
+            proxy.requestUpdateDownloadPath(downloadPath: downloadPath, completion: completion)
+        }
+    }
+
+    func setDragFileListRequest(multiFilesData: String, timestamp: UInt64, width: UInt16, height: UInt16, posX: Int16, posY: Int16, completion: @escaping (Bool, String?) -> Void) {
+        executeWhenConnected("Drag Multi-Files") { [weak self] in
+            guard let proxy = self?.getRemoteProxy(completion: { completion(false, "No connection") }) else { return }
+            proxy.setDragFileListRequest(multiFilesData: multiFilesData, timestamp: timestamp, width: width, height: height, posX: posX, posY: posY, completion: completion)
         }
     }
 
@@ -313,6 +412,20 @@ class HelperClient: NSObject {
         }
     }
 
+    func startClipboardMonitoring(completion: @escaping (Bool) -> Void) {
+        executeWhenConnected("Start Clipboard Monitoring") { [weak self] in
+            guard let proxy = self?.getRemoteProxy(completion: { completion(false) }) else { return }
+            proxy.startClipboardMonitoring(completion: completion)
+        }
+    }
+
+    func stopClipboardMonitoring(completion: @escaping (Bool) -> Void) {
+        executeWhenConnected("Stop Clipboard Monitoring") { [weak self] in
+            guard let proxy = self?.getRemoteProxy(completion: { completion(false) }) else { return }
+            proxy.stopClipboardMonitoring(completion: completion)
+        }
+    }
+
     private func executeWhenConnected(_ description: String = "Request", action: @escaping () -> Void) {
         if isConnected {
             action()
@@ -320,16 +433,16 @@ class HelperClient: NSObject {
         }
 
         pendingRequestsLock.lock()
-        print("Helper not connected, queuing: \(description)")
+        logger.info("Helper not connected, queuing: \(description)")
         pendingRequests.append(action)
         let shouldConnect = !isConnecting
         pendingRequestsLock.unlock()
 
         if shouldConnect {
-            print("Attempting to connect for: \(description)")
+            logger.info("Attempting to connect for: \(description)")
             connect { success, error in
                 if !success {
-                    print("Failed to connect for queued request: \(description), error: \(error ?? "Unknown")")
+                    logger.info("Failed to connect for queued request: \(description), error: \(error ?? "Unknown")")
                     self.pendingRequestsLock.lock()
                     self.pendingRequests.removeAll()
                     self.pendingRequestsLock.unlock()
@@ -345,7 +458,7 @@ class HelperClient: NSObject {
             return
         }
 
-        print("Processing \(pendingRequests.count) pending requests")
+        logger.info("Processing \(pendingRequests.count) pending requests")
         let requests = pendingRequests
         pendingRequests.removeAll()
         pendingRequestsLock.unlock()
@@ -383,7 +496,7 @@ class HelperClient: NSObject {
                     ]
                 )
             }
-            print("Helper: Cleared device list")
+            logger.info("Helper: Cleared device list")
         }
     }
 
@@ -407,7 +520,7 @@ class HelperClient: NSObject {
                     ]
                 )
             }
-            print("Helper: Removed device with ID: \(deviceId), remaining count: \(devices.count)")
+            logger.info("Helper: Removed device with ID: \(deviceId), remaining count: \(devices.count)")
         }
     }
 
@@ -416,15 +529,30 @@ class HelperClient: NSObject {
         defer { deviceListLock.unlock() }
         return deviceList.first(where: { $0.id == deviceId })
     }
+    
+    func getCurrentSystemInfo() -> (ipInfo: String, verInfo: String)? {
+        let defaults = UserDefaults.standard
+        guard let systemInfoDict = defaults.dictionary(forKey: systemInfoKey),
+              let ipInfo = systemInfoDict["ipInfo"] as? String,
+              let verInfo = systemInfoDict["verInfo"] as? String else {
+            return nil
+        }
+        return (ipInfo: ipInfo, verInfo: verInfo)
+    }
+    
+    func getCurrentSystemInfoDict() -> [String: Any]? {
+        let defaults = UserDefaults.standard
+        return defaults.dictionary(forKey: systemInfoKey)
+    }
 
     private func getRemoteProxy<T>(completion: @escaping (T) -> Void) -> CrossShareHelperXPCProtocol? {
         guard let connection = connection, isConnected else {
-            print("No active Helper connection")
+            logger.info("No active Helper connection")
             return nil
         }
         
         let proxy = connection.remoteObjectProxyWithErrorHandler { error in
-            print("Helper remote proxy error: \(error)")
+            logger.info("Helper remote proxy error: \(error)")
             DispatchQueue.main.async {
                 self.handleConnectionLost()
             }
@@ -438,29 +566,27 @@ extension HelperClient: CrossShareHelperXPCDelegate {
     
     func didUpdateCount(_ newCount: Int) {
         DispatchQueue.main.async {
-            print("Helper: Count updated - \(newCount)")
+            logger.info("Helper: Count updated - \(newCount)")
             self.eventHandlers.onCountUpdated?(newCount)
         }
     }
     
     func didReceiveAuthRequest(index: UInt32) {
         DispatchQueue.main.async {
-            print("Helper: Received auth request for index \(index)")
+            logger.info("Helper: Received auth request for index \(index)")
             self.eventHandlers.onAuthRequested?(index)
         }
     }
     
     func didReceiveDeviceData(deviceData: [String: Any]) {
-        print("Helper: Received device data - \(deviceData)")
+        logger.info("Helper: Received device data - \(deviceData)")
         if let deviceList = deviceData["deviceList"] as? [[String: Any]] {
                 self.deviceListLock.lock()
-                defer { self.deviceListLock.unlock() }
-
                 self.deviceList = deviceList.compactMap { CrossShareDevice(from: $0) }
+                logger.info("Helper: Updated device list with \(self.deviceList.count) devices")
+                let devices = Array(self.deviceList)
+                self.deviceListLock.unlock()
 
-                print("Helper: Updated device list with \(self.deviceList.count) devices")
-
-                let devices = self.deviceList
                 self.eventHandlers.onDeviceDataReceived?(deviceData)
 
                 NotificationCenter.default.post(
@@ -471,7 +597,7 @@ extension HelperClient: CrossShareHelperXPCDelegate {
                         "deviceCount": devices.count
                     ]
                 )
-                print("Helper: Total devices in list: \(devices.count)")
+                logger.info("Helper: Total devices in list: \(devices.count)")
             }
     }
     
@@ -504,7 +630,7 @@ extension HelperClient: CrossShareHelperXPCDelegate {
     }
     
     func didReceiveDIASStatus(_ status: Int){
-        print("gui ReceiveDIASStatus:\(status)")
+        logger.info("gui ReceiveDIASStatus:\(status)")
         DispatchQueue.main.async {
             NotificationCenter.default.post(
                 name: .deviceDiasStatusNotification,
@@ -515,11 +641,33 @@ extension HelperClient: CrossShareHelperXPCDelegate {
             )
         }
     }
-
+    
+    func didReceiveErrorEvent(_ errorInfo: [String: Any]) {
+        logger.info("GUI HelperClient received error event: \(errorInfo)")
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(
+                name: .didReceiveErrorEventNotification,
+                object: nil,
+                userInfo: errorInfo
+            )
+        }
+    }
+    
+    func didReceiveSystemInfoUpdate(_ systemInfo: [String: Any]) {
+        logger.info("GUI HelperClient received system info update systemInfo:\(systemInfo)")
+        // save systemInfo
+        let defaults = UserDefaults.standard
+        defaults.set(systemInfo, forKey: systemInfoKey)
+        defaults.synchronize()
+    }
+    
+    func didReceiveThemeInfoUpdate(_ themeInfo: [String: Any]) {
+        logger.info("GUI HelperClient received theme info update: \(themeInfo)")
+    }
 
     func didDetectScreenCountChange(change: String, currentCount: Int, previousCount: Int) {
         DispatchQueue.main.async {
-            print("GUI: Screen count changed - \(change) (\(previousCount) -> \(currentCount))")
+            logger.info("GUI: Screen count changed - \(change) (\(previousCount) -> \(currentCount))")
             if change == "decreased" {
                 self.deviceListLock.lock()
                 let wasEmpty = self.deviceList.isEmpty
@@ -539,7 +687,7 @@ extension HelperClient: CrossShareHelperXPCDelegate {
                     )
                 }
             } else if change == "increased" {
-                print("GUI: Screen count increased, new displays detected")
+                logger.info("GUI: Screen count increased, new displays detected")
             }
 
             NotificationCenter.default.post(
@@ -556,7 +704,7 @@ extension HelperClient: CrossShareHelperXPCDelegate {
 
     func didReceiveFileTransferUpdate(_ sessionInfo: [String: Any]) {
         DispatchQueue.main.async {
-            print("GUI: Received file transfer session update - \(sessionInfo)")
+            logger.info("GUI: Received file transfer session update - \(sessionInfo)")
 
             let notificationName: Notification.Name
             if let isCompleted = sessionInfo["isCompleted"] as? Bool, isCompleted {
@@ -579,7 +727,7 @@ extension HelperClient: CrossShareHelperXPCDelegate {
                let receivedCount = sessionInfo["receivedFileCount"] as? UInt32,
                let totalCount = sessionInfo["totalFileCount"] as? UInt32 {
 
-                print("File Transfer [\(sessionId)]: \(currentFileName) (\(receivedCount)/\(totalCount)) - \(String(format: "%.1f", progress * 100))%")
+                logger.info("File Transfer [\(sessionId)]: \(currentFileName) (\(receivedCount)/\(totalCount)) - \(String(format: "%.1f", progress * 100))%")
             }
         }
     }

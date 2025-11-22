@@ -46,7 +46,7 @@ public class IntelDDC {
             data[5] = UInt8(value & 255)
             data[6] = 0x6E ^ data[0] ^ data[1] ^ data[2] ^ data[3] ^ data[4] ^ data[5]
             
-            for _ in 1 ... numofWriteCycles {
+            for _ in 1 ... max(numofWriteCycles, 1) {
                 usleep(writeSleepTime)
                 var request = IOI2CRequest()
                 request.commFlags = 0

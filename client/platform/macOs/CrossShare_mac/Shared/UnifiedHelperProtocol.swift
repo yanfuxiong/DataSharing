@@ -24,6 +24,8 @@ import Foundation
     func getDeviceList(completion: @escaping ([[String: Any]]) -> Void)
     func sendMultiFilesDropRequest(multiFilesData: String, completion: @escaping (Bool, String?) -> Void)
     func setCancelFileTransfer(ipPort: String, clientID: String, timeStamp: UInt64, completion: @escaping (Bool, String?) -> Void)
+    func setDragFileListRequest(multiFilesData: String, timestamp: UInt64, width: UInt16, height: UInt16, posX: Int16, posY: Int16, completion: @escaping (Bool, String?) -> Void)
+    func requestUpdateDownloadPath(downloadPath: String, completion: @escaping (Bool, String?) -> Void)
 }
 
 @objc public protocol CrossShareHelperXPCDelegate: AnyObject {
@@ -33,8 +35,7 @@ import Foundation
     @objc optional func didSetExtractDIAS(success: Bool, message: String?)
     @objc optional func didReceiveAuthRequest(index: UInt32)
     @objc optional func didReceiveDeviceData(deviceData: [String: Any])
-    @objc optional func didReceiveRemoteText(_ text: String)
-    @objc optional func didReceiveRemoteImage(_ imageData: Data)
+    @objc optional func didReceiveRemoteClipboard(text: String?, imageData: Data?, html: String?)
     @objc optional func didDetectLocalClipboardChange(content: [String: Any])
     @objc optional func didDetectScreenCountChange(change: String, currentCount: Int, previousCount: Int)
     @objc optional func didReceiveFileTransferUpdate(_ sessionInfo: [String: Any])
@@ -42,4 +43,6 @@ import Foundation
     @objc optional func didReceiveFilesData(_ userInfo: [String: Any])
     @objc optional func didReceiveTransferFilesDataUpdate(_ userInfo: [String: Any])
     @objc optional func didReceiveDIASStatus(_ status: Int)
+    @objc optional func didReceiveErrorEvent(_ errorInfo: [String: Any])
+    @objc optional func didReceiveSystemInfoUpdate(_ systemInfo: [String: Any])
 }

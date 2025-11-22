@@ -12,16 +12,9 @@ class HelperLogViewer {
     static let shared = HelperLogViewer()
     
     private init() {}
-    
-    func getLogPath() -> String {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let logDir = appSupport.appendingPathComponent("CrossShare/Logs/Helper")
-        return logDir.path
-    }
-    
+
     func getTodayLogFile() -> URL? {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let logDir = appSupport.appendingPathComponent("CrossShare/Logs/Helper")
+        let logDir = getLogPath()
         
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd"
@@ -32,25 +25,8 @@ class HelperLogViewer {
         return logDir.appendingPathComponent(fileName)
     }
     
-    func getRecentLogs(lines: Int = 100) -> [String] {
-        guard let logFile = getTodayLogFile() else {
-            return ["Log file not found"]
-        }
-        
-        do {
-            let content = try String(contentsOf: logFile, encoding: .utf8)
-            let allLines = content.components(separatedBy: .newlines)
-            let startIndex = max(0, allLines.count - lines)
-            return Array(allLines[startIndex..<allLines.count].filter { !$0.isEmpty })
-        } catch {
-            return ["Error reading log file: \(error)"]
-        }
-    }
-    
     func openLogFolder() {
-        let logPath = getLogPath()
-        let url = URL(fileURLWithPath: logPath)
-        NSWorkspace.shared.open(url)
+        NSWorkspace.shared.open(getLogPath())
     }
     
     func viewInTerminal() {
@@ -68,7 +44,7 @@ class HelperLogViewer {
             var error: NSDictionary?
             scriptObject.executeAndReturnError(&error)
             if let error = error {
-                print("Error opening Terminal: \(error)")
+                logger.info("Error opening Terminal: \(error)")
             }
         }
     }

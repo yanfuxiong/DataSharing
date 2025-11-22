@@ -11,7 +11,13 @@ class HomeHeaderView: NSView {
     
     var tapMoreBtnBlock:(() -> ())?
     var tapDeviceListBtnBlock:(() -> ())?
-    private var imageName: String = "connStatus1"
+    private var imageName: String = "connStatus1"{
+        didSet {
+            updateDeviceBtnImage(imageName)
+        }
+    }
+    
+
     
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -33,7 +39,7 @@ class HomeHeaderView: NSView {
         deviceBtn.addSubview(badgeLabel)
         
         leftImgView.isHidden = true
-//        countBtn.isHidden = true
+        countBtn.isHidden = true
         leftImgView.snp.makeConstraints { make in
             make.centerY.equalToSuperview()
             make.left.equalToSuperview().offset(24)
@@ -60,18 +66,18 @@ class HomeHeaderView: NSView {
         
         moreBtn.snp.makeConstraints { make in
             make.centerY.equalToSuperview()
-            make.right.equalToSuperview().offset(-16)
-            make.size.equalTo(CGSize(width: 80, height: 30))
+            make.right.equalToSuperview().offset(-15)
+            make.size.equalTo(CGSize(width: 20, height: 20))
         }
         
         deviceBtn.snp.makeConstraints { make in
             make.centerY.equalToSuperview()
-            make.right.equalTo(moreBtn.snp.left).offset(-14)
+            make.right.equalTo(moreBtn.snp.left).offset(-17)
         }
         
         badgeLabel.snp.makeConstraints { make in
-            make.right.equalTo(deviceBtn.snp.right).offset(-8)
-            make.bottom.equalTo(deviceBtn.snp.bottom).offset(-7)
+            make.right.equalTo(deviceBtn.snp.right).offset(-4)
+            make.bottom.equalTo(deviceBtn.snp.bottom).offset(-2)
         }
     }
 
@@ -130,7 +136,7 @@ class HomeHeaderView: NSView {
         button.isBordered = false
         button.bezelStyle = .texturedRounded
         if let image = NSImage(named: self.imageName) {
-            image.size = NSSize(width: 75, height: 66)
+            image.size = NSSize(width: 48, height: 40)
             button.image = image
         }
         return button
@@ -140,7 +146,7 @@ class HomeHeaderView: NSView {
     lazy var badgeLabel: NSTextField = {
         let label = NSTextField(labelWithString: "")
         label.textColor = NSColor.white
-        label.font = NSFont.systemFont(ofSize: 14, weight: .bold)
+        label.font = NSFont.systemFont(ofSize: 12, weight: .bold)
         label.backgroundColor = .clear
         label.isBordered = false
         label.alignment = .center
@@ -157,10 +163,11 @@ class HomeHeaderView: NSView {
         
         // 设置图标
         if let moreImage = NSImage(named: "moreBtn") {
+            moreImage.size = NSSize(width: 40, height: 40)
             button.image = moreImage
             button.imageScaling = .scaleProportionallyDown
         } else {
-            print("Warning: moreBtn image not found")
+            logger.info("Warning: moreBtn image not found")
         }
         
         return button
@@ -179,34 +186,33 @@ class HomeHeaderView: NSView {
             }
         }
         
-        // 添加对deviceDiasStatusNotification通知的监听
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleDeviceDiasStatusNotification(_:)),
-            name: .deviceDiasStatusNotification,
-            object: nil
-        )
-    }
-    
-    @objc private func handleDeviceDiasStatusNotification(_ notification: Notification) {
-        // 处理DIAS状态通知
-        if let userInfo = notification.userInfo,
-           let diasStatus = userInfo["diasStatus"] as? Int {
-            if(diasStatus == 6 || diasStatus == 7){
-                imageName = "connStatus6"
-                self.badgeLabel.isHidden = false
-            }else{
-                imageName = "connStatus\(diasStatus)"
-                self.badgeLabel.isHidden = true
+        // 使用 CSDeviceManager 的回调来监听设备诊断状态变化
+        CSDeviceManager.shared.onDiasStatusChanged = { [weak self] diasStatus in
+            DispatchQueue.main.async {
+                self?.updateUIForDiasStatus(diasStatus)
             }
-            updateDeviceBtnImage(imageName)
         }
     }
     
-    func updateDeviceBtnImage(_ imageName: String) {
+    private func updateUIForDiasStatus(_ diasStatus: Int) {
+        // 根据DIAS状态更新UI
+        if diasStatus == 6 || diasStatus == 7 {
+            self.imageName = "connStatus6"
+            self.badgeLabel.isHidden = false
+        } else {
+            self.imageName = "connStatus\(diasStatus)"
+            self.badgeLabel.isHidden = true
+        }
+    }
+    
+    func updateDeviceBtnImage(_ imgName: String) {
         // Update deviceBtn image on main thread
         DispatchQueue.main.async {
-            self.deviceBtn.image = NSImage(named: self.imageName)
+            logger.info("updateDeviceBtnImage:\(imgName)")
+            if let image = NSImage(named:imgName) {
+                image.size = NSSize(width: 48, height: 40)
+                self.deviceBtn.image = image
+            }
         }
     }
 }
@@ -216,7 +222,7 @@ extension HomeHeaderView {
     @objc func changeCountAction(_ sender:NSButton) {
         HelperClient.shared.connect { [weak self] success, error in
             if success {
-                print("Helper connected successfully")
+                logger.info("Helper connected successfully")
                 
                 let currentCount = Int(sender.title) ?? 0
                 let newCount = currentCount + 1
@@ -231,11 +237,11 @@ extension HomeHeaderView {
                         let attributedTitle = NSAttributedString(string: "\(updatedCount)", attributes: attributes)
                         self?.countBtn.attributedTitle = attributedTitle
                         
-                        print("Count updated: \(currentCount) -> \(updatedCount)")
+                        logger.info("Count updated: \(currentCount) -> \(updatedCount)")
                     }
                 }
             } else {
-                print("Failed to connect to Helper: \(error ?? "Unknown error")")
+                logger.info("Failed to connect to Helper: \(error ?? "Unknown error")")
             }
         }
     }
@@ -255,6 +261,12 @@ extension HomeHeaderView {
     
     func refreshDeviceList(_ devices: [CrossShareDevice]) {
         let deviceCount = devices.count
-        self.badgeLabel.stringValue = "\(deviceCount)"
+        if(deviceCount > 0){
+            self.badgeLabel.stringValue = "\(deviceCount)"
+            updateUIForDiasStatus(6)
+        }else{
+            self.badgeLabel.stringValue = ""
+            updateUIForDiasStatus(CSDeviceManager.shared.diasStatus)
+        }
     }
 }

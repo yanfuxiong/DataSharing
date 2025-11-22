@@ -148,11 +148,11 @@ class SelectFilesBorderView: NSView {
 extension SelectFilesBorderView {
     @objc func selctFilesAction(_ sender:NSButton) {
         FileSelector.shared.showFileSelector { urls in
-            print("用户选择的文件路径：\(urls)")
+            logger.info("用户选择的文件路径：\(urls)")
             if urls.count > 0 {
                 if let attributes = try? FileManager.default.attributesOfItem(atPath: urls.first!.path),
                    let fileSize = attributes[.size] as? UInt64 {
-                    print("File size: \(fileSize) bytes")
+                    logger.info("File size: \(fileSize) bytes")
                 }
             }
         }
@@ -223,7 +223,7 @@ class FileUploader {
     func showFileUploadDialog() {
         FileSelector.shared.showFileSelector { urls in
             for url in urls {
-                print("Selected file: \(url.path)")
+                logger.info("Selected file: \(url.path)")
             }
         }
     }
@@ -241,13 +241,13 @@ extension FileSelector {
     private func handleFileSelection(_ urls: [URL]) {
         for url in urls {
             if url.hasDirectoryPath {
-                print("Selected directory: \(url.path)")
+                logger.info("Selected directory: \(url.path)")
             } else {
-                print("Selected file: \(url.path)")
+                logger.info("Selected file: \(url.path)")
                 // 检查文件大小
                 if let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
                    let fileSize = attributes[.size] as? UInt64 {
-                    print("File size: \(fileSize) bytes")
+                    logger.info("File size: \(fileSize) bytes")
                 }
             }
         }

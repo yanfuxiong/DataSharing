@@ -14,6 +14,7 @@ struct CSFileInfo {
     let senderID: String
     let isCompleted: Bool
     let progress: Double
+    var errCode: Int?
 }
 
 /// 文件传输会话模型
@@ -115,7 +116,7 @@ struct FileTransfer {
               let currentFileName = dict["currentFileName"] as? String,
               let currentFileSize = dict["currentFileSize"] as? UInt64
         else {
-            print("缺少创建FileTransferSession所需的数据")
+            logger.info("缺少创建FileTransferSession所需的数据")
             return nil
         }
         

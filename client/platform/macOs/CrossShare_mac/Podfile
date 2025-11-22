@@ -11,6 +11,6 @@ target 'CrossShare' do
   pod 'SwiftyJSON'
   pod 'SnapKit'
   pod 'Alamofire'
-  pod 'Sparkle'
+#  pod 'Sparkle'
   pod 'RealmSwift'
 end

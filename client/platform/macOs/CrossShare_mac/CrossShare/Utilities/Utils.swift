@@ -6,7 +6,6 @@
 //
 
 import Cocoa
-import Alamofire
 import UniformTypeIdentifiers
 
 
@@ -76,5 +75,41 @@ extension Data {
         if let data = string.data(using: .utf8) {
             append(data)
         }
+    }
+}
+
+// Setup root path as /Library/Application Support/CrossShare
+func getRootPath() -> String {
+    let defRootPath =  NSHomeDirectory() + "/CrossShare"
+
+    let fileManager = FileManager.default
+    guard let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+        return defRootPath
+    }
+
+    let rootDir = appSupport.appendingPathComponent("CrossShare")
+    if !fileManager.fileExists(atPath: rootDir.path) {
+        do {
+            try fileManager.createDirectory(at: rootDir, withIntermediateDirectories: true)
+        } catch {
+            print("Create Application Support/CrossShare failed")
+            return defRootPath
+        }
+    }
+    return rootDir.path
+}
+
+func getLogPath() -> URL {
+    return URL(fileURLWithPath: getRootPath()).appendingPathComponent("Log")
+}
+
+func getDefDownloadPath() -> String {
+    let downloadsURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
+    if let downloadsPath = downloadsURL?.path {
+        // Default path1: /User/Downloads
+        return downloadsPath
+    } else {
+        // Default path2: /Home/Downloads
+        return NSHomeDirectory() + "/Downloads"
     }
 }

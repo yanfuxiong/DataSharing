@@ -10,7 +10,7 @@ import RealmSwift
 
 /// Realm版本号
 enum RealmSchemaVersion {
-    static let currentVersion: UInt64 = 1
+    static let currentVersion: UInt64 = 2  // 添加 errCode 字段，版本升级到 2
 }
 
 /// 文件传输信息模型（Realm版本）
@@ -19,6 +19,7 @@ class RealmCSFileInfo: Object {
     @Persisted var senderID: String
     @Persisted var isCompleted: Bool
     @Persisted var progress: Double
+    @Persisted var errCode: Int?
     @Persisted var session: RealmFileTransfer?
     @Persisted var createdAt: Date = Date()
     @Persisted var updatedAt: Date = Date()
@@ -30,6 +31,7 @@ class RealmCSFileInfo: Object {
         self.senderID = csFileInfo.senderID
         self.isCompleted = csFileInfo.isCompleted
         self.progress = csFileInfo.progress
+        self.errCode = csFileInfo.errCode
         self.session = RealmFileTransfer(from: csFileInfo.session)
     }
     
@@ -43,7 +45,8 @@ class RealmCSFileInfo: Object {
             sessionId: sessionId,
             senderID: senderID,
             isCompleted: isCompleted,
-            progress: progress
+            progress: progress,
+            errCode: errCode
         )
     }
 }
@@ -100,7 +103,7 @@ class RealmFileTransfer: Object {
         }
         
         // 创建一个可变的FileTransfer实例
-        var fileTransfer = FileTransfer(
+        let fileTransfer = FileTransfer(
             sessionId: sessionId,
             senderIP: senderIP,
             senderID: senderID,

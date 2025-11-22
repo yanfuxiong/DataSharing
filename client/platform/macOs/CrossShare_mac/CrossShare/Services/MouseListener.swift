@@ -29,7 +29,7 @@ class MouseMonitor {
         let screenHeight = NSScreen.main?.frame.height ?? 0
         let adjustedY = screenHeight - position.y
         
-        print(String(format: "The current position of the mouse: X=%.0f, Y=%.0f (The top left corner of the screen is the origin)", position.x, adjustedY))
+        logger.info(String(format: "The current position of the mouse: X=%.0f, Y=%.0f (The top left corner of the screen is the origin)", position.x, adjustedY))
     }
     
     func startMonitoring(callback: @escaping (DoubleClickEvent) -> Void) {

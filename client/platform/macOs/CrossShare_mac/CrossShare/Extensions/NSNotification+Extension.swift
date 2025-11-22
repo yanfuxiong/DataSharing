@@ -13,5 +13,6 @@ extension NSNotification.Name {
     static let fileTransferSessionFailed = Notification.Name("FileTransferSessionFailed")
     //
     static let deviceDiasStatusNotification = Notification.Name("deviceDiasStatusNotification")
+    static let didReceiveErrorEventNotification = Notification.Name("didReceiveErrorEventNotification")
 
 }

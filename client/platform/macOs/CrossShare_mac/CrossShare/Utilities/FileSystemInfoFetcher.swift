@@ -35,12 +35,12 @@ class FileSystemInfoFetcher {
         
         let pathCheck = checkPathType(folderPath)
         guard pathCheck.exists else {
-            print("Path does not exist: \(folderPath)")
+            logger.info("Path does not exist: \(folderPath)")
             return nil
         }
         
         guard pathCheck.isDirectory else {
-            print("Specified path is not a folder: \(folderPath)")
+            logger.info("Specified path is not a folder: \(folderPath)")
             return nil
         }
         
@@ -88,7 +88,7 @@ class FileSystemInfoFetcher {
             
             return itemsInfo
         } catch {
-            print("Failed to retrieve folder contents: \(error.localizedDescription)")
+            logger.info("Failed to retrieve folder contents: \(error.localizedDescription)")
             return nil
         }
     }
@@ -108,7 +108,7 @@ class FileSystemInfoFetcher {
         
         let pathCheck = checkPathType(path)
         guard pathCheck.exists else {
-            print("Error: Path does not exist -> \(path)")
+            logger.info("Error: Path does not exist -> \(path)")
             return nil
         }
         
@@ -144,7 +144,7 @@ class FileSystemInfoFetcher {
                 fileType: fileType
             )
         } catch {
-            print("Failed to get item info for \(path): \(error.localizedDescription)")
+            logger.info("Failed to get item info for \(path): \(error.localizedDescription)")
             return nil
         }
     }
