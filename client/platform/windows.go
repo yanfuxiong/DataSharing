@@ -83,7 +83,7 @@ type (
 	CallbackDragFileListRequestFunc    func([]rtkCommon.FileInfo, []string, uint64, uint64, string)
 	CallbackDragFileListNotifyFunc     func(ip, id, platform string, fileCnt uint32, totalSize, timestamp uint64, firstFileName string, firstFileSize uint64)
 	CallbackMultiFilesDropNotifyFunc   func(ip, id, platform string, fileCnt uint32, totalSize, timestamp uint64, firstFileName string, firstFileSize uint64)
-	CallbackMultipleProgressBarFunc    func(ip, id, currentFileName string, sentFileCnt, totalFileCnt uint32, currentFileSize, totalSize, sentSize, timestamp uint64)
+	CallbackProgressBarFunc            func(ip, id, currentFileName string, sendFileCnt, totalFileCnt uint32, currentFileSize, totalSize, sendSize, timestamp uint64)
 	CallbackNotiMessageFileTransFunc   func(fileName, clientName, platform string, timestamp uint64, isSender bool)
 	CallbackFileDropResponseFunc       func(string, rtkCommon.FileDropCmd, string)
 	CallbackCancelFileTransFunc        func(string, string, uint64)
@@ -117,7 +117,8 @@ var (
 	callbackDragFileListRequestCB      CallbackDragFileListRequestFunc    = nil
 	callbackDragFileListNotifyCB       CallbackDragFileListNotifyFunc     = nil
 	callbackMultiFilesDropNotifyCB     CallbackMultiFilesDropNotifyFunc   = nil
-	callbackMultipleProgressBarCB      CallbackMultipleProgressBarFunc    = nil
+	callbackSendProgressBar            CallbackProgressBarFunc            = nil
+	callbackReceiveProgressBar         CallbackProgressBarFunc            = nil
 	callbackNotiMessageFileTransCB     CallbackNotiMessageFileTransFunc   = nil
 	callbackInstanceFileDropResponseCB CallbackFileDropResponseFunc       = nil
 	callbackCancelFileTransDragCB      CallbackCancelFileTransFunc        = nil
@@ -245,8 +246,12 @@ func SetCleanClipboardCallback(cb CallbackCleanClipboardFunc) {
 	callbackCleanClipboard = cb
 }
 
-func SetMultipleProgressBarCallback(cb CallbackMultipleProgressBarFunc) {
-	callbackMultipleProgressBarCB = cb
+func SetSendProgressBarCallback(cb CallbackProgressBarFunc) {
+	callbackSendProgressBar = cb
+}
+
+func SetReceiveProgressBarCallback(cb CallbackProgressBarFunc) {
+	callbackReceiveProgressBar = cb
 }
 
 func SetDragFileListNotifyCallback(cb CallbackDragFileListNotifyFunc) {
@@ -444,8 +449,20 @@ func GoSetupDstPasteXClipData(cbText, cbImage, cbHtml, cbRtf []byte) {
 	callbackPasteXClipDataCB(string(cbText), imageStr, string(cbHtml), string(cbRtf))
 }
 
-func GoUpdateMultipleProgressBar(ip, id, currentFileName string, sentFileCnt, totalFileCnt uint32, currentFileSize, totalSize, sentSize, timestamp uint64) {
-	callbackMultipleProgressBarCB(ip, id, currentFileName, sentFileCnt, totalFileCnt, currentFileSize, totalSize, sentSize, timestamp)
+func GoUpdateSendProgressBar(ip, id, currentFileName string, sendFileCnt, totalFileCnt uint32, currentFileSize, totalFileSize, sendSize, timestamp uint64) {
+	if callbackSendProgressBar == nil {
+		log.Println("callbackSendProgressBar is null !")
+		return
+	}
+	callbackSendProgressBar(ip, id, currentFileName, sendFileCnt, totalFileCnt, currentFileSize, totalFileSize, sendSize, timestamp)
+}
+
+func GoUpdateReceiveProgressBar(ip, id, currentFileName string, recvFileCnt, totalFileCnt uint32, currentFileSize, totalFileSize, recvSize, timestamp uint64) {
+	if callbackReceiveProgressBar == nil {
+		log.Println("callbackReceiveProgressBar is null !")
+		return
+	}
+	callbackReceiveProgressBar(ip, id, currentFileName, recvFileCnt, totalFileCnt, currentFileSize, totalFileSize, recvSize, timestamp)
 }
 
 func GoUpdateSystemInfo(ipAddr, serviceVer string) {

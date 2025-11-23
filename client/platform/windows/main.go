@@ -38,8 +38,11 @@ static void MultiFilesDropNotifyCallbackFunc(MultiFilesDropNotifyCallback cb, co
     if (cb) cb(ipPort, clientID, cFileCount, totalSize, timestamp, firstFileName, firstFileSize);
 }
 
-typedef void (*UpdateMultipleProgressBarCallback)(const char *ipPort, const char *clientID, const wchar_t *currentFileName, uint32_t sentFilesCnt, uint32_t totalFilesCnt, uint64_t currentFileSize, uint64_t totalSize, uint64_t sentSize, uint64_t timestamp);
-static void UpdateMultipleProgressBarCallbackFunc(UpdateMultipleProgressBarCallback cb, const char *ipPort, const char *clientID, const wchar_t *currentFileName, uint32_t sentFilesCnt, uint32_t totalFilesCnt, uint64_t currentFileSize, uint64_t totalSize, uint64_t sentSize, uint64_t timestamp) {
+typedef void (*UpdateProgressBarCallback)(const char *ipPort, const char *clientID, const wchar_t *currentFileName, uint32_t sentFilesCnt, uint32_t totalFilesCnt, uint64_t currentFileSize, uint64_t totalSize, uint64_t sentSize, uint64_t timestamp);
+static void UpdateSendProgressBarCallbackFunc(UpdateProgressBarCallback cb, const char *ipPort, const char *clientID, const wchar_t *currentFileName, uint32_t sentFilesCnt, uint32_t totalFilesCnt, uint64_t currentFileSize, uint64_t totalSize, uint64_t sentSize, uint64_t timestamp) {
+    if (cb) cb(ipPort, clientID, currentFileName, sentFilesCnt, totalFilesCnt, currentFileSize, totalSize, sentSize, timestamp);
+}
+static void UpdateReceiveProgressBarCallbackFunc(UpdateProgressBarCallback cb, const char *ipPort, const char *clientID, const wchar_t *currentFileName, uint32_t sentFilesCnt, uint32_t totalFilesCnt, uint64_t currentFileSize, uint64_t totalSize, uint64_t sentSize, uint64_t timestamp) {
     if (cb) cb(ipPort, clientID, currentFileName, sentFilesCnt, totalFilesCnt, currentFileSize, totalSize, sentSize, timestamp);
 }
 
@@ -184,7 +187,8 @@ var (
 	g_StopClipboardMonitorCallback       C.StopClipboardMonitorCallback       = nil
 	g_DragFileListNotifyCallback         C.DragFileListNotifyCallback         = nil
 	g_MultiFilesDropNotifyCallback       C.MultiFilesDropNotifyCallback       = nil
-	g_UpdateMultipleProgressBarCallback  C.UpdateMultipleProgressBarCallback  = nil
+	g_UpdateSendProgressBarCallback      C.UpdateProgressBarCallback          = nil
+	g_UpdateReceiveProgressBarCallback   C.UpdateProgressBarCallback          = nil
 	g_UpdateClientStatusExCallback       C.UpdateClientStatusExCallback       = nil
 	g_UpdateClientStatusCallback         C.UpdateClientStatusCallback         = nil
 	g_UpdateSystemInfoCallback           C.UpdateSystemInfoCallback           = nil
@@ -211,7 +215,8 @@ func init() {
 	rtkPlatform.SetCleanClipboardCallback(GoTriggerCallbackCleanClipboard)
 	rtkPlatform.SetDragFileListNotifyCallback(GoTriggerCallbackDragFileListNotify)
 	rtkPlatform.SetMultiFilesDropNotifyCallback(GoTriggerCallbackMultiFilesDropNotify)
-	rtkPlatform.SetMultipleProgressBarCallback(GoTriggerCallbackMultipleProgressBar)
+	rtkPlatform.SetSendProgressBarCallback(GoTriggerCallbackSendProgressBar)
+	rtkPlatform.SetReceiveProgressBarCallback(GoTriggerCallbackReceiveProgressBar)
 	rtkPlatform.SetNotiMessageFileTransCallback(GoTriggerCallbackNotiMessage)
 	rtkPlatform.SetReqClientUpdateVerCallback(GoTriggerCallbackReqClientUpdateVer)
 	rtkPlatform.SetNotifyErrEventCallback(GoTriggerCallbackNotifyErrEvent)
@@ -327,9 +332,33 @@ func GoTriggerCallbackCleanClipboard() {
 	C.CleanClipboardCallbackFunc(g_CleanClipboardCallback)
 }
 
-func GoTriggerCallbackMultipleProgressBar(ip, id, currentFileName string, sentFileCnt, totalFileCnt uint32, currentFileSize, totalSize, sentSize, timestamp uint64) {
-	if g_UpdateMultipleProgressBarCallback == nil {
-		log.Printf("%s g_UpdateMultipleProgressBarCallback is not set!", rtkMisc.GetFuncInfo())
+func GoTriggerCallbackSendProgressBar(ip, id, currentFileName string, sendFileCnt, totalFileCnt uint32, currentFileSize, totalSize, sendSize, timestamp uint64) {
+	if g_UpdateSendProgressBarCallback == nil {
+		log.Printf("%s g_UpdateSendProgressBarCallback is not set!", rtkMisc.GetFuncInfo())
+		return
+	}
+
+	cIp := C.CString(ip)
+	defer C.free(unsafe.Pointer(cIp))
+	cId := C.CString(id)
+	defer C.free(unsafe.Pointer(cId))
+
+	cSentFileCnt := C.uint(sendFileCnt)
+	cTotalFileCnt := C.uint(totalFileCnt)
+
+	cCurrentFileSize := C.ulonglong(currentFileSize)
+	cSentSize := C.ulonglong(sendSize)
+	cTotalSize := C.ulonglong(totalSize)
+	cTimestamp := C.ulonglong(timestamp)
+	cCurrentFileName := GoStringToWChar(currentFileName)
+	defer C.free(unsafe.Pointer(cCurrentFileName))
+
+	C.UpdateSendProgressBarCallbackFunc(g_UpdateSendProgressBarCallback, cIp, cId, cCurrentFileName, cSentFileCnt, cTotalFileCnt, cCurrentFileSize, cTotalSize, cSentSize, cTimestamp)
+}
+
+func GoTriggerCallbackReceiveProgressBar(ip, id, currentFileName string, sentFileCnt, totalFileCnt uint32, currentFileSize, totalSize, sentSize, timestamp uint64) {
+	if g_UpdateReceiveProgressBarCallback == nil {
+		log.Printf("%s g_UpdateReceiveProgressBarCallback is not set!", rtkMisc.GetFuncInfo())
 		return
 	}
 
@@ -348,8 +377,7 @@ func GoTriggerCallbackMultipleProgressBar(ip, id, currentFileName string, sentFi
 	cCurrentFileName := GoStringToWChar(currentFileName)
 	defer C.free(unsafe.Pointer(cCurrentFileName))
 
-	//const char *ipPort, const char *clientID, const wchar_t *currentFileName, uint32_t sentFilesCnt, uint32_t totalFilesCnt, uint64_t currentFileSize, uint64_t totalSize, uint64_t sentSize, uint64_t timestamp
-	C.UpdateMultipleProgressBarCallbackFunc(g_UpdateMultipleProgressBarCallback, cIp, cId, cCurrentFileName, cSentFileCnt, cTotalFileCnt, cCurrentFileSize, cTotalSize, cSentSize, cTimestamp)
+	C.UpdateReceiveProgressBarCallbackFunc(g_UpdateReceiveProgressBarCallback, cIp, cId, cCurrentFileName, cSentFileCnt, cTotalFileCnt, cCurrentFileSize, cTotalSize, cSentSize, cTimestamp)
 }
 
 func GoTriggerCallbackDragFileListNotify(ip, id, platform string, fileCnt uint32, totalSize uint64, timestamp uint64, firstFileName string, firstFileSize uint64) {
@@ -734,10 +762,16 @@ func SetMultiFilesDropNotifyCallback(callback C.MultiFilesDropNotifyCallback) {
 	g_MultiFilesDropNotifyCallback = callback
 }
 
-//export SetUpdateMultipleProgressBarCallback
-func SetUpdateMultipleProgressBarCallback(callback C.UpdateMultipleProgressBarCallback) {
-	log.Println("SetUpdateMultipleProgressBarCallback")
-	g_UpdateMultipleProgressBarCallback = callback
+//export SetUpdateSendProgressBarCallback
+func SetUpdateSendProgressBarCallback(callback C.UpdateProgressBarCallback) {
+	log.Println("SetUpdateSendProgressBarCallback")
+	g_UpdateSendProgressBarCallback = callback
+}
+
+//export SetUpdateReceiveProgressBarCallback
+func SetUpdateReceiveProgressBarCallback(callback C.UpdateProgressBarCallback) {
+	log.Println("SetUpdateReceiveProgressBarCallback")
+	g_UpdateReceiveProgressBarCallback = callback
 }
 
 //export SetUpdateClientStatusExCallback

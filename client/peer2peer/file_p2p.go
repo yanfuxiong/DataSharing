@@ -314,8 +314,8 @@ func writeFileDataItemToSocket(p2pCtx context.Context, id, ipAddr string, fileDr
 	progressBar := New64(int64(fileDropReqData.TotalSize))
 
 	rtkMisc.GoSafe(func() {
-		timeOutTk := time.NewTicker(10 * time.Second)
-		defer timeOutTk.Stop()
+		barTicker := time.NewTicker(100 * time.Millisecond)
+		defer barTicker.Stop()
 		barLastBytes := int64(0)
 		barMax := progressBar.GetMax()
 		for {
@@ -326,19 +326,19 @@ func writeFileDataItemToSocket(p2pCtx context.Context, id, ipAddr string, fileDr
 				rtkConnection.CloseFileDropItemStream(id, fileDropReqData.TimeStamp)
 				rtkConnection.CloseFmtTypeStream(id, rtkCommon.FILE_DROP)
 				return
-			// TODO: Update sender progress bar
-			case <-timeOutTk.C:
+			case <-barTicker.C:
 				barCurrentBytes := progressBar.GetCurrentBytes()
-				if barLastBytes == barCurrentBytes { // the file copy is timeout, 10s
-					log.Printf("[%s] (SRC) IP[%s] Copy file data time out!", rtkMisc.GetFuncInfo(), ipAddr)
-
-					//TODO:Need to handle timeout
-					//io.Copy maybe block Exceeding 10 seconds, and the reason may be congestion control, packet loss retransmission, or disk I/O lag
-					//rtkConnection.CloseFileDropItemStream(id, fileDropReqData.TimeStamp)
-					//return
+				if barLastBytes != barCurrentBytes {
+					rtkPlatform.GoUpdateSendProgressBar(ipAddr, id, curFileName, fileDoneCnt, nTotalFileCnt, curFileSize, fileDropReqData.TotalSize, uint64(barCurrentBytes), fileDropReqData.TimeStamp)
+					barLastBytes = barCurrentBytes
+					timeoutBarCnt = 0
+				} else {
+					timeoutBarCnt++
+					if timeoutBarCnt >= 100 { // copy file data timeout: 10s
+						log.Printf("[%s] (SRC) IP[%s] Copy file no data in 10s!", rtkMisc.GetFuncInfo(), ipAddr)
+						timeoutBarCnt = 0
+					}
 				}
-				//log.Printf("[%s] barCurrentBytes: %d", rtkMisc.GetFuncInfo(), barCurrentBytes)
-				barLastBytes = barCurrentBytes
 
 				if barCurrentBytes >= barMax {
 					return
@@ -415,6 +415,7 @@ func writeFileDataItemToSocket(p2pCtx context.Context, id, ipAddr string, fileDr
 		errCode = rtkMisc.ERR_BIZ_FT_INTERRUPT_INFO_INVALID
 		return
 	}
+	rtkPlatform.GoUpdateSendProgressBar(ipAddr, id, curFileName, fileDoneCnt, nTotalFileCnt, curFileSize, fileDropReqData.TotalSize, fileDropReqData.TotalSize, fileDropReqData.TimeStamp)
 
 	log.Printf("(SRC) End Copy all file data to IP:[%s] success, id:[%d] file count:[%d] TotalDescribe:[%s], total use [%d] ms", ipAddr, fileDropReqData.TimeStamp, fileCount, fileDropReqData.TotalDescribe, time.Now().UnixMilli()-startTime)
 	ShowNotiMessageSendFileTransferDone(fileDropReqData, id)
