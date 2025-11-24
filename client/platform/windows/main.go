@@ -28,13 +28,11 @@ static void StopClipboardMonitorCallbackFunc(StopClipboardMonitorCallback cb) {
     if (cb) cb();
 }
 
-typedef void (*DragFileListNotifyCallback)(const char *ipPort, const char *clientID, uint32_t cFileCount, uint64_t totalSize, uint64_t timestamp, const wchar_t *firstFileName, uint64_t firstFileSize);
-static void DragFileListNotifyCallbackFunc(DragFileListNotifyCallback cb, const char *ipPort, const char *clientID, uint32_t cFileCount, uint64_t totalSize, uint64_t timestamp, const wchar_t *firstFileName, uint64_t firstFileSize) {
+typedef void (*FileListNotifyCallback)(const char *ipPort, const char *clientID, uint32_t cFileCount, uint64_t totalSize, uint64_t timestamp, const wchar_t *firstFileName, uint64_t firstFileSize);
+static void FileListSendNotifyCallbackFunc(FileListNotifyCallback cb, const char *ipPort, const char *clientID, uint32_t cFileCount, uint64_t totalSize, uint64_t timestamp, const wchar_t *firstFileName, uint64_t firstFileSize) {
     if (cb) cb(ipPort, clientID, cFileCount, totalSize, timestamp, firstFileName, firstFileSize);
 }
-
-typedef void (*MultiFilesDropNotifyCallback)(const char *ipPort, const char *clientID, uint32_t cFileCount, uint64_t totalSize, uint64_t timestamp, const wchar_t *firstFileName, uint64_t firstFileSize);
-static void MultiFilesDropNotifyCallbackFunc(MultiFilesDropNotifyCallback cb, const char *ipPort, const char *clientID, uint32_t cFileCount, uint64_t totalSize, uint64_t timestamp, const wchar_t *firstFileName, uint64_t firstFileSize) {
+static void FileListReceiveNotifyCallbackFunc(FileListNotifyCallback cb, const char *ipPort, const char *clientID, uint32_t cFileCount, uint64_t totalSize, uint64_t timestamp, const wchar_t *firstFileName, uint64_t firstFileSize) {
     if (cb) cb(ipPort, clientID, cFileCount, totalSize, timestamp, firstFileName, firstFileSize);
 }
 
@@ -185,8 +183,8 @@ func (w *WCharArray) Free() {
 var (
 	g_StartClipboardMonitorCallback      C.StartClipboardMonitorCallback      = nil
 	g_StopClipboardMonitorCallback       C.StopClipboardMonitorCallback       = nil
-	g_DragFileListNotifyCallback         C.DragFileListNotifyCallback         = nil
-	g_MultiFilesDropNotifyCallback       C.MultiFilesDropNotifyCallback       = nil
+	g_FileListSendNotifyCallback         C.FileListNotifyCallback             = nil
+	g_FileListReceiveNotifyCallback      C.FileListNotifyCallback             = nil
 	g_UpdateSendProgressBarCallback      C.UpdateProgressBarCallback          = nil
 	g_UpdateReceiveProgressBarCallback   C.UpdateProgressBarCallback          = nil
 	g_UpdateClientStatusExCallback       C.UpdateClientStatusExCallback       = nil
@@ -213,8 +211,8 @@ func init() {
 	rtkPlatform.SetUpdateClientStatusExCallback(GoTriggerCallbackUpdateClientStatusEx)
 	rtkPlatform.SetPasteXClipCallback(GoTriggerCallbackSetupDstPasteXClipData)
 	rtkPlatform.SetCleanClipboardCallback(GoTriggerCallbackCleanClipboard)
-	rtkPlatform.SetDragFileListNotifyCallback(GoTriggerCallbackDragFileListNotify)
-	rtkPlatform.SetMultiFilesDropNotifyCallback(GoTriggerCallbackMultiFilesDropNotify)
+	rtkPlatform.SetFileListSendNotifyCallback(GoTriggerCallbackFileListSendNotify)
+	rtkPlatform.SetFileListReceiveNotifyCallback(GoTriggerCallbackFileListReceiveNotify)
 	rtkPlatform.SetSendProgressBarCallback(GoTriggerCallbackSendProgressBar)
 	rtkPlatform.SetReceiveProgressBarCallback(GoTriggerCallbackReceiveProgressBar)
 	rtkPlatform.SetNotiMessageFileTransCallback(GoTriggerCallbackNotiMessage)
@@ -380,9 +378,9 @@ func GoTriggerCallbackReceiveProgressBar(ip, id, currentFileName string, sentFil
 	C.UpdateReceiveProgressBarCallbackFunc(g_UpdateReceiveProgressBarCallback, cIp, cId, cCurrentFileName, cSentFileCnt, cTotalFileCnt, cCurrentFileSize, cTotalSize, cSentSize, cTimestamp)
 }
 
-func GoTriggerCallbackDragFileListNotify(ip, id, platform string, fileCnt uint32, totalSize uint64, timestamp uint64, firstFileName string, firstFileSize uint64) {
-	if g_DragFileListNotifyCallback == nil {
-		log.Printf("%s g_DragFileListNotifyCallback is not set!", rtkMisc.GetFuncInfo())
+func GoTriggerCallbackFileListSendNotify(ip, id string, fileCnt uint32, totalSize uint64, timestamp uint64, firstFileName string, firstFileSize uint64) {
+	if g_FileListSendNotifyCallback == nil {
+		log.Printf("%s g_FileListSendNotifyCallback is not set!", rtkMisc.GetFuncInfo())
 		return
 	}
 	cIp := C.CString(ip)
@@ -397,13 +395,13 @@ func GoTriggerCallbackDragFileListNotify(ip, id, platform string, fileCnt uint32
 	cFirstFileName := GoStringToWChar(firstFileName)
 	defer C.free(unsafe.Pointer(cFirstFileName))
 
-	log.Printf("[%s] ID:[%s] IP:[%s] cnt:[%d] total:[%d] timestamp:[%d] firstFile:[%s] firstSize:[%d]", rtkMisc.GetFuncInfo(), ip, id, fileCnt, totalSize, timestamp, firstFileName, firstFileSize)
-	C.DragFileListNotifyCallbackFunc(g_DragFileListNotifyCallback, cIp, cId, cFileCnt, cToalSize, cTimestamp, cFirstFileName, cFirstFileSize)
+	log.Printf("[%s] ID:[%s] IP:[%s] cnt:[%d] total:[%d] timestamp:[%d] firstFile:[%s] firstSize:[%d]", rtkMisc.GetFuncInfo(), id, ip, fileCnt, totalSize, timestamp, firstFileName, firstFileSize)
+	C.FileListSendNotifyCallbackFunc(g_FileListSendNotifyCallback, cIp, cId, cFileCnt, cToalSize, cTimestamp, cFirstFileName, cFirstFileSize)
 }
 
-func GoTriggerCallbackMultiFilesDropNotify(ip, id, platform string, fileCnt uint32, totalSize uint64, timestamp uint64, firstFileName string, firstFileSize uint64) {
-	if g_MultiFilesDropNotifyCallback == nil {
-		log.Printf("%s g_MultiFilesDropNotifyCallback is not set!", rtkMisc.GetFuncInfo())
+func GoTriggerCallbackFileListReceiveNotify(ip, id string, fileCnt uint32, totalSize uint64, timestamp uint64, firstFileName string, firstFileSize uint64) {
+	if g_FileListReceiveNotifyCallback == nil {
+		log.Printf("%s g_FileListReceiveNotifyCallback is not set!", rtkMisc.GetFuncInfo())
 		return
 	}
 	cIp := C.CString(ip)
@@ -418,8 +416,8 @@ func GoTriggerCallbackMultiFilesDropNotify(ip, id, platform string, fileCnt uint
 	cFirstFileName := GoStringToWChar(firstFileName)
 	defer C.free(unsafe.Pointer(cFirstFileName))
 
-	log.Printf("[%s] ID:[%s] IP:[%s] cnt:[%d] total:[%d] timestamp:[%d] firstFile:[%s] firstSize:[%d]", rtkMisc.GetFuncInfo(), ip, id, fileCnt, totalSize, timestamp, firstFileName, firstFileSize)
-	C.MultiFilesDropNotifyCallbackFunc(g_MultiFilesDropNotifyCallback, cIp, cId, cFileCnt, cToalSize, cTimestamp, cFirstFileName, cFirstFileSize)
+	log.Printf("[%s] ID:[%s] IP:[%s] cnt:[%d] total:[%d] timestamp:[%d] firstFile:[%s] firstSize:[%d]", rtkMisc.GetFuncInfo(), id, ip, fileCnt, totalSize, timestamp, firstFileName, firstFileSize)
+	C.FileListReceiveNotifyCallbackFunc(g_FileListReceiveNotifyCallback, cIp, cId, cFileCnt, cToalSize, cTimestamp, cFirstFileName, cFirstFileSize)
 }
 
 func GoTriggerCallbackNotiMessage(fileName, clientName, platform string, timestamp uint64, isSender bool) {
@@ -750,16 +748,16 @@ func SetStopClipboardMonitorCallback(callback C.StopClipboardMonitorCallback) {
 	g_StopClipboardMonitorCallback = callback
 }
 
-//export SetDragFileListNotifyCallback
-func SetDragFileListNotifyCallback(callback C.DragFileListNotifyCallback) {
-	log.Println("SetDragFileListNotifyCallback")
-	g_DragFileListNotifyCallback = callback
+//export SetFileListSendNotifyCallback
+func SetFileListSendNotifyCallback(callback C.FileListNotifyCallback) {
+	log.Println("SetFileListSendNotifyCallback")
+	g_FileListSendNotifyCallback = callback
 }
 
-//export SetMultiFilesDropNotifyCallback
-func SetMultiFilesDropNotifyCallback(callback C.MultiFilesDropNotifyCallback) {
-	log.Println("SetMultiFilesDropNotifyCallback")
-	g_MultiFilesDropNotifyCallback = callback
+//export SetFileListReceiveNotifyCallback
+func SetFileListReceiveNotifyCallback(callback C.FileListNotifyCallback) {
+	log.Println("SetFileListReceiveNotifyCallback")
+	g_FileListReceiveNotifyCallback = callback
 }
 
 //export SetUpdateSendProgressBarCallback

@@ -81,8 +81,7 @@ type (
 	CallbackCleanClipboardFunc         func()
 	CallbackFileListDropRequestFunc    func(string, []rtkCommon.FileInfo, []string, uint64, uint64, string)
 	CallbackDragFileListRequestFunc    func([]rtkCommon.FileInfo, []string, uint64, uint64, string)
-	CallbackDragFileListNotifyFunc     func(ip, id, platform string, fileCnt uint32, totalSize, timestamp uint64, firstFileName string, firstFileSize uint64)
-	CallbackMultiFilesDropNotifyFunc   func(ip, id, platform string, fileCnt uint32, totalSize, timestamp uint64, firstFileName string, firstFileSize uint64)
+	CallbackFileListNotifyFunc         func(ip, id string, fileCnt uint32, totalSize, timestamp uint64, firstFileName string, firstFileSize uint64)
 	CallbackProgressBarFunc            func(ip, id, currentFileName string, sendFileCnt, totalFileCnt uint32, currentFileSize, totalSize, sendSize, timestamp uint64)
 	CallbackNotiMessageFileTransFunc   func(fileName, clientName, platform string, timestamp uint64, isSender bool)
 	CallbackFileDropResponseFunc       func(string, rtkCommon.FileDropCmd, string)
@@ -115,8 +114,8 @@ var (
 	callbackPasteXClipDataCB           CallbackPasteXClipFunc             = nil
 	callbackFileListDropRequestCB      CallbackFileListDropRequestFunc    = nil
 	callbackDragFileListRequestCB      CallbackDragFileListRequestFunc    = nil
-	callbackDragFileListNotifyCB       CallbackDragFileListNotifyFunc     = nil
-	callbackMultiFilesDropNotifyCB     CallbackMultiFilesDropNotifyFunc   = nil
+	callbackFileListSendNotify         CallbackFileListNotifyFunc         = nil
+	callbackFileListReceiveNotify      CallbackFileListNotifyFunc         = nil
 	callbackSendProgressBar            CallbackProgressBarFunc            = nil
 	callbackReceiveProgressBar         CallbackProgressBarFunc            = nil
 	callbackNotiMessageFileTransCB     CallbackNotiMessageFileTransFunc   = nil
@@ -254,12 +253,12 @@ func SetReceiveProgressBarCallback(cb CallbackProgressBarFunc) {
 	callbackReceiveProgressBar = cb
 }
 
-func SetDragFileListNotifyCallback(cb CallbackDragFileListNotifyFunc) {
-	callbackDragFileListNotifyCB = cb
+func SetFileListSendNotifyCallback(cb CallbackFileListNotifyFunc) {
+	callbackFileListSendNotify = cb
 }
 
-func SetMultiFilesDropNotifyCallback(cb CallbackMultiFilesDropNotifyFunc) {
-	callbackMultiFilesDropNotifyCB = cb
+func SetFileListReceiveNotifyCallback(cb CallbackFileListNotifyFunc) {
+	callbackFileListReceiveNotify = cb
 }
 
 func SetNotiMessageFileTransCallback(cb CallbackNotiMessageFileTransFunc) {
@@ -423,12 +422,20 @@ func GoSetupFileListDrop(ip, id, platform, totalDesc string, fileCount, folderCo
 	log.Printf("[%s] fileCnt:[%d] folderCnt:[%d] totalDesc:[%s]", rtkMisc.GetFuncInfo(), fileCount, folderCount, totalDesc)
 }
 
-func GoMultiFilesDropNotify(ip, id, platform string, fileCnt uint32, totalSize, timestamp uint64, firstFileName string, firstFileSize uint64) {
-	callbackMultiFilesDropNotifyCB(ip, id, platform, fileCnt, totalSize, timestamp, firstFileName, firstFileSize)
+func GoFileListSendNotify(ip, id string, fileCnt uint32, totalSize, timestamp uint64, firstFileName string, firstFileSize uint64) {
+	if callbackFileListSendNotify == nil {
+		log.Println("callbackFileListSendNotify is null !")
+		return
+	}
+	callbackFileListSendNotify(ip, id, fileCnt, totalSize, timestamp, firstFileName, firstFileSize)
 }
 
-func GoDragFileListNotify(ip, id, platform string, fileCnt uint32, totalSize uint64, timestamp uint64, firstFileName string, firstFileSize uint64) {
-	callbackDragFileListNotifyCB(ip, id, platform, fileCnt, totalSize, timestamp, firstFileName, firstFileSize)
+func GoFileListReceiveNotify(ip, id string, fileCnt uint32, totalSize uint64, timestamp uint64, firstFileName string, firstFileSize uint64) {
+	if callbackFileListReceiveNotify == nil {
+		log.Println("callbackFileListReceiveNotify is null !")
+		return
+	}
+	callbackFileListReceiveNotify(ip, id, fileCnt, totalSize, timestamp, firstFileName, firstFileSize)
 }
 
 func GoDragFileListFolderNotify(ip, id, folderName string, timestamp uint64) {
