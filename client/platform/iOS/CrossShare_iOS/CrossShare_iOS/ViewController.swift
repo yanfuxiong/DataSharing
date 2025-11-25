@@ -400,72 +400,6 @@ class ViewController: UIViewController {
         }
         return nil
     }
-    
-    private func configClients(with urls: [URL]) {
-        guard let url = urls.first else { return }
-        if url.startAccessingSecurityScopedResource() {
-            defer { url.stopAccessingSecurityScopedResource() }
-            let fileName = (url.path as NSString).lastPathComponent
-            let clients = P2PManager.shared.clientList
-            guard clients.isEmpty == false else {
-                Logger.info("not found clients")
-                MBProgressHUD.showTips(.error,"Please make sure your device is online", toView: self.view)
-                return
-            }
-            Logger.info("Found \(clients.count) clients:")
-            for client in clients {
-                Logger.info("Device: \(client.name), IP:Port: \(client.ip), ID: \(client.id)")
-            }
-            if !clients.isEmpty {
-                let popView = DeviceSelectPopView(fileNames: [fileName], clients: clients)
-                popView.frame = self.view.bounds
-                popView.alpha = 0
-                popView.onSelect = { [weak self] client in
-                    guard let self = self else { return  }
-                    Logger.info("select device：\(client.name)")
-                    self.selectedClient = client
-                    MBProgressHUD.showTips(.error,"Choose device：\(client.name)", toView: self.view)
-                }
-                popView.onCancel = { [weak self] in
-                    self?.dismissDevicePopView()
-                }
-                popView.onSure = { [weak self] in
-                    guard let self = self else { return }
-                    guard let selectedClient = self.selectedClient else {
-                        MBProgressHUD.showTips(.error,"Please select a device", toView: self.view)
-                        return
-                    }
-                    self.dismissDevicePopView()
-                    
-                    // TODO: Create the unique folder means the each file transfer (now use timestamp)
-                    // TODO: It should be deleted after the trnsfer finished
-                    let timestamp = String(Int(Date().timeIntervalSince1970))
-                    guard let finalFilePath = copyDocumentToTemp(url, timestamp) else {
-                        return
-                    }
-                    guard let fileSize = self.getFileSize(atPath: finalFilePath ) else {
-                        MBProgressHUD.showTips(.error,"Please select a vaild file", toView: self.view)
-                        return
-                    }
-                    let fileMsg = "1 file"
-                    let params: [String] = [fileMsg, selectedClient.name]
-                    PushNotiManager.shared.sendLocalNotification(code: .sendStart, with: params)
-                    P2PManager.shared.setFileDropRequest(filePath: finalFilePath, id: selectedClient.id, fileSize: fileSize)
-                    self.selectedClient = nil
-                }
-                self.view.addSubview(popView)
-                self.devicePopView = popView
-                UIView.animate(withDuration: 0.3) {
-                    popView.alpha = 1
-                    if let contentView = popView.subviews.first {
-                        contentView.transform = .identity
-                    }
-                }
-            }
-        } else {
-            Logger.info("Unable to obtain security permissions")
-        }
-    }
 }
 
 extension ViewController: AVPictureInPictureControllerDelegate {
@@ -539,7 +473,6 @@ extension ViewController: AVPictureInPictureSampleBufferPlaybackDelegate {
 
 extension ViewController: UIDocumentPickerDelegate {
     public func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
-        self.configClients(with: urls)
     }
 
     public func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {

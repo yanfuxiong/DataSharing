@@ -23,6 +23,7 @@ class HomeViewController: BaseViewController {
     private var lastViewType: ServiceStatus? = nil
     private var selectedService: LanServiceInfo? = nil
     private var statusPopView: ConnectPopView?
+    private var clientIndex: UInt32 = 0
     private var diasStatus: DiassStatus? = .WaitConnecting {
         didSet {
             if diasStatus != nil {
@@ -94,6 +95,7 @@ class HomeViewController: BaseViewController {
                         self.isAutoConnectTimeout = true
                     }
                 }
+
             case .connected:
                 DispatchQueue.main.async { [weak self] in
                     guard let self = self else { return  }
@@ -177,6 +179,7 @@ class HomeViewController: BaseViewController {
         NotificationCenter.default.addObserver(self, selector: #selector(updateLanserviceStatus(_:)), name: UpdateLanserviceChangedNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(updateLanserviceList(_:)), name: UpdateLanserviceListNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(updateVersion(_:)), name: UpdateVersionNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(updateVerifyClientIndex(_:)), name: UpdateVerifyClientIndexChangedNotification, object: nil)
     }
     
     private func dismissConnectPopView(_ popView: ConnectPopView) {
@@ -338,6 +341,14 @@ extension HomeViewController {
             UpgradeManager.shared.showDefaultUpgradeAlert()
         }
     }
+
+    @objc func updateVerifyClientIndex(_ notification: Notification) {
+        guard let clientIndexDic = notification.userInfo as? [String:Any], let clientIndex = clientIndexDic["clientIndex"] as? UInt32 else {
+            return
+        }
+        Logger.info("updateVerifyClientIndex: \(clientIndex)")
+        updateConnectPopViewWithClientIndex(clientIndex: clientIndex)
+    }
     
     private func dismissDevicePopView() {
         guard let popView = self.ugradeView else { return }
@@ -435,6 +446,15 @@ extension HomeViewController {
         }
     }
     
+    private func updateConnectPopViewWithClientIndex(clientIndex: UInt32) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self,
+                    let statusPopView = self.statusPopView else {
+                return
+            }
+            statusPopView.updateClientIndex(clientIndex: clientIndex)
+        }
+    }
     private func hideStatusPopView() {
         DispatchQueue.main.async { [weak self] in
             self?.statusPopView?.hide { [weak self] in

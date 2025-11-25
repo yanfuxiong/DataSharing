@@ -13,7 +13,6 @@ enum ShareFilesPopType {
 }
 
 class ShareFilesPopView: UIView {
-    
     var onCancel: (() -> Void)?
     var onContinue: (() -> Void)?
     var onConfirm: (() -> Void)?
@@ -29,7 +28,6 @@ class ShareFilesPopView: UIView {
     init(frame: CGRect, type: ShareFilesPopType) {
         self.popType = type
         super.init(frame: frame)
-        setupUI()
     }
     
     required init?(coder: NSCoder) {
@@ -37,12 +35,14 @@ class ShareFilesPopView: UIView {
     }
     
     func setupUI() {
-        self.backgroundColor = UIColor.black.withAlphaComponent(0.4)
-        
         let tap = UITapGestureRecognizer(target: self, action: #selector(backgroundTapped))
         tap.delegate = self
         self.addGestureRecognizer(tap)
         
+        self.snp.makeConstraints { make in
+            make.left.right.equalToSuperview()
+            make.centerY.equalToSuperview()
+        }
         setupContentView()
         setupLabels()
         setupButtons()
@@ -50,13 +50,13 @@ class ShareFilesPopView: UIView {
     
     private func setupContentView() {
         contentView.backgroundColor = .white
-        contentView.layer.cornerRadius = 16
+        contentView.layer.cornerRadius = 25
         contentView.clipsToBounds = true
         addSubview(contentView)
         
         contentView.snp.makeConstraints { make in
-            make.left.equalToSuperview().offset(30.adapt)
-            make.right.equalToSuperview().offset(-30.adapt)
+            make.width.equalToSuperview().multipliedBy(0.8)
+            make.height.equalToSuperview().multipliedBy(0.5)
             make.center.equalToSuperview()
         }
     }
@@ -65,19 +65,18 @@ class ShareFilesPopView: UIView {
         titleLabel.text = "Notice"
         titleLabel.numberOfLines = 0
         titleLabel.textAlignment = .center
-        titleLabel.font = UIFont.boldSystemFont(ofSize: 18.adapt)
+        titleLabel.font = UIFont.boldSystemFont(ofSize: 20)
         titleLabel.textColor = .black
         contentView.addSubview(titleLabel)
         
         titleLabel.snp.makeConstraints { make in
-            make.top.equalToSuperview().offset(20.adaptH)
-            make.left.equalToSuperview().offset(20.adaptW)
-            make.right.equalToSuperview().offset(-20.adaptW)
+            make.top.equalToSuperview().offset(20)
+            make.left.right.equalToSuperview()
         }
         
         contentLabel.numberOfLines = 0
         contentLabel.textAlignment = .center
-        contentLabel.font = UIFont.systemFont(ofSize: 14.adapt)
+        contentLabel.font = UIFont.systemFont(ofSize: 16)
         contentLabel.textColor = .darkGray
         contentView.addSubview(contentLabel)
         
@@ -89,9 +88,9 @@ class ShareFilesPopView: UIView {
         }
         
         contentLabel.snp.makeConstraints { make in
-            make.top.equalTo(titleLabel.snp.bottom).offset(15.adaptH)
-            make.left.equalToSuperview().offset(20.adaptW)
-            make.right.equalToSuperview().offset(-20.adaptW)
+            make.top.equalTo(titleLabel.snp.bottom).offset(25)
+            make.left.equalToSuperview().offset(20)
+            make.right.equalToSuperview().offset(-20)
         }
     }
     
@@ -105,54 +104,49 @@ class ShareFilesPopView: UIView {
     }
     
     private func setupMixedContentButtons() {
+        contentView.addSubview(continueButton)
+        continueButton.snp.makeConstraints { make in
+            make.top.equalTo(contentLabel.snp.bottom).offset(30)
+            make.right.equalToSuperview().offset(-10)
+            make.left.equalTo(contentView.snp.centerX).offset(5)
+            make.height.equalTo(kBtnHeight)
+            make.bottom.equalToSuperview().offset(-15)
+        }
         continueButton.setTitle("Continue", for: .normal)
         continueButton.setTitleColor(.white, for: .normal)
         continueButton.backgroundColor = UIColor.systemBlue
-        continueButton.layer.cornerRadius = 8.adapt
-        continueButton.titleLabel?.font = UIFont.boldSystemFont(ofSize: 16.adapt)
+        continueButton.layer.cornerRadius = kBtnHeight / 2
+        continueButton.titleLabel?.font = UIFont.boldSystemFont(ofSize: 16)
         continueButton.addTarget(self, action: #selector(continueAction), for: .touchUpInside)
-        contentView.addSubview(continueButton)
         
-        continueButton.snp.makeConstraints { make in
-            make.top.equalTo(contentLabel.snp.bottom).offset(25.adaptH)
-            make.right.equalToSuperview().offset(-20.adaptW)
-            make.left.equalTo(contentView.snp.centerX).offset(10.adaptW)
-            make.height.equalTo(44.adaptH)
-            make.bottom.equalToSuperview().offset(-20.adaptH)
-        }
-        
-        cancelButton.setTitle("Cancel", for: .normal)
-        cancelButton.setTitleColor(.black, for: .normal)
-        cancelButton.backgroundColor = UIColor.white
-        cancelButton.layer.cornerRadius = 8.adapt
-        cancelButton.layer.borderWidth = 1
-        cancelButton.layer.borderColor = UIColor.lightGray.cgColor
-        cancelButton.titleLabel?.font = UIFont.systemFont(ofSize: 16.adapt)
-        cancelButton.addTarget(self, action: #selector(cancelAction), for: .touchUpInside)
         contentView.addSubview(cancelButton)
-        
         cancelButton.snp.makeConstraints { make in
             make.top.width.height.equalTo(continueButton)
-            make.right.equalTo(contentView.snp.centerX).offset(-10.adaptW)
+            make.right.equalTo(contentView.snp.centerX).offset(-5)
         }
+        cancelButton.setTitle("Cancel", for: .normal)
+        cancelButton.setTitleColor(.systemBlue, for: .normal)
+        cancelButton.backgroundColor = UIColor(red: 240/255.0, green: 240/255.0, blue: 240/255.0, alpha: 1.0)
+        cancelButton.layer.cornerRadius = kBtnHeight / 2
+        cancelButton.titleLabel?.font = UIFont.boldSystemFont(ofSize: 16)
+        cancelButton.addTarget(self, action: #selector(cancelAction), for: .touchUpInside)
     }
     
     private func setupFoldersOnlyButton() {
+        contentView.addSubview(confirmButton)
+        confirmButton.snp.makeConstraints { make in
+            make.top.equalTo(contentLabel.snp.bottom).offset(30)
+            make.left.equalToSuperview().offset(20)
+            make.right.equalToSuperview().offset(-20)
+            make.height.equalTo(kBtnHeight)
+            make.bottom.equalToSuperview().offset(-15)
+        }
         confirmButton.setTitle("Confirm", for: .normal)
         confirmButton.setTitleColor(.white, for: .normal)
         confirmButton.backgroundColor = UIColor.systemBlue
-        confirmButton.layer.cornerRadius = 8.adapt
-        confirmButton.titleLabel?.font = UIFont.boldSystemFont(ofSize: 16.adapt)
+        confirmButton.layer.cornerRadius = kBtnHeight / 2
+        confirmButton.titleLabel?.font = UIFont.boldSystemFont(ofSize: 16)
         confirmButton.addTarget(self, action: #selector(confirmAction), for: .touchUpInside)
-        contentView.addSubview(confirmButton)
-        
-        confirmButton.snp.makeConstraints { make in
-            make.top.equalTo(contentLabel.snp.bottom).offset(25.adaptH)
-            make.left.equalToSuperview().offset(20.adaptW)
-            make.right.equalToSuperview().offset(-20.adaptW)
-            make.height.equalTo(44.adaptH)
-            make.bottom.equalToSuperview().offset(-20.adaptH)
-        }
     }
     
     @objc private func continueAction() {

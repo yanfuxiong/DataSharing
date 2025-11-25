@@ -16,16 +16,13 @@ public let UpdateMonitorNameChangedNotification = Notification.Name("UpdateMonit
 public let UpdateLanserviceChangedNotification = Notification.Name("UpdateLanserviceChangedNotification")
 public let UpdateLanserviceListNotification = Notification.Name("UpdateLanserviceListNotification")
 public let UpdateVersionNotification = Notification.Name("UpdateVersionNotification")
+public let UpdateVerifyClientIndexChangedNotification = Notification.Name("UpdateVerifyClientIndexChangedNotification")
 
 private weak var globalP2PManager: P2PManager?
 
 // Global C compatible callback function
-private let textCallback: @convention(c) (UnsafeMutablePointer<CChar>?) -> Void = { cText in
-    globalP2PManager?.handleTextReceived(cText: cText)
-}
-
-private let imageCallback: @convention(c) (UnsafeMutablePointer<CChar>?) -> Void = { cText in
-    globalP2PManager?.handleImageReceived(cText: cText)
+private let pasteXClipDataCallback: @convention(c) (UnsafeMutablePointer<CChar>?, UnsafeMutablePointer<CChar>?, UnsafeMutablePointer<CChar>?) -> Void = { cText, cImage, cHtml in
+    globalP2PManager?.handlePasteXClipData(cText: cText, cImage: cImage, cHtml: cHtml)
 }
 
 private let startBrowseMdnsCallback: @convention(c) (UnsafeMutablePointer<CChar>?, UnsafeMutablePointer<CChar>?) -> Void = { cinstance, cserviceType in
@@ -36,28 +33,14 @@ private let stopBrowseMdnsCallback: @convention(c) () -> Void = {
     globalP2PManager?.handleStopBrowseMdns()
 }
 
-private let foundPeerCallback: @convention(c) () -> Void = {
-    globalP2PManager?.handleFoundPeer()
-}
-
-private let fileConfirmCallback: @convention(c) (UnsafeMutablePointer<CChar>?, UnsafeMutablePointer<CChar>?, UnsafeMutablePointer<CChar>?, Int64) -> Void = { cid, cplatform, cfileName, cfileSize in
-    globalP2PManager?.handleFileConfirm(cid: cid, cplatform: cplatform, cfileName: cfileName, cfileSize: cfileSize)
-}
-
-private let eventCallback: @convention(c) (Int32) -> Void = { event in
-    globalP2PManager?.handleEvent(event: event)
-}
-
-private let progressBarCallback: @convention(c) (UnsafeMutablePointer<CChar>?, UnsafeMutablePointer<CChar>?, UInt64, UInt64, UInt64) -> Void = { clientId, fileName, recvSize, total, timeStamp in
-    globalP2PManager?.handleProgressBar(clientId: clientId, fileName: fileName, recvSize: recvSize, total: total, timeStamp: timeStamp)
-}
-
 private let multipleProgressBarCallback: @convention(c) (UnsafeMutablePointer<CChar>?, UnsafeMutablePointer<CChar>?, UnsafeMutablePointer<CChar>?, UnsafeMutablePointer<CChar>?, UInt32, UInt32, UInt64, UInt64, UInt64, UInt64) -> Void = { ip, id, deviceName, currentfileName, recvFileCnt, totalFileCnt, currentFileSize, totalSize, recvSize, timestamp in
+    let currentfileNameString = currentfileName != nil ? String(cString: currentfileName!) : "nil"
+    Logger.info("[multipleProgressBarCallback] currentfileName: \(currentfileNameString), timestamp: \(timestamp)")
     globalP2PManager?.handleMultipleProgressBar(ip: ip, id: id, deviceName: deviceName, currentfileName: currentfileName, recvFileCnt: recvFileCnt, totalFileCnt: totalFileCnt, currentFileSize: currentFileSize, totalSize: totalSize, recvSize: recvSize, timestamp: timestamp)
 }
 
-private let authDataCallback: @convention(c) () -> UnsafeMutablePointer<CChar>? = {
-    return globalP2PManager?.handleGetAuthData()
+private let authDataCallback: @convention(c) (UInt32) -> UnsafeMutablePointer<CChar>? = { clientIndex in
+    return globalP2PManager?.handleGetAuthData(clientIndex: clientIndex)
 }
 
 private let diasStatusCallback: @convention(c) (UInt32) -> Void = { status in
@@ -70,6 +53,10 @@ private let monitorNameCallback: @convention(c) (UnsafeMutablePointer<CChar>?) -
 
 private let browseResultCallback: @convention(c) (UnsafeMutablePointer<CChar>?, UnsafeMutablePointer<CChar>?, UnsafeMutablePointer<CChar>?, UnsafeMutablePointer<CChar>?, UInt64) -> Void = { monitorName, instance, ip, version, timestamp in
     globalP2PManager?.handleBrowseResult(monitorName: monitorName, instance: instance, ip: ip, version: version, timestamp: timestamp)
+}
+
+private let updateClientStatusCallback: @convention(c) (UnsafeMutablePointer<CChar>?) -> Void = { clientJsonStr in
+    globalP2PManager?.handleUpdateClientStatus(clientJsonStr: clientJsonStr)
 }
 
 enum DiassStatus: Int,CaseIterable {
@@ -91,7 +78,20 @@ class P2PManager {
     private var mClientList: [ClientInfo] = []
     private var mServiceList: [LanServiceInfo] = []
     private var screenData: String = ""
-    public var cStatus: DiassStatus = .WaitConnecting
+    public var cStatus: DiassStatus = .WaitConnecting {
+        didSet {
+            let isLastStatusConnected = (oldValue == .ConnectedNoClients || oldValue == .Connected)
+            if cStatus == .ConnectedNoClients || cStatus == .Connected {
+                if !isLastStatusConnected {
+                    PictureInPictureManager.shared.updatePIPStatus(contentType: .idle)
+                }
+            } else {
+                if isLastStatusConnected {
+                    PictureInPictureManager.shared.updatePIPStatus(contentType: .disconnect)
+                }
+            }
+        }
+    }
     public var monitorName: String = ""
     public var newVersion: String = ""
     private var transferCallbacks:[String: TransferCallbacks] = [:]
@@ -137,54 +137,38 @@ class P2PManager {
         return documentsDirectory.path
     }
     
-    private static func getPasteboard() -> UIPasteboard {
-        ClipboardMonitor.shareInstance().skipLocalChecking()
-        return UIPasteboard.general
-    }
-    
     private func goSetCallBackMethod() {
         autoreleasepool {
-            SetCallbackMethodText(textCallback)
+            SetCallbackPasteXClipData(pasteXClipDataCallback)
         }
+
         autoreleasepool {
-            SetCallbackMethodImage(imageCallback)
+            SetCallbackUpdateClientStatus(updateClientStatusCallback)
         }
+
         autoreleasepool {
             SetCallbackMethodStartBrowseMdns(startBrowseMdnsCallback)
         }
         autoreleasepool {
             SetCallbackMethodStopBrowseMdns(stopBrowseMdnsCallback)
         }
-        autoreleasepool {
-            SetCallbackMethodFoundPeer(foundPeerCallback)
-        }
-        autoreleasepool {
-            SetCallbackMethodFileConfirm(fileConfirmCallback)
-        }
-        autoreleasepool {
-            SetEventCallback(eventCallback)
-        }
-        
-        autoreleasepool {
-            SetCallbackUpdateProgressBar(progressBarCallback)
-        }
-        
+
         autoreleasepool {
             SetCallbackUpdateMultipleProgressBar(multipleProgressBarCallback)
         }
-        
+
         autoreleasepool {
             SetCallbackGetAuthData(authDataCallback)
         }
-        
+
         autoreleasepool {
             SetCallbackDIASStatus(diasStatusCallback)
         }
-        
+
         autoreleasepool {
             SetCallbackMonitorName(monitorNameCallback)
         }
-        
+
         autoreleasepool {
             SetCallbackNotifyBrowseResult(browseResultCallback)
         }
@@ -207,38 +191,80 @@ class P2PManager {
     }
 
     // All callback processing methods
-    fileprivate func handleTextReceived(cText: UnsafeMutablePointer<CChar>?) {
+    fileprivate func handlePasteXClipData(cText: UnsafeMutablePointer<CChar>?, cImage: UnsafeMutablePointer<CChar>?, cHtml: UnsafeMutablePointer<CChar>?) {
+        var text = ""
         if let cText = cText {
-            let text = String(cString: cText)
-            DispatchQueue.main.async {
-                Logger.info("go service send Text callback: \(text)")
-                let pasteboard = P2PManager.getPasteboard()
-                pasteboard.string = text
-                
-                PictureInPictureManager.shared.showTextReceived(text)
+            let textData = Data(bytes: cText, count: strlen(cText))
+
+            if let utf8Text = String(data: textData, encoding: .utf8), !utf8Text.contains("�") && !utf8Text.contains("\u{FFFD}") {
+                text = utf8Text
+            } else {
+                let encoding = CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(CFStringEncodings.GB_18030_2000.rawValue))
+                if let gb18030Text = String(data: textData, encoding: String.Encoding(rawValue: encoding)) {
+                    text = gb18030Text
+                } else if let utf16Text = String(data: textData, encoding: .utf16) {
+                    text = utf16Text
+                } else if let latinText = String(data: textData, encoding: .isoLatin1) {
+                    text = latinText
+                } else {
+                    text = String(cString: cText)
+                }
             }
         }
-    }
-    
-    fileprivate func handleImageReceived(cText: UnsafeMutablePointer<CChar>?) {
-        if let cText = cText {
-            let copiedText = String(cString: cText)
-            DispatchQueue.main.async {
-                if let imageData = Data(base64Encoded: copiedText, options: .ignoreUnknownCharacters) {
-                    if let image = UIImage(data: imageData) {
-                        let pasteboard = P2PManager.getPasteboard()
-                        pasteboard.image = image
-                        
-                        PictureInPictureManager.shared.showImageReceived(image)
-                    } else {
-                        Logger.info("Failed to decode Base64 string into image")
-                     }
+
+        let imageBase64 = cImage != nil ? String(cString: cImage!) : ""
+
+        var html = ""
+        if let cHtml = cHtml {
+            let data = Data(bytes: cHtml, count: strlen(cHtml))
+            let hasUTF8BOM = data.count >= 3 && data[0] == 0xEF && data[1] == 0xBB && data[2] == 0xBF
+            let utf8Data = hasUTF8BOM ? data.subdata(in: 3..<data.count) : data
+
+            if let utf8String = String(data: utf8Data, encoding: .utf8), !utf8String.contains("�") && !utf8String.contains("\u{FFFD}") {
+                html = utf8String
+            } else {
+                let encoding = CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(CFStringEncodings.GB_18030_2000.rawValue))
+                if let gb18030String = String(data: data, encoding: String.Encoding(rawValue: encoding)) {
+                    html = gb18030String
+                } else if let utf16String = String(data: data, encoding: .utf16) {
+                    html = utf16String
+                } else if let utf16LEString = String(data: data, encoding: .utf16LittleEndian) {
+                    html = utf16LEString
+                } else if let utf16BEString = String(data: data, encoding: .utf16BigEndian) {
+                    html = utf16BEString
+                } else if let latinString = String(data: data, encoding: .isoLatin1) {
+                    html = latinString
                 } else {
-                    Logger.info("Failed to decode Base64 string")
-                 }
-             }
-        } else {
-            Logger.info("[P2PManager] Image callback received with nil cText")
+                    html = String(cString: cHtml)
+                }
+            }
+        }
+
+        DispatchQueue.main.async {
+            var image: UIImage? = nil
+            if !imageBase64.isEmpty, let imageData = Data(base64Encoded: imageBase64, options: .ignoreUnknownCharacters) {
+                image = UIImage(data: imageData)
+            }
+
+            let ret = ClipboardMonitor.shareInstance().setupClipboard(
+                text: !text.isEmpty ? text : nil,
+                image: image,
+                html: !html.isEmpty ? html : nil
+            )
+
+            if ret {
+                if !html.isEmpty {
+                    if !text.isEmpty {
+                        PictureInPictureManager.shared.showTextReceived(text)
+                    } else if let img = image {
+                        PictureInPictureManager.shared.showImageReceived(img)
+                    }
+                } else if let img = image {
+                    PictureInPictureManager.shared.showImageReceived(img)
+                } else if !text.isEmpty {
+                    PictureInPictureManager.shared.showTextReceived(text)
+                }
+            }
         }
     }
     
@@ -260,48 +286,72 @@ class P2PManager {
         }
     }
     
+    fileprivate func handleUpdateClientStatus(clientJsonStr: UnsafeMutablePointer<CChar>?) {
+        guard let clientJsonStr = clientJsonStr else {
+            Logger.info("[GO][Callback] SetCallbackUpdateClientStatus received nil")
+            return
+        }
+        let jsonString = String(cString: clientJsonStr)
+        Logger.info("[GO][Callback] SetCallbackUpdateClientStatus - JSON length: \(jsonString.count)")
+
+        // Process immediately without debouncing to avoid cancelling previous device updates
+        handleSingleClientUpdate(jsonString)
+    }
+
+    private func handleSingleClientUpdate(_ jsonString: String) {
+        guard let jsonData = jsonString.data(using: .utf8) else {
+            Logger.info("[P2PManager][Err] Failed to convert string to data")
+            return
+        }
+
+        let json = JSON(jsonData)
+
+        let status = json["Status"].int ?? 0
+        let timestamp = json["TimeStamp"].int64 ?? 0
+        Logger.info("[P2PManager] Client Status Update - Status: \(status), Timestamp: \(timestamp)")
+
+        guard let clientInfo = ClientInfo(json: json) else {
+            Logger.info("[P2PManager][Err] Failed to parse client info from status update")
+            return
+        }
+
+        Logger.info("[P2PManager] Client Update - ID: \(clientInfo.id), IP: \(clientInfo.ip), Name: \(clientInfo.name), Platform: \(clientInfo.deviceType), Status: \(status)")
+
+        let oldCount = mClientList.count
+        
+        if status == 1 {
+            if let existingIndex = mClientList.firstIndex(where: { $0.id == clientInfo.id }) {
+                mClientList[existingIndex] = clientInfo
+                Logger.info("[P2PManager] Updated existing client: \(clientInfo.name)")
+            } else {
+                mClientList.append(clientInfo)
+                Logger.info("[P2PManager] Added new client: \(clientInfo.name)")
+            }
+        } else {
+            if let existingIndex = mClientList.firstIndex(where: { $0.id == clientInfo.id }) {
+                mClientList.remove(at: existingIndex)
+                Logger.info("[P2PManager] Removed client: \(clientInfo.name)")
+            }
+        }
+        
+        let newCount = mClientList.count
+        Logger.info("[P2PManager] Client list updated: \(oldCount) -> \(newCount)")
+
+        let dictArray = mClientList.map { $0.toDictionary() }
+        let clientListJson = JSON(dictArray)
+        if let jsonString = clientListJson.rawString() {
+            UserDefaults.set(forKey: .DEVICE_CLIENTS, value: jsonString, type: .group)
+        }
+        NotificationCenter.default.post(name: UpdateClientListSuccessNotification, object: nil, userInfo: nil)
+    }
+
     fileprivate func handleFoundPeer() {
-        Logger.info("[GO][Callback] SetCallbackMethodFoundPeer")
+        Logger.info("[GO][Callback] SetCallbackMethodFoundPeer (deprecated)")
         self.updateClientList()
     }
-    
-    fileprivate func handleFileConfirm(cid: UnsafeMutablePointer<CChar>?, cplatform: UnsafeMutablePointer<CChar>?, cfileName: UnsafeMutablePointer<CChar>?, cfileSize: Int64) {
-        if let cid = cid, let cplatform = cplatform, let cfileName = cfileName {
-            let id = String(cString: cid)
-            let platform = String(cString: cplatform)
-            let fileName = String(cString: cfileName)
-            
-            Logger.info("[P2PManager][FileDrop] ID:[\(id)], Platform:[\(platform)], FileNmae:[\(fileName)], FileSize:[\(cfileSize)]")
-            let isReceive = 1
-            SetFileDropResponse(fileName.toGoString(), id.toGoString(), GoUint8(isReceive))
-        }
-    }
-    
+
     fileprivate func handleEvent(event: Int32) {
         // Logger.info("[GO][Callback] SetLogMessageCallback \(event)")
-    }
-    
-    fileprivate func handleProgressBar(clientId: UnsafeMutablePointer<CChar>?, fileName: UnsafeMutablePointer<CChar>?, recvSize: UInt64, total: UInt64, timeStamp: UInt64) {
-        if let clientId = clientId, let fileName = fileName {
-            let clientIdString = String(cString: clientId)
-            let fileNameString = String(cString: fileName)
-            var downloadParams: [String: Any] = [:]
-            let downloadItem = DownloadItem()
-            downloadItem.timestamp = TimeInterval(timeStamp)
-            downloadItem.uuid = "\(timeStamp)"
-            downloadItem.deviceName = self.getClientInfo(id: clientIdString)?.name
-            downloadItem.fileId = clientIdString
-            downloadItem.totalFileCnt = 1
-            downloadItem.currentfileName = fileNameString
-            downloadItem.receiveSize = recvSize
-            downloadItem.totalSize = total
-            downloadItem.progress = Float(recvSize) * 100.0 / Float(total)
-            if recvSize == total {
-                downloadItem.finishTime = Date().timeIntervalSince1970
-            }
-            downloadParams["download"] = downloadItem
-            NotificationCenter.default.post(name: ReceiveFuleSuccessNotification, object: nil, userInfo: downloadParams)
-        }
     }
     
     fileprivate func handleMultipleProgressBar(ip: UnsafeMutablePointer<CChar>?, id: UnsafeMutablePointer<CChar>?, deviceName: UnsafeMutablePointer<CChar>?, currentfileName: UnsafeMutablePointer<CChar>?, recvFileCnt: UInt32, totalFileCnt: UInt32, currentFileSize: UInt64, totalSize: UInt64, recvSize: UInt64, timestamp: UInt64) {
@@ -333,7 +383,11 @@ class P2PManager {
         }
     }
     
-    fileprivate func handleGetAuthData() -> UnsafeMutablePointer<CChar>? {
+    fileprivate func handleGetAuthData(clientIndex: UInt32) -> UnsafeMutablePointer<CChar>? {
+        Logger.info("[GO][Callback] SetGetAuthDataCallback clientIndex: \(clientIndex)")
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(name: UpdateVerifyClientIndexChangedNotification, object: nil, userInfo: ["clientIndex": clientIndex])
+        }
         let authString = self.screenData.isEmpty ? "" : self.screenData
         return authString.withCString { cString in
             let length = strlen(cString) + 1
@@ -504,7 +558,7 @@ class P2PManager {
     }
     
     private func updateClientList() {
-        guard let cstr = GetClientList() else {
+        guard let cstr = GetClientListEx() else {
             return
         }
         let str = String(cString: cstr)
@@ -515,41 +569,47 @@ class P2PManager {
     private func handleClientList(_ clientListStr: String) {
         var newClientList: [ClientInfo] = []
         var seenClients = Set<String>()
-        
-        let clientListArr = clientListStr.components(separatedBy: ",")
-        for (index, clientStr) in clientListArr.enumerated() {
-            let clientArr = clientStr.components(separatedBy: "#")
-            if clientArr.count != 4 {
-                Logger.info("[P2PManager][Err] Invalid client count = \(clientArr.count)")
+
+        guard let jsonData = clientListStr.data(using: .utf8) else {
+            Logger.info("[P2PManager][Err] Failed to convert string to data")
+            return
+        }
+
+        let json = JSON(jsonData)
+
+        let selfID = json["ID"].string ?? ""
+        let selfIP = json["IpAddr"].string ?? ""
+        let timestamp = json["TimeStamp"].int64 ?? 0
+        Logger.info("[P2PManager] Self Info - ID: \(selfID), IP: \(selfIP), Timestamp: \(timestamp)")
+
+        guard let clientListArray = json["ClientList"].array else {
+            Logger.info("[P2PManager][Err] ClientList is not an array or missing")
+            return
+        }
+
+        for (index, clientJson) in clientListArray.enumerated() {
+            guard let clientInfo = ClientInfo(json: clientJson) else {
+                Logger.info("[P2PManager][Err] Failed to parse client at index \(index)")
                 continue
             }
-            
-            let ip = clientArr[0]
-            let id = clientArr[1]
-            let name = clientArr[2]
-            let deviceType = clientArr[3]
-            if ip.isEmpty || id.isEmpty || name.isEmpty || deviceType.isEmpty {
-                continue
-            }
-            
-            let uniqueKey = "\(ip)_\(id)"
+
+            let uniqueKey = "\(clientInfo.ip)_\(clientInfo.id)"
             if seenClients.contains(uniqueKey) {
-                Logger.info("[P2PManager] Skipping duplicate client: IP:[\(ip)], ID:[\(id)]")
+                Logger.info("[P2PManager] Skipping duplicate client: IP:[\(clientInfo.ip)], ID:[\(clientInfo.id)]")
                 continue
             }
             seenClients.insert(uniqueKey)
-            
-            let clientInfo = ClientInfo(ip: ip, id: id, name: name,deviceType: deviceType)
+
             newClientList.append(clientInfo)
-            Logger.info("[P2PManager] update client list[\(index)]: IP:[\(ip)], Name:[\(name)], ID:[\(id)],deviceType:[\(deviceType)]")
+            Logger.info("[P2PManager] update client list[\(index)]: IP:[\(clientInfo.ip)], Name:[\(clientInfo.name)], ID:[\(clientInfo.id)], Platform:[\(clientInfo.deviceType)], SourcePort:[\(clientInfo.sourcePortType)], Version:[\(clientInfo.version)]")
         }
-        
+
         if !areClientListsEqual(mClientList, newClientList) {
             mClientList = newClientList
             let dictArray = mClientList.map { $0.toDictionary() }
             let json = JSON(dictArray)
             if let jsonString = json.rawString() {
-                UserDefaults.set(forKey: .DEVICE_CLIENTS, value: jsonString,type: .group)
+                UserDefaults.set(forKey: .DEVICE_CLIENTS, value: jsonString, type: .group)
             }
             NotificationCenter.default.post(name: UpdateClientListSuccessNotification, object: nil, userInfo: nil)
         }
@@ -576,17 +636,6 @@ class P2PManager {
         DispatchQueue.main.async {
             Logger.info("[P2PManager] setup device config. DIAS_ID:[\(diasId)], (Source, Port):[\(src), \(port)]")
             SetDIASID(diasId.toGoString())
-            SetSrcAndPort(GoInt(src), GoInt(port))
-        }
-    }
-    
-    func setFileDropRequest(filePath: String, id: String, fileSize: Int64) {
-        if filePath.isEmpty || id.isEmpty || fileSize <= 0{
-            Logger.info("[P2PManager] file drop request failed: Invalid params")
-        }
-        Logger.info("[P2PManager] file drop request json: \(filePath), id: \(id), fileSize: \(fileSize)")
-        DispatchQueue.main.async {
-            SendFileDropRequest(filePath.toGoString(), id.toGoString(), GoInt(fileSize))
         }
     }
     

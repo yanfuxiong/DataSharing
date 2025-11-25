@@ -52,8 +52,10 @@ extension AppDelegate {
             Logger.info("Network status: checking")
         case .unknown:
             Logger.info("Network status: unknown")
-        case .accessible, .accessibleWiFi, .accessibleCellular:
+        case .accessible:
             Logger.info("Network status: accessible")
+        case .accessibleWiFi, .accessibleCellular:
+            Logger.info("Network status: accessible WiFi or Cellular")
             CSNetworkAccessibility.sharedInstance().initializeApp { success in
                 Logger.info("App initialization result: \(success)")
             }

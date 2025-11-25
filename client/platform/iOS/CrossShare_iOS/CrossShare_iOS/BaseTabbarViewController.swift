@@ -28,6 +28,7 @@ class BaseTabbarViewController: UITabBarController {
         if #available(iOS 13.0, *) {
             let tabbar = UITabBar.appearance()
             tabbar.tintColor = UIColor.init(hex:0x007AFF)
+            tabbar.backgroundColor = .white
             tabbar.unselectedItemTintColor = UIColor.init(hex:0x999999,alpha: 1.0)
         } else {
             let appearance = UITabBarItem.appearance()

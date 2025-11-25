@@ -7,13 +7,18 @@
 
 import Foundation
 import os.log
+import SWCompression
 
 class Logger {
     static let shared = Logger()
     private let fileManager = FileManager.default
-    private let logFileURL: URL
+    private var logFileURL: URL
+    private let logDirectory: URL
     private let queue = DispatchQueue(label: "com.crossshare.logger.queue", qos: .utility)
     private let dateFormatter: DateFormatter
+    private let maxLogFileSize: UInt64 = 5 * 1024 * 1024
+    private let maxLogDays: Int = 3
+    private let maxLogFiles: Int = 3
     
     #if !EXTENSION
     private var stdoutPipe: Pipe?
@@ -25,7 +30,7 @@ class Logger {
     
     private init() {
         let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
-        let logDirectory = documentsDirectory.appendingPathComponent("Log")
+        logDirectory = documentsDirectory.appendingPathComponent("Log")
         
         if !fileManager.fileExists(atPath: logDirectory.path) {
             try? fileManager.createDirectory(at: logDirectory, withIntermediateDirectories: true)
@@ -38,6 +43,10 @@ class Logger {
         
         dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss.SSS"
+        
+        compressOldTxtFiles()
+        
+        cleanupOldLogs()
         
         log("Logger initialized", type: .info)
         
@@ -62,6 +71,9 @@ class Logger {
         
         queue.async { [weak self] in
             guard let self = self else { return }
+            
+            self.rotateLogIfNeeded()
+            
             if let data = (logMessage + "\n").data(using: .utf8) {
                 if self.fileManager.fileExists(atPath: self.logFileURL.path) {
                     if let fileHandle = try? FileHandle(forWritingTo: self.logFileURL) {
@@ -121,6 +133,120 @@ class Logger {
     
     func logFromGo(_ message: String) {
         log(message, type: .goLog)
+    }
+    
+    private func rotateLogIfNeeded() {
+        let fileDateFormatter = DateFormatter()
+        fileDateFormatter.dateFormat = "yyyy-MM-dd"
+        let currentDateString = fileDateFormatter.string(from: Date())
+        let expectedLogFileURL = logDirectory.appendingPathComponent("log-\(currentDateString).txt")
+        
+        let dateChanged = logFileURL.path != expectedLogFileURL.path
+        
+        var fileSizeExceeded = false
+        if fileManager.fileExists(atPath: logFileURL.path),
+           let attributes = try? fileManager.attributesOfItem(atPath: logFileURL.path),
+           let fileSize = attributes[.size] as? UInt64 {
+            fileSizeExceeded = fileSize >= maxLogFileSize
+        }
+        
+        if dateChanged || fileSizeExceeded {
+            if dateChanged {
+                compressOldTxtFiles()
+                logFileURL = expectedLogFileURL
+            } else {
+                if fileManager.fileExists(atPath: logFileURL.path) {
+                    compressLogFile(logFileURL)
+                }
+                let timestamp = Int(Date().timeIntervalSince1970)
+                let baseName = logFileURL.deletingPathExtension().lastPathComponent
+                let newFileName = "\(baseName)-\(timestamp).txt"
+                logFileURL = logDirectory.appendingPathComponent(newFileName)
+            }
+            
+            cleanupOldLogs()
+        }
+    }
+
+    private func compressOldTxtFiles() {
+        guard let files = try? fileManager.contentsOfDirectory(at: logDirectory, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) else {
+            return
+        }
+        
+        let fileDateFormatter = DateFormatter()
+        fileDateFormatter.dateFormat = "yyyy-MM-dd"
+        let todayString = fileDateFormatter.string(from: Date())
+        
+        let oldTxtFiles = files.filter { url in
+            url.pathExtension == "txt" && !url.lastPathComponent.contains(todayString)
+        }
+        
+        for fileURL in oldTxtFiles {
+            compressLogFile(fileURL)
+        }
+    }
+    
+    private func compressLogFile(_ fileURL: URL) {
+        let fileName = fileURL.lastPathComponent
+        let tarGzFileName = fileName.replacingOccurrences(of: ".txt", with: ".tar.gz")
+        let tarGzFileURL = logDirectory.appendingPathComponent(tarGzFileName)
+        
+        if fileManager.fileExists(atPath: tarGzFileURL.path) {
+            try? fileManager.removeItem(at: tarGzFileURL)
+        }
+        
+        do {
+            let inputData = try Data(contentsOf: fileURL)
+            let entry = TarEntry(info: TarEntryInfo(name: fileName, type: .regular),
+                                data: inputData)
+            let tarData = try TarContainer.create(from: [entry])
+            let gzipData = try GzipArchive.archive(data: tarData)
+            try gzipData.write(to: tarGzFileURL, options: .atomic)
+            try fileManager.removeItem(at: fileURL)
+            print("Log file compressed: \(tarGzFileName)")
+        } catch {
+            print("Failed to compress log file: \(error.localizedDescription)")
+        }
+    }
+    
+    private func cleanupOldLogs() {
+        guard let files = try? fileManager.contentsOfDirectory(at: logDirectory, includingPropertiesForKeys: [.creationDateKey], options: [.skipsHiddenFiles]) else {
+            return
+        }
+        
+        let currentDate = Date()
+        let calendar = Calendar.current
+        
+        var logFiles = files.filter { url in
+            let pathExtension = url.pathExtension
+            return pathExtension == "txt" || pathExtension == "gz"
+        }
+        
+        logFiles = logFiles.filter { url in
+            if let creationDate = try? url.resourceValues(forKeys: [.creationDateKey]).creationDate {
+                let daysDifference = calendar.dateComponents([.day], from: creationDate, to: currentDate).day ?? 0
+                if daysDifference >= maxLogDays {
+                    try? fileManager.removeItem(at: url)
+                    print("Deleted old log file: \(url.lastPathComponent) (age: \(daysDifference) days)")
+                    return false
+                }
+            }
+            return true
+        }
+        
+        logFiles.sort { url1, url2 in
+            let date1 = try? url1.resourceValues(forKeys: [.creationDateKey]).creationDate
+            let date2 = try? url2.resourceValues(forKeys: [.creationDateKey]).creationDate
+            return (date1 ?? Date.distantPast) > (date2 ?? Date.distantPast)
+        }
+        
+        if logFiles.count > maxLogFiles {
+            let filesToDelete = logFiles.suffix(from: maxLogFiles)
+            for fileURL in filesToDelete {
+                try? fileManager.removeItem(at: fileURL)
+                print("Deleted excess log file: \(fileURL.lastPathComponent)")
+            }
+        }
     }
 }
 

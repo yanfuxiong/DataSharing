@@ -18,13 +18,13 @@ class MuilpDeviceViewCell: UITableViewCell {
         }
         
         self.fileIconView.snp.makeConstraints { make in
-            make.left.equalTo(17.adaptW)
+            make.left.equalTo(17)
             make.centerY.equalToSuperview()
-            make.width.height.equalTo(52.adaptW)
+            make.width.height.equalTo(52)
         }
         
         self.deviceNameLab.snp.makeConstraints { make in
-            make.left.equalTo(fileIconView.snp.right).offset(23.adaptW)
+            make.left.equalTo(fileIconView.snp.right).offset(23)
             make.top.equalTo(fileIconView).offset(5)
             make.right.lessThanOrEqualTo(-16)
         }
@@ -91,28 +91,9 @@ class MuilpDeviceViewCell: UITableViewCell {
     //        return imgView
     //    }()
     
-    func configure(with model:ClientInfo) {
+    func configure(with model: ClientInfo) {
         self.deviceNameLab.text = model.name
-        var imageName = ""
-        switch model.deviceType {
-        case SOURCE_HDMI1:
-            imageName = "hdmi"
-        case SOURCE_HDMI2:
-            imageName = "hdmi2"
-        case SOURCE_USBC1:
-            imageName = "usb_c1"
-        case SOURCE_USBC2:
-            imageName = "usb_c2"
-        case SOURCE_DP1:
-            imageName = "dp1"
-        case SOURCE_DP2:
-            imageName = "dp2"
-        case SOURCE_MIRACAST:
-            imageName = "miracast"
-        default:
-            imageName = "computer"
-        }
-        self.fileIconView.image = UIImage(named: imageName)
+        self.fileIconView.image = UIImage(named: model.deviceIconName)
         self.deviceIpLab.text = model.ip
     }
 }

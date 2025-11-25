@@ -44,24 +44,44 @@ class ShareViewController: UIViewController {
             dispatchGroup.enter()
             if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
                 provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { (item, error) in
-                    defer { dispatchGroup.leave() }
                     if let url = item as? URL {
                         Logger.info("Got file URL directly: \(url)")
-                        filePaths.append(url)
+                        self.convertURLToLocalFile(url: url) { localFileURL in
+                            if let localFileURL = localFileURL {
+                                filePaths.append(localFileURL)
+                            }
+                            dispatchGroup.leave()
+                        }
                     } else if let urlData = item as? Data, let url = URL(dataRepresentation: urlData, relativeTo: nil) {
                         Logger.info("Got file URL from data: \(url)")
-                        filePaths.append(url)
+                        self.convertURLToLocalFile(url: url) { localFileURL in
+                            if let localFileURL = localFileURL {
+                                filePaths.append(localFileURL)
+                            }
+                            dispatchGroup.leave()
+                        }
                     } else if let urlString = item as? String, let url = URL(string: urlString) {
                         Logger.info("Got file URL from string: \(url)")
-                        filePaths.append(url)
+                        self.convertURLToLocalFile(url: url) { localFileURL in
+                            if let localFileURL = localFileURL {
+                                filePaths.append(localFileURL)
+                            }
+                            dispatchGroup.leave()
+                        }
+                    } else {
+                        dispatchGroup.leave()
                     }
                 }
             } else if provider.hasItemConformingToTypeIdentifier(UTType.data.identifier) {
                 provider.loadItem(forTypeIdentifier: UTType.data.identifier, options: nil) { (item, error) in
-                    defer { dispatchGroup.leave() }
                     if let url = item as? URL {
                         Logger.info("Got URL from data type: \(url)")
-                        filePaths.append(url)
+                        self.convertURLToLocalFile(url: url) { localFileURL in
+                            if let localFileURL = localFileURL {
+                                filePaths.append(localFileURL)
+                            }
+                            dispatchGroup.leave()
+                        }
                     } else if let data = item as? Data {
                         let tempDirectory = FileManager.default.temporaryDirectory
                         let fileName = UUID().uuidString
@@ -73,17 +93,24 @@ class ShareViewController: UIViewController {
                         } catch {
                             Logger.info("Error saving data to temporary file: \(error)")
                         }
+                        dispatchGroup.leave()
+                    } else {
+                        dispatchGroup.leave()
                     }
                 }
             } else {
                 let availableTypeIdentifiers = provider.registeredTypeIdentifiers
                 if let firstType = availableTypeIdentifiers.first {
                     provider.loadItem(forTypeIdentifier: firstType, options: nil) { (item, error) in
-                        defer { dispatchGroup.leave() }
                         Logger.info("Processing item of type: \(firstType)")
                         if let url = item as? URL {
                             Logger.info("Got URL from generic type: \(url)")
-                            filePaths.append(url)
+                            self.convertURLToLocalFile(url: url) { localFileURL in
+                                if let localFileURL = localFileURL {
+                                    filePaths.append(localFileURL)
+                                }
+                                dispatchGroup.leave()
+                            }
                         } else if let data = item as? Data {
                             let tempDirectory = FileManager.default.temporaryDirectory
                             let fileName = UUID().uuidString
@@ -96,8 +123,10 @@ class ShareViewController: UIViewController {
                             } catch {
                                 Logger.info("Error saving generic data: \(error)")
                             }
+                            dispatchGroup.leave()
                         } else {
                             Logger.info("Unknown item type: \(String(describing: item))")
+                            dispatchGroup.leave()
                         }
                     }
                 } else {
@@ -110,15 +139,198 @@ class ShareViewController: UIViewController {
         dispatchGroup.notify(queue: .main) {
             if filePaths.isEmpty {
                 Logger.info("No files found to share.")
-                self.cancelExtensionContext(with: "No files selected.")
+                MBProgressHUD.showTips(.error, "There are no valid files available for transfer", toView: self.view, duration: 1.5)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    self.cancelExtensionContext(with: "No files selected.")
+                }
                 return
             }
-            guard UserDefaults.getBool(forKey: .ISACTIVITY, type: .group) == true else {
+            if UserDefaults.getBool(forKey: .ISACTIVITY, type: .group) == false {
                 Logger.info("Error: ISACTIVITY not found in UserDefaults.")
-                self.cancelExtensionContext(with: "Please open CrossShare app first and wait a moment")
+                MBProgressHUD.showTips(.error, "Please launch the app and connect to the display", toView: self.view, duration: 1.5)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    self.cancelExtensionContext(with: "Please open CrossShare app first and wait a moment")
+                }
                 return
             }
             self.showDeviceSelectPopView(urls: filePaths)
+        }
+    }
+    
+    /// Convert URL to local file path
+    /// - Parameters:
+    ///   - url: URL to convert (could be local file, remote URL, or iCloud URL)
+    ///   - completion: Completion callback, returns local file URL, or nil if conversion fails (callback executes on main thread)
+    private func convertURLToLocalFile(url: URL, completion: @escaping (URL?) -> Void) {
+        // Check if it's a local file URL
+        if url.scheme == "file" && !url.path.contains("iCloud") {
+            // Check if file exists
+            if FileManager.default.fileExists(atPath: url.path) {
+                Logger.info("[URLConverter] Local file exists: \(url.path)")
+                DispatchQueue.main.async {
+                    completion(url)
+                }
+                return
+            } else {
+                Logger.info("[URLConverter] Local file not found: \(url.path)")
+                DispatchQueue.main.async {
+                    completion(nil)
+                }
+                return
+            }
+        }
+        
+        // Check if it's a remote URL (http/https)
+        if url.scheme == "http" || url.scheme == "https" {
+            Logger.info("[URLConverter] Detected remote URL, downloading: \(url.absoluteString)")
+            downloadRemoteURL(url: url, completion: completion)
+            return
+        }
+        
+        // Check if it's an iCloud URL (contains Mobile Documents or iCloud)
+        if url.scheme == "file" && (url.path.contains("iCloud") || url.path.contains("Mobile Documents")) {
+            Logger.info("[URLConverter] Detected iCloud URL: \(url.path)")
+            handleiCloudURL(url: url, completion: completion)
+            return
+        }
+        
+        // Try to handle as file URL (could be other format of file URL)
+        if url.scheme == "file" || url.isFileURL {
+            var securityScopedAccess = false
+            if url.startAccessingSecurityScopedResource() {
+                securityScopedAccess = true
+            }
+            defer {
+                if securityScopedAccess {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
+            
+            if FileManager.default.fileExists(atPath: url.path) {
+                Logger.info("[URLConverter] File URL accessible: \(url.path)")
+                DispatchQueue.main.async {
+                    completion(url)
+                }
+            } else {
+                Logger.info("[URLConverter] File URL not accessible: \(url.path)")
+                DispatchQueue.main.async {
+                    completion(nil)
+                }
+            }
+            return
+        }
+        
+        // Unknown URL type
+        Logger.info("[URLConverter] Unknown URL scheme: \(url.scheme ?? "nil")")
+        DispatchQueue.main.async {
+            completion(nil)
+        }
+    }
+    
+    /// Download remote URL and save as temporary file
+    private func downloadRemoteURL(url: URL, completion: @escaping (URL?) -> Void) {
+        let tempDirectory = FileManager.default.temporaryDirectory
+        let fileName = UUID().uuidString
+        // Try to get file extension from URL
+        let pathExtension = url.pathExtension.isEmpty ? "" : ".\(url.pathExtension)"
+        let tempFileURL = tempDirectory.appendingPathComponent(fileName + pathExtension)
+        
+        let task = URLSession.shared.downloadTask(with: url) { (tempURL, response, error) in
+            if let error = error {
+                Logger.info("[URLConverter][Err] Download failed: \(error.localizedDescription)")
+                DispatchQueue.main.async {
+                    completion(nil)
+                }
+                return
+            }
+            
+            guard let tempURL = tempURL else {
+                Logger.info("[URLConverter][Err] No temporary file URL from download")
+                DispatchQueue.main.async {
+                    completion(nil)
+                }
+                return
+            }
+            
+            do {
+                // If target file already exists, remove it first
+                if FileManager.default.fileExists(atPath: tempFileURL.path) {
+                    try FileManager.default.removeItem(at: tempFileURL)
+                }
+                
+                // Move downloaded file to target location
+                try FileManager.default.moveItem(at: tempURL, to: tempFileURL)
+                Logger.info("[URLConverter] Downloaded and saved to: \(tempFileURL.path)")
+                DispatchQueue.main.async {
+                    completion(tempFileURL)
+                }
+            } catch {
+                Logger.info("[URLConverter][Err] Failed to move downloaded file: \(error)")
+                DispatchQueue.main.async {
+                    completion(nil)
+                }
+            }
+        }
+        
+        task.resume()
+    }
+    
+    /// Handle iCloud URL (requires security-scoped resource access)
+    private func handleiCloudURL(url: URL, completion: @escaping (URL?) -> Void) {
+        guard url.startAccessingSecurityScopedResource() else {
+            Logger.info("[URLConverter][Err] Cannot access security-scoped resource for iCloud URL: \(url.path)")
+            DispatchQueue.main.async {
+                completion(nil)
+            }
+            return
+        }
+        
+        let fileManager = FileManager.default
+        var isDirectory: ObjCBool = false
+        
+        guard fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
+            url.stopAccessingSecurityScopedResource()
+            Logger.info("[URLConverter][Err] iCloud file does not exist: \(url.path)")
+            DispatchQueue.main.async {
+                completion(nil)
+            }
+            return
+        }
+        
+        // If it's a directory, not supported
+        if isDirectory.boolValue {
+            url.stopAccessingSecurityScopedResource()
+            Logger.info("[URLConverter][Err] iCloud item is a directory, not supported: \(url.path)")
+            DispatchQueue.main.async {
+                completion(nil)
+            }
+            return
+        }
+        
+        // Copy iCloud file to temporary directory
+        let tempDirectory = FileManager.default.temporaryDirectory
+        let fileName = url.lastPathComponent
+        let tempFileURL = tempDirectory.appendingPathComponent(fileName)
+        
+        do {
+            // If target file already exists, remove it first
+            if fileManager.fileExists(atPath: tempFileURL.path) {
+                try fileManager.removeItem(at: tempFileURL)
+            }
+            
+            // Copy file
+            try fileManager.copyItem(at: url, to: tempFileURL)
+            url.stopAccessingSecurityScopedResource() // Close security-scoped access after copy completes
+            Logger.info("[URLConverter] Copied iCloud file to temporary location: \(tempFileURL.path)")
+            DispatchQueue.main.async {
+                completion(tempFileURL)
+            }
+        } catch {
+            url.stopAccessingSecurityScopedResource() // Also close security-scoped access on error
+            Logger.info("[URLConverter][Err] Failed to copy iCloud file: \(error)")
+            DispatchQueue.main.async {
+                completion(nil)
+            }
         }
     }
     
@@ -202,6 +414,8 @@ class ShareViewController: UIViewController {
     
     private func showFolderWarningPopup(urls: [URL], type: ShareFilesPopType) {
         let popView = ShareFilesPopView(frame: self.view.bounds, type: type)
+        self.view.addSubview(popView)
+        popView.setupUI()
         
         switch type {
         case .mixedContent:
@@ -228,7 +442,6 @@ class ShareViewController: UIViewController {
         }
         
         popView.alpha = 0
-        self.view.addSubview(popView)
         
         UIView.animate(withDuration: 0.3) {
             popView.alpha = 1
@@ -245,10 +458,11 @@ class ShareViewController: UIViewController {
             if let array = json?.array {
                 clients = array.map { item in
                     ClientInfo(
-                        ip: item["ip"].stringValue,
-                        id: item["id"].stringValue,
-                        name: item["name"].stringValue,
-                        deviceType: item["deviceType"].stringValue
+                        ip: item[ClientInfo.CodingKeys.ip.rawValue].stringValue,
+                        id: item[ClientInfo.CodingKeys.id.rawValue].stringValue,
+                        name: item[ClientInfo.CodingKeys.name.rawValue].stringValue,
+                        deviceType: item[ClientInfo.CodingKeys.deviceType.rawValue].stringValue,
+                        sourcePortType: item[ClientInfo.CodingKeys.sourcePortType.rawValue].stringValue
                     )
                 }
             }
@@ -278,7 +492,8 @@ class ShareViewController: UIViewController {
         
         if !clients.isEmpty {
             let popView = DeviceSelectPopView(fileNames: fileNames, clients: clients)
-            popView.frame = self.view.bounds
+            self.view.addSubview(popView)
+            popView.setupUI()
             popView.alpha = 0
             self.devicePopView = popView
 
@@ -314,9 +529,6 @@ class ShareViewController: UIViewController {
                 }
             }
             
-            if !isFolder {
-                popView.y -= 80
-            }
             self.view.addSubview(popView)
             UIView.animate(withDuration: 0.3) {
                 popView.alpha = 1
@@ -326,8 +538,10 @@ class ShareViewController: UIViewController {
             }
         } else {
             print("No clients available to share with.")
-            MBProgressHUD.showTips(.error, "No devices found.", toView: self.view)
-            self.cancelExtensionContext(with: "No clients found")
+            MBProgressHUD.showTips(.error, "No devices available for file transfer", toView: self.view)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                self.cancelExtensionContext(with: "No clients found")
+            }
         }
     }
     
@@ -439,6 +653,9 @@ class ShareViewController: UIViewController {
         let destFolder = sharedFilesDirectory.appendingPathComponent(timestamp)
         let destFullPath = destFolder.appendingPathComponent(fileName)
         
+        // Check if source file is in system temporary directory (temporary file from URL conversion)
+        let isSystemTempFile = url.path.hasPrefix(FileManager.default.temporaryDirectory.path)
+        
         do {
             try FileManager.default.createDirectory(at: destFolder, withIntermediateDirectories: true, attributes: nil)
             if FileManager.default.fileExists(atPath: destFullPath.path) {
@@ -446,6 +663,17 @@ class ShareViewController: UIViewController {
             }
             try FileManager.default.copyItem(at: url, to: destFullPath)
             Logger.info("[DocPicker] Copied to App Group container: \(destFullPath.path)")
+            
+            // If source file is a system temporary file (from URL conversion), delete it after successful copy
+            if isSystemTempFile {
+                do {
+                    try FileManager.default.removeItem(at: url)
+                    Logger.info("[DocPicker] Cleaned up temporary file from system temp directory: \(url.path)")
+                } catch {
+                    Logger.info("[DocPicker][Warn] Failed to clean up temporary file: \(url.path), error: \(error)")
+                }
+            }
+            
             return destFullPath.path
         } catch {
             Logger.info("[DocPicker][Err] Copy to App Group container failed for \(url.path) to \(destFullPath.path): \(error)")

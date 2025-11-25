@@ -196,13 +196,13 @@ class MuilpServiceViewCell: UITableViewCell {
         }
         
         self.fileIconView.snp.makeConstraints { make in
-            make.left.equalTo(17.adaptW)
+            make.left.equalTo(17)
             make.centerY.equalToSuperview()
-            make.width.height.equalTo(52.adaptW)
+            make.width.height.equalTo(52)
         }
         
         self.deviceNameLab.snp.makeConstraints { make in
-            make.left.equalTo(fileIconView.snp.right).offset(23.adaptW)
+            make.left.equalTo(fileIconView.snp.right).offset(23)
             make.top.equalTo(fileIconView).offset(5)
             make.right.lessThanOrEqualTo(-16)
         }

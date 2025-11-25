@@ -1,4 +1,4 @@
-# platform :ios, '15.6'
+ platform :ios, '17.0'
 
 target 'CrossShare_iOS' do
   # Comment the next line if you don't want to use dynamic frameworks
@@ -10,6 +10,7 @@ target 'CrossShare_iOS' do
   pod 'SnapKit'
   pod 'Alamofire'
   pod 'MBProgressHUD'
+  pod 'SWCompression', '~> 4.8'
 
   target 'CrossShare_iOSTests' do
     inherit! :search_paths

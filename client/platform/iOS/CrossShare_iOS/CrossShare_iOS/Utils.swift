@@ -10,6 +10,7 @@ import Alamofire
 import UniformTypeIdentifiers
 
 let networkInterface = "en0"
+let kBtnHeight: CGFloat = 44
 
 extension GoString {
     func toString() -> String {

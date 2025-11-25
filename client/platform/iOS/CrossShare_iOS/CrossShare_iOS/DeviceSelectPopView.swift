@@ -8,14 +8,6 @@
 import UIKit
 import SnapKit
 
-let SOURCE_HDMI1 = "HDMI1";
-let SOURCE_HDMI2 = "HDMI2";
-let SOURCE_USBC1 = "USBC1";
-let SOURCE_USBC2 = "USBC2";
-let SOURCE_DP1 = "DP1";
-let SOURCE_DP2 = "DP2";
-let SOURCE_MIRACAST = "Miracast";
-
 class DeviceSelectPopView: UIView, UICollectionViewDataSource, UICollectionViewDelegateFlowLayout {
     var fileNames: [String]
     var clients: [ClientInfo]
@@ -30,6 +22,9 @@ class DeviceSelectPopView: UIView, UICollectionViewDataSource, UICollectionViewD
     private let cancelButton = UIButton(type: .custom)
     private let lineView = UIView()
     private let transportButton = UIButton(type: .custom)
+    
+    private let kFilesNameMinHeight: CGFloat = 100
+    private let kFilesNameMaxHeight: CGFloat = 320
     
     override init(frame: CGRect) {
         self.fileNames = []
@@ -49,43 +44,52 @@ class DeviceSelectPopView: UIView, UICollectionViewDataSource, UICollectionViewD
         layout.minimumLineSpacing = 5
         self.collectionView = UICollectionView(frame: .zero, collectionViewLayout: layout)
         super.init(frame: .zero)
-        setupUI()
     }
     
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
     
-    private func setupUI() {
-        self.backgroundColor = UIColor.black.withAlphaComponent(0.4)
-        self.layer.cornerRadius = 16
-        self.clipsToBounds = true
+    func setupUI() {
+        self.snp.makeConstraints { make in
+            make.left.right.equalToSuperview()
+            make.bottom.equalToSuperview()
+        }
         
         let tap = UITapGestureRecognizer(target: self, action: #selector(cancelAction))
         tap.delegate = self
         self.addGestureRecognizer(tap)
         
+        let kLeftRightPadding: CGFloat = 14
+        
+        collectionView.backgroundColor = .white
+        
         contentView.backgroundColor = .white
-        contentView.layer.cornerRadius = 16
+        contentView.layer.cornerRadius = 25
         contentView.clipsToBounds = true
         addSubview(contentView)
         contentView.snp.makeConstraints { make in
-            make.left.right.bottom.equalToSuperview()
-            make.height.equalTo(500).priority(.low)
+            make.edges.equalToSuperview()
         }
+
+        contentView.addSubview(cancelButton)
+        contentView.addSubview(crossShareLabel)
+        contentView.addSubview(titleLabel)
+        contentView.addSubview(lineView)
+        contentView.addSubview(collectionView)
+        contentView.addSubview(transportButton)
         
         cancelButton.setImage(UIImage(named: "back"), for: .normal)
         cancelButton.addTarget(self, action: #selector(cancelAction), for: .touchUpInside)
-        contentView.addSubview(cancelButton)
-        
         cancelButton.snp.makeConstraints { make in
             make.top.equalToSuperview().offset(20)
             make.left.equalToSuperview().offset(14)
             make.size.equalTo(CGSize(width: 30, height: 30))
+            make.bottom.equalTo(titleLabel.snp.top).offset(-30)
         }
         
         crossShareLabel.text = "Cross Share"
         crossShareLabel.textAlignment = .center
         crossShareLabel.font = UIFont.boldSystemFont(ofSize: 18)
-        contentView.addSubview(crossShareLabel)
+        crossShareLabel.textColor = .black
         crossShareLabel.snp.makeConstraints { make in
             make.centerY.equalTo(cancelButton)
             make.centerX.equalToSuperview()
@@ -95,48 +99,45 @@ class DeviceSelectPopView: UIView, UICollectionViewDataSource, UICollectionViewD
         titleLabel.numberOfLines = 0
         titleLabel.textAlignment = .center
         titleLabel.font = UIFont.systemFont(ofSize: 13)
-        contentView.addSubview(titleLabel)
+        titleLabel.textColor = .black
         titleLabel.snp.makeConstraints { make in
-            make.top.equalTo(crossShareLabel.snp.bottom).offset(60)
-            make.centerX.equalToSuperview()
-            make.left.equalTo(cancelButton.snp.right)
+            make.left.equalToSuperview().offset(kLeftRightPadding)
+            make.right.equalToSuperview().offset(-kLeftRightPadding)
+            make.height.greaterThanOrEqualTo(kFilesNameMinHeight)
+            make.height.lessThanOrEqualTo(kFilesNameMaxHeight)
+            make.bottom.equalTo(lineView.snp.top).offset(-30)
         }
         
         lineView.backgroundColor = .lightGray
-        contentView.addSubview(lineView)
         lineView.snp.makeConstraints { make in
-            make.top.equalTo(titleLabel.snp.bottom).offset(60)
-            make.centerX.equalToSuperview()
-            make.left.equalTo(cancelButton)
+            make.left.equalTo(titleLabel)
+            make.right.equalTo(titleLabel)
             make.height.equalTo(1)
+            make.bottom.equalTo(collectionView.snp.top).offset(-16)
         }
         
         collectionView.dataSource = self
         collectionView.delegate = self
         collectionView.register(DeviceCollectionCell.self, forCellWithReuseIdentifier: "DeviceCollectionCell")
         collectionView.showsHorizontalScrollIndicator = false
-        contentView.addSubview(collectionView)
-        
         collectionView.snp.makeConstraints { make in
-            make.top.equalTo(lineView.snp.bottom).offset(16)
             make.height.equalTo(100)
-            make.left.equalTo(cancelButton)
-            make.centerX.equalToSuperview()
-            make.bottom.equalToSuperview().offset(-80)
+            make.left.equalTo(titleLabel)
+            make.right.equalTo(titleLabel)
+            make.bottom.equalTo(transportButton.snp.top).offset(-25)
         }
         
         transportButton.setTitle("Transport Files", for: .normal)
         transportButton.setTitleColor(UIColor.white, for: .normal)
+        transportButton.titleLabel?.font = UIFont.boldSystemFont(ofSize: 16)
         transportButton.backgroundColor = UIColor.systemBlue
-        transportButton.layerCornerRadius = 5
+        transportButton.layerCornerRadius = kBtnHeight / 2
         transportButton.addTarget(self, action: #selector(transportFiles), for: .touchUpInside)
-        contentView.addSubview(transportButton)
-        
         transportButton.snp.makeConstraints { make in
-            make.top.equalTo(collectionView.snp.bottom).offset(25)
-            make.height.equalTo(40)
-            make.left.equalTo(cancelButton)
-            make.centerX.equalToSuperview()
+            make.height.equalTo(kBtnHeight)
+            make.left.equalTo(titleLabel)
+            make.right.equalTo(titleLabel)
+            make.bottom.equalToSuperview().offset(-30)
         }
     }
     
@@ -177,8 +178,7 @@ class DeviceSelectPopView: UIView, UICollectionViewDataSource, UICollectionViewD
         testLabel.font = UIFont.systemFont(ofSize: 13)
         testLabel.numberOfLines = 0
         
-        let reservedHeight: CGFloat = 100
-        let availableHeightForFiles = 320 - reservedHeight
+        let availableHeightForFiles = kFilesNameMaxHeight - kFilesNameMinHeight
         
         var displayText = ""
         
@@ -204,7 +204,7 @@ class DeviceSelectPopView: UIView, UICollectionViewDataSource, UICollectionViewD
         let attributedString = NSMutableAttributedString()
         
         if !displayText.isEmpty {
-            let fileNamesAttr = NSAttributedString(string: displayText + "\n\n\n", attributes: [
+            let fileNamesAttr = NSAttributedString(string: displayText + "\n\n", attributes: [
                 .font: UIFont.systemFont(ofSize: 13),
                 .foregroundColor: UIColor.label
             ])
@@ -219,7 +219,7 @@ class DeviceSelectPopView: UIView, UICollectionViewDataSource, UICollectionViewD
             
             let imageString = NSAttributedString(attachment: textAttachment)
             attributedString.append(imageString)
-            attributedString.append(NSAttributedString(string: "\n"))
+            attributedString.append(NSAttributedString(string: "\n\n"))
         }
         
         let totalAttr = NSAttributedString(string: "Total \(fileNames.count) files", attributes: [
@@ -341,28 +341,9 @@ class DeviceCollectionCell: UICollectionViewCell {
         return label
     }()
     
-    func configure(with model:ClientInfo) {
+    func configure(with model: ClientInfo) {
         self.fileNameLab.text = model.name
-        var imageName = ""
-        switch model.deviceType {
-        case SOURCE_HDMI1:
-            imageName = "hdmi"
-        case SOURCE_HDMI2:
-            imageName = "hdmi2"
-        case SOURCE_USBC1:
-            imageName = "usb_c1"
-        case SOURCE_USBC2:
-            imageName = "usb_c2"
-        case SOURCE_DP1:
-            imageName = "dp1"
-        case SOURCE_DP2:
-            imageName = "dp2"
-        case SOURCE_MIRACAST:
-            imageName = "miracast"
-        default:
-            imageName = "computer"
-        }
-        self.icoImgView.image = UIImage(named: imageName)
+        self.icoImgView.image = UIImage(named: model.deviceIconName)
     }
     
     @objc func tapAction(_ sender:UIButton) {

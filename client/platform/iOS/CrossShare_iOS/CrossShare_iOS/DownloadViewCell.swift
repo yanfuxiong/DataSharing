@@ -17,10 +17,10 @@ class DownloadViewCell: UITableViewCell {
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         super.init(style: style, reuseIdentifier: reuseIdentifier)
         selectionStyle = .none
-        contentView.backgroundColor = .init(hex: 0xF5F5F5)
+        contentView.backgroundColor = .init(hex: 0xF0F0F0)
         
         cornerView.snp.makeConstraints { make in
-            make.edges.equalToSuperview().inset(UIEdgeInsets(top: 4, left: 0, bottom: 4, right: 0))
+            make.edges.equalToSuperview().inset(UIEdgeInsets(top: 2, left: 4, bottom: 2, right: 4))
         }
         
         fileIconView.snp.makeConstraints { make in
@@ -49,26 +49,31 @@ class DownloadViewCell: UITableViewCell {
         
         deleteImgView.snp.makeConstraints { make in
             make.right.equalToSuperview().offset(-12)
-            make.centerY.equalToSuperview()
+            make.centerY.equalTo(fileSizeLab)
             make.size.equalTo(CGSize(width: 20, height: 20))
         }
         
-        cancelImgView.snp.makeConstraints { make in
+        cancelButton.snp.makeConstraints { make in
             make.right.equalToSuperview().offset(-12)
-            make.centerY.equalToSuperview()
-            make.size.equalTo(CGSize(width: 28, height: 28))
+            make.centerY.equalTo(fileSizeLab)
+            make.size.equalTo(CGSize(width: 44, height: 44))
+        }
+        
+        cancelImgView.snp.makeConstraints { make in
+            make.center.equalTo(cancelButton)
+            make.size.equalTo(CGSize(width: 20, height: 20))
         }
         
         refreshImgView.snp.makeConstraints { make in
             make.right.equalToSuperview().offset(-12)
-            make.centerY.equalToSuperview()
-            make.size.equalTo(CGSize(width: 28, height: 28))
+            make.centerY.equalTo(fileSizeLab)
+            make.size.equalTo(CGSize(width: 20, height: 20))
         }
         
         openFileView.snp.makeConstraints { make in
             make.right.equalTo(deleteImgView.snp.left).offset(-10)
-            make.centerY.equalToSuperview()
-            make.size.equalTo(CGSize(width: 28, height: 28))
+            make.centerY.equalTo(fileSizeLab)
+            make.size.equalTo(CGSize(width: 20, height: 20))
         }
         
         progressView.snp.makeConstraints { make in
@@ -84,7 +89,8 @@ class DownloadViewCell: UITableViewCell {
         }
         
         fromClientLab.snp.makeConstraints { make in
-            make.centerX.equalToSuperview().offset(18)
+            make.left.equalTo(finishLab.snp.right).offset(3)
+            make.right.equalTo(fileRatioLab.snp.left).offset(-3)
             make.top.equalTo(progressView.snp.bottom).offset(8)
         }
         
@@ -137,13 +143,20 @@ class DownloadViewCell: UITableViewCell {
         return imgView
     }()
     
+    lazy var cancelButton: UIButton = {
+        let button = UIButton(type: .custom)
+        button.backgroundColor = .clear
+        button.addTarget(self, action: #selector(cancelAction), for: .touchUpInside)
+        cornerView.addSubview(button)
+        return button
+    }()
+    
     lazy var cancelImgView: UIImageView = {
         let imgView = UIImageView()
-        imgView.isHidden = true
-        imgView.isUserInteractionEnabled = true
+//        imgView.isHidden = true
+        imgView.isUserInteractionEnabled = false
         imgView.image = UIImage(named: "cancel")
-        cornerView.addSubview(imgView)
-        imgView.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(cancelAction)))
+        cancelButton.addSubview(imgView)
         return imgView
     }()
     
@@ -201,7 +214,9 @@ class DownloadViewCell: UITableViewCell {
     lazy var fileRatioLab: UILabel = {
         let label = UILabel()
         label.textColor = .init(hex: 0xA4ABB3)
-        label.font = UIFont.boldSystemFont(ofSize: 12)
+        label.font = UIFont.boldSystemFont(ofSize: 10)
+        label.setContentHuggingPriority(.required, for: .horizontal)
+        label.setContentCompressionResistancePriority(.required, for: .horizontal)
         cornerView.addSubview(label)
         return label
     }()
@@ -209,7 +224,10 @@ class DownloadViewCell: UITableViewCell {
     lazy var fromClientLab: UILabel = {
         let label = UILabel()
         label.textColor = .init(hex: 0x77818D)
-        label.font = UIFont.systemFont(ofSize: 11)
+        label.font = UIFont.systemFont(ofSize: 10)
+        label.textAlignment = .center
+        label.lineBreakMode = .byTruncatingTail
+        label.numberOfLines = 1
         cornerView.addSubview(label)
         return label
     }()
@@ -217,7 +235,9 @@ class DownloadViewCell: UITableViewCell {
     lazy var finishLab: UILabel = {
         let label = UILabel()
         label.textColor = .init(hex: 0x77818D)
-        label.font = UIFont.systemFont(ofSize: 11)
+        label.font = UIFont.systemFont(ofSize: 10)
+        label.setContentHuggingPriority(.required, for: .horizontal)
+        label.setContentCompressionResistancePriority(.required, for: .horizontal)
         cornerView.addSubview(label)
         return label
     }()
@@ -238,6 +258,7 @@ class DownloadViewCell: UITableViewCell {
                 self.fileNameLab.text = componentsPath
                 self.fileNameLab.snp.remakeConstraints { make in
                     make.left.equalTo(totalLab)
+                    make.right.equalToSuperview().offset(-8)
                     make.height.equalTo(14)
                     make.centerY.equalTo(fileIconView)
                 }
@@ -255,16 +276,16 @@ class DownloadViewCell: UITableViewCell {
         self.totalLab.isHidden = !model.isMutip
         if let receiveSize = model.receiveSize,let totalSize = model.totalSize {
             if receiveSize < totalSize {
-                self.cancelImgView.isHidden = false
+                self.cancelButton.isHidden = false
                 self.refreshImgView.isHidden = true
                 self.deleteImgView.isHidden = true
             } else {
-                self.cancelImgView.isHidden = true
+                self.cancelButton.isHidden = true
                 self.refreshImgView.isHidden = true
                 self.deleteImgView.isHidden = false
             }
             if model.error != nil {
-                self.cancelImgView.isHidden = true
+                self.cancelButton.isHidden = true
                 self.refreshImgView.isHidden = false
                 self.deleteImgView.isHidden = true
                 
@@ -276,8 +297,6 @@ class DownloadViewCell: UITableViewCell {
                     self.fileRatioLab.textColor = .systemRed
                 }
             }
-            // FIXME: cancel dialogue not pop randomly
-            self.cancelImgView.isHidden = true
             // TODO: retry API not ready
             self.refreshImgView.isHidden = true
             self.openFileView.isHidden = receiveSize < totalSize

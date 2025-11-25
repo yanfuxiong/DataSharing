@@ -48,6 +48,7 @@ class DeviceTransportView: UIView {
     var mFileOpener: FileOpener? = nil
     public var dataArray:[DownloadItem] = [] {
         didSet {
+            detectCompletedFiles(oldData: oldValue, newData: dataArray)
             updateViewState()
             reloadAllTableViews()
         }
@@ -58,12 +59,33 @@ class DeviceTransportView: UIView {
     
     private var fileCancelView: FileCancelPopView?
     
+    // Track completed files with their completion time for delayed removal
+    private var delayedCompletedFiles: [String: Date] = [:]
+    private var delayRemovalTimer: Timer?
+    
     private var inProgressData: [DownloadItem] {
-        return dataArray.filter { $0.receiveSize ?? 0 < $0.totalSize ?? 0 && $0.error == nil }
+        let now = Date()
+        return dataArray.filter { item in
+            // Files currently being transferred
+            let isInProgress = (item.receiveSize ?? 0) < (item.totalSize ?? 0) && item.error == nil
+            
+            // Completed files within 2-second delay period
+            if let completedTime = delayedCompletedFiles[item.uuid] {
+                let elapsed = now.timeIntervalSince(completedTime)
+                return elapsed < 2.0 && item.error == nil
+            }
+            
+            return isInProgress
+        }
     }
     
     private var recordedData: [DownloadItem] {
-        return dataArray.filter { $0.receiveSize ?? 0 >= $0.totalSize ?? 0 && $0.error == nil }
+        return dataArray.filter { item in
+            let isCompleted = (item.receiveSize ?? 0) >= (item.totalSize ?? 0) && item.error == nil
+            // Exclude files in delayed display period
+            let isDelayed = delayedCompletedFiles[item.uuid] != nil
+            return isCompleted && !isDelayed
+        }
     }
     
     private var failedData: [DownloadItem] {
@@ -75,6 +97,85 @@ class DeviceTransportView: UIView {
         case .inProgress: return inProgressData
         case .recorded: return recordedData
         case .failed: return failedData
+        }
+    }
+    
+    // Detect newly completed files
+    private func detectCompletedFiles(oldData: [DownloadItem], newData: [DownloadItem]) {
+        for newItem in newData {
+            // Check if transfer just completed
+            let isNowCompleted = (newItem.receiveSize ?? 0) >= (newItem.totalSize ?? 0) && newItem.error == nil
+            
+            if isNowCompleted {
+                // Find corresponding item in old data
+                if let oldItem = oldData.first(where: { $0.uuid == newItem.uuid }) {
+                    let wasInProgress = (oldItem.receiveSize ?? 0) < (oldItem.totalSize ?? 0)
+                    
+                    // If was in progress and now completed, record completion time
+                    if wasInProgress && delayedCompletedFiles[newItem.uuid] == nil {
+                        delayedCompletedFiles[newItem.uuid] = Date()
+                        Logger.info("File transfer completed, will be removed after 2s delay: \(newItem.currentfileName ?? newItem.uuid)")
+                        scheduleDelayedRemoval()
+                    }
+                } else {
+                    // New file that's already completed (fast transfer scenario)
+                    if delayedCompletedFiles[newItem.uuid] == nil {
+                        delayedCompletedFiles[newItem.uuid] = Date()
+                        Logger.info("Fast transfer completed, will be removed after 2s delay: \(newItem.currentfileName ?? newItem.uuid)")
+                        scheduleDelayedRemoval()
+                    }
+                }
+            }
+        }
+        
+        // Clean up records for files that no longer exist
+        let currentUUIDs = Set(newData.map { $0.uuid })
+        delayedCompletedFiles = delayedCompletedFiles.filter { currentUUIDs.contains($0.key) }
+    }
+    
+    // Schedule delayed removal timer
+    private func scheduleDelayedRemoval() {
+        // Don't create duplicate timer if already running
+        if delayRemovalTimer != nil {
+            return
+        }
+        
+        // Create timer that checks every 0.5 seconds
+        delayRemovalTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            self?.checkAndRemoveExpiredFiles()
+        }
+    }
+    
+    // Check and remove expired delayed files
+    private func checkAndRemoveExpiredFiles() {
+        let now = Date()
+        var hasExpired = false
+        
+        // Find all files that have exceeded 2 seconds
+        let expiredUUIDs = delayedCompletedFiles.filter { _, completedTime in
+            now.timeIntervalSince(completedTime) >= 2.0
+        }.map { $0.key }
+        
+        if !expiredUUIDs.isEmpty {
+            hasExpired = true
+            Logger.info("Removing delayed files count: \(expiredUUIDs.count)")
+            
+            // Remove from delayed list
+            expiredUUIDs.forEach { delayedCompletedFiles.removeValue(forKey: $0) }
+        }
+        
+        // Stop timer if no more files to process
+        if delayedCompletedFiles.isEmpty {
+            delayRemovalTimer?.invalidate()
+            delayRemovalTimer = nil
+        }
+        
+        // Refresh view if any files expired
+        if hasExpired {
+            DispatchQueue.main.async { [weak self] in
+                self?.updateViewState()
+                self?.reloadAllTableViews()
+            }
         }
     }
     
@@ -151,6 +252,11 @@ class DeviceTransportView: UIView {
         setupUI()
     }
     
+    deinit {
+        delayRemovalTimer?.invalidate()
+        delayRemovalTimer = nil
+    }
+    
     func setupUI() {
         addSubview(customSegmentView)
         addSubview(scrollView)
@@ -210,8 +316,9 @@ class DeviceTransportView: UIView {
     private func setupTableViewConstraints() {
         for (index, tableView) in tableViews.enumerated() {
             tableView.snp.makeConstraints { make in
-                make.edges.equalToSuperview().inset(UIEdgeInsets(top: 0, left: 12, bottom: 0, right: 12))
+                make.edges.equalToSuperview().inset(UIEdgeInsets(top: 0, left: 0, bottom: 0, right: 0))
             }
+            tableView.contentInset = UIEdgeInsets(top: 4, left: 0, bottom: 4, right: 0)
             
             emptyViews[index].snp.makeConstraints { make in
                 make.center.equalToSuperview()
@@ -272,7 +379,7 @@ class DeviceTransportView: UIView {
     
     private func createTableView(for state: FileTransferState) -> UITableView {
         let tableView = UITableView()
-        tableView.backgroundColor = .clear
+        tableView.backgroundColor = .init(hex: 0xF0F0F0)
         tableView.delegate = self
         tableView.dataSource = self
         tableView.showsVerticalScrollIndicator = false
@@ -385,6 +492,8 @@ class DeviceTransportView: UIView {
             updateSegmentSelection(failedIndex)
             currentFilterState = .failed
             updateViewForCurrentState()
+            // Ensure table view data is refreshed when switching to failed page
+            reloadAllTableViews()
         }
     }
 }
@@ -493,7 +602,7 @@ extension DeviceTransportView {
             return
         }
         let popView = FileCancelPopView()
-        popView.frame = currentWindow.rootViewController?.view.bounds ?? CGRect.zero
+        popView.frame = currentWindow.bounds
         popView.alpha = 0
         self.fileCancelView = popView
         popView.onCancel = { [weak self] in
@@ -512,14 +621,21 @@ extension DeviceTransportView {
                             self.dataArray[originalIndex].error = "Transfer cancelled by user"
                             self.dataArray[originalIndex].finishTime = Date().timeIntervalSince1970
                             Logger.info("file has been cancel: \(itemToCancel.currentfileName ?? "Unknown")")
+                            
+                            // Manually trigger view update since modifying array element properties doesn't trigger didSet
+                            self.updateViewState()
+                            self.reloadAllTableViews()
+                            
+                            P2PManager.shared.setCancelFileTransfer(ipPort: itemToCancel.ip, clientID: itemToCancel.fileId, timeStamp: UInt64(itemToCancel.timestamp ?? Date().timeIntervalSince1970))
+                            
+                            // Ensure table view is refreshed before switching to failed page
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                self.switchToFailed()
+                                // Refresh again to ensure latest data is displayed
+                                self.reloadAllTableViews()
+                            }
                         } else {
                             self.dataArray.remove(at: originalIndex)
-                        }
-                        self.updateViewState()
-                        P2PManager.shared.setCancelFileTransfer(ipPort: itemToCancel.ip, clientID: itemToCancel.fileId, timeStamp: UInt64(itemToCancel.timestamp ?? Date().timeIntervalSince1970))
-                        
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                            self.switchToFailed()
                         }
                     }
                 }

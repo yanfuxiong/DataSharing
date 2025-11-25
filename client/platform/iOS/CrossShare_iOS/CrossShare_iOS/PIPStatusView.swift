@@ -11,6 +11,7 @@ import AVFoundation
 
 enum PIPContentType {
     case idle           // Idle, no content.
+    case disconnect     // Disconnect
     case textReceived   // Received a text message.
     case imageReceived  // Received an image.
 }
@@ -20,7 +21,7 @@ class PIPStatusView: NSObject {
     private var timer: Timer!
     var bufferDisplayLayer = AVSampleBufferDisplayLayer()
     
-    var contentType: PIPContentType = .idle
+    var contentType: PIPContentType = .disconnect
     var receivedText: String?
     var receivedImage: UIImage?
     
@@ -38,18 +39,19 @@ class PIPStatusView: NSObject {
         return view
     }()
     
-    private let emptyTextLabel: UILabel = {
+    private let hintTextLabel: UILabel = {
         let label = UILabel()
         label.textColor = UIColor.init(hex: 0x333333)
         label.font = UIFont.systemFont(ofSize: 14)
-        label.textAlignment = .center
+        label.textAlignment = .left
+        label.contentMode = .center
         label.numberOfLines = 2
         label.lineBreakMode = .byTruncatingTail
         label.backgroundColor = UIColor.clear
         return label
     }()
     
-    private let emptyImageView: UIImageView = {
+    private let hintImageView: UIImageView = {
         let imageView = UIImageView()
         imageView.contentMode = .scaleAspectFit
         imageView.clipsToBounds = true
@@ -95,8 +97,8 @@ class PIPStatusView: NSObject {
     
     private func setupUI() {
         containerView.addSubview(contentView)
-        containerView.addSubview(emptyTextLabel)
-        containerView.addSubview(emptyImageView)
+        containerView.addSubview(hintTextLabel)
+        containerView.addSubview(hintImageView)
         contentView.addSubview(textLabel)
         contentView.addSubview(imageView)
         contentView.addSubview(imageDescriptionLabel)
@@ -105,12 +107,17 @@ class PIPStatusView: NSObject {
         
         textLabel.frame = contentView.bounds
         
-        emptyTextLabel.isHidden = true
-        emptyImageView.isHidden = true
+        hintTextLabel.isHidden = true
+        hintImageView.isHidden = true
         textLabel.isHidden = true
         imageView.isHidden = true
         imageDescriptionLabel.isHidden = true
-        
+
+        hintImageView.frame = CGRect(x: 20, y: (containerView.bounds.height - 36) / 2, width: 36, height: 36)
+        hintTextLabel.frame = CGRect(x: hintImageView.frame.maxX + 10, y: 5,
+                                width: contentView.bounds.width - hintImageView.frame.maxX - 18, height: contentView.bounds.size.height-5*2)
+        hintTextLabel.center.y = hintImageView.center.y
+
         updateUI()
     }
     
@@ -129,8 +136,8 @@ class PIPStatusView: NSObject {
     private func updateUI() {
         Logger.info("[PIPStatusView] updateUI called with contentType: \(contentType)")
         
-        emptyImageView.isHidden = true
-        emptyTextLabel.isHidden = true
+        hintImageView.isHidden = true
+        hintTextLabel.isHidden = true
         textLabel.isHidden = true
         imageView.isHidden = true
         imageDescriptionLabel.isHidden = true
@@ -138,16 +145,20 @@ class PIPStatusView: NSObject {
         switch contentType {
         case .idle:
             Logger.info("[PIPStatusView] Processing .idle state")
-            emptyImageView.image = UIImage(named: "noClipboard")
-            emptyImageView.isHidden = false
-            emptyImageView.frame = CGRect(x: 20, y: (containerView.bounds.height - 36) / 2, width: 36, height: 36)
-            emptyTextLabel.text = "Clipboard is currently empty"
-            emptyTextLabel.isHidden = false
-            emptyTextLabel.frame = CGRect(x: emptyImageView.frame.maxX, y: (contentView.bounds.size.height - 20) / 2,
-                                          width: contentView.bounds.width - emptyImageView.frame.maxX - 8, height: 20)
-            emptyTextLabel.center.y = emptyImageView.center.y
+            hintImageView.image = UIImage(named: "noClipboard")
+            hintImageView.isHidden = false
+            hintTextLabel.text = "Clipboard is currently empty"
+            hintTextLabel.isHidden = false
             break
-            
+        
+        case .disconnect:
+            Logger.info("[PIPStatusView] Processing .disconnect state")
+            hintImageView.image = UIImage(named: "warning")
+            hintImageView.isHidden = false
+            hintTextLabel.text = "Complete setup.\nTap here to continue"
+            hintTextLabel.isHidden = false
+            break
+        
         case .textReceived:
             Logger.info("[PIPStatusView] Processing .textReceived state")
             if let text = receivedText, !text.isEmpty {
@@ -190,7 +201,7 @@ class PIPStatusView: NSObject {
         let imageWidth = containerSize.width * 0.4 - 8   // 40% width for image, minus spacing
         
         imageDescriptionLabel.frame = CGRect(
-            x: 0,
+            x: 10,
             y: (containerSize.height - 20) / 2, // Center align
             width: descriptionWidth,
             height: 20

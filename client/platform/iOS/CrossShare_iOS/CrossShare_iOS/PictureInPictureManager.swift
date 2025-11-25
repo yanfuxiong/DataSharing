@@ -21,6 +21,7 @@ class PictureInPictureManager: NSObject {
     private var hasSetAutoStartProperty = false
     private weak var currentActiveView: UIView?
     private var hasSetupActiveView = false
+    private var mPIPContentType: PIPContentType = .idle
     
     private override init() {
         super.init()
@@ -224,13 +225,20 @@ class PictureInPictureManager: NSObject {
     
     func updatePIPStatus(contentType: PIPContentType, text: String? = nil, image: UIImage? = nil) {
         _pipContent.updateStatus(contentType: contentType, text: text, image: image)
+        mPIPContentType = contentType
     }
     
     func showTextReceived(_ text: String) {
+        guard mPIPContentType == .idle else {
+            return
+        }
         _pipContent.updateStatus(contentType: .textReceived, text: text)
     }
     
     func showImageReceived(_ image: UIImage) {
+        guard mPIPContentType == .idle else {
+            return
+        }
         _pipContent.updateStatus(contentType: .imageReceived, image: image)
     }
     

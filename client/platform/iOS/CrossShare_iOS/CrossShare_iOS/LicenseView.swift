@@ -30,7 +30,7 @@ class LicenseView: UIView {
         self.addSubview(tableView)
         
         self.tableView.tableHeaderView = self.tableViewTopView
-        self.tableView.tableHeaderView?.size = CGSize(width: UIScreen.main.bounds.width, height: 70.adaptH)
+        self.tableView.tableHeaderView?.size = CGSize(width: UIScreen.main.bounds.width, height: 70)
         
         self.tableView.setNeedsLayout()
         self.tableView.layoutIfNeeded()
@@ -59,7 +59,7 @@ class LicenseView: UIView {
         view.delegate = self
         view.dataSource = self
         view.showsVerticalScrollIndicator = false
-        view.rowHeight = 42.adaptH
+        view.rowHeight = 42
         view.separatorStyle = .none
         view.register(LicenseViewCell.self,
                       forCellReuseIdentifier: NSStringFromClass(LicenseViewCell.self))
@@ -129,7 +129,7 @@ class LicenseViewCell: UITableViewCell {
         self.fileIconView.snp.makeConstraints { make in
             make.right.equalToSuperview().offset(-9)
             make.centerY.equalToSuperview()
-            make.width.height.equalTo(24.adaptW)
+            make.width.height.equalTo(24)
         }
         
         self.lineView.snp.makeConstraints { make in
