@@ -3,6 +3,8 @@ package peer2peer
 import (
 	"bufio"
 	"bytes"
+	"errors"
+	"github.com/libp2p/go-yamux/v5"
 	"io"
 	"log"
 	"net"
@@ -51,6 +53,9 @@ func writeXClipDataToSocket(id, ipAddr string) rtkMisc.CrossShareErr {
 	nWrite, err := io.Copy(sXClip, io.MultiReader(readers...))
 	if err != nil {
 		log.Printf("(SRC) IP:[%s] Copy XClip data err:%+v", ipAddr, err)
+		if errors.Is(err, yamux.ErrStreamReset) {
+			rtkConnection.LastXClipStreamReset(id) //cannot be closed here when old XClip stream reset by DST, Otherwise, there is a possibility of errors in new XClip stream
+		}
 		return rtkMisc.ERR_BIZ_CB_SRC_COPY
 	}
 
@@ -124,7 +129,7 @@ func handleXClipDataFromSocket(id, ipAddr string) rtkMisc.CrossShareErr {
 		}
 
 		log.Printf("(DST) IP[%s] End to Copy XClip data success, Total size:[%d] use [%d] ms", ipAddr, nDstWrite, time.Now().UnixMilli()-startTime)
-		rtkClipboard.SetupDstPasteXClipData(id, textData, imageData, htmlData, rtfData)
+		rtkMisc.GoSafe(func() { rtkClipboard.SetupDstPasteXClipData(id, textData, imageData, htmlData, rtfData) })
 		xClipBuffer.Reset()
 		return rtkMisc.SUCCESS
 	} else {

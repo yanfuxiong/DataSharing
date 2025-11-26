@@ -330,6 +330,18 @@ func updateFmtTypeStreamDst(stream network.Stream, fmtType rtkCommon.TransFmtTyp
 	updateFmtTypeStreamInternal(stream, fmtType, true)
 }
 
+func LastXClipStreamReset(id string) {
+	streamPoolMutex.Lock()
+	defer streamPoolMutex.Unlock()
+	if sInfo, ok := streamPoolMap[id]; ok {
+		if sInfo.sImage != nil {
+			sInfo.sImage = nil
+			streamPoolMap[id] = sInfo
+			log.Printf("[%s] ID:[%s] IP:[%s] last XClip stream is Reset!", rtkMisc.GetFuncInfo(), id, sInfo.ipAddr)
+		}
+	}
+}
+
 func clearLastFmtStream(id string, fmtType rtkCommon.TransFmtType) bool {
 	streamPoolMutex.Lock()
 	defer streamPoolMutex.Unlock()
