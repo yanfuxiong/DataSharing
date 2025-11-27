@@ -116,7 +116,7 @@ func UpdateDragFileListFromDst(fileInfoList []rtkCommon.FileInfo, folderList []s
 
 // ********************  Setup Dst file info ****************
 
-func SetupDstDragFileList(id, ip, platform string, fileInfoList []rtkCommon.FileInfo, folderList []string, totalSize, timeStamp uint64, totalDesc string) {
+func SetupDstDragFileList(id, ip string, fileInfoList []rtkCommon.FileInfo, folderList []string, totalSize, timeStamp uint64, totalDesc string) {
 	UpdateDragFileListFromDst(fileInfoList, folderList, totalSize, timeStamp, totalDesc)
 	UpdateDragFileReqDataFromDst(id)
 
@@ -130,6 +130,6 @@ func SetupDstDragFileList(id, ip, platform string, fileInfoList []rtkCommon.File
 		firstFileName = folderList[0]
 	}
 
-	rtkPlatform.GoDragFileListNotify(ip, id, platform, nFileCount, totalSize, timeStamp, firstFileName, firstFileSize)
+	rtkPlatform.GoFileListReceiveNotify(ip, id, nFileCount, totalSize, timeStamp, firstFileName, firstFileSize)
 	UpdateDragFileRespDataFromDst(id)
 }

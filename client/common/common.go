@@ -78,7 +78,7 @@ const (
 )
 
 const (
-	FileTransDone CancelBusinessSource = iota + 3000 // FilesCacheDataProcess
+	FileTransDone CancelBusinessSource = iota + 3000 // dealFilesCacheDataProcess
 	FileTransSrcCancel
 	FileTransSrcGuiCancel
 	FileTransDstCancel

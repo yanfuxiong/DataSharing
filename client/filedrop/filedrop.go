@@ -33,10 +33,30 @@ func updateFileListDrop(id string, fileInfoList []rtkCommon.FileInfo, folderList
 func UpdateFileListDropReqDataFromLocal(id string, fileInfoList []rtkCommon.FileInfo, folderList []string, total, timeStamp uint64, totalDesc string) {
 	updateFileListDrop(id, fileInfoList, folderList, total, timeStamp, totalDesc)
 
-	nCount := rtkUtils.GetClientCount()
-	for i := 0; i < nCount; i++ {
+	clientListMap := rtkUtils.GetClientMap()
+	ipAddr := string("")
+	for _, clientInfo := range clientListMap {
+		if clientInfo.ID == id {
+			ipAddr = clientInfo.IpAddr
+		}
 		fileDropReqIdChan <- id
 	}
+
+	if ipAddr == "" {
+		log.Printf("[%s] ID:[%s] Not found client map data\n\n", rtkMisc.GetFuncInfo(), id)
+		return
+	}
+
+	firstFileSize := uint64(0)
+	var firstFileName string
+	if len(fileInfoList) > 0 {
+		firstFileSize = uint64(fileInfoList[0].FileSize_.SizeHigh)<<32 | uint64(fileInfoList[0].FileSize_.SizeLow)
+		firstFileName = fileInfoList[0].FileName
+	} else {
+		firstFileName = folderList[0]
+	}
+
+	rtkPlatform.GoFileListSendNotify(ipAddr, id, uint32(len(fileInfoList)), total, timeStamp, firstFileName, firstFileSize)
 }
 
 func UpdateFileListDropReqDataFromDst(id string, fileInfoList []rtkCommon.FileInfo, folderList []string, total, timeStamp uint64, totalDesc string) {
@@ -166,7 +186,7 @@ func SetupDstFileListDrop(id, ip, platform, totalDesc string, fileList []rtkComm
 		}
 
 		firstFileName, _ = rtkUtils.GetTargetDstPathName(firstFileName, "")
-		rtkPlatform.GoMultiFilesDropNotify(ip, id, platform, nFileCount, totalSize, timestamp, firstFileName, firstFileSize) //No need to confirm
+		rtkPlatform.GoFileListReceiveNotify(ip, id, nFileCount, totalSize, timestamp, firstFileName, firstFileSize) //No need to confirm
 		UpdateFileDropRespDataFromDst(id, rtkCommon.FILE_DROP_ACCEPT, rtkPlatform.GetDownloadPath())
 	}
 }

@@ -27,9 +27,14 @@ func SendDisconnectMsgToPeer(id string) {
 	sendCmdMsgToPeer(id, COMM_DISCONNECT, rtkCommon.TEXT_CB, rtkMisc.SUCCESS)
 }
 
-func SendFileTransCancelByGuiMsgToPeer(id string, fileTransDataId uint64) {
-	log.Printf("[%s] send cancel files transfer msg to ID:[%s], id:%d", rtkMisc.GetFuncInfo(), id, fileTransDataId)
-	sendFileTransInterruptMsgToPeer(id, COMM_FILE_TRANSFER_DST_INTERRUPT, rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL_GUI, fileTransDataId)
+func SendFileTransCancelByGuiMsgToPeer(id string, fileTransDataId uint64, asSrc bool) {
+	if asSrc {
+		log.Printf("(SRC) [%s] ID:[%s] send cancel filesCachedata msg to dst, id:%d", rtkMisc.GetFuncInfo(), id, fileTransDataId)
+		sendFileTransInterruptMsgToPeer(id, COMM_FILE_TRANSFER_SRC_INTERRUPT, rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_CANCEL_GUI, fileTransDataId)
+	} else {
+		log.Printf("(DST) [%s] ID:[%s] send cancel filesCachedata msg to src, id:%d", rtkMisc.GetFuncInfo(), id, fileTransDataId)
+		sendFileTransInterruptMsgToPeer(id, COMM_FILE_TRANSFER_DST_INTERRUPT, rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL_GUI, fileTransDataId)
+	}
 	rtkConnection.CloseFileDropItemStream(id, fileTransDataId)
 }
 

@@ -318,8 +318,8 @@ func handlerFileDropItemStream(stream network.Stream) {
 	noticeFmtTypeStreamReady(reqMsg.ID, rtkCommon.FILE_DROP)
 }
 
-func NewFileDropItemStream(ctx context.Context, id string, timestamp uint64) rtkMisc.CrossShareErr {
-	ctx, cancel := context.WithTimeout(ctx, ctxTimeout_short)
+func NewFileDropItemStream(ctxMain context.Context, id string, timestamp uint64) rtkMisc.CrossShareErr {
+	ctx, cancel := context.WithTimeout(ctxMain, ctxTimeout_short)
 	defer cancel()
 
 	clientInfo, err := rtkUtils.GetClientInfo(id)

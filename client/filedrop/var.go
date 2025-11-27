@@ -14,7 +14,7 @@ const (
 	FilesTransfer_Unknown FilesTransferDirectionType = "FilesTransfer_Unknown"
 )
 
-type CallbackSendCancelFileTransMsgFunc func(id string, fileTransDataId uint64)
+type CallbackSendCancelFileTransMsgFunc func(id string, fileTransDataId uint64, asSrc bool)
 
 var (
 	fileDropDataMap    = make(map[string]FileDropData)           // key: ID
@@ -60,7 +60,7 @@ type FilesTransferDataItem struct {
 
 type filesDataTransferCache struct {
 	filesTransferDataQueue []FilesTransferDataItem
-	cancelFn               func(source rtkCommon.CancelBusinessSource)
+	cancelFn               func(rtkCommon.CancelBusinessSource)
 }
 
 func SetSendFileTransferCancelMsgToPeerCallback(cb CallbackSendCancelFileTransMsgFunc) {

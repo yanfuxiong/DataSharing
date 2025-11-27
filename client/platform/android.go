@@ -381,7 +381,7 @@ func GoFileListSendNotify(ip, id string, fileCnt uint32, totalSize, timestamp ui
 		log.Println(" CallbackInstance is null !")
 		return
 	}
-	log.Printf("(DST) GoFileListSendNotify  dst:%s ip:[%s] timestamp:%d fileCnt:%d  totalSize:%d", id, ip, timestamp, fileCnt, totalSize)
+	log.Printf("(SRC) GoFileListSendNotify  dst:%s ip:[%s] timestamp:%d fileCnt:%d  totalSize:%d", id, ip, timestamp, fileCnt, totalSize)
 	CallbackInstance.CallbackFileListSendNotify(ip, id, int(fileCnt), int64(totalSize), int64(timestamp), firstFileName, int64(firstFileSize))
 }
 
