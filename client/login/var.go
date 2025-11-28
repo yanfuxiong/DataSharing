@@ -1,6 +1,7 @@
 package login
 
 import (
+	"context"
 	rtkMisc "rtk-cross-share/misc"
 	"sync"
 	"sync/atomic"
@@ -73,9 +74,8 @@ func SetCancelAllBusinessCallback(cb callbackCancelAllBusinessFunc) {
 
 type HeartBeatTicker struct {
 	interval time.Duration
-	ticker   *time.Ticker
 	proxyCh  chan time.Time
-	stopCh   chan struct{}
+	cancel   context.CancelFunc
 	mu       sync.Mutex
 }
 
@@ -88,31 +88,22 @@ func NewHeartBeatTicker(interval time.Duration) *HeartBeatTicker {
 
 func (t *HeartBeatTicker) Start() {
 	t.mu.Lock()
-	if t.ticker != nil {
-		t.stopTicker()
-		t.mu.Unlock()
+	defer t.mu.Unlock()
 
-		time.Sleep(10 * time.Millisecond) // this delay let old Ticker goroutine get lock and stop it!
-		t.mu.Lock()
-	}
+	t.stopTicker()
 
-	t.ticker = time.NewTicker(t.interval)
-	t.stopCh = make(chan struct{})
-	t.mu.Unlock()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.cancel = cancel
 
 	rtkMisc.GoSafe(func() {
+		tk := time.NewTicker(t.interval)
+		defer tk.Stop()
 		for {
 			select {
-			case tickTime := <-t.ticker.C:
-				t.proxyCh <- tickTime
-			case <-t.stopCh:
-				t.mu.Lock()
-				if t.ticker != nil {
-					t.ticker.Stop()
-					t.ticker = nil
-				}
-				t.mu.Unlock()
+			case <-ctx.Done():
 				return
+			case tickTime := <-tk.C:
+				t.proxyCh <- tickTime
 			}
 		}
 	})
@@ -125,7 +116,10 @@ func (t *HeartBeatTicker) Stop() {
 }
 
 func (t *HeartBeatTicker) stopTicker() {
-	close(t.stopCh)
+	if t.cancel != nil {
+		t.cancel()
+		t.cancel = nil
+	}
 }
 
 func (t *HeartBeatTicker) C() <-chan time.Time {
