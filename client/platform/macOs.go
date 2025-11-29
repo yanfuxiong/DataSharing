@@ -64,11 +64,11 @@ type (
 	CallbackPasteXClipFunc                 func(text, image, html, rtf string)
 	CallbackFileDropResponseFunc           func(string, rtkCommon.FileDropCmd, string)
 	CallbackDragFileListRequestFunc        func([]rtkCommon.FileInfo, []string, uint64, uint64, string)
-	CallbackFileListDragNotify             func(string, string, string, uint32, uint64, uint64, string, uint64)
+	CallbackFileListNotify                 func(string, string, uint32, uint64, uint64, string, uint64)
 	CallbackFileListDragFolderNotify       func(string, string, string, uint64)
 	CallbackFileListDropRequestFunc        func(string, []rtkCommon.FileInfo, []string, uint64, uint64, string)
 	CallbackUpdateClientStatusFunc         func(clientInfo string)
-	CallbackUpdateMultipleProgressBar      func(string, string, string, uint32, uint32, uint64, uint64, uint64, uint64)
+	CallbackUpdateProgressBar              func(string, string, string, uint32, uint32, uint64, uint64, uint64, uint64)
 	CallbackNotiMessageFileTransFunc       func(fileName, clientName, platform string, timestamp uint64, isSender bool)
 	CallbackCancelFileTransFunc            func(string, string, uint64)
 	CallbackNotifyErrEventFunc             func(id string, errCode uint32, arg1, arg2, arg3, arg4 string)
@@ -100,11 +100,13 @@ var (
 	callbackPasteXClipData             CallbackPasteXClipFunc                 = nil
 	callbackInstanceFileDropResponseCB CallbackFileDropResponseFunc           = nil
 	callbackDragFileListRequestCB      CallbackDragFileListRequestFunc        = nil
-	callbackFileListDragNotify         CallbackFileListDragNotify             = nil
+	callbackFileListSendNotify         CallbackFileListNotify                 = nil
+	callbackFileListReceiveNotify      CallbackFileListNotify                 = nil
 	callbackFileListDragFolderNotify   CallbackFileListDragFolderNotify       = nil
 	callbackFileListDropRequest        CallbackFileListDropRequestFunc        = nil
 	callbackUpdateClientStatus         CallbackUpdateClientStatusFunc         = nil
-	callbackUpdateMultipleProgressBar  CallbackUpdateMultipleProgressBar      = nil
+	callbackUpdateSendProgressBar      CallbackUpdateProgressBar              = nil
+	callbackUpdateReceiveProgressBar   CallbackUpdateProgressBar              = nil
 	callbackNotiMessageFileTransCB     CallbackNotiMessageFileTransFunc       = nil
 	callbackCancelFileTrans            CallbackCancelFileTransFunc            = nil
 	callbackNotifyErrEvent             CallbackNotifyErrEventFunc             = nil
@@ -132,8 +134,12 @@ func SetCallbackUpdateSystemInfo(cb CallbackUpdateSystemInfoFunc) {
 	callbackUpdateSystemInfo = cb
 }
 
-func SetCallbackFileListNotify(cb CallbackFileListDragNotify) {
-	callbackFileListDragNotify = cb
+func SetCallbackFileListSendNotify(cb CallbackFileListNotify) {
+	callbackFileListSendNotify = cb
+}
+
+func SetCallbackFileListReceiveNotify(cb CallbackFileListNotify) {
+	callbackFileListReceiveNotify = cb
 }
 
 func SetCallbackFileListFolderNotify(cb CallbackFileListDragFolderNotify) {
@@ -144,8 +150,12 @@ func SetCallbackUpdateClientStatus(cb CallbackUpdateClientStatusFunc) {
 	callbackUpdateClientStatus = cb
 }
 
-func SetCallbackUpdateMultipleProgressBar(cb CallbackUpdateMultipleProgressBar) {
-	callbackUpdateMultipleProgressBar = cb
+func SetCallbackUpdateSendProgressBar(cb CallbackUpdateProgressBar) {
+	callbackUpdateSendProgressBar = cb
+}
+
+func SetCallbackUpdateReceiveProgressBar(cb CallbackUpdateProgressBar) {
+	callbackUpdateReceiveProgressBar = cb
 }
 
 func SetCallbackNotiMessageFileTrans(cb CallbackNotiMessageFileTransFunc) {
@@ -460,27 +470,26 @@ func GoSetupFileListDrop(ip, id, platform, totalDesc string, fileCount, folderCo
 	log.Printf("(DST) GoSetupFileListDrop  ID:]%s] IP:[%s] totalDesc:%s  fileCount:%d  folderCount:%d", id, ip, totalDesc, fileCount, folderCount)
 }
 
-func GoMultiFilesDropNotify(ip, id, platform string, fileCnt uint32, totalSize, timestamp uint64, firstFileName string, firstFileSize uint64) {
-	if callbackFileListDragNotify == nil {
-		log.Println(" callbackFileListDragNotify is null !")
+func GoFileListSendNotify(ip, id string, fileCnt uint32, totalSize, timestamp uint64, firstFileName string, firstFileSize uint64) {
+	if callbackFileListSendNotify == nil {
+		log.Println(" callbackFileListSendNotify is null !")
 		return
 	}
-	log.Printf("(DST) GoMultiFilesDropNotify  source id:%s ip:[%s] fileCnt:%d totalSize:%d firstFileName:%s firstFileSize:%d", id, ip, fileCnt, totalSize, firstFileName, firstFileSize)
-	callbackFileListDragNotify(ip, id, platform, fileCnt, totalSize, timestamp, firstFileName, firstFileSize)
+	callbackFileListSendNotify(ip, id, fileCnt, totalSize, timestamp, firstFileName, firstFileSize)
 }
 
-func GoDragFileListNotify(ip, id, platform string, fileCnt uint32, totalSize, timestamp uint64, firstFileName string, firstFileSize uint64) {
-	if callbackFileListDragNotify == nil {
-		log.Println(" callbackFileListDragNotify is null !")
+func GoFileListReceiveNotify(ip, id string, fileCnt uint32, totalSize, timestamp uint64, firstFileName string, firstFileSize uint64) {
+	if callbackFileListReceiveNotify == nil {
+		log.Println(" callbackFileListReceiveNotify is null !")
 		return
 	}
-	log.Printf("(DST) GoDragFileListNotify  source id:%s ip:[%s] fileCnt:%d totalSize:%d firstFileName:%s firstFileSize:%d", id, ip, fileCnt, totalSize, firstFileName, firstFileSize)
-	callbackFileListDragNotify(ip, id, platform, fileCnt, totalSize, timestamp, firstFileName, firstFileSize)
+
+	callbackFileListReceiveNotify(ip, id, fileCnt, totalSize, timestamp, firstFileName, firstFileSize)
 }
 
 func GoDragFileListFolderNotify(ip, id, folderName string, timestamp uint64) {
 	if callbackFileListDragFolderNotify == nil {
-		log.Println(" callbackFileListDragFolderNotify is null !")
+		//log.Println(" callbackFileListDragFolderNotify is null !")
 		return
 	}
 	log.Printf("(DST) GoDragFileListFolderNotify source id:%s ip:[%s] folder:[%s] timestamp:%d", id, ip, folderName, timestamp)
@@ -531,13 +540,22 @@ func GoSetupDstPasteXClipData(cbText, cbImage, cbHtml, cbRtf []byte) {
 	callbackPasteXClipData(string(cbText), imageStr, string(cbHtml), string(cbRtf))
 }
 
-func GoUpdateMultipleProgressBar(ip, id, currentFileName string, sentFileCnt, totalFileCnt uint32, currentFileSize, totalSize, sentSize, timestamp uint64) {
-	if callbackUpdateMultipleProgressBar == nil {
-		log.Println("CallbackUpdateMultipleProgressBar is null !")
+func GoUpdateSendProgressBar(ip, id, currentFileName string, sendFileCnt, totalFileCnt uint32, currentFileSize, totalSize, sendSize, timestamp uint64) {
+	if callbackUpdateSendProgressBar == nil {
+		log.Println("callbackUpdateSendProgressBar is null !")
 		return
 	}
-	//log.Printf("GoUpdateMultipleProgressBar ip:[%s] currentFileName:[%s] recvSize:[%d] total:[%d]", ip, currentFileName, sentSize, totalSize)
-	callbackUpdateMultipleProgressBar(ip, id, currentFileName, sentFileCnt, totalFileCnt, currentFileSize, totalSize, sentSize, timestamp)
+	//log.Printf("GoUpdateSendProgressBar ip:[%s] currentFileName:[%s] sendSize:[%d] total:[%d]", ip, currentFileName, sendSize, totalSize)
+	callbackUpdateSendProgressBar(ip, id, currentFileName, sendFileCnt, totalFileCnt, currentFileSize, totalSize, sendSize, timestamp)
+}
+
+func GoUpdateReceiveProgressBar(ip, id, currentFileName string, recvFileCnt, totalFileCnt uint32, currentFileSize, totalSize, recvSize, timestamp uint64) {
+	if callbackUpdateReceiveProgressBar == nil {
+		log.Println("callbackUpdateReceiveProgressBar is null !")
+		return
+	}
+	//log.Printf("GoUpdateReceiveProgressBar ip:[%s] currentFileName:[%s] recvSize:[%d] total:[%d]", ip, currentFileName, recvSize, totalSize)
+	callbackUpdateReceiveProgressBar(ip, id, currentFileName, recvFileCnt, totalFileCnt, currentFileSize, totalSize, recvSize, timestamp)
 }
 
 func GoUpdateSystemInfo(ipAddr, serviceVer string) {

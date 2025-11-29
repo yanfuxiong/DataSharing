@@ -17,8 +17,8 @@ typedef enum NOTI_MSG_CODE
 
 typedef void (*CallbackUpdateSystemInfo)(char* ipInfo, char* verInfo);
 typedef void (*CallbackUpdateClientStatus)(char* clientJsonStr);
-typedef void (*CallbackMethodFileListNotify)(char* ip, char* id, char* platform,unsigned int fileCnt, unsigned long long totalSize,unsigned long long timestamp, char* firstFileName, unsigned long long firstFileSize);
-typedef void (*CallbackUpdateMultipleProgressBar)(char* ip,char* id, char* currentfileName,unsigned int recvFileCnt, unsigned int totalFileCnt,unsigned long long currentFileSize,unsigned long long totalSize,unsigned long long recvSize,unsigned long long timestamp);
+typedef void (*CallbackMethodFileListNotify)(char* ip, char* id, unsigned int fileCnt, unsigned long long totalSize,unsigned long long timestamp, char* firstFileName, unsigned long long firstFileSize);
+typedef void (*CallbackUpdateProgressBar)(char* ip,char* id, char* currentfileName,unsigned int recvFileCnt, unsigned int totalFileCnt,unsigned long long currentFileSize,unsigned long long totalSize,unsigned long long recvSize,unsigned long long timestamp);
 typedef void (*CallbackNotiMessage)(unsigned long long timestamp, unsigned int notiCode, char* notiParam[], int paramCount);
 typedef void (*CallbackMethodStartBrowseMdns)(char* instance, char* serviceType);
 typedef void (*CallbackMethodStopBrowseMdns)();
@@ -33,8 +33,10 @@ typedef void (*CallbackNotifyBrowseResult)(char* monitorName, char* instance, ch
 
 static CallbackUpdateSystemInfo gCallbackUpdateSystemInfo = 0;
 static CallbackUpdateClientStatus gCallbackUpdateClientStatus = 0;
-static CallbackMethodFileListNotify gCallbackMethodFileListNotify = 0;
-static CallbackUpdateMultipleProgressBar gCallbackUpdateMultipleProgressBar = 0;
+static CallbackMethodFileListNotify gCallbackFileListSendNotify = 0;
+static CallbackMethodFileListNotify gCallbackFileListReceiveNotify = 0;
+static CallbackUpdateProgressBar gCallbackUpdateSendProgressBar = 0;
+static CallbackUpdateProgressBar gCallbackUpdateReceiveProgressBar = 0;
 static CallbackNotiMessage gCallbackNotiMessage = 0;
 static CallbackMethodStartBrowseMdns gCallbackMethodStartBrowseMdns = 0;
 static CallbackMethodStopBrowseMdns gCallbackMethodStopBrowseMdns = 0;
@@ -55,14 +57,23 @@ static void setCallbackUpdateClientStatus(CallbackUpdateClientStatus cb) {gCallb
 static void invokeCallbackUpdateClientStatus(char* clientJsonStr) {
 	if (gCallbackUpdateClientStatus) {gCallbackUpdateClientStatus(clientJsonStr);}
 }
-static void setCallbackMethodFileListNotify(CallbackMethodFileListNotify cb) {gCallbackMethodFileListNotify = cb;}
-static void invokeCallbackMethodFileListNotify(char* ip, char* id, char* platform,unsigned int fileCnt, unsigned long long totalSize,unsigned long long timestamp, char* firstFileName, unsigned long long firstFileSize) {
-	if (gCallbackMethodFileListNotify) {gCallbackMethodFileListNotify(ip, id, platform, fileCnt, totalSize, timestamp, firstFileName, firstFileSize);}
+static void setCallbackFileListSendNotify(CallbackMethodFileListNotify cb) {gCallbackFileListSendNotify = cb;}
+static void invokeCallbackFileListSendNotify(char* ip, char* id, unsigned int fileCnt, unsigned long long totalSize,unsigned long long timestamp, char* firstFileName, unsigned long long firstFileSize) {
+	if (gCallbackFileListSendNotify) {gCallbackFileListSendNotify(ip, id, fileCnt, totalSize, timestamp, firstFileName, firstFileSize);}
 }
-static void setCallbackUpdateMultipleProgressBar(CallbackUpdateMultipleProgressBar cb) {gCallbackUpdateMultipleProgressBar = cb;}
-static void invokeCallbackUpdateMultipleProgressBar(char* ip,char* id, char* currentfileName,unsigned int recvFileCnt, unsigned int totalFileCnt,unsigned long long currentFileSize,unsigned long long totalSize,unsigned long long recvSize,unsigned long long timestamp) {
-	if (gCallbackUpdateMultipleProgressBar) {gCallbackUpdateMultipleProgressBar(ip,id, currentfileName,recvFileCnt,totalFileCnt,currentFileSize,totalSize, recvSize, timestamp);}
+static void setCallbackFileListReceiveNotify(CallbackMethodFileListNotify cb) {gCallbackFileListReceiveNotify = cb;}
+static void invokeCallbackFileListReceiveNotify(char* ip, char* id, unsigned int fileCnt, unsigned long long totalSize,unsigned long long timestamp, char* firstFileName, unsigned long long firstFileSize) {
+	if (gCallbackFileListReceiveNotify) {gCallbackFileListReceiveNotify(ip, id, fileCnt, totalSize, timestamp, firstFileName, firstFileSize);}
 }
+static void setCallbackUpdateSendProgressBar(CallbackUpdateProgressBar cb) {gCallbackUpdateSendProgressBar = cb;}
+static void invokeCallbackUpdateSendProgressBar(char* ip,char* id, char* currentfileName,unsigned int recvFileCnt, unsigned int totalFileCnt,unsigned long long currentFileSize,unsigned long long totalSize,unsigned long long recvSize,unsigned long long timestamp) {
+	if (gCallbackUpdateSendProgressBar) {gCallbackUpdateSendProgressBar(ip,id,currentfileName,recvFileCnt,totalFileCnt,currentFileSize,totalSize, recvSize, timestamp);}
+}
+static void setCallbackUpdateReceiveProgressBar(CallbackUpdateProgressBar cb) {gCallbackUpdateReceiveProgressBar = cb;}
+static void invokeCallbackUpdateReceiveProgressBar(char* ip,char* id, char* currentfileName,unsigned int recvFileCnt, unsigned int totalFileCnt,unsigned long long currentFileSize,unsigned long long totalSize,unsigned long long recvSize,unsigned long long timestamp) {
+	if (gCallbackUpdateReceiveProgressBar) {gCallbackUpdateReceiveProgressBar(ip,id,currentfileName,recvFileCnt,totalFileCnt,currentFileSize,totalSize, recvSize, timestamp);}
+}
+
 static void setCallbackNotiMessage(CallbackNotiMessage cb) {gCallbackNotiMessage = cb;}
 static void invokeCallbackNotiMessage(unsigned long long timestamp, unsigned int notiCode, char* notiParam[], int paramCount) {
 	if (gCallbackNotiMessage) {gCallbackNotiMessage(timestamp, notiCode, notiParam, paramCount);}
@@ -168,9 +179,11 @@ func main() {
 
 func init() {
 	rtkPlatform.SetCallbackUpdateSystemInfo(GoTriggerCallbackUpdateSystemInfo)
-	rtkPlatform.SetCallbackFileListNotify(GoTriggerCallbackMethodFileListNotify)
 	rtkPlatform.SetCallbackUpdateClientStatus(GoTriggerCallbackUpdateClientStatus)
-	rtkPlatform.SetCallbackUpdateMultipleProgressBar(GoTriggerCallbackUpdateMultipleProgressBar)
+	rtkPlatform.SetCallbackFileListSendNotify(GoTriggerCallbackFileListSendNotify)
+	rtkPlatform.SetCallbackFileListReceiveNotify(GoTriggerCallbackFileListReceiveNotify)
+	rtkPlatform.SetCallbackUpdateSendProgressBar(GoTriggerCallbackUpdateSendProgressBar)
+	rtkPlatform.SetCallbackUpdateReceiveProgressBar(GoTriggerCallbackUpdateReceiveProgressBar)
 	rtkPlatform.SetCallbackNotiMessageFileTrans(GoTriggerCallbackNotiMessage)
 	rtkPlatform.SetCallbackMethodStartBrowseMdns(GoTriggerCallbackMethodStartBrowseMdns)
 	rtkPlatform.SetCallbackMethodStopBrowseMdns(GoTriggerCallbackMethodStopBrowseMdns)
@@ -213,16 +226,14 @@ func GoTriggerCallbackUpdateClientStatus(clientInfo string) {
 	C.invokeCallbackUpdateClientStatus(cClientInfo)
 }
 
-func GoTriggerCallbackMethodFileListNotify(ip, id, platform string, fileCnt uint32, totalSize uint64, timestamp uint64, firstFileName string, firstFileSize uint64) {
+func GoTriggerCallbackFileListSendNotify(ip, id string, fileCnt uint32, totalSize uint64, timestamp uint64, firstFileName string, firstFileSize uint64) {
 	cip := C.CString(ip)
 	cid := C.CString(id)
-	cplatform := C.CString(platform)
 	cfirstFileName := C.CString(firstFileName)
 
 	defer func() {
 		C.free(unsafe.Pointer(cip))
 		C.free(unsafe.Pointer(cid))
-		C.free(unsafe.Pointer(cplatform))
 		C.free(unsafe.Pointer(cfirstFileName))
 	}()
 
@@ -230,10 +241,32 @@ func GoTriggerCallbackMethodFileListNotify(ip, id, platform string, fileCnt uint
 	ctotalSize := C.ulonglong(totalSize)
 	ctimeStamp := C.ulonglong(timestamp)
 	cfirstFileSize := C.ulonglong(firstFileSize)
-	C.invokeCallbackMethodFileListNotify(cip, cid, cplatform, cFileCnt, ctotalSize, ctimeStamp, cfirstFileName, cfirstFileSize)
+
+	log.Printf("[%s] (SRC) dst id:%s ip:[%s] fileCnt:%d totalSize:%d firstFileName:%s firstFileSize:%d", rtkMisc.GetFuncInfo(), id, ip, fileCnt, totalSize, firstFileName, firstFileSize)
+	C.invokeCallbackFileListSendNotify(cip, cid, cFileCnt, ctotalSize, ctimeStamp, cfirstFileName, cfirstFileSize)
 }
 
-func GoTriggerCallbackUpdateMultipleProgressBar(ip, id, currentFileName string, sentFileCnt, totalFileCnt uint32, currentFileSize, totalSize, sentSize, timestamp uint64) {
+func GoTriggerCallbackFileListReceiveNotify(ip, id string, fileCnt uint32, totalSize uint64, timestamp uint64, firstFileName string, firstFileSize uint64) {
+	cip := C.CString(ip)
+	cid := C.CString(id)
+	cfirstFileName := C.CString(firstFileName)
+
+	defer func() {
+		C.free(unsafe.Pointer(cip))
+		C.free(unsafe.Pointer(cid))
+		C.free(unsafe.Pointer(cfirstFileName))
+	}()
+
+	cFileCnt := C.uint(fileCnt)
+	ctotalSize := C.ulonglong(totalSize)
+	ctimeStamp := C.ulonglong(timestamp)
+	cfirstFileSize := C.ulonglong(firstFileSize)
+
+	log.Printf("[%s] (DST) src id:%s ip:[%s] fileCnt:%d totalSize:%d firstFileName:%s firstFileSize:%d", rtkMisc.GetFuncInfo(), id, ip, fileCnt, totalSize, firstFileName, firstFileSize)
+	C.invokeCallbackFileListReceiveNotify(cip, cid, cFileCnt, ctotalSize, ctimeStamp, cfirstFileName, cfirstFileSize)
+}
+
+func GoTriggerCallbackUpdateSendProgressBar(ip, id, currentFileName string, sentFileCnt, totalFileCnt uint32, currentFileSize, totalSize, sentSize, timestamp uint64) {
 	cip := C.CString(ip)
 	cid := C.CString(id)
 	ccurrentFileName := C.CString(currentFileName)
@@ -252,7 +285,29 @@ func GoTriggerCallbackUpdateMultipleProgressBar(ip, id, currentFileName string, 
 	crecvSize := C.ulonglong(sentSize)
 	ctimeStamp := C.ulonglong(timestamp)
 
-	C.invokeCallbackUpdateMultipleProgressBar(cip, cid, ccurrentFileName, crecvFileCnt, ctotalFileCnt, ccurrentFileSize, ctotalSize, crecvSize, ctimeStamp)
+	C.invokeCallbackUpdateSendProgressBar(cip, cid, ccurrentFileName, crecvFileCnt, ctotalFileCnt, ccurrentFileSize, ctotalSize, crecvSize, ctimeStamp)
+}
+
+func GoTriggerCallbackUpdateReceiveProgressBar(ip, id, currentFileName string, sentFileCnt, totalFileCnt uint32, currentFileSize, totalSize, sentSize, timestamp uint64) {
+	cip := C.CString(ip)
+	cid := C.CString(id)
+	ccurrentFileName := C.CString(currentFileName)
+
+	defer func() {
+		C.free(unsafe.Pointer(cip))
+		C.free(unsafe.Pointer(cid))
+		C.free(unsafe.Pointer(ccurrentFileName))
+	}()
+
+	crecvFileCnt := C.uint(sentFileCnt)
+	ctotalFileCnt := C.uint(totalFileCnt)
+
+	ccurrentFileSize := C.ulonglong(currentFileSize)
+	ctotalSize := C.ulonglong(totalSize)
+	crecvSize := C.ulonglong(sentSize)
+	ctimeStamp := C.ulonglong(timestamp)
+
+	C.invokeCallbackUpdateReceiveProgressBar(cip, cid, ccurrentFileName, crecvFileCnt, ctotalFileCnt, ccurrentFileSize, ctotalSize, crecvSize, ctimeStamp)
 }
 
 func GoTriggerCallbackNotiMessage(fileName, clientName, platform string, timestamp uint64, isSender bool) {
@@ -381,14 +436,24 @@ func SetCallbackUpdateClientStatus(cb C.CallbackUpdateClientStatus) {
 	C.setCallbackUpdateClientStatus(cb)
 }
 
-//export SetCallbackMethodFileListNotify
-func SetCallbackMethodFileListNotify(cb C.CallbackMethodFileListNotify) {
-	C.setCallbackMethodFileListNotify(cb)
+//export SetCallbackFileListSendNotify
+func SetCallbackFileListSendNotify(cb C.CallbackMethodFileListNotify) {
+	C.setCallbackFileListSendNotify(cb)
 }
 
-//export SetCallbackUpdateMultipleProgressBar
-func SetCallbackUpdateMultipleProgressBar(cb C.CallbackUpdateMultipleProgressBar) {
-	C.setCallbackUpdateMultipleProgressBar(cb)
+//export SetCallbackFileListReceiveNotify
+func SetCallbackFileListReceiveNotify(cb C.CallbackMethodFileListNotify) {
+	C.setCallbackFileListReceiveNotify(cb)
+}
+
+//export SetCallbackUpdateSendProgressBar
+func SetCallbackUpdateSendProgressBar(cb C.CallbackUpdateProgressBar) {
+	C.setCallbackUpdateSendProgressBar(cb)
+}
+
+//export SetCallbackUpdateReceiveProgressBar
+func SetCallbackUpdateReceiveProgressBar(cb C.CallbackUpdateProgressBar) {
+	C.setCallbackUpdateReceiveProgressBar(cb)
 }
 
 //export SetCallbackNotiMessage
@@ -462,7 +527,7 @@ func MainInit(deviceName, rootPath, downloadPath string) {
 		log.Fatalf("[%s] RootPath :[%s] is invalid!", rtkMisc.GetFuncInfo(), rootPath)
 	}
 	rtkPlatform.SetupRootPath(rootPath)
-	log.Printf("[%s] deviceName:[%s] rootPath:[%s] downloadPath:[%s] host:[%s] port:[%d]", rtkMisc.GetFuncInfo(), deviceName, rootPath, downloadPath, listenHost, listenPort)
+	log.Printf("[%s] deviceName:[%s] rootPath:[%s] downloadPath:[%s]", rtkMisc.GetFuncInfo(), deviceName, rootPath, downloadPath)
 
 	if downloadPath == "" || !rtkMisc.FolderExists(downloadPath) {
 		log.Printf("[%s] downloadPath :[%s] is invalid, so use default path[%s]!", rtkMisc.GetFuncInfo(), downloadPath, rtkPlatform.GetDownloadPath())
