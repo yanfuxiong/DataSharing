@@ -29,11 +29,6 @@ type Callback interface {
 	rtkPlatform.Callback
 }
 
-func SetupRootPath(rootPath string) {
-	rtkPlatform.SetupRootPath(rootPath)
-	log.Printf("[%s] rootPath:[%s]", rtkMisc.GetFuncInfo(), rootPath)
-}
-
 func WorkerConnectLanServer(instance string) {
 	log.Printf("[%s]  instance:[%s]", rtkMisc.GetFuncInfo(), instance)
 	rtkPlatform.GoConnectLanServer(instance)
@@ -44,16 +39,16 @@ func BrowseLanServer() {
 	rtkPlatform.GoBrowseLanServer()
 }
 
-func MainInit(cb Callback, deviceName, serverId, serverIpInfo, listentHost string, listentPort int) {
+func MainInit(cb Callback, rootPath, deviceName, serverId, serverIpInfo, listentHost string, listentPort int) {
 	rtkPlatform.SetCallback(cb)
 	rtkPlatform.SetDeviceName(deviceName)
 
-	rootPath := rtkPlatform.GetRootPath()
 	if rootPath == "" || !rtkMisc.FolderExists(rootPath) {
 		log.Fatalf("[%s] RootPath :[%s] is invalid!", rtkMisc.GetFuncInfo(), rootPath)
 	}
+	rtkPlatform.SetupRootPath(rootPath)
 
-	log.Printf("[%s] device name:[%s] host:[%s] port:[%d]", rtkMisc.GetFuncInfo(), deviceName, listentHost, listentPort)
+	log.Printf("[%s] rootPath:[%s] device name:[%s] host:[%s] port:[%d]", rtkMisc.GetFuncInfo(), rootPath, deviceName, listentHost, listentPort)
 	rtkCmd.MainInit(serverId, serverIpInfo, listentHost, listentPort)
 }
 
