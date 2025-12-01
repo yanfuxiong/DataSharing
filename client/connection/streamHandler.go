@@ -528,8 +528,6 @@ func CloseFmtTypeStream(id string, fmtType rtkCommon.TransFmtType) {
 			log.Printf("[%s] ID:[%s] IP:[%s] Unknown fmtType:[%s], close fmtType stream error!", rtkMisc.GetFuncInfo(), id, sInfo.ipAddr, fmtType)
 			return
 		}
-	} else {
-		log.Printf("[%s] Err: Unknown stream info of id:%s", rtkMisc.GetFuncInfo(), id)
 	}
 }
 
@@ -581,7 +579,7 @@ func CancelAllStream(isFromLanServerCancel bool) {
 
 	nCount := uint8(0)
 	for id, sInfo := range tempStreamMap {
-		//callbackSendDisconnectMsgToPeer(id)
+		updateUIOnlineStatus(false, id, sInfo.ipAddr, "", "", "", "", "", "")
 		if sInfo.sFileDrop != nil {
 			sInfo.sFileDrop.Close()
 		}
@@ -589,7 +587,6 @@ func CancelAllStream(isFromLanServerCancel bool) {
 			sInfo.sImage.Close()
 		}
 
-		sInfo.s.Close()            // trigger offlineEvent immediately  //TODO:check it
 		if sInfo.cancelFn != nil { // StopProcessForPeer
 			if isFromLanServerCancel {
 				sInfo.cancelFn(rtkCommon.LanServerBusinessCancel)
@@ -599,6 +596,11 @@ func CancelAllStream(isFromLanServerCancel bool) {
 			}
 			sInfo.cancelFn = nil
 		}
+		sInfo.s.Close()
+
+		streamPoolMutex.Lock()
+		delete(streamPoolMap, id)
+		streamPoolMutex.Unlock()
 		nCount++
 	}
 

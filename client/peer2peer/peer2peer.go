@@ -587,7 +587,7 @@ func updateStateCommand(curState *StateType, curCommand *CommandType, updateStat
 	*curCommand = updateCommand
 }
 
-func processFileDrop(ctx context.Context, id string, event EventResult) bool {
+func processFileDrop(ctx context.Context, id, ipAddr string, event EventResult) bool {
 	nextState := event.Cmd.State
 	nextCommand := event.Cmd.Command
 
@@ -595,15 +595,9 @@ func processFileDrop(ctx context.Context, id string, event EventResult) bool {
 		// Receive response from dst
 		if extData, ok := event.Data.(rtkCommon.FileDropCmd); ok {
 			if extData == rtkCommon.FILE_DROP_ACCEPT {
-				clientInfo, err := rtkUtils.GetClientInfo(id)
-				if err != nil {
-					log.Printf("[%s] %s", rtkMisc.GetFuncInfo(), err.Error())
-					return false
-				}
-
 				rtkFileDrop.SetFilesDataToCacheAsSrc(id)
 				if rtkFileDrop.GetFilesTransferDataCacheCount(id) == 1 {
-					rtkMisc.GoSafe(func() { processIoWrite(ctx, id, clientInfo.IpAddr, event.Cmd.FmtType) }) // [Src]: Start to trans file
+					rtkMisc.GoSafe(func() { processIoWrite(ctx, id, ipAddr, event.Cmd.FmtType) }) // [Src]: Start to trans file
 				} else {
 					log.Printf("[%s] ID:[%s] there are file data transfer is in progress, queue up and wait!", rtkMisc.GetFuncInfo(), id)
 				}
@@ -625,18 +619,13 @@ func processFileDrop(ctx context.Context, id string, event EventResult) bool {
 				log.Printf("[%s] ID[%s] get file drop data is null", rtkMisc.GetFuncInfo(), id)
 				return false
 			}
-			clientInfo, err := rtkUtils.GetClientInfo(id)
-			if err != nil {
-				log.Printf("[%s] %s", rtkMisc.GetFuncInfo(), err.Error())
-				return false
-			}
 
 			if extData.ActionType == rtkCommon.P2PFileActionType_Drop {
-				rtkFileDrop.SetupDstFileListDrop(id, clientInfo.IpAddr, clientInfo.Platform, extData.TotalDescribe, extData.SrcFileList, extData.FolderList, extData.TotalSize, extData.TimeStamp)
+				rtkFileDrop.SetupDstFileListDrop(id, ipAddr, "", extData.TotalDescribe, extData.SrcFileList, extData.FolderList, extData.TotalSize, extData.TimeStamp)
 			} else if extData.ActionType == rtkCommon.P2PFileActionType_Drag {
-				rtkFileDrop.SetupDstDragFileList(id, clientInfo.IpAddr, clientInfo.Platform, extData.SrcFileList, extData.FolderList, extData.TotalSize, extData.TimeStamp, extData.TotalDescribe)
+				rtkFileDrop.SetupDstDragFileList(id, ipAddr, extData.SrcFileList, extData.FolderList, extData.TotalSize, extData.TimeStamp, extData.TotalDescribe)
 			} else {
-				log.Printf("[%s] ID[%s] IP:[%s] get file unknown ActionType:[%s] ", rtkMisc.GetFuncInfo(), id, clientInfo.IpAddr, extData.ActionType)
+				log.Printf("[%s] ID[%s] IP:[%s] get file unknown ActionType:[%s] ", rtkMisc.GetFuncInfo(), id, ipAddr, extData.ActionType)
 				return false
 			}
 		} else {
@@ -654,12 +643,6 @@ func processFileDrop(ctx context.Context, id string, event EventResult) bool {
 				}
 			}
 		} else if nextState == STATE_IO && nextCommand == COMM_DST {
-			clientInfo, err := rtkUtils.GetClientInfo(id)
-			if err != nil {
-				log.Printf("[%s] ID:[%s] Not found Client Info data", rtkMisc.GetFuncInfo(), id)
-				return false
-			}
-
 			rtkFileDrop.SetFilesDataToCacheAsDst(id)
 			if rtkUtils.GetPeerClientIsSupportQueueTrans(id) {
 				if fileDropInfo, ok := rtkFileDrop.GetFileDropData(id); ok { // [Dst]: every FileDropData need build a new stream
@@ -679,7 +662,7 @@ func processFileDrop(ctx context.Context, id string, event EventResult) bool {
 			}
 
 			if rtkFileDrop.GetFilesTransferDataCacheCount(id) == 1 {
-				rtkMisc.GoSafe(func() { processIoRead(ctx, id, clientInfo.IpAddr, event.Cmd.FmtType) }) // [Dst]: be ready to receive file drop raw data
+				rtkMisc.GoSafe(func() { processIoRead(ctx, id, ipAddr, event.Cmd.FmtType) }) // [Dst]: be ready to receive file drop raw data
 			} else {
 				log.Printf("[%s] ID:[%s] there are file data transfer is in progress, queue up and wait!", rtkMisc.GetFuncInfo(), id)
 			}
@@ -695,18 +678,13 @@ func processFileDrop(ctx context.Context, id string, event EventResult) bool {
 	return true
 }
 
-func processXClip(ctx context.Context, id string, event EventResult) bool {
+func processXClip(ctx context.Context, id, ipAddr string, event EventResult) bool {
 	nextState := event.Cmd.State
 	nextCommand := event.Cmd.Command
 
 	if nextState == STATE_IO && nextCommand == COMM_SRC {
 		// [Src]: Start to trans XClip
-		clientInfo, err := rtkUtils.GetClientInfo(id)
-		if err != nil {
-			log.Printf("[%s] %s", rtkMisc.GetFuncInfo(), err.Error())
-			return false
-		}
-		rtkMisc.GoSafe(func() { processIoWrite(ctx, id, clientInfo.IpAddr, event.Cmd.FmtType) })
+		rtkMisc.GoSafe(func() { processIoWrite(ctx, id, ipAddr, event.Cmd.FmtType) })
 	} else {
 		if nextState == STATE_INFO && nextCommand == COMM_DST && !rtkUtils.GetPeerClientIsSupportXClip(id) { // not support XClip
 			if extData, ok := event.Data.(rtkCommon.ExtDataXClip); ok {
@@ -725,10 +703,6 @@ func processXClip(ctx context.Context, id string, event EventResult) bool {
 
 			event.Cmd.State = STATE_IO // XClip data has no paste event , directly enter IO state
 
-			ipAddr, ok := rtkUtils.GetClientIp(id)
-			if !ok {
-				return false
-			}
 			if errCode := rtkConnection.BuildFmtTypeTalker(ctx, id, rtkCommon.XCLIP_CB); errCode != rtkMisc.SUCCESS {
 				log.Printf("[%s]BuildFmtTypeTalker errCode:%+v ", rtkMisc.GetFuncInfo(), errCode)
 				return false
@@ -748,15 +722,15 @@ func processXClip(ctx context.Context, id string, event EventResult) bool {
 	return true
 }
 
-func processTask(ctx context.Context, curState *StateType, curCommand *CommandType, id string, event EventResult) {
+func processTask(ctx context.Context, curState *StateType, curCommand *CommandType, id, ipAddr string, event EventResult) {
 	ret := true
 	switch event.Cmd.FmtType {
 	case rtkCommon.FILE_DROP:
 		log.Println("ProcessFileDrop triggered")
-		ret = processFileDrop(ctx, id, event)
+		ret = processFileDrop(ctx, id, ipAddr, event)
 	case rtkCommon.XCLIP_CB:
 		log.Println("processXClip triggered")
-		ret = processXClip(ctx, id, event)
+		ret = processXClip(ctx, id, ipAddr, event)
 	default:
 		log.Printf("[%s]Unknown cmd FmtType:[%s]", rtkMisc.GetFuncInfo(), event.Cmd.FmtType)
 	}
@@ -838,7 +812,7 @@ func ProcessEventsForPeer(ctx context.Context, id, ipAddr string) {
 			// Move to next state and process
 			event.Cmd.State = buildState
 			event.Cmd.Command = buildCommand
-			processTask(ctx, &curState, &curCommand, id, event)
+			processTask(ctx, &curState, &curCommand, id, ipAddr, event)
 		}
 	}
 

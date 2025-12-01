@@ -141,6 +141,11 @@ func SetFileTransferInfo(id string, fn func(rtkCommon.CancelBusinessSource)) {
 }
 
 func CancelSrcFileTransfer(id, ipAddr string, timestamp uint64, errCode rtkMisc.CrossShareErr) {
+	if errCode == rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL_GUI {
+		log.Printf("[%s](SRC) IP:[%s] timestamp:[%d] Copy file operation was canceled by dst GUI !", rtkMisc.GetFuncInfo(), ipAddr, timestamp)
+	} else {
+		log.Printf("[%s](SRC) IP:[%s] timestamp:[%d] Copy file operation was canceled by dst errCode:%d!", rtkMisc.GetFuncInfo(), ipAddr, timestamp, errCode)
+	}
 	if rtkFileDrop.IsFileTransInProgress(id, timestamp) {
 		if value, ok := fileTransferInfoMap.Load(id); ok {
 			fileInfo := value.(fileTransferInfo)
@@ -150,14 +155,20 @@ func CancelSrcFileTransfer(id, ipAddr string, timestamp uint64, errCode rtkMisc.
 			log.Printf("[%s] (SRC) ID:[%s] Cancel FileTransfer success, timestamp:%d", rtkMisc.GetFuncInfo(), id, timestamp)
 		}
 	} else {
-		rtkPlatform.GoNotifyErrEvent(id, errCode, ipAddr, strconv.Itoa(int(timestamp)), "", "") // notice  errCode to platform
-		rtkFileDrop.CancelFileTransFromCacheMap(id, timestamp)
-		rtkConnection.HandleFmtTypeStreamReady(id, rtkCommon.FILE_DROP)
-		rtkConnection.CloseFileDropItemStream(id, timestamp)
+		if rtkFileDrop.CancelFileTransFromCacheMap(id, timestamp) {
+			rtkPlatform.GoNotifyErrEvent(id, errCode, ipAddr, strconv.Itoa(int(timestamp)), "", "") // notice  errCode to platform
+			rtkConnection.HandleFmtTypeStreamReady(id, rtkCommon.FILE_DROP)
+			rtkConnection.CloseFileDropItemStream(id, timestamp)
+		}
 	}
 }
 
 func CancelDstFileTransfer(id, ipAddr string, timestamp uint64, errCode rtkMisc.CrossShareErr) {
+	if errCode == rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_CANCEL_GUI {
+		log.Printf("[%s](DST) IP:[%s] timestamp:[%d] Copy file operation was canceled by src GUI !", rtkMisc.GetFuncInfo(), ipAddr, timestamp)
+	} else {
+		log.Printf("[%s](DST) IP:[%s] timestamp:[%d] Copy file operation was canceled by src errCode:%d!", rtkMisc.GetFuncInfo(), ipAddr, timestamp, errCode)
+	}
 	if rtkFileDrop.IsFileTransInProgress(id, timestamp) {
 		if value, ok := fileTransferInfoMap.Load(id); ok {
 			fileInfo := value.(fileTransferInfo)
@@ -167,9 +178,10 @@ func CancelDstFileTransfer(id, ipAddr string, timestamp uint64, errCode rtkMisc.
 			log.Printf("[%s] (DST) ID:[%s] Cancel FileTransfer success, timestamp:%d", rtkMisc.GetFuncInfo(), id, timestamp)
 		}
 	} else {
-		rtkPlatform.GoNotifyErrEvent(id, errCode, ipAddr, strconv.Itoa(int(timestamp)), "", "") // notice  errCode to platform
-		rtkFileDrop.CancelFileTransFromCacheMap(id, timestamp)
-		rtkConnection.CloseFileDropItemStream(id, timestamp)
+		if rtkFileDrop.CancelFileTransFromCacheMap(id, timestamp) {
+			rtkPlatform.GoNotifyErrEvent(id, errCode, ipAddr, strconv.Itoa(int(timestamp)), "", "") // notice  errCode to platform
+			rtkConnection.CloseFileDropItemStream(id, timestamp)
+		}
 	}
 }
 
@@ -444,7 +456,7 @@ func writeFileToSocket(id, ipAddr string, write *cancelableWriter, read *cancela
 				log.Printf("(SRC) [%s] IP:[%s] timestamp:[%d] quic EOF!", rtkMisc.GetFuncInfo(), ipAddr, timeStamp)
 				return rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL_BUSINESS
 			} else if rtkConnection.IsQuicClose(err) { // cancel by src
-				if errors.Is(read.ctx.Err(), context.Canceled) {
+				if read.ctx.Err() != nil {
 					return getFileDataSendCancelErrCode(read.ctx, ipAddr, timeStamp)
 				}
 				log.Printf("(SRC) [%s] IP:[%s] timestamp:[%d] quic Closed!", rtkMisc.GetFuncInfo(), ipAddr, timeStamp)
