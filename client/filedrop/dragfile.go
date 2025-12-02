@@ -31,11 +31,31 @@ func UpdateDragFileReqDataFromLocal(id string) rtkMisc.CrossShareErr {
 	}
 
 	updateDragFileReqData(id)
-	nCount := rtkUtils.GetClientCount()
-	for i := 0; i < nCount; i++ {
+
+	clientListMap := rtkUtils.GetClientMap()
+	ipAddr := string("")
+	for _, clientInfo := range clientListMap {
+		if clientInfo.ID == id {
+			ipAddr = clientInfo.IpAddr
+		}
 		fileDropReqIdChan <- id
 	}
 
+	if ipAddr == "" {
+		log.Printf("[%s] ID:[%s] Not found client map data\n\n", rtkMisc.GetFuncInfo(), id)
+		return rtkMisc.ERR_BIZ_GET_CLIENT_INFO_EMPTY
+	}
+
+	firstFileSize := uint64(0)
+	var firstFileName string
+	if fileCnt > 0 {
+		firstFileSize = uint64(dragFileInfoList[0].FileSize_.SizeHigh)<<32 | uint64(dragFileInfoList[0].FileSize_.SizeLow)
+		firstFileName = dragFileInfoList[0].FileName
+	} else {
+		firstFileName = dragFolderList[0]
+	}
+
+	rtkPlatform.GoFileListSendNotify(ipAddr, id, uint32(fileCnt), dragTotalSize, dragFileTimeStamp, firstFileName, firstFileSize)
 	return rtkMisc.SUCCESS
 }
 
@@ -99,9 +119,9 @@ func UpdateDragFileList(fileInfoList []rtkCommon.FileInfo, folderList []string, 
 	fileDropDataMutex.Lock()
 	defer fileDropDataMutex.Unlock()
 
-	dragFileInfoList = append([]rtkCommon.FileInfo(nil), fileInfoList...)
+	dragFileInfoList = fileInfoList
 	dragFileTimeStamp = timeStamp
-	dragFolderList = append([]string(nil), folderList...)
+	dragFolderList = folderList
 	dragTotalDesc = totalDesc
 	dragTotalSize = total
 }

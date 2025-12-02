@@ -440,8 +440,28 @@ func GoDragFileListRequest(fileList *[]rtkCommon.FileInfo, folderList *[]string,
 		log.Println("callbackDragFileListRequestCB is null!")
 		return
 	}
+
 	if len(*fileList) == 0 && len(*folderList) == 0 {
-		log.Println("[%s] file content is null!", rtkMisc.GetFuncInfo())
+		log.Println("file content is null!")
+		return
+	}
+
+	if totalSize > uint64(rtkGlobal.SendFilesRequestMaxSize) {
+		log.Printf("[%s] this drag file total size:[%d] [%s] is too large and over range !", rtkMisc.GetFuncInfo(), totalSize, totalDesc)
+		return
+	}
+
+	nMsgLength := int(rtkGlobal.P2PMsgMagicLength) //p2p null msg length
+	for _, file := range *fileList {
+		nMsgLength = nMsgLength + len(file.FileName) + rtkGlobal.FileInfoMagicLength
+	}
+
+	for _, folder := range *folderList {
+		nMsgLength = nMsgLength + len(folder) + rtkGlobal.StringArrayMagicLength
+	}
+
+	if nMsgLength >= rtkGlobal.P2PMsgMaxLength {
+		log.Printf("[%s] file count:[%d] folder count:[%d], the p2p message is too long and over range!", rtkMisc.GetFuncInfo(), len(*fileList), len(*folderList))
 		return
 	}
 	callbackDragFileListRequestCB(*fileList, *folderList, totalSize, timestamp, totalDesc)

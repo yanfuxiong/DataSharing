@@ -38,7 +38,7 @@ func ListenMultAddr() []ma.Multiaddr {
 func WatchNetworkInfo(ctx context.Context) {
 	lastIp := rtkGlobal.NodeInfo.IPAddr.PublicIP
 	lastPort := rtkGlobal.NodeInfo.IPAddr.LocalPort
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := time.NewTicker(2 * time.Second) // Detect every 2 sec. Avoid to connect twice after network changed with too long interval
 	defer ticker.Stop()
 
 	printNetError := true

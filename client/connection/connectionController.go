@@ -166,7 +166,7 @@ func setupNode(ip string, port int) error {
 		//libp2p.ListenAddrStrings(listen_addrs(rtkMdns.MdnsCfg.ListenPort)...), // Add mdns port with different initialization
 		libp2p.ListenAddrs(tcpAddr),
 		libp2p.Transport(tcp.NewTCPTransport),
-		libp2p.NATPortMap(),
+		// libp2p.NATPortMap(), // It cause stuck in disconnect flow after WiFi changed
 		libp2p.Identity(priv),
 		libp2p.ForceReachabilityPrivate(),
 		libp2p.ResourceManager(&network.NullResourceManager{}),
@@ -556,26 +556,14 @@ func WriteSocket(id string, data []byte) rtkMisc.CrossShareErr {
 		}
 
 		log.Printf("[%s][%s] Write failed:[%+v], and execute offlineEvent ", rtkMisc.GetFuncInfo(), sInfo.ipAddr, err)
-		isEOF := false
-		defer offlineEvent(sInfo.s, isEOF)
 
-		if errors.Is(err, io.EOF) {
-			isEOF = true
-			return rtkMisc.ERR_NETWORK_P2P_EOF
-		} else if netErr, ok := err.(net.Error); ok {
-			log.Printf("[Socket][%s] Err: Read fail network error(%v)", sInfo.ipAddr, netErr.Error())
-			if netErr.Timeout() {
-				return rtkMisc.ERR_NETWORK_P2P_TIMEOUT
-			}
-		} else if errors.Is(err, network.ErrReset) {
-			return rtkMisc.ERR_NETWORK_P2P_RESET
-		} else if errors.Is(err, network.ErrNoConn) {
-			return rtkMisc.ERR_NETWORK_P2P_CONNECT
-		}
+		isEOF, errCode := isTcpEOF(err)
+		offlineEvent(sInfo.s, isEOF)
+		return errCode
 	}
 
 	bufio.NewWriter(sInfo.s).Flush()
-	log.Printf("[%s] DST ID:[%s] Write to socket successfully", rtkMisc.GetFuncInfo(), id)
+	log.Printf("[%s] DST ID:[%s] Write to socket successfully, addr:(%s)", rtkMisc.GetFuncInfo(), id, sInfo.s.Conn().RemoteMultiaddr().String())
 	return rtkMisc.SUCCESS
 }
 
@@ -593,25 +581,9 @@ func ReadSocket(id string, buffer []byte) (int, rtkMisc.CrossShareErr) {
 		}
 
 		log.Printf("[%s][%s] Read failed [%+v],  execute offlineEvent ", rtkMisc.GetFuncInfo(), sInfo.ipAddr, err)
-
-		isEOF := false
-		defer offlineEvent(sInfo.s, isEOF)
-
-		if errors.Is(err, io.EOF) {
-			isEOF = true
-			return n, rtkMisc.ERR_NETWORK_P2P_EOF
-		} else if netErr, ok := err.(net.Error); ok {
-			log.Printf("[Socket][%s] Err: Read fail network error(%v)", sInfo.ipAddr, netErr.Error())
-			if netErr.Timeout() {
-				return n, rtkMisc.ERR_NETWORK_P2P_TIMEOUT
-			}
-		} else if errors.Is(err, network.ErrReset) {
-			return n, rtkMisc.ERR_NETWORK_P2P_RESET
-		} else if errors.Is(err, network.ErrNoConn) {
-			return n, rtkMisc.ERR_NETWORK_P2P_CONNECT
-		}
-
-		return n, rtkMisc.ERR_NETWORK_P2P_OTHER
+		isEOF, errCode := isTcpEOF(err)
+		offlineEvent(sInfo.s, isEOF)
+		return 0, errCode
 	}
 
 	return n, rtkMisc.SUCCESS

@@ -270,6 +270,30 @@ func IsQuicEOF(err error) bool {
 	return strings.Contains(err.Error(), "reset")
 }
 
+func isTcpEOF(err error) (bool, rtkMisc.CrossShareErr) {
+	isEOF := false
+	code := rtkMisc.ERR_NETWORK_P2P_OTHER
+	errMsg := err.Error()
+	if errors.Is(err, io.EOF) {
+		isEOF = true
+		code = rtkMisc.ERR_NETWORK_P2P_EOF
+	} else if strings.Contains(errMsg, "forcibly closed by the remote host") ||
+		strings.Contains(errMsg, "connection reset by peer") ||
+		strings.Contains(errMsg, "broken pipe") {
+		isEOF = true
+		code = rtkMisc.ERR_NETWORK_P2P_EOF
+	} else if netErr, ok := err.(net.Error); ok {
+		log.Printf("[Socket] Err: Read fail network error(%v)", netErr.Error())
+		if netErr.Timeout() {
+			code = rtkMisc.ERR_NETWORK_P2P_TIMEOUT
+		}
+	} else if errors.Is(err, network.ErrReset) {
+		code = rtkMisc.ERR_NETWORK_P2P_RESET
+	}
+
+	return isEOF, code
+}
+
 func CloseAllFileDropStream(id string) {
 	streamPoolMutex.Lock()
 	defer streamPoolMutex.Unlock()
