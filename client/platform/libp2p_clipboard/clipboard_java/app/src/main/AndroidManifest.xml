@@ -10,7 +10,7 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.READ_CLIPBOARD" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.BIND_ACCESSIBILITY_SERVICE" />
     <uses-permission android:name="android.permission.READ_CLIPBOARD_IN_BACKGROUND"/>
@@ -24,7 +24,7 @@
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
 
     <queries>
-        <package android:name="com.realtek.crossshare" />
+        <package android:name="com.rtk.crossshare" />
     </queries>
 
     <application
@@ -33,19 +33,20 @@
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:name="com.realtek.crossshare.MyApplication"
+        android:name="com.rtk.crossshare.MyApplication"
         tools:targetApi="31">
 
         <!--<provider
             android:name=".UserContentProvider"
-            android:authorities="com.realtek.crossshare"
+            android:authorities="com.rtk.crossshare"
             android:exported="true"
             />-->
 
         <provider
             android:name="androidx.core.content.FileProvider"
-            android:authorities="com.realtek.crossshare"
+            android:authorities="com.rtk.crossshare"
             android:exported="false"
             android:grantUriPermissions="true">
             <meta-data
@@ -54,17 +55,17 @@
         </provider>
 
         <activity
-            android:name="com.realtek.crossshare.getFileActivity"
+            android:name="com.rtk.crossshare.getFileActivity"
             android:exported="true">
         </activity>
 
         <activity
-            android:name="com.realtek.crossshare.TestActivity"
+            android:name="com.rtk.crossshare.TestActivity"
             android:exported="true"
             android:label="@string/app_name"
             android:configChanges="orientation|screenSize|keyboardHidden"
             android:theme="@style/TransparentTheme"
-            android:launchMode="standard">
+            android:launchMode="singleTop">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -80,7 +81,6 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <action android:name="android.intent.action.SEND" />
-                <action android:name="android.intent.action.SEND_MULTIPLE" />
                 <category android:name="android.intent.category.DEFAULT" />
 
 
@@ -103,18 +103,13 @@
 
         </activity>
         <service
-            android:name="com.realtek.crossshare.FloatClipboardService"
+            android:name="com.rtk.crossshare.FloatClipboardService"
             android:enabled="true"
             android:exported="true"
-            android:foregroundServiceType="dataSync"/>
+            android:foregroundServiceType="specialUse"/>
 
         <activity
             android:name=".ScannerActivity"
-            android:screenOrientation="portrait"
-            android:theme="@style/TransparentTheme"/>
-
-        <activity
-            android:name=".ShareActivity"
             android:screenOrientation="portrait"
             android:theme="@style/TransparentTheme"/>
     </application>

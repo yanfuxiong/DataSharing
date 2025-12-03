@@ -1,4 +1,0 @@
-<selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:state_selected="true" android:drawable="@drawable/fm_info_select"/>
-    <item android:drawable="@drawable/fm_info"/>
-</selector>

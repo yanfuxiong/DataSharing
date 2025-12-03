@@ -16,7 +16,6 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="20dp"
-            android:textColor="#000000"
             android:text="cancel file" />
 
         <LinearLayout
@@ -41,7 +40,6 @@
             android:layout_marginTop="20dp"
             android:layout_marginRight="30dp"
             android:layout_marginBottom="20dp"
-            android:textColor="#000000"
             android:text="Are you sure you want to cancel all transfers？" />
 
         </LinearLayout>
