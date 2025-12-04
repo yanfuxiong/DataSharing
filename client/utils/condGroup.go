@@ -1,6 +1,9 @@
 package utils
 
-import "sync"
+import (
+	"log"
+	"sync"
+)
 
 type CondGroup struct {
 	mu      sync.Mutex
@@ -36,7 +39,9 @@ func (g *CondGroup) Done() {
 func (g *CondGroup) Wait() {
 	g.mu.Lock()
 	for g.counter != 0 {
+		log.Printf("CondGroup sync: CondWaitGroup waiting")
 		g.cond.Wait()
 	}
+	log.Printf("CondGroup sync: CondWaitGroup done")
 	g.mu.Unlock()
 }

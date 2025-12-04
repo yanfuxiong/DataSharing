@@ -14,7 +14,7 @@ const (
 	FilesTransfer_Unknown FilesTransferDirectionType = "FilesTransfer_Unknown"
 )
 
-type CallbackSendCancelFileTransMsgFunc func(id string, fileTransDataId uint64, asSrc bool)
+type CallbackSendCancelFileTransMsgFunc func(id, ipAddr string, fileTransDataId uint64, asSrc bool)
 
 var (
 	fileDropDataMap    = make(map[string]FileDropData)           // key: ID

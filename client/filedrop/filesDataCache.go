@@ -12,7 +12,7 @@ func init() {
 	rtkPlatform.SetGoCancelFileTransCallback(CancelFileTransfer)
 }
 
-func CancelFileTransfer(id, ip string, timestamp uint64) {
+func CancelFileTransfer(id, ipAddr string, timestamp uint64) {
 	fileDropDataMutex.Lock()
 	defer fileDropDataMutex.Unlock()
 
@@ -31,7 +31,7 @@ func CancelFileTransfer(id, ip string, timestamp uint64) {
 				}
 				cacheData.cancelFn = nil
 				filesDataCacheMap[id] = cacheData
-				log.Printf("[%s] ID:[%s],IP:[%s] timestamp:[%d] CancelFileTransfer success by platform GUI!", rtkMisc.GetFuncInfo(), id, ip, timestamp)
+				log.Printf("[%s] ID:[%s],IP:[%s] timestamp:[%d] CancelFileTransfer success by platform GUI!", rtkMisc.GetFuncInfo(), id, ipAddr, timestamp)
 			} else {
 				log.Printf("[%s] ID:[%s] Not fount cancelFn from cache map data\n\n", rtkMisc.GetFuncInfo(), id)
 			}
@@ -40,18 +40,18 @@ func CancelFileTransfer(id, ip string, timestamp uint64) {
 				cacheData.filesTransferDataQueue = queue
 				filesDataCacheMap[id] = cacheData
 
-				log.Printf("[%s] ID:[%s],IP:[%s] timestamp:[%d] CancelFileTransfer Remove cache data success by platform GUI!", rtkMisc.GetFuncInfo(), id, ip, timestamp)
+				log.Printf("[%s] ID:[%s],IP:[%s] timestamp:[%d] CancelFileTransfer Remove cache data success by platform GUI!", rtkMisc.GetFuncInfo(), id, ipAddr, timestamp)
 				if callbackSendCancelFileTransferMsgToPeer != nil {
-					callbackSendCancelFileTransferMsgToPeer(id, timestamp, asSrc)
+					callbackSendCancelFileTransferMsgToPeer(id, ipAddr, timestamp, asSrc)
 				} else {
 					log.Println("callbackSendCancelFileTransferMsgToPeer is null!")
 				}
 			} else {
-				log.Printf("[%s] ID:[%s],IP:[%s], timestamp:[%d] Not fount from cache map data! ", rtkMisc.GetFuncInfo(), id, ip, timestamp)
+				log.Printf("[%s] ID:[%s],IP:[%s], timestamp:[%d] Not fount from cache map data! ", rtkMisc.GetFuncInfo(), id, ipAddr, timestamp)
 			}
 		}
 	} else {
-		log.Printf("[%s] ID:[%s],IP:[%s] Not fount cache map data!\n\n", rtkMisc.GetFuncInfo(), id, ip)
+		log.Printf("[%s] ID:[%s],IP:[%s] Not fount cache map data!\n\n", rtkMisc.GetFuncInfo(), id, ipAddr)
 	}
 }
 

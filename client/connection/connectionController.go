@@ -8,7 +8,6 @@ import (
 	"fmt"
 	libp2pquic "github.com/libp2p/go-libp2p/p2p/transport/quic"
 	"github.com/libp2p/go-libp2p/p2p/transport/tcp"
-	"io"
 	"log"
 	"net"
 	rtkBuildConfig "rtk-cross-share/client/buildConfig"
@@ -115,8 +114,13 @@ func cancelHostNode() {
 }
 
 func Run(ctx context.Context) {
-	defer cancelHostNode()
-	defer CancelAllStream(false)
+	defer func() {
+		CancelAllStream(false)
+		cancelHostNode()
+		condGroupDone()
+	}()
+
+	condGroupAdd()
 
 	if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformWindows || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformMac { // only computer need watch network info
 		rtkMisc.GoSafe(func() { WatchNetworkInfo(ctx) })

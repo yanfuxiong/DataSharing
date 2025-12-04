@@ -49,6 +49,7 @@ type Callback interface {
 	CallbackFileListSendNotify(ip, id string, fileCnt int, totalSize, timestamp int64, firstFileName string, firstFileSize int64)
 	CallbackFileListReceiveNotify(ip, id string, fileCnt int, totalSize, timestamp int64, firstFileName string, firstFileSize int64)
 	CallbackFileListDragFolderNotify(ip, id, folderName string, timestamp int64)
+	CallbackSendFilesDone(filesInfo, platform, deviceName string, timestamp int64)
 	CallbackNotiMessage(filesInfo, platform, deviceName string, notiCode, onlineCnt int, timestamp int64)
 	CallbackUpdateClientStatus(clientInfo string)
 	CallbackUpdateSendProgressBar(ip, id, currentFileName string, sendFileCnt, totalFileCnt int, currentFileSize, totalSize, sendSize, timestamp int64)
@@ -488,16 +489,18 @@ func GoUpdateSystemInfo(ip, serviceVer string) {
 }
 
 func GoNotiMessageFileTransfer(fileInfo, clientName, platform string, timestamp uint64, isSender bool) {
-	var code NOTI_MSG_CODE
-	if isSender {
-		code = NOTI_MSG_CODE_FILE_TRANS_DONE_SENDER
-	} else {
-		code = NOTI_MSG_CODE_FILE_TRANS_DONE_RECEIVER
-	}
 	log.Printf("[%s]: fileInfo:[%s], clientName:%s, timestamp:%d ", rtkMisc.GetFuncInfo(), fileInfo, clientName, timestamp)
 	if CallbackInstance == nil {
 		log.Println(" CallbackInstance is null !")
 		return
+	}
+
+	var code NOTI_MSG_CODE
+	if isSender {
+		code = NOTI_MSG_CODE_FILE_TRANS_DONE_SENDER
+		CallbackInstance.CallbackSendFilesDone(fileInfo, platform, clientName, int64(timestamp))
+	} else {
+		code = NOTI_MSG_CODE_FILE_TRANS_DONE_RECEIVER
 	}
 
 	CallbackInstance.CallbackNotiMessage(fileInfo, platform, clientName, int(code), 0, int64(timestamp))

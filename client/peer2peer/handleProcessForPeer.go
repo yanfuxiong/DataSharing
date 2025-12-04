@@ -7,8 +7,10 @@ import (
 	rtkConnection "rtk-cross-share/client/connection"
 	rtkFileDrop "rtk-cross-share/client/filedrop"
 	rtkGlobal "rtk-cross-share/client/global"
+	rtkPlatform "rtk-cross-share/client/platform"
 	rtkUtils "rtk-cross-share/client/utils"
 	rtkMisc "rtk-cross-share/misc"
+	"strconv"
 	"time"
 )
 
@@ -19,7 +21,7 @@ func init() {
 func StartProcessForPeer(ctx context.Context, id, ipAddr string) func(source rtkCommon.CancelBusinessSource) {
 	sonCtx, cancel := rtkUtils.WithCancelSource(ctx)
 	rtkMisc.GoSafe(func() { ProcessEventsForPeer(sonCtx, id, ipAddr) })
-	log.Printf("[%s][%s][%s] ProcessEventsForPeer is Start !", rtkMisc.GetFuncInfo(), id, ipAddr)
+	log.Printf("[%s] ID:[%s] IP:[%s] ProcessEventsForPeer is Start !", rtkMisc.GetFuncInfo(), id, ipAddr)
 	return cancel
 }
 
@@ -27,13 +29,15 @@ func SendDisconnectMsgToPeer(id string) {
 	sendCmdMsgToPeer(id, COMM_DISCONNECT, rtkCommon.TEXT_CB, rtkMisc.SUCCESS)
 }
 
-func SendFileTransCancelByGuiMsgToPeer(id string, fileTransDataId uint64, asSrc bool) {
+func SendFileTransCancelByGuiMsgToPeer(id, ipAddr string, fileTransDataId uint64, asSrc bool) {
 	if asSrc {
-		log.Printf("(SRC) [%s] ID:[%s] send cancel filesCachedata msg to dst, id:%d", rtkMisc.GetFuncInfo(), id, fileTransDataId)
+		log.Printf("(SRC) [%s] IP:[%s] send cancel filesCachedata msg to dst, id:%d", rtkMisc.GetFuncInfo(), ipAddr, fileTransDataId)
 		sendFileTransInterruptMsgToPeer(id, COMM_FILE_TRANSFER_SRC_INTERRUPT, rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_CANCEL_GUI, fileTransDataId)
+		rtkPlatform.GoNotifyErrEvent(id, rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_CANCEL_GUI, ipAddr, strconv.Itoa(int(fileTransDataId)), "", "")
 	} else {
-		log.Printf("(DST) [%s] ID:[%s] send cancel filesCachedata msg to src, id:%d", rtkMisc.GetFuncInfo(), id, fileTransDataId)
+		log.Printf("(DST) [%s] IP:[%s] send cancel filesCachedata msg to src, id:%d", rtkMisc.GetFuncInfo(), ipAddr, fileTransDataId)
 		sendFileTransInterruptMsgToPeer(id, COMM_FILE_TRANSFER_DST_INTERRUPT, rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL_GUI, fileTransDataId)
+		rtkPlatform.GoNotifyErrEvent(id, rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL_GUI, ipAddr, strconv.Itoa(int(fileTransDataId)), "", "")
 	}
 	rtkConnection.CloseFileDropItemStream(id, fileTransDataId)
 }

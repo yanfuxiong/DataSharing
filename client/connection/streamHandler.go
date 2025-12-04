@@ -102,15 +102,21 @@ func updateStream(ctx context.Context, id string, stream network.Stream) {
 		if oldSinfo.cancelFn != nil {
 			oldSinfo.cancelFn(rtkCommon.OldP2PBusinessCancel)
 			log.Printf("[%s] UpdateStream ID:[%s] IP:[%s], ProcessForPeer existed, Cancel the old StartProcessForPeer first!", rtkMisc.GetFuncInfo(), id, ipAddr)
-			if fileStreamMap, fileItemOk := clientFileDataStreamMap[id]; fileItemOk {
-				for timestamp, itemStream := range fileStreamMap {
-					itemStream.CloseRead()
-					itemStream.Close()
-					delete(fileStreamMap, timestamp)
-					log.Printf("[%s] ID:[%s] close old file drop Item stream success! timestamp:[%d] id:[%s]!", rtkMisc.GetFuncInfo(), id, timestamp, itemStream.ID())
-				}
-				clientFileDataStreamMap[id] = fileStreamMap
+		}
+		if fileStreamMap, fileItemOk := clientFileDataStreamMap[id]; fileItemOk {
+			for timestamp, itemStream := range fileStreamMap {
+				itemStream.CloseRead()
+				itemStream.Close()
+				delete(fileStreamMap, timestamp)
+				log.Printf("[%s] ID:[%s] close old file drop Item stream success! timestamp:[%d] id:[%s]!", rtkMisc.GetFuncInfo(), id, timestamp, itemStream.ID())
 			}
+			clientFileDataStreamMap[id] = fileStreamMap
+		}
+		if oldSinfo.sImage != nil {
+			oldSinfo.sImage.Close()
+		}
+		if oldSinfo.sFileDrop != nil {
+			oldSinfo.sFileDrop.Close()
 		}
 	}
 
