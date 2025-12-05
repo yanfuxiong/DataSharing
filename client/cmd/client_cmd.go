@@ -20,15 +20,24 @@ import (
 )
 
 var (
-	cablePlugInFlagChan      = make(chan struct{}, 1)
-	cablePlugOutFlagChan     = make(chan struct{})
-	networkSwitchFlagChan    = make(chan struct{})
-	clientVerInvalidFlagChan = make(chan struct{})
-	getLanServerMacTimeStamp int64
+	isBusinessProcessStart      bool
+	cablePlugEventFlagChan      = make(chan bool, 1)
+	networkSwitchFlagChan       = make(chan struct{})
+	clientVerInvalidFlagChan    = make(chan struct{})
+	lastCablePlugEventTimeStamp int64
 )
 
+func detectCablePlugEvent(event bool) {
+	select {
+	case <-cablePlugEventFlagChan:
+	default:
+	}
+	cablePlugEventFlagChan <- event
+}
+
 func init() {
-	getLanServerMacTimeStamp = 0
+	isBusinessProcessStart = false
+	lastCablePlugEventTimeStamp = 0
 
 	rtkGlobal.ListenHost = rtkMisc.DefaultIp
 	rtkGlobal.ListenPort = rtkGlobal.DefaultPort
@@ -43,34 +52,43 @@ func init() {
 	})
 
 	rtkPlatform.SetGoNetworkSwitchCallback(func() {
+		if !isBusinessProcessStart {
+			log.Printf("[WARNING] MainInit is not start! ")
+			return
+		}
 		networkSwitchFlagChan <- struct{}{}
 	})
 
 	rtkPlatform.SetDetectPluginEventCallback(func(isPlugin bool, productName string) {
+		if lastCablePlugEventTimeStamp != 0 && (time.Now().UnixMilli()-lastCablePlugEventTimeStamp < 200) {
+			log.Printf("Detect plug event interval time is too short, so discard it!")
+			return
+		}
+		lastCablePlugEventTimeStamp = time.Now().UnixMilli()
+
 		if isPlugin {
 			log.Printf("Detect cable plug-in")
 			rtkLogin.SetProductName(productName)
-			cablePlugInFlagChan <- struct{}{}
 		} else {
 			log.Printf("Detect cable plug-out")
-			cablePlugOutFlagChan <- struct{}{}
 		}
+		detectCablePlugEvent(isPlugin)
 	})
 
 	rtkPlatform.SetGoExtractDIASCallback(func() {
 		log.Printf("Detect cable plug-out")
-		cablePlugOutFlagChan <- struct{}{}
+		detectCablePlugEvent(false)
 	})
 
 	rtkPlatform.SetGoGetMacAddressCallback(func(mac string) {
 		log.Printf("Detect cable plug-in, get MAC address: %s", mac)
-		if getLanServerMacTimeStamp != 0 && (time.Now().UnixMilli()-getLanServerMacTimeStamp < 200) {
+		if lastCablePlugEventTimeStamp != 0 && (time.Now().UnixMilli()-lastCablePlugEventTimeStamp < 200) {
 			log.Printf("GetMacAddress trigger interval time is too short, so discard it!")
 			return
 		}
-		getLanServerMacTimeStamp = time.Now().UnixMilli()
+		lastCablePlugEventTimeStamp = time.Now().UnixMilli()
 		rtkLogin.SetLanServerInstance(mac)
-		cablePlugInFlagChan <- struct{}{}
+		detectCablePlugEvent(true)
 	})
 
 	rtkPlatform.SetGoAuthStatusCodeCallback(func(status uint8) {
@@ -167,6 +185,7 @@ func MainInit(serverId, serverIpInfo, listenHost string, listentPort int) {
 }
 
 func businessProcess(ctx context.Context) {
+	isBusinessProcessStart = true
 	rtkLogin.BrowseInstance()
 
 	var cancelBusinessFunc func(source rtkCommon.CancelBusinessSource)
@@ -174,27 +193,43 @@ func businessProcess(ctx context.Context) {
 	var sonCtx context.Context
 	for {
 		select {
-		case <-cablePlugInFlagChan:
-			log.Println("===========================================================================")
-			log.Println("******** DIAS is access, business start! ********")
-			if cancelBusinessFunc != nil {
-				log.Printf("******** Cancel the old business first! ********")
-				cancelBusinessFunc(rtkCommon.SourceCablePlugIn)
-				time.Sleep(100 * time.Millisecond) // wait for print cancel log
-				cancelBusinessFunc = nil
-				rtkLogin.BrowseInstance()
+		case cableEvent := <-cablePlugEventFlagChan:
+			if cableEvent {
+				log.Println("===========================================================================")
+				log.Println("********************* DIAS is access, business start! *********************")
+				if cancelBusinessFunc != nil {
+					log.Printf("******** Cancel the old business first! ********")
+					cancelBusinessFunc(rtkCommon.SourceCablePlugIn)
+					time.Sleep(100 * time.Millisecond) // wait for print cancel log
+					cancelBusinessFunc = nil
+					rtkConnection.Wait()
+					rtkLogin.BrowseInstance()
+				}
+				log.Println("===========================================================================\n\n")
+				rtkLogin.NotifyDIASStatus(rtkLogin.DIAS_Status_Connectting_DiasService)
+				sonCtx, cancelBusinessFunc = rtkUtils.WithCancelSource(ctx)
+				rtkMisc.GoSafe(func() { businessStart(sonCtx) })
+			} else {
+				log.Println("===========================================================================")
+				if cancelBusinessFunc != nil {
+					log.Printf("****************** DIAS is extract, cancel all business! ******************")
+					cancelBusinessFunc(rtkCommon.SourceCablePlugOut)
+					cancelBusinessFunc = nil
+					time.Sleep(100 * time.Millisecond) // wait for print all cancel log
+					rtkConnection.Wait()
+					rtkLogin.BrowseInstance()
+				} else {
+					log.Printf("******** DIAS is extract, business is not start! ******** ")
+				}
+				log.Println("===========================================================================\n\n")
 			}
-			log.Println("===========================================================================\n\n")
-
-			rtkLogin.NotifyDIASStatus(rtkLogin.DIAS_Status_Connectting_DiasService)
-			sonCtx, cancelBusinessFunc = rtkUtils.WithCancelSource(ctx)
-			rtkMisc.GoSafe(func() { businessStart(sonCtx) })
 		case <-networkSwitchFlagChan:
 			log.Println("===========================================================================")
 			if cancelBusinessFunc != nil {
 				log.Printf("******** Client Network is Switch, cancel old business! ******** ")
 				cancelBusinessFunc(rtkCommon.SourceNetworkSwitch)
 				time.Sleep(100 * time.Millisecond) // wait for print cancel log
+				rtkConnection.Wait()
 				rtkLogin.BrowseInstance()
 				log.Println("===========================================================================\n\n")
 				log.Printf("[%s] business is restart!", rtkMisc.GetFuncInfo())
@@ -202,22 +237,11 @@ func businessProcess(ctx context.Context) {
 				sonCtx, cancelBusinessFunc = rtkUtils.WithCancelSource(ctx)
 				rtkMisc.GoSafe(func() { businessStart(sonCtx) })
 			} else {
+				rtkConnection.Wait()
 				rtkLogin.BrowseInstance()
 				log.Printf("******** Client Network is Switch, business is not start! ******** ")
 				log.Println("===========================================================================\n\n")
 			}
-		case <-cablePlugOutFlagChan:
-			log.Println("===========================================================================")
-			if cancelBusinessFunc != nil {
-				log.Printf("******** DIAS is extract, cancel all business! ******** ")
-				cancelBusinessFunc(rtkCommon.SourceCablePlugOut)
-				cancelBusinessFunc = nil
-				time.Sleep(100 * time.Millisecond) // wait for print all cancel log
-				rtkLogin.BrowseInstance()
-			} else {
-				log.Printf("******** DIAS is extract, business is not start! ******** ")
-			}
-			log.Println("===========================================================================\n\n")
 		case <-clientVerInvalidFlagChan:
 			log.Println("===========================================================================")
 			log.Printf("******** Client Version is too old, and must be forcibly updated, cancel all business! ******** ")

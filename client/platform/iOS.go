@@ -313,7 +313,22 @@ func SetDeviceName(name string) {
 }
 
 func GoTriggerNetworkSwitch() {
-	callbackNetworkSwitch()
+}
+
+func GoSetHostListenAddr(listenHost string, listenPort int) {
+	if listenHost == "" || listenHost == rtkMisc.DefaultIp || listenHost == rtkMisc.LoopBackIp || listenPort <= rtkGlobal.DefaultPort {
+		return
+	}
+	if rtkGlobal.ListenHost != rtkMisc.DefaultIp &&
+		rtkGlobal.ListenHost != "" &&
+		rtkGlobal.ListenPort != rtkGlobal.DefaultPort &&
+		(listenHost != rtkGlobal.ListenHost || listenPort != rtkGlobal.ListenPort) {
+		log.Printf("[%s] The previous host Addr:[%s:%d], new host Addr:[%s:%d] ", rtkMisc.GetFuncInfo(), rtkGlobal.ListenHost, rtkGlobal.ListenPort, listenHost, listenPort)
+		log.Println("**************** Attention please, the host listen addr is switch! ********************\n\n")
+		rtkGlobal.ListenHost = listenHost
+		rtkGlobal.ListenPort = listenPort
+		callbackNetworkSwitch()
+	}
 }
 
 func GoBrowseMdnsResultCallback(instance, ip string, port int, productName, mName, timestamp, version string) {
