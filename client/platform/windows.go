@@ -347,7 +347,6 @@ func GoMultiFilesDropRequest(id string, fileList *[]rtkCommon.FileInfo, folderLi
 	}
 
 	nMsgLength := int(rtkGlobal.P2PMsgMagicLength) //p2p null msg length
-
 	for _, file := range *fileList {
 		nMsgLength = nMsgLength + len(file.FileName) + rtkGlobal.FileInfoMagicLength
 	}
@@ -365,20 +364,20 @@ func GoMultiFilesDropRequest(id string, fileList *[]rtkCommon.FileInfo, folderLi
 	return rtkCommon.SendFilesRequestSuccess
 }
 
-func GoDragFileListRequest(fileList *[]rtkCommon.FileInfo, folderList *[]string, totalSize, timestamp uint64, totalDesc string) {
+func GoDragFileListRequest(fileList *[]rtkCommon.FileInfo, folderList *[]string, totalSize, timestamp uint64, totalDesc string) rtkCommon.SendFilesRequestErrCode {
 	if callbackDragFileListRequestCB == nil {
 		log.Println("callbackDragFileListRequestCB is null!")
-		return
+		return rtkCommon.SendFilesRequestCallbackNotSet
 	}
 
 	if len(*fileList) == 0 && len(*folderList) == 0 {
 		log.Println("file content is null!")
-		return
+		return rtkCommon.SendFilesRequestParameterErr
 	}
 
 	if totalSize > uint64(rtkGlobal.SendFilesRequestMaxSize) {
-		log.Printf("[%s] ID[%s] this file drop total size:[%d] [%s] is too large and over range !", rtkMisc.GetFuncInfo(), id, totalSize, totalDesc)
-		return
+		log.Printf("[%s] this file drop total size:[%d] [%s] is too large and over range !", rtkMisc.GetFuncInfo(), totalSize, totalDesc)
+		return rtkCommon.SendFilesRequestSizeOverRange
 	}
 
 	nMsgLength := int(rtkGlobal.P2PMsgMagicLength) //p2p null msg length
@@ -391,11 +390,12 @@ func GoDragFileListRequest(fileList *[]rtkCommon.FileInfo, folderList *[]string,
 	}
 
 	if nMsgLength >= rtkGlobal.P2PMsgMaxLength {
-		log.Printf("[%s] ID[%s] file count:[%d] folder count:[%d], the p2p message is too long and over range!", rtkMisc.GetFuncInfo(), id, len(*fileList), len(*folderList))
-		return
+		log.Printf("[%s] file count:[%d] folder count:[%d], the p2p message is too long and over range!", rtkMisc.GetFuncInfo(), len(*fileList), len(*folderList))
+		return rtkCommon.SendFilesRequestLengthOverRange
 	}
 
 	callbackDragFileListRequestCB(*fileList, *folderList, totalSize, timestamp, totalDesc)
+	return rtkCommon.SendFilesRequestSuccess
 }
 
 func GoCancelFileTrans(ip, id string, timestamp int64) {
