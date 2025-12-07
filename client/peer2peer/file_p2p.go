@@ -447,26 +447,28 @@ func writeFileToSocket(id, ipAddr string, write *cancelableWriter, read *cancela
 			if rtkConnection.IsQuicEOF(err) { // cancel by dst
 				log.Printf("(SRC) [%s] IP:[%s] timestamp:[%d] quic EOF!", rtkMisc.GetFuncInfo(), ipAddr, timeStamp)
 				return rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL_BUSINESS
-			} else if rtkConnection.IsQuicClose(err) { // cancel by src
+			} else if rtkConnection.IsQuicClose(err) { //this case unused
+				log.Printf("(SRC) [%s] IP:[%s] timestamp:[%d] quic local Closed!", rtkMisc.GetFuncInfo(), ipAddr, timeStamp)
 				if read.ctx.Err() != nil {
 					return getFileDataSendCancelErrCode(read.ctx, ipAddr, timeStamp)
 				}
-				log.Printf("(SRC) [%s] IP:[%s] timestamp:[%d] quic Closed!", rtkMisc.GetFuncInfo(), ipAddr, timeStamp)
 				return rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_CANCEL_BUSINESS
 			} else if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-				log.Println("Error sending file timeout:", netErr)
+				log.Printf("(SRC) [%s] IP:[%s] Error sending file timeout:%v", rtkMisc.GetFuncInfo(), ipAddr, netErr)
+				if read.ctx.Err() != nil {
+					return getFileDataSendCancelErrCode(read.ctx, ipAddr, timeStamp)
+				}
 				return rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_TIMEOUT
 			} else if errors.Is(err, context.Canceled) {
 				return getFileDataSendCancelErrCode(read.ctx, ipAddr, timeStamp)
-			} else if errors.Is(err, yamux.ErrStreamClosed) {
-				if IsInterruptByPeer(id) {
-					log.Printf("(SRC) IP[%s] Copy operation was canceled!", ipAddr)
-					return rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_CANCEL
+			} else if errors.Is(err, yamux.ErrStreamClosed) || errors.Is(err, yamux.ErrStreamReset) { // old  version client trigger this case
+				if read.ctx.Err() != nil {
+					return getFileDataSendCancelErrCode(read.ctx, ipAddr, timeStamp)
 				}
-				log.Printf("(SRC) IP[%s] Copy operation was timeout!", ipAddr)
-				return rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_TIMEOUT
+				log.Printf("(SRC) IP[%s] Copy operation was canceled by close stream!", ipAddr)
+				return rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_CANCEL
 			} else {
-				log.Printf("(SRC) IP:[%s] timeStamp:[%d] Copy file Error:%+v", ipAddr, timeStamp, err)
+				log.Printf("(SRC) [%s] IP:[%s] timeStamp:[%d] Copy file Error:%+v", rtkMisc.GetFuncInfo(), ipAddr, timeStamp, err)
 				return rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE
 			}
 		}
@@ -548,6 +550,8 @@ func readFileDataItemFromSocket(p2pCtx context.Context, id, ipAddr string, fileD
 	progressBar := New64(int64(fileDropData.TotalSize))
 	ctx, cancel := rtkUtils.WithCancelSource(p2pCtx)
 	defer cancel(rtkCommon.FileTransDone)
+	SetFileTransferInfo(id, cancel)                   //Used when there is an exception on the sending end
+	rtkFileDrop.SetCancelFileTransferFunc(id, cancel) //Used when the recipient cancels
 
 	currentFileSize := uint64(0)
 	doneFileCnt := uint32(0)
@@ -588,8 +592,6 @@ func readFileDataItemFromSocket(p2pCtx context.Context, id, ipAddr string, fileD
 		}
 	})
 
-	SetFileTransferInfo(id, cancel)                   //Used when there is an exception on the sending end
-	rtkFileDrop.SetCancelFileTransferFunc(id, cancel) //Used when the recipient cancels
 	cancelableRead := cancelableReader{
 		realReader: nil,
 		ctx:        ctx,
@@ -705,25 +707,28 @@ func readFileFromSocket(id, ipAddr string, write *cancelableWriter, read *cancel
 			if rtkConnection.IsQuicEOF(err) { // cancel by src
 				log.Printf("(DST) [%s] IP:[%s] timestamp:[%d] quic EOF!", rtkMisc.GetFuncInfo(), ipAddr, timeStamp)
 				return rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_CANCEL_BUSINESS
-			} else if rtkConnection.IsQuicClose(err) { // cancel by dst
-				if errors.Is(read.ctx.Err(), context.Canceled) { // cancel by context
+			} else if rtkConnection.IsQuicClose(err) { //this case unused
+				log.Printf("(DST) [%s] IP:[%s] timestamp:[%d] quic local Closed!", rtkMisc.GetFuncInfo(), ipAddr, timeStamp)
+				if read.ctx.Err() != nil {
 					return getFileDataReceiveCancelErrCode(read.ctx, ipAddr, timeStamp)
 				}
-				log.Printf("(DST) [%s] IP:[%s] timestamp:[%d] quic Closed!", rtkMisc.GetFuncInfo(), ipAddr, timeStamp)
 				return rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL_BUSINESS
 			} else if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-				log.Printf("(DST) IP:[%s] Error Read file timeout:%s", ipAddr, netErr)
+				log.Printf("(DST) [%s] IP:[%s] Error Read file timeout:%v", rtkMisc.GetFuncInfo(), ipAddr, netErr)
+				if read.ctx.Err() != nil {
+					return getFileDataReceiveCancelErrCode(read.ctx, ipAddr, timeStamp)
+				}
 				return rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_TIMEOUT
 			} else if errors.Is(err, context.Canceled) {
 				return getFileDataReceiveCancelErrCode(read.ctx, ipAddr, timeStamp)
-			} else if errors.Is(err, yamux.ErrStreamClosed) {
-				if IsInterruptByPeer(id) {
-					log.Printf("(DST) IP[%s] Copy operation was canceled!", ipAddr)
-					return rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL
+			} else if errors.Is(err, yamux.ErrStreamClosed) || errors.Is(err, yamux.ErrStreamReset) { // old  version client trigger this case
+				if read.ctx.Err() != nil {
+					return getFileDataReceiveCancelErrCode(read.ctx, ipAddr, timeStamp)
 				}
-				return rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_TIMEOUT
+				log.Printf("(DST) IP[%s] Copy operation was canceled by close stream!", ipAddr)
+				return rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL
 			} else {
-				log.Printf("(DST) IP:[%s] timeStamp:[%d] Copy file Error:%+v", ipAddr, timeStamp, err)
+				log.Printf("(DST) [%s] IP:[%s] timeStamp:[%d] Copy file Error:%+v", rtkMisc.GetFuncInfo(), ipAddr, timeStamp, err)
 				return rtkMisc.ERR_BIZ_FD_DST_COPY_FILE
 			}
 		}
