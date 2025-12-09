@@ -22,32 +22,35 @@ func CancelFileTransfer(id, ipAddr string, timestamp uint64) {
 			return
 		}
 
-		if cacheData.filesTransferDataQueue[0].TimeStamp == timestamp {
-			if cacheData.cancelFn != nil {
-				if cacheData.filesTransferDataQueue[0].FileTransDirection == FilesTransfer_As_Src {
-					cacheData.cancelFn(rtkCommon.FileTransSrcGuiCancel)
+		for i, fileDataItem := range cacheData.filesTransferDataQueue {
+			if fileDataItem.TimeStamp == timestamp {
+				if fileDataItem.isInProgress {
+					if fileDataItem.cancelFn != nil {
+						if fileDataItem.FileTransDirection == FilesTransfer_As_Src {
+							fileDataItem.cancelFn(rtkCommon.FileTransSrcGuiCancel)
+						} else {
+							fileDataItem.cancelFn(rtkCommon.FileTransDstGuiCancel)
+						}
+						fileDataItem.cancelFn = nil
+						cacheData.filesTransferDataQueue[i] = fileDataItem
+						filesDataCacheMap[id] = cacheData
+						log.Printf("[%s] ID:[%s],IP:[%s] timestamp:[%d] CancelFileTransfer in progress success by platform GUI!", rtkMisc.GetFuncInfo(), id, ipAddr, timestamp)
+						return
+					} else {
+						log.Printf("[%s] ID:[%s] timestamp:[%d] Not fount cancelFn from cache map data\n\n", rtkMisc.GetFuncInfo(), id, timestamp)
+					}
 				} else {
-					cacheData.cancelFn(rtkCommon.FileTransDstGuiCancel)
+					if queue, asSrc, bOk := RemoveItemFromCacheQueue(cacheData.filesTransferDataQueue, timestamp); bOk {
+						cacheData.filesTransferDataQueue = queue
+						filesDataCacheMap[id] = cacheData
+						log.Printf("[%s] ID:[%s],IP:[%s] timestamp:[%d] CancelFileTransfer Remove cache data success by platform GUI!", rtkMisc.GetFuncInfo(), id, ipAddr, timestamp)
+						if callbackSendCancelFileTransferMsgToPeer != nil {
+							callbackSendCancelFileTransferMsgToPeer(id, ipAddr, timestamp, asSrc)
+						} else {
+							log.Println("callbackSendCancelFileTransferMsgToPeer is null!")
+						}
+					}
 				}
-				cacheData.cancelFn = nil
-				filesDataCacheMap[id] = cacheData
-				log.Printf("[%s] ID:[%s],IP:[%s] timestamp:[%d] CancelFileTransfer success by platform GUI!", rtkMisc.GetFuncInfo(), id, ipAddr, timestamp)
-			} else {
-				log.Printf("[%s] ID:[%s] Not fount cancelFn from cache map data\n\n", rtkMisc.GetFuncInfo(), id)
-			}
-		} else {
-			if queue, asSrc, bOk := RemoveItemFromCacheQueue(cacheData.filesTransferDataQueue, timestamp); bOk {
-				cacheData.filesTransferDataQueue = queue
-				filesDataCacheMap[id] = cacheData
-
-				log.Printf("[%s] ID:[%s],IP:[%s] timestamp:[%d] CancelFileTransfer Remove cache data success by platform GUI!", rtkMisc.GetFuncInfo(), id, ipAddr, timestamp)
-				if callbackSendCancelFileTransferMsgToPeer != nil {
-					callbackSendCancelFileTransferMsgToPeer(id, ipAddr, timestamp, asSrc)
-				} else {
-					log.Println("callbackSendCancelFileTransferMsgToPeer is null!")
-				}
-			} else {
-				log.Printf("[%s] ID:[%s],IP:[%s], timestamp:[%d] Not fount from cache map data! ", rtkMisc.GetFuncInfo(), id, ipAddr, timestamp)
 			}
 		}
 	} else {
@@ -55,22 +58,22 @@ func CancelFileTransfer(id, ipAddr string, timestamp uint64) {
 	}
 }
 
-func SetFilesDataToCacheAsSrc(id string) {
-	setFilesDataToCache(id, true)
+func SetFilesDataToCacheAsSrc(id string) uint64 {
+	return setFilesDataToCache(id, true)
 }
 
-func SetFilesDataToCacheAsDst(id string) {
-	setFilesDataToCache(id, false)
+func SetFilesDataToCacheAsDst(id string) uint64 {
+	return setFilesDataToCache(id, false)
 }
 
-func setFilesDataToCache(id string, isSrc bool) {
+func setFilesDataToCache(id string, isSrc bool) uint64 {
 	fileDropDataMutex.Lock()
 	defer fileDropDataMutex.Unlock()
 
 	filesDataItem, ok := fileDropDataMap[id]
 	if !ok {
 		log.Printf("[%s], ID[%s] Not fount file data", rtkMisc.GetFuncInfo(), id)
-		return
+		return 0
 	}
 
 	directType := FilesTransfer_As_Dst
@@ -83,64 +86,54 @@ func setFilesDataToCache(id string, isSrc bool) {
 			filesTransferDataQueue: []FilesTransferDataItem{FilesTransferDataItem{
 				FileDropData:       filesDataItem,
 				FileTransDirection: directType,
+				isInProgress:       false,
 			}},
-			cancelFn: nil,
 		}
 	} else {
 		cacheData.filesTransferDataQueue = append(cacheData.filesTransferDataQueue, FilesTransferDataItem{
 			FileDropData:       filesDataItem,
 			FileTransDirection: directType,
+			isInProgress:       false,
 		})
 
 		filesDataCacheMap[id] = cacheData
 	}
+
+	return filesDataItem.TimeStamp
 }
 
-func GetFilesTransferDataList(id string) []FilesTransferDataItem {
-	fileDropDataMutex.RLock()
-	defer fileDropDataMutex.RUnlock()
+func GetFilesTransferDataItem(id string, timestamp uint64) *FilesTransferDataItem {
+	fileDropDataMutex.Lock()
+	defer fileDropDataMutex.Unlock()
 	if cacheData, ok := filesDataCacheMap[id]; ok {
 		nCount := len(cacheData.filesTransferDataQueue)
-		if nCount > 0 {
-			return cacheData.filesTransferDataQueue
-		} else {
+		if nCount == 0 {
 			log.Printf("[%s] ID:[%s] Not fount cache map data\n\n", rtkMisc.GetFuncInfo(), id)
 			return nil
 		}
-	}
-	log.Printf("[%s] ID:[%s] Not fount cache map data\n\n", rtkMisc.GetFuncInfo(), id)
-	return nil
-}
+		for i, itemCacheValue := range cacheData.filesTransferDataQueue {
+			if !itemCacheValue.isInProgress && (itemCacheValue.TimeStamp == timestamp || timestamp == 0) {
+				itemCacheValue.isInProgress = true
+				cacheData.filesTransferDataQueue[i] = itemCacheValue
+				filesDataCacheMap[id] = cacheData
 
-func GetFilesTransferDataItem(id string) *FilesTransferDataItem {
-	fileDropDataMutex.RLock()
-	defer fileDropDataMutex.RUnlock()
-	if cacheData, ok := filesDataCacheMap[id]; ok {
-		nCount := len(cacheData.filesTransferDataQueue)
-		if nCount > 0 {
-			return &FilesTransferDataItem{
-				FileDropData: FileDropData{
-					SrcFileList:          cacheData.filesTransferDataQueue[0].SrcFileList,
-					ActionType:           cacheData.filesTransferDataQueue[0].ActionType,
-					TimeStamp:            cacheData.filesTransferDataQueue[0].TimeStamp,
-					FolderList:           cacheData.filesTransferDataQueue[0].FolderList,
-					TotalDescribe:        cacheData.filesTransferDataQueue[0].TotalDescribe,
-					TotalSize:            cacheData.filesTransferDataQueue[0].TotalSize,
-					DstFilePath:          cacheData.filesTransferDataQueue[0].DstFilePath,
-					Cmd:                  cacheData.filesTransferDataQueue[0].Cmd,
-					InterruptSrcFileName: cacheData.filesTransferDataQueue[0].InterruptSrcFileName,
-					InterruptDstFileName: cacheData.filesTransferDataQueue[0].InterruptDstFileName,
-					InterruptFileOffSet:  cacheData.filesTransferDataQueue[0].InterruptFileOffSet,
-					InterruptLastErrCode: cacheData.filesTransferDataQueue[0].InterruptLastErrCode,
-				},
-				FileTransDirection: cacheData.filesTransferDataQueue[0].FileTransDirection,
+				return &FilesTransferDataItem{
+					FileDropData: FileDropData{
+						SrcFileList:   itemCacheValue.SrcFileList,
+						ActionType:    itemCacheValue.ActionType,
+						TimeStamp:     itemCacheValue.TimeStamp,
+						FolderList:    itemCacheValue.FolderList,
+						TotalDescribe: itemCacheValue.TotalDescribe,
+						TotalSize:     itemCacheValue.TotalSize,
+						DstFilePath:   itemCacheValue.DstFilePath,
+						Cmd:           itemCacheValue.Cmd,
+					},
+					FileTransDirection: itemCacheValue.FileTransDirection,
+				}
 			}
-		} else {
-			log.Printf("[%s] ID:[%s] Not fount cache map data\n\n", rtkMisc.GetFuncInfo(), id)
-			return nil
 		}
 	}
-	log.Printf("[%s] ID:[%s] Not fount cache map data\n\n", rtkMisc.GetFuncInfo(), id)
+	log.Printf("[%s] ID:[%s]  timestamp:[%d] Not fount cache map data\n\n", rtkMisc.GetFuncInfo(), id, timestamp)
 	return nil
 }
 
@@ -159,7 +152,7 @@ func SetFilesCacheItemComplete(id string, timestamp uint64) {
 			} else {
 				log.Printf("[%s] ID:[%s] compelete a files cache item, id:[%d], still %d records left", rtkMisc.GetFuncInfo(), id, timestamp, nItemCount-1)
 			}
-			cacheData.cancelFn = nil
+
 			filesDataCacheMap[id] = cacheData
 		} else {
 			log.Printf("[%s] ID:[%s] Not fount cache map data\n\n", rtkMisc.GetFuncInfo(), id)
@@ -194,32 +187,22 @@ func GetFilesTransferDataSendCacheCount(id string) int {
 	return nSendCount
 }
 
-func SetCancelFileTransferFunc(id string, fn func(rtkCommon.CancelBusinessSource)) {
+func SetCancelFileTransferFunc(id string, timeStamp uint64, fn func(rtkCommon.CancelBusinessSource)) {
 	fileDropDataMutex.Lock()
 	defer fileDropDataMutex.Unlock()
 
 	if cacheData, ok := filesDataCacheMap[id]; ok {
-		cacheData.cancelFn = fn
-		filesDataCacheMap[id] = cacheData
+		for i, fileDataItem := range cacheData.filesTransferDataQueue {
+			if fileDataItem.TimeStamp == timeStamp {
+				fileDataItem.cancelFn = fn
+				cacheData.filesTransferDataQueue[i] = fileDataItem
+				filesDataCacheMap[id] = cacheData
+				return
+			}
+		}
 	} else {
 		log.Printf("[%s] ID:[%s] Not fount cache map data\n\n", rtkMisc.GetFuncInfo(), id)
 	}
-}
-
-func IsFileTransInProgress(id string, timestamp uint64) bool {
-	fileDropDataMutex.RLock()
-	defer fileDropDataMutex.RUnlock()
-	if cacheData, ok := filesDataCacheMap[id]; ok {
-		if len(cacheData.filesTransferDataQueue) > 0 {
-			if cacheData.filesTransferDataQueue[0].TimeStamp == timestamp {
-				return true
-			}
-		} else {
-			log.Printf("[%s] ID:[%s] Not fount cache map data\n\n", rtkMisc.GetFuncInfo(), id)
-		}
-	}
-
-	return false
 }
 
 func SetFilesTransferDataInterrupt(id, srcFileName, dstFileName, dstFullName string, timestamp uint64, offset int64, errCode rtkMisc.CrossShareErr) bool {
@@ -242,15 +225,18 @@ func SetFilesTransferDataInterrupt(id, srcFileName, dstFileName, dstFullName str
 	return false
 }
 
-func CancelFileTransFromCacheMap(id string, timestamp uint64) bool {
+func CancelNotStartFileTransFromCacheMap(id string, timestamp uint64) bool {
 	fileDropDataMutex.Lock()
 	defer fileDropDataMutex.Unlock()
 	if cacheData, ok := filesDataCacheMap[id]; ok {
-		cacheData.filesTransferDataQueue, _, ok = RemoveItemFromCacheQueue(cacheData.filesTransferDataQueue, timestamp)
-		if ok {
-			filesDataCacheMap[id] = cacheData
-			log.Printf("[%s] ID:[%s] id:[%d] CancelFileTransfer success from cache map data!", rtkMisc.GetFuncInfo(), id, timestamp)
-			return true
+		for _, fileDataItem := range cacheData.filesTransferDataQueue {
+			if !fileDataItem.isInProgress && fileDataItem.TimeStamp == timestamp {
+				if cacheData.filesTransferDataQueue, _, ok = RemoveItemFromCacheQueue(cacheData.filesTransferDataQueue, timestamp); ok {
+					filesDataCacheMap[id] = cacheData
+					log.Printf("[%s] ID:[%s] timestamp:[%d] CancelFileTransfer success from cache map data!", rtkMisc.GetFuncInfo(), id, timestamp)
+					return true
+				}
+			}
 		}
 	}
 	return false

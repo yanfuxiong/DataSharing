@@ -1,7 +1,7 @@
 package global
 
 const (
-	ClientVersion = "2.3.51"
+	ClientVersion = "2.3.52"
 
 	ClientDefaultVersion          = "2.3.0" // when the other client is an old version and cannot obtain the version number, use this default version
 	ClientXClipVerSerial          = 46      // the client support XClip since third version(serial number) 46
@@ -33,6 +33,9 @@ const (
 	//The maximum size for sending documents each time,   10GB
 	SendFilesRequestMaxSize = 10 * 1024 * 1024 * 1024
 
-	//The maximum size for cache queue size 5
+	//The maximum size for file data cache queue size 5
 	SendFilesRequestMaxQueueSize = 5
+
+	//Concurrent transmission file data max size
+	FilesConcurrentTransferMaxSize = 3
 )

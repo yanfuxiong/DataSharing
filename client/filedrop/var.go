@@ -56,11 +56,12 @@ type FileDropData struct {
 type FilesTransferDataItem struct {
 	FileDropData
 	FileTransDirection FilesTransferDirectionType
+	isInProgress       bool
+	cancelFn           func(rtkCommon.CancelBusinessSource)
 }
 
 type filesDataTransferCache struct {
 	filesTransferDataQueue []FilesTransferDataItem
-	cancelFn               func(rtkCommon.CancelBusinessSource)
 }
 
 func SetSendFileTransferCancelMsgToPeerCallback(cb CallbackSendCancelFileTransMsgFunc) {

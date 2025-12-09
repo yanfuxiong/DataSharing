@@ -24,7 +24,8 @@ func (g *CondGroup) Add(delta int) {
 
 	g.counter += delta
 	if g.counter < 0 {
-		panic("sync: negative CondWaitGroup counter")
+		log.Printf("CondGroup sync: negative CondWaitGroup counter")
+		g.counter = 0
 	}
 	if g.counter == 0 {
 		// awaken  all Wait  when counter is zero
