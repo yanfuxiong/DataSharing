@@ -3,6 +3,7 @@ package filedrop
 import (
 	"log"
 	rtkCommon "rtk-cross-share/client/common"
+	rtkGlobal "rtk-cross-share/client/global"
 	rtkPlatform "rtk-cross-share/client/platform"
 	rtkUtils "rtk-cross-share/client/utils"
 	rtkMisc "rtk-cross-share/misc"
@@ -28,6 +29,12 @@ func UpdateDragFileReqDataFromLocal(id string) rtkMisc.CrossShareErr {
 	if fileCnt > 0 && !rtkMisc.FileExists(dragFileInfoList[0].FilePath) {
 		log.Printf("[%s] get File:[%s] info error", rtkMisc.GetFuncInfo(), dragFileInfoList[0].FilePath)
 		return rtkMisc.ERR_BIZ_DF_FILE_NOT_EXISTS
+	}
+
+	nCacheCount := GetFilesTransferDataSendCacheCount(id)
+	if nCacheCount >= rtkGlobal.SendFilesRequestMaxQueueSize {
+		log.Printf("[%s] ID[%s] this user file drop cache count:[%d] is too large and over range !", rtkMisc.GetFuncInfo(), id, nCacheCount)
+		return rtkMisc.ERR_BIZ_DF_CACHE_OVER_RANGE
 	}
 
 	updateDragFileReqData(id)

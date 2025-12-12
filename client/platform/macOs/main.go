@@ -744,12 +744,12 @@ func SetConfirmDocumentsAccept(ifConfirm bool) {
 }
 
 //export SetDragFileListRequest
-func SetDragFileListRequest(multiFilesData string, timeStamp uint64) {
+func SetDragFileListRequest(multiFilesData string, timeStamp uint64) C.uint {
 	var multiFileInfo MultiFilesDragRequestInfo
 	err := json.Unmarshal([]byte(multiFilesData), &multiFileInfo)
 	if err != nil {
 		log.Printf("[%s] Unmarshal[%s] err:%+v", rtkMisc.GetFuncInfo(), multiFilesData, err)
-		return
+		return C.uint(rtkCommon.SendFilesRequestParameterErr)
 	}
 	log.Printf("len:[%d] json:[%s]", len(multiFileInfo.PathList), multiFilesData)
 
@@ -791,7 +791,7 @@ func SetDragFileListRequest(multiFilesData string, timeStamp uint64) {
 	totalDesc := rtkMisc.FileSizeDesc(totalSize)
 
 	log.Printf("[%s] get file count:[%d] folder count:[%d], totalSize:[%d] totalDesc:[%s] timestamp:[%d]", rtkMisc.GetFuncInfo(), len(fileList), len(folderList), totalSize, totalDesc, timestamp)
-	rtkPlatform.GoDragFileListRequest(&fileList, &folderList, totalSize, timestamp, totalDesc)
+	return C.uint(rtkPlatform.GoDragFileListRequest(&fileList, &folderList, totalSize, timestamp, totalDesc))
 }
 
 //export FreeCString

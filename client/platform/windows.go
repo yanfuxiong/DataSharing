@@ -26,7 +26,6 @@ var (
 	logFile                  = "p2p.log"
 	crashLogFile             = "crash.log"
 	downloadPath             = ""
-	chNotifyPasteText        = make(chan struct{}, 100)
 	ifConfirmDocumentsAccept bool
 )
 

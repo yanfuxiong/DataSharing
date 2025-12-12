@@ -264,29 +264,23 @@ func GetClientIp(id string) (string, bool) {
 	return "", false
 }
 
+func boolToString(b bool) string {
+	if b {
+		return "true"
+	} else {
+		return "false"
+	}
+}
+
 func InsertClientInfoMap(id, ipAddr, platform, name, srcPortType, ver, fileTransId, udpPort string) {
 	rtkGlobal.ClientListRWMutex.Lock()
 	defer rtkGlobal.ClientListRWMutex.Unlock()
 
-	isSupportXClip := false
-	isSupportQueueFileTrans := false
-	var logSuffix string
-
 	peerVerSerial := rtkMisc.GetVersionSerialValue(ver)
-	if peerVerSerial >= int(rtkGlobal.ClientXClipVerSerial) {
-		isSupportXClip = true
-		logSuffix = " support XClip,"
-		if peerVerSerial >= int(rtkGlobal.ClientQueueFileTransVerSerial) {
-			isSupportQueueFileTrans = true
-			logSuffix = logSuffix + " and support file drop queue transfer!"
-		} else {
-			logSuffix = logSuffix + " and not support file drop queue transfer!"
-		}
-	} else {
-		logSuffix = " not support XClip and file drop queue transfer!"
-	}
+	isSupportXClip := peerVerSerial >= rtkGlobal.ClientXClipVerSerial
+	isSupportQueueFileTrans := peerVerSerial >= rtkGlobal.ClientQueueFileTransVerSerial
 
-	log.Printf("ID:[%s] version:[%s] serial threshold XClip:[%d] file drop queue:[%d], so %s", id, ver, rtkGlobal.ClientXClipVerSerial, rtkGlobal.ClientQueueFileTransVerSerial, logSuffix)
+	log.Printf("ID:[%s] version:[%s] Supported: XClip[%s], QueueFileTrans[%s]", id, ver, boolToString(isSupportXClip), boolToString(isSupportQueueFileTrans))
 
 	rtkGlobal.ClientInfoMap[id] = rtkCommon.ClientInfoEx{
 		ClientInfo: rtkMisc.ClientInfo{
