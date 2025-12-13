@@ -271,9 +271,9 @@ func dealS2CMsgReqClientDragFiles(id string, extData json.RawMessage) rtkMisc.Cr
 		log.Printf("clientID:[%s]  Err: decode ExtDataText:%+v", id, err)
 		return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
 	}
+
 	log.Printf("Call Client Drag file by LanServer success, get target Client id:[%s]", targetID)
-	rtkFileDrop.UpdateDragFileReqDataFromLocal(targetID)
-	return rtkMisc.SUCCESS
+	return rtkFileDrop.UpdateDragFileReqDataFromLocal(targetID)
 }
 
 func dealS2CMsgReconnClientList(id string, extData json.RawMessage) rtkMisc.CrossShareErr {

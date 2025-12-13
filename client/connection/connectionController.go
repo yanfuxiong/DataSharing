@@ -180,7 +180,7 @@ func setupNode(ip string, port int) error {
 		libp2p.Ping(true),
 	)
 	if err != nil {
-		log.Printf("Failed to create node: %v", err)
+		log.Printf("Failed to create tcp node: %v", err)
 		return err
 	}
 
@@ -191,14 +191,9 @@ func setupNode(ip string, port int) error {
 		libp2p.DisableRelay(),
 	)
 	if err != nil {
-		log.Printf("Failed to create file node: %v", err)
-		return err
-	}
-
-	if len(tempNode.Addrs()) == 0 {
-		log.Printf("Failed to create node, Addrs is null!")
+		log.Printf("Failed to create quic node: %v", err)
 		tempNode.Close()
-		return fmt.Errorf("addr is null!")
+		return err
 	}
 
 	for _, p := range tempNode.Peerstore().Peers() {
@@ -207,6 +202,26 @@ func setupNode(ip string, port int) error {
 
 	for _, fp := range tempFileNode.Peerstore().Peers() {
 		tempFileNode.Peerstore().ClearAddrs(fp)
+	}
+
+	if len(tempNode.Addrs()) == 0 {
+		log.Printf("Failed to create tcp node, Addrs is null!")
+		tempNode.Close()
+		return fmt.Errorf("tcp node addr is null!")
+	}
+
+	if len(tempFileNode.Addrs()) == 0 {
+		log.Printf("Failed to create quic node, Addrs is null!")
+		tempNode.Close()
+		tempFileNode.Close()
+		return fmt.Errorf("quic node addr is null!")
+	}
+
+	udpPort := rtkUtils.GetQuicPort(tempFileNode.Addrs())
+	if udpPort == "" {
+		tempNode.Close()
+		tempFileNode.Close()
+		return fmt.Errorf("get quic port is null!")
 	}
 
 	if rtkPlatform.IsHost() {
@@ -218,7 +233,7 @@ func setupNode(ip string, port int) error {
 	rtkGlobal.NodeInfo.IPAddr.LocalPort = rtkUtils.GetLocalPort(tempNode.Addrs())
 	rtkGlobal.NodeInfo.ID = tempNode.ID().String()
 
-	rtkGlobal.NodeInfo.IPAddr.UpdPort = rtkUtils.GetQuicPort(tempFileNode.Addrs())
+	rtkGlobal.NodeInfo.IPAddr.UpdPort = udpPort
 	rtkGlobal.NodeInfo.FileTransNodeID = tempFileNode.ID().String()
 
 	// filter IP by skip [0.0.0.0, 127.0.0.1]
@@ -718,7 +733,7 @@ func noticeToPeer(s network.Stream, ver, fileTransId, udpPort *string) rtkMisc.C
 		log.Printf("[%s] ID:[%s] IP:[%s] Stream json.NewDecoder.Decode err:%+v", rtkMisc.GetFuncInfo(), id, ipAddr, err)
 		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 			*ver = rtkGlobal.ClientDefaultVersion
-			log.Printf("[%s] IP:[%s] handle decoder time out(1s)! use defalut value:%s", rtkMisc.GetFuncInfo(), ipAddr, rtkGlobal.ClientDefaultVersion)
+			log.Printf("[%s] IP:[%s] handle decoder time out(1s)! use default value:%s", rtkMisc.GetFuncInfo(), ipAddr, rtkGlobal.ClientDefaultVersion)
 		} else if errors.Is(err, context.DeadlineExceeded) {
 			return rtkMisc.ERR_NETWORK_P2P_READER_DEADLINE
 		} else if errors.Is(err, context.Canceled) {

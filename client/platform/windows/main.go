@@ -589,7 +589,7 @@ func SetConfirmDocumentsAccept(ifConfirm bool) {
 }
 
 //export SetDragFileListRequest
-func SetDragFileListRequest(filePathArry **C.wchar_t, arryLength C.uint32_t, timeStamp C.uint64_t) {
+func SetDragFileListRequest(filePathArry **C.wchar_t, arryLength C.uint32_t, timeStamp C.uint64_t) C.uint {
 	fileList := make([]rtkCommon.FileInfo, 0)
 	folderList := make([]string, 0)
 	totalSize := uint64(0)
@@ -633,7 +633,7 @@ func SetDragFileListRequest(filePathArry **C.wchar_t, arryLength C.uint32_t, tim
 	totalDesc := rtkMisc.FileSizeDesc(totalSize)
 
 	log.Printf("[%s] get file count:[%d] folder count:[%d], totalSize:[%d] totalDesc:[%s] timestamp:[%d]", rtkMisc.GetFuncInfo(), len(fileList), len(folderList), totalSize, totalDesc, timestamp)
-	rtkPlatform.GoDragFileListRequest(&fileList, &folderList, totalSize, timestamp, totalDesc)
+	return C.uint(rtkPlatform.GoDragFileListRequest(&fileList, &folderList, totalSize, timestamp, totalDesc))
 }
 
 //export SetCancelFileTransfer

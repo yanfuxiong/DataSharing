@@ -448,7 +448,7 @@ func GoDragFileListRequest(fileList *[]rtkCommon.FileInfo, folderList *[]string,
 
 	if totalSize > uint64(rtkGlobal.SendFilesRequestMaxSize) {
 		log.Printf("[%s] this drag file total size:[%d] [%s] is too large and over range !", rtkMisc.GetFuncInfo(), totalSize, totalDesc)
-		return
+		return rtkCommon.SendFilesRequestSizeOverRange
 	}
 
 	nMsgLength := int(rtkGlobal.P2PMsgMagicLength) //p2p null msg length
