@@ -62,7 +62,7 @@ func UpdateDragFileReqDataFromLocal(id string) rtkMisc.CrossShareErr {
 		firstFileName = dragFolderList[0]
 	}
 
-	rtkPlatform.GoFileListSendNotify(ipAddr, id, uint32(fileCnt), dragTotalSize, dragFileTimeStamp, firstFileName, firstFileSize)
+	rtkPlatform.GoFileListSendNotify(ipAddr, id, uint32(fileCnt), dragTotalSize, dragFileTimeStamp, firstFileName, firstFileSize, getFileDataNotifyInfo(id, ipAddr))
 	return rtkMisc.SUCCESS
 }
 
@@ -76,6 +76,7 @@ func updateDragFileReqData(id string) {
 		ActionType:           rtkCommon.P2PFileActionType_Drag,
 		TimeStamp:            dragFileTimeStamp,
 		FolderList:           dragFolderList,
+		SrcRootPath:   	      dragSrcRootPath,
 		TotalDescribe:        dragTotalDesc,
 		TotalSize:            dragTotalSize,
 		DstFilePath:          "",
@@ -122,7 +123,7 @@ func UpdateDragFileRespDataFromLocal(id string, cmd rtkCommon.FileDropCmd, fileP
 	updateDragFileRespData(id)
 }
 
-func UpdateDragFileList(fileInfoList []rtkCommon.FileInfo, folderList []string, total, timeStamp uint64, totalDesc string) {
+func UpdateDragFileList(fileInfoList []rtkCommon.FileInfo, folderList []string, total, timeStamp uint64, totalDesc, srcRootPath string) {
 	fileDropDataMutex.Lock()
 	defer fileDropDataMutex.Unlock()
 
@@ -130,15 +131,16 @@ func UpdateDragFileList(fileInfoList []rtkCommon.FileInfo, folderList []string, 
 	dragFileTimeStamp = timeStamp
 	dragFolderList = folderList
 	dragTotalDesc = totalDesc
+	dragSrcRootPath = srcRootPath
 	dragTotalSize = total
 }
 
-func UpdateDragFileListFromLocal(fileInfoList []rtkCommon.FileInfo, folderList []string, total, timeStamp uint64, totalDesc string) {
-	UpdateDragFileList(fileInfoList, folderList, total, timeStamp, totalDesc)
+func UpdateDragFileListFromLocal(fileInfoList []rtkCommon.FileInfo, folderList []string, total, timeStamp uint64, totalDesc, srcRootPath string) {
+	UpdateDragFileList(fileInfoList, folderList, total, timeStamp, totalDesc, srcRootPath)
 }
 
 func UpdateDragFileListFromDst(fileInfoList []rtkCommon.FileInfo, folderList []string, total, timeStamp uint64, totalDesc string) {
-	UpdateDragFileList(fileInfoList, folderList, total, timeStamp, totalDesc)
+	UpdateDragFileList(fileInfoList, folderList, total, timeStamp, totalDesc, "")
 }
 
 // ********************  Setup Dst file info ****************
@@ -157,6 +159,6 @@ func SetupDstDragFileList(id, ip string, fileInfoList []rtkCommon.FileInfo, fold
 		firstFileName = folderList[0]
 	}
 
-	rtkPlatform.GoFileListReceiveNotify(ip, id, nFileCount, totalSize, timeStamp, firstFileName, firstFileSize)
 	UpdateDragFileRespDataFromDst(id)
+	rtkPlatform.GoFileListReceiveNotify(ip, id, nFileCount, totalSize, timeStamp, firstFileName, firstFileSize, getFileDataNotifyInfo(id, ip))
 }

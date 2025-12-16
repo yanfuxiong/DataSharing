@@ -78,9 +78,9 @@ type (
 	CallbackCopyXClipFunc              func(cbText, cbImage, cbHtml, cbRtf []byte)
 	CallbackPasteXClipFunc             func(text, image, html, rtf string)
 	CallbackCleanClipboardFunc         func()
-	CallbackFileListDropRequestFunc    func(string, []rtkCommon.FileInfo, []string, uint64, uint64, string)
-	CallbackDragFileListRequestFunc    func([]rtkCommon.FileInfo, []string, uint64, uint64, string)
-	CallbackFileListNotifyFunc         func(ip, id string, fileCnt uint32, totalSize, timestamp uint64, firstFileName string, firstFileSize uint64)
+	CallbackFileListDropRequestFunc    func(string, []rtkCommon.FileInfo, []string, uint64, uint64, string, string)
+	CallbackDragFileListRequestFunc    func([]rtkCommon.FileInfo, []string, uint64, uint64, string, string)
+	CallbackFileListNotifyFunc         func(ip, id string, fileCnt uint32, totalSize, timestamp uint64, firstFileName string, firstFileSize uint64, fileInfoJson string)
 	CallbackProgressBarFunc            func(ip, id, currentFileName string, sendFileCnt, totalFileCnt uint32, currentFileSize, totalSize, sendSize, timestamp uint64)
 	CallbackNotiMessageFileTransFunc   func(fileName, clientName, platform string, timestamp uint64, isSender bool)
 	CallbackFileDropResponseFunc       func(string, rtkCommon.FileDropCmd, string)
@@ -306,7 +306,7 @@ func GoSetMacAddress(macAddr string) {
 	callbackGetMacAddressCB(macAddr)
 }
 
-func GoMultiFilesDropRequest(id string, fileList *[]rtkCommon.FileInfo, folderList *[]string, totalSize, timestamp uint64, totalDesc string) rtkCommon.SendFilesRequestErrCode {
+func GoMultiFilesDropRequest(id, ipAddr string, fileStrList *[]string, timeStamp uint64) rtkCommon.SendFilesRequestErrCode {
 	if callbackFileListDropRequestCB == nil {
 		log.Println("callbackFileListDropRequestCB is null!")
 		return rtkCommon.SendFilesRequestCallbackNotSet
@@ -317,7 +317,48 @@ func GoMultiFilesDropRequest(id string, fileList *[]rtkCommon.FileInfo, folderLi
 		return rtkCommon.SendFilesRequestCallbackNotSet
 	}
 
-	if len(*fileList) == 0 && len(*folderList) == 0 {
+	fileList := make([]rtkCommon.FileInfo, 0)
+	folderList := make([]string, 0)
+	totalSize := uint64(0)
+	nFileCnt := 0
+	nFolderCnt := 0
+	nPathSize := uint64(0)
+	srcRootPath := ""
+
+	for _, file := range *fileStrList {
+		if rtkMisc.FolderExists(file) {
+			nFileCnt = len(fileList)
+			nFolderCnt = len(folderList)
+			nPathSize = totalSize
+			srcRootPath = filepath.Dir(file)
+			rtkUtils.WalkPath(file, &folderList, &fileList, &totalSize)
+			log.Printf("[%s] walk a path:[%s], get [%d] files and [%d] folders , total size:[%d] ", rtkMisc.GetFuncInfo(), file, len(fileList)-nFileCnt, len(folderList)-nFolderCnt, totalSize-nPathSize)
+		} else if rtkMisc.FileExists(file) {
+			fileSize, err := rtkMisc.FileSize(file)
+			if err != nil {
+				log.Printf("[%s] get file:[%s] size error, skit it!", rtkMisc.GetFuncInfo(), file)
+				continue
+			}
+			fileList = append(fileList, rtkCommon.FileInfo{
+				FileSize_: rtkCommon.FileSize{
+					SizeHigh: uint32(fileSize >> 32),
+					SizeLow:  uint32(fileSize & 0xFFFFFFFF),
+				},
+				FilePath: file,
+				FileName: filepath.Base(file),
+			})
+			totalSize += fileSize
+			log.Printf("[%s] get a file:[%s], size:[%d] ", rtkMisc.GetFuncInfo(), file, fileSize)
+		} else {
+			log.Printf("[%s] get file or path:[%s] is invalid, skit it!", rtkMisc.GetFuncInfo(), file)
+		}
+	}
+
+	totalDesc := rtkMisc.FileSizeDesc(totalSize)
+
+	log.Printf("[%s] ID[%s] IP:[%s] get file count:[%d] folder count:[%d], totalSize:[%d] totalDesc:[%s] timestamp:[%d]", rtkMisc.GetFuncInfo(), id, ipAddr, len(fileList), len(folderList), totalSize, totalDesc, timeStamp)
+
+	if len(fileList) == 0 && len(folderList) == 0 {
 		log.Println("file content is null!")
 		return rtkCommon.SendFilesRequestParameterErr
 	}
@@ -346,30 +387,70 @@ func GoMultiFilesDropRequest(id string, fileList *[]rtkCommon.FileInfo, folderLi
 	}
 
 	nMsgLength := int(rtkGlobal.P2PMsgMagicLength) //p2p null msg length
-	for _, file := range *fileList {
+	for _, file := range fileList {
 		nMsgLength = nMsgLength + len(file.FileName) + rtkGlobal.FileInfoMagicLength
 	}
 
-	for _, folder := range *folderList {
+	for _, folder := range folderList {
 		nMsgLength = nMsgLength + len(folder) + rtkGlobal.StringArrayMagicLength
 	}
 
 	if nMsgLength >= rtkGlobal.P2PMsgMaxLength {
-		log.Printf("[%s] ID[%s] file count:[%d] folder count:[%d], the p2p message is too long and over range!", rtkMisc.GetFuncInfo(), id, len(*fileList), len(*folderList))
+		log.Printf("[%s] ID[%s] file count:[%d] folder count:[%d], the p2p message is too long and over range!", rtkMisc.GetFuncInfo(), id, len(fileList), len(folderList))
 		return rtkCommon.SendFilesRequestLengthOverRange
 	}
 
-	callbackFileListDropRequestCB(id, *fileList, *folderList, totalSize, timestamp, totalDesc)
+	callbackFileListDropRequestCB(id, fileList, folderList, totalSize, timeStamp, totalDesc, srcRootPath)
 	return rtkCommon.SendFilesRequestSuccess
 }
 
-func GoDragFileListRequest(fileList *[]rtkCommon.FileInfo, folderList *[]string, totalSize, timestamp uint64, totalDesc string) rtkCommon.SendFilesRequestErrCode {
+func GoDragFileListRequest(fileStrList *[]string, timeStamp uint64) rtkCommon.SendFilesRequestErrCode {
 	if callbackDragFileListRequestCB == nil {
 		log.Println("callbackDragFileListRequestCB is null!")
 		return rtkCommon.SendFilesRequestCallbackNotSet
 	}
 
-	if len(*fileList) == 0 && len(*folderList) == 0 {
+	fileList := make([]rtkCommon.FileInfo, 0)
+	folderList := make([]string, 0)
+	totalSize := uint64(0)
+	nFileCnt := 0
+	nFolderCnt := 0
+	nPathSize := uint64(0)
+	srcRootPath := ""
+
+	for _, file := range *fileStrList {
+		if rtkMisc.FolderExists(file) {
+			nFileCnt = len(fileList)
+			nFolderCnt = len(folderList)
+			nPathSize = totalSize
+			srcRootPath = filepath.Dir(file)
+			rtkUtils.WalkPath(file, &folderList, &fileList, &totalSize)
+			log.Printf("[%s] walk a path:[%s], get [%d] files and [%d] folders, total size:[%d]", rtkMisc.GetFuncInfo(), file, len(fileList)-nFileCnt, len(folderList)-nFolderCnt, totalSize-nPathSize)
+		} else if rtkMisc.FileExists(file) {
+			fileSize, err := rtkMisc.FileSize(file)
+			if err != nil {
+				log.Printf("[%s] get file:[%s] size error, skit it!", rtkMisc.GetFuncInfo(), file)
+				continue
+			}
+			fileList = append(fileList, rtkCommon.FileInfo{
+				FileSize_: rtkCommon.FileSize{
+					SizeHigh: uint32(fileSize >> 32),
+					SizeLow:  uint32(fileSize & 0xFFFFFFFF),
+				},
+				FilePath: file,
+				FileName: filepath.Base(file),
+			})
+			totalSize += fileSize
+			log.Printf("[%s] get a file:[%s], size:[%d] ", rtkMisc.GetFuncInfo(), file, fileSize)
+		} else {
+			log.Printf("[%s] get file or path:[%s] is invalid, skit it!", rtkMisc.GetFuncInfo(), file)
+		}
+	}
+	totalDesc := rtkMisc.FileSizeDesc(totalSize)
+
+	log.Printf("[%s] get file count:[%d] folder count:[%d], totalSize:[%d] totalDesc:[%s] timestamp:[%d]", rtkMisc.GetFuncInfo(), len(fileList), len(folderList), totalSize, totalDesc, timeStamp)
+
+	if len(fileList) == 0 && len(folderList) == 0 {
 		log.Println("file content is null!")
 		return rtkCommon.SendFilesRequestParameterErr
 	}
@@ -380,20 +461,20 @@ func GoDragFileListRequest(fileList *[]rtkCommon.FileInfo, folderList *[]string,
 	}
 
 	nMsgLength := int(rtkGlobal.P2PMsgMagicLength) //p2p null msg length
-	for _, file := range *fileList {
+	for _, file := range fileList {
 		nMsgLength = nMsgLength + len(file.FileName) + rtkGlobal.FileInfoMagicLength
 	}
 
-	for _, folder := range *folderList {
+	for _, folder := range folderList {
 		nMsgLength = nMsgLength + len(folder) + rtkGlobal.StringArrayMagicLength
 	}
 
 	if nMsgLength >= rtkGlobal.P2PMsgMaxLength {
-		log.Printf("[%s] file count:[%d] folder count:[%d], the p2p message is too long and over range!", rtkMisc.GetFuncInfo(), len(*fileList), len(*folderList))
+		log.Printf("[%s] file count:[%d] folder count:[%d], the p2p message is too long and over range!", rtkMisc.GetFuncInfo(), len(fileList), len(folderList))
 		return rtkCommon.SendFilesRequestLengthOverRange
 	}
 
-	callbackDragFileListRequestCB(*fileList, *folderList, totalSize, timestamp, totalDesc)
+	callbackDragFileListRequestCB(fileList, folderList, totalSize, timeStamp, totalDesc, srcRootPath)
 	return rtkCommon.SendFilesRequestSuccess
 }
 
@@ -446,20 +527,20 @@ func GoSetupFileListDrop(ip, id, platform, totalDesc string, fileCount, folderCo
 	log.Printf("[%s] fileCnt:[%d] folderCnt:[%d] totalDesc:[%s]", rtkMisc.GetFuncInfo(), fileCount, folderCount, totalDesc)
 }
 
-func GoFileListSendNotify(ip, id string, fileCnt uint32, totalSize, timestamp uint64, firstFileName string, firstFileSize uint64) {
+func GoFileListSendNotify(ip, id string, fileCnt uint32, totalSize, timestamp uint64, firstFileName string, firstFileSize uint64, fileInfoJson string) {
 	if callbackFileListSendNotify == nil {
 		log.Println("callbackFileListSendNotify is null !")
 		return
 	}
-	callbackFileListSendNotify(ip, id, fileCnt, totalSize, timestamp, firstFileName, firstFileSize)
+	callbackFileListSendNotify(ip, id, fileCnt, totalSize, timestamp, firstFileName, firstFileSize, fileInfoJson)
 }
 
-func GoFileListReceiveNotify(ip, id string, fileCnt uint32, totalSize uint64, timestamp uint64, firstFileName string, firstFileSize uint64) {
+func GoFileListReceiveNotify(ip, id string, fileCnt uint32, totalSize uint64, timestamp uint64, firstFileName string, firstFileSize uint64, fileInfoJson string) {
 	if callbackFileListReceiveNotify == nil {
 		log.Println("callbackFileListReceiveNotify is null !")
 		return
 	}
-	callbackFileListReceiveNotify(ip, id, fileCnt, totalSize, timestamp, firstFileName, firstFileSize)
+	callbackFileListReceiveNotify(ip, id, fileCnt, totalSize, timestamp, firstFileName, firstFileSize, fileInfoJson)
 }
 
 func GoDragFileListFolderNotify(ip, id, folderName string, timestamp uint64) {

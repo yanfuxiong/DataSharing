@@ -30,6 +30,7 @@ var (
 	dragFileTimeStamp uint64
 	dragTotalSize     uint64
 	dragTotalDesc     string
+	dragSrcRootPath   string
 )
 
 type FileDropData struct {
@@ -38,6 +39,7 @@ type FileDropData struct {
 	ActionType    rtkCommon.FileActionType
 	TimeStamp     uint64
 	FolderList    []string // must start with folder name and end with '/'.  eg: folderName/aaa/bbb/
+	SrcRootPath   string   // Src root Folder
 	TotalDescribe string   // eg: 820MB /1.2GB
 	TotalSize     uint64
 
@@ -51,6 +53,25 @@ type FileDropData struct {
 	InterruptDstFullPath string // Dst full path
 	InterruptFileOffSet  int64
 	InterruptLastErrCode rtkMisc.CrossShareErr
+}
+
+type FileInfoEx struct {
+	FileSize uint64
+	FilePath string //full path
+	FileName string //this must start with folder name, eg: folderName/aaa/bbb/ccc.txt
+}
+
+type FileDataTransNotifyInfo struct {
+	ID            string
+	IPAddr        string
+	TimeStamp     uint64
+	FileList      []FileInfoEx
+	FolderList    []string // must start with folder name and end with '/'.  eg: folderName/aaa/bbb/
+	RootPath      string   // dst:downloadPath  ; src:rootPath
+	TotalDescribe string
+	TotalSize     uint64
+	FirstFileName string
+	FirstFileSize uint64
 }
 
 type FilesTransferDataItem struct {
