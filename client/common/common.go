@@ -8,6 +8,13 @@ const (
 	FILE_DROP_REJECT  FileDropCmd = "FILE_DROP_REJECT"
 )
 
+type FilesDataRequestInfo struct {
+	TimeStamp int64
+	Id        string
+	Ip        string
+	PathList  []string
+}
+
 type ConnectMessage struct {
 	Tag           string
 	ObservedAddrs string
