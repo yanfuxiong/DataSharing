@@ -62,7 +62,7 @@ func UpdateDragFileReqDataFromLocal(id string) rtkMisc.CrossShareErr {
 		firstFileName = dragFolderList[0]
 	}
 
-	rtkPlatform.GoFileListSendNotify(ipAddr, id, uint32(fileCnt), dragTotalSize, dragFileTimeStamp, firstFileName, firstFileSize, getFileDataNotifyInfo(id, ipAddr))
+	rtkPlatform.GoFileListSendNotify(ipAddr, id, uint32(fileCnt), dragTotalSize, dragFileTimeStamp, firstFileName, firstFileSize, getFileDropDataDetails(id, ipAddr))
 	return rtkMisc.SUCCESS
 }
 
@@ -160,5 +160,5 @@ func SetupDstDragFileList(id, ip string, fileInfoList []rtkCommon.FileInfo, fold
 	}
 
 	UpdateDragFileRespDataFromDst(id)
-	rtkPlatform.GoFileListReceiveNotify(ip, id, nFileCount, totalSize, timeStamp, firstFileName, firstFileSize, getFileDataNotifyInfo(id, ip))
+	rtkPlatform.GoFileListReceiveNotify(ip, id, nFileCount, totalSize, timeStamp, firstFileName, firstFileSize, getFileDropDataDetails(id, ip))
 }

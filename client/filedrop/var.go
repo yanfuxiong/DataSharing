@@ -61,15 +61,15 @@ type FileInfoEx struct {
 	FileName string //this must start with folder name, eg: folderName/aaa/bbb/ccc.txt
 }
 
-type FileDataTransNotifyInfo struct {
+type FileDataTransDetails struct {
 	ID            string
 	IPAddr        string
 	TimeStamp     uint64
 	FileList      []FileInfoEx
 	FolderList    []string // must start with folder name and end with '/'.  eg: folderName/aaa/bbb/
 	RootPath      string   // dst:downloadPath  ; src:rootPath
-	TotalDescribe string
 	TotalSize     uint64
+	TotalDescribe string
 	FirstFileName string
 	FirstFileSize uint64
 }
