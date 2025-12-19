@@ -12,6 +12,7 @@ import (
 	rtkGlobal "rtk-cross-share/client/global"
 	rtkUtils "rtk-cross-share/client/utils"
 	rtkMisc "rtk-cross-share/misc"
+	"strings"
 	"syscall"
 	"time"
 
@@ -365,13 +366,35 @@ func GoSetDIASSourceAndPort(src, port uint8) {
 	callbackDIASSourceAndPortCB(src, port)
 }
 
-func GoCopyXClipData(text, image, html, rtf []byte) {
+func GoCopyXClipData(text, image, html, rtf string) {
 	if callbackCopyXClipData == nil {
 		log.Println("callbackCopyXClipData is null!")
 		return
 	}
 
-	callbackCopyXClipData(text, image, html, rtf)
+	imgData := []byte(nil)
+	if image != "" {
+		startTime := time.Now().UnixMilli()
+		data := rtkUtils.Base64Decode(image)
+		if data == nil {
+			return
+		}
+
+		format, width, height := rtkUtils.GetByteImageInfo(data)
+		jpegData, err := rtkUtils.ImageToJpeg(format, data)
+		if err != nil {
+			return
+		}
+		if len(jpegData) == 0 {
+			log.Printf("[CopyXClip] Error: jpeg data is empty")
+			return
+		}
+
+		imgData = jpegData
+		log.Printf("image get jpg size:[%d](%d,%d),decode use:[%d]ms", len(imgData), width, height, time.Now().UnixMilli()-startTime)
+	}
+
+	callbackCopyXClipData([]byte(text), imgData, []byte(html), []byte(rtf))
 }
 
 func GoFileDropResponse(id string, fileCmd rtkCommon.FileDropCmd, fileName string) {
@@ -393,7 +416,7 @@ func GoMultiFilesDropRequest(filesDataInfoJson string) rtkCommon.SendFilesReques
 	err := json.Unmarshal([]byte(filesDataInfoJson), &filesDataInfo)
 	if err != nil {
 		log.Printf("[%s] Unmarshal[%s] err:%+v", rtkMisc.GetFuncInfo(), filesDataInfoJson, err)
-		return int(rtkCommon.SendFilesRequestParameterErr)
+		return rtkCommon.SendFilesRequestParameterErr
 	}
 	log.Printf("[%s] ID:[%s] IP:[%s] len:[%d] json:[%s]", rtkMisc.GetFuncInfo(), filesDataInfo.Id, filesDataInfo.Ip, len(filesDataInfo.PathList), filesDataInfoJson)
 
@@ -436,7 +459,7 @@ func GoMultiFilesDropRequest(filesDataInfoJson string) rtkCommon.SendFilesReques
 	totalDesc := rtkMisc.FileSizeDesc(totalSize)
 	timestamp := uint64(time.Now().UnixMilli())
 	if filesDataInfo.TimeStamp > 0 {
-		timestamp = filesDataInfo.TimeStamp
+		timestamp = uint64(filesDataInfo.TimeStamp)
 	}
 	log.Printf("[%s] ID[%s] IP:[%s] get file count:[%d] folder count:[%d], totalSize:[%d] totalDesc:[%s] timestamp:[%d]", rtkMisc.GetFuncInfo(), filesDataInfo.Id, filesDataInfo.Ip, len(fileList), len(folderList), totalSize, totalDesc, timestamp)
 
@@ -500,7 +523,7 @@ func GoDragFileListRequest(multiFilesData string, timeStamp uint64) rtkCommon.Se
 		return rtkCommon.SendFilesRequestParameterErr
 	}
 
-	log.Printf("[%s] len:[%d] json:[%s]", rtkMisc.GetFuncInfo(), len(multiFileInfo.PathList), multiFilesData)
+	log.Printf("[%s] len:[%d] timestamp:[%d] json:[%s]", rtkMisc.GetFuncInfo(), len(filesDataInfo.PathList), timeStamp, multiFilesData)
 
 	fileList := make([]rtkCommon.FileInfo, 0)
 	folderList := make([]string, 0)
@@ -510,7 +533,7 @@ func GoDragFileListRequest(multiFilesData string, timeStamp uint64) rtkCommon.Se
 	nPathSize := uint64(0)
 	srcRootPath := ""
 
-	for _, file := range multiFileInfo.PathList {
+	for _, file := range filesDataInfo.PathList {
 		file = strings.ReplaceAll(file, "\\", "/")
 		if rtkMisc.FolderExists(file) {
 			nFileCnt = len(fileList)
@@ -539,7 +562,6 @@ func GoDragFileListRequest(multiFilesData string, timeStamp uint64) rtkCommon.Se
 		}
 	}
 	totalDesc := rtkMisc.FileSizeDesc(totalSize)
-
 	log.Printf("[%s] get file count:[%d] folder count:[%d], totalSize:[%d] totalDesc:[%s] timestamp:[%d]", rtkMisc.GetFuncInfo(), len(fileList), len(folderList), totalSize, totalDesc, timeStamp)
 
 	if len(fileList) == 0 && len(folderList) == 0 {
@@ -592,21 +614,21 @@ func GoSetupFileListDrop(ip, id, platform, totalDesc string, fileCount, folderCo
 	log.Printf("(DST) GoSetupFileListDrop  ID:]%s] IP:[%s] totalDesc:%s  fileCount:%d  folderCount:%d", id, ip, totalDesc, fileCount, folderCount)
 }
 
-func GoFileListSendNotify(ip, id string, fileCnt uint32, totalSize, timestamp uint64, firstFileName string, firstFileSize uint64, fileInfoJson string) {
+func GoFileListSendNotify(ip, id string, fileCnt uint32, totalSize, timestamp uint64, firstFileName string, firstFileSize uint64, fileDetails string) {
 	if callbackFileListSendNotify == nil {
 		log.Println(" callbackFileListSendNotify is null !")
 		return
 	}
-	callbackFileListSendNotify(ip, id, fileCnt, totalSize, timestamp, firstFileName, firstFileSize, fileInfoJson)
+	callbackFileListSendNotify(ip, id, fileCnt, totalSize, timestamp, firstFileName, firstFileSize, fileDetails)
 }
 
-func GoFileListReceiveNotify(ip, id string, fileCnt uint32, totalSize, timestamp uint64, firstFileName string, firstFileSize uint64, fileInfoJson string) {
+func GoFileListReceiveNotify(ip, id string, fileCnt uint32, totalSize, timestamp uint64, firstFileName string, firstFileSize uint64, fileDetails string) {
 	if callbackFileListReceiveNotify == nil {
 		log.Println(" callbackFileListReceiveNotify is null !")
 		return
 	}
 
-	callbackFileListReceiveNotify(ip, id, fileCnt, totalSize, timestamp, firstFileName, firstFileSize, fileInfoJson)
+	callbackFileListReceiveNotify(ip, id, fileCnt, totalSize, timestamp, firstFileName, firstFileSize, fileDetails)
 }
 
 func GoDragFileListFolderNotify(ip, id, folderName string, timestamp uint64) {

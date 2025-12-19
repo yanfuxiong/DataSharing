@@ -17,7 +17,7 @@ typedef enum NOTI_MSG_CODE
 
 typedef void (*CallbackUpdateSystemInfo)(char* ipInfo, char* verInfo);
 typedef void (*CallbackUpdateClientStatus)(char* clientJsonStr);
-typedef void (*CallbackMethodFileListNotify)(char* ip, char* id, unsigned int fileCnt, unsigned long long totalSize,unsigned long long timestamp, char* firstFileName, unsigned long long firstFileSize, char*  fileInfoJson);
+typedef void (*CallbackMethodFileListNotify)(char* ip, char* id, unsigned int fileCnt, unsigned long long totalSize,unsigned long long timestamp, char* firstFileName, unsigned long long firstFileSize, char*  fileDetails);
 typedef void (*CallbackUpdateProgressBar)(char* ip,char* id, char* currentfileName,unsigned int recvFileCnt, unsigned int totalFileCnt,unsigned long long currentFileSize,unsigned long long totalSize,unsigned long long recvSize,unsigned long long timestamp);
 typedef void (*CallbackNotiMessage)(unsigned long long timestamp, unsigned int notiCode, char* notiParam[], int paramCount);
 typedef void (*CallbackMethodStartBrowseMdns)(char* instance, char* serviceType);
@@ -58,12 +58,12 @@ static void invokeCallbackUpdateClientStatus(char* clientJsonStr) {
 	if (gCallbackUpdateClientStatus) {gCallbackUpdateClientStatus(clientJsonStr);}
 }
 static void setCallbackFileListSendNotify(CallbackMethodFileListNotify cb) {gCallbackFileListSendNotify = cb;}
-static void invokeCallbackFileListSendNotify(char* ip, char* id, unsigned int fileCnt, unsigned long long totalSize,unsigned long long timestamp, char* firstFileName, unsigned long long firstFileSize, char*  fileInfoJson) {
-	if (gCallbackFileListSendNotify) {gCallbackFileListSendNotify(ip, id, fileCnt, totalSize, timestamp, firstFileName, firstFileSize, fileInfoJson);}
+static void invokeCallbackFileListSendNotify(char* ip, char* id, unsigned int fileCnt, unsigned long long totalSize,unsigned long long timestamp, char* firstFileName, unsigned long long firstFileSize, char*  fileDetails) {
+	if (gCallbackFileListSendNotify) {gCallbackFileListSendNotify(ip, id, fileCnt, totalSize, timestamp, firstFileName, firstFileSize, fileDetails);}
 }
 static void setCallbackFileListReceiveNotify(CallbackMethodFileListNotify cb) {gCallbackFileListReceiveNotify = cb;}
-static void invokeCallbackFileListReceiveNotify(char* ip, char* id, unsigned int fileCnt, unsigned long long totalSize,unsigned long long timestamp, char* firstFileName, unsigned long long firstFileSize, char*  fileInfoJson) {
-	if (gCallbackFileListReceiveNotify) {gCallbackFileListReceiveNotify(ip, id, fileCnt, totalSize, timestamp, firstFileName, firstFileSize, fileInfoJson);}
+static void invokeCallbackFileListReceiveNotify(char* ip, char* id, unsigned int fileCnt, unsigned long long totalSize,unsigned long long timestamp, char* firstFileName, unsigned long long firstFileSize, char*  fileDetails) {
+	if (gCallbackFileListReceiveNotify) {gCallbackFileListReceiveNotify(ip, id, fileCnt, totalSize, timestamp, firstFileName, firstFileSize, fileDetails);}
 }
 static void setCallbackUpdateSendProgressBar(CallbackUpdateProgressBar cb) {gCallbackUpdateSendProgressBar = cb;}
 static void invokeCallbackUpdateSendProgressBar(char* ip,char* id, char* currentfileName,unsigned int recvFileCnt, unsigned int totalFileCnt,unsigned long long currentFileSize,unsigned long long totalSize,unsigned long long recvSize,unsigned long long timestamp) {
@@ -131,7 +131,6 @@ import (
 	rtkUtils "rtk-cross-share/client/utils"
 	rtkMisc "rtk-cross-share/misc"
 	"strings"
-	"time"
 	"unsafe"
 )
 
@@ -217,17 +216,17 @@ func GoTriggerCallbackUpdateClientStatus(clientInfo string) {
 	C.invokeCallbackUpdateClientStatus(cClientInfo)
 }
 
-func GoTriggerCallbackFileListSendNotify(ip, id string, fileCnt uint32, totalSize uint64, timestamp uint64, firstFileName string, firstFileSize uint64, fileInfoJson string) {
+func GoTriggerCallbackFileListSendNotify(ip, id string, fileCnt uint32, totalSize uint64, timestamp uint64, firstFileName string, firstFileSize uint64, fileDetails string) {
 	cip := C.CString(ip)
 	cid := C.CString(id)
 	cfirstFileName := C.CString(firstFileName)
-	cFileInfoJson := C.CString(fileInfoJson)
+	cFileDetails := C.CString(fileDetails)
 
 	defer func() {
 		C.free(unsafe.Pointer(cip))
 		C.free(unsafe.Pointer(cid))
 		C.free(unsafe.Pointer(cfirstFileName))
-		C.free(unsafe.Pointer(cFileInfoJson))
+		C.free(unsafe.Pointer(cFileDetails))
 	}()
 
 	cFileCnt := C.uint(fileCnt)
@@ -236,20 +235,20 @@ func GoTriggerCallbackFileListSendNotify(ip, id string, fileCnt uint32, totalSiz
 	cfirstFileSize := C.ulonglong(firstFileSize)
 
 	log.Printf("[%s] (SRC) dst id:%s ip:[%s] fileCnt:%d totalSize:%d firstFileName:%s firstFileSize:%d", rtkMisc.GetFuncInfo(), id, ip, fileCnt, totalSize, firstFileName, firstFileSize)
-	C.invokeCallbackFileListSendNotify(cip, cid, cFileCnt, ctotalSize, ctimeStamp, cfirstFileName, cfirstFileSize, cFileInfoJson)
+	C.invokeCallbackFileListSendNotify(cip, cid, cFileCnt, ctotalSize, ctimeStamp, cfirstFileName, cfirstFileSize, cFileDetails)
 }
 
-func GoTriggerCallbackFileListReceiveNotify(ip, id string, fileCnt uint32, totalSize uint64, timestamp uint64, firstFileName string, firstFileSize uint64, fileInfoJson string) {
+func GoTriggerCallbackFileListReceiveNotify(ip, id string, fileCnt uint32, totalSize uint64, timestamp uint64, firstFileName string, firstFileSize uint64, fileDetails string) {
 	cip := C.CString(ip)
 	cid := C.CString(id)
 	cfirstFileName := C.CString(firstFileName)
-	cFileInfoJson := C.CString(fileInfoJson)
+	cFileDetails := C.CString(fileDetails)
 
 	defer func() {
 		C.free(unsafe.Pointer(cip))
 		C.free(unsafe.Pointer(cid))
 		C.free(unsafe.Pointer(cfirstFileName))
-		C.free(unsafe.Pointer(cFileInfoJson))
+		C.free(unsafe.Pointer(cFileDetails))
 	}()
 
 	cFileCnt := C.uint(fileCnt)
@@ -258,7 +257,7 @@ func GoTriggerCallbackFileListReceiveNotify(ip, id string, fileCnt uint32, total
 	cfirstFileSize := C.ulonglong(firstFileSize)
 
 	log.Printf("[%s] (DST) src id:%s ip:[%s] fileCnt:%d totalSize:%d firstFileName:%s firstFileSize:%d", rtkMisc.GetFuncInfo(), id, ip, fileCnt, totalSize, firstFileName, firstFileSize)
-	C.invokeCallbackFileListReceiveNotify(cip, cid, cFileCnt, ctotalSize, ctimeStamp, cfirstFileName, cfirstFileSize, cFileInfoJson)
+	C.invokeCallbackFileListReceiveNotify(cip, cid, cFileCnt, ctotalSize, ctimeStamp, cfirstFileName, cfirstFileSize, cFileDetails)
 }
 
 func GoTriggerCallbackUpdateSendProgressBar(ip, id, currentFileName string, sentFileCnt, totalFileCnt uint32, currentFileSize, totalSize, sentSize, timestamp uint64) {
@@ -542,30 +541,7 @@ func SetMsgEventFunc(event int, arg1, arg2, arg3, arg4 string) {
 //export SendXClipData
 func SendXClipData(text, image, html, rtf string) {
 	log.Printf("[%s] text:%d, image:%d, html:%d, rtf:%d \n\n", rtkMisc.GetFuncInfo(), len(text), len(image), len(html), len(rtf))
-
-	imgData := []byte(nil)
-	if image != "" {
-		startTime := time.Now().UnixMilli()
-		data := rtkUtils.Base64Decode(image)
-		if data == nil {
-			return
-		}
-
-		format, width, height := rtkUtils.GetByteImageInfo(data)
-		jpegData, err := rtkUtils.ImageToJpeg(format, data)
-		if err != nil {
-			return
-		}
-		if len(jpegData) == 0 {
-			log.Printf("[CopyXClip] Error: jpeg data is empty")
-			return
-		}
-
-		imgData = jpegData
-		log.Printf("image get jpg size:[%d](%d,%d),decode use:[%d]ms", len(imgData), width, height, time.Now().UnixMilli()-startTime)
-	}
-
-	rtkPlatform.GoCopyXClipData([]byte(text), imgData, []byte(html), []byte(rtf))
+	rtkPlatform.GoCopyXClipData(text, image, html, rtf)
 }
 
 //export GetClientList
