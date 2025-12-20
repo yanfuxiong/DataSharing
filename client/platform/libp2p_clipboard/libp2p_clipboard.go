@@ -3,27 +3,15 @@
 package libp2p_clipboard
 
 import (
-	"encoding/json"
-	"fmt"
 	"log"
-	"path/filepath"
 	rtkBuildConfig "rtk-cross-share/client/buildConfig"
 	rtkCmd "rtk-cross-share/client/cmd"
-	rtkCommon "rtk-cross-share/client/common"
 	rtkGlobal "rtk-cross-share/client/global"
 	rtkPlatform "rtk-cross-share/client/platform"
 	rtkUtils "rtk-cross-share/client/utils"
 	rtkMisc "rtk-cross-share/misc"
 	"strings"
-	"time"
 )
-
-type MultiFilesDropRequestInfo struct {
-	TimeStamp int64
-	Id        string
-	Ip        string
-	PathList  []string
-}
 
 type Callback interface {
 	rtkPlatform.Callback
@@ -57,32 +45,9 @@ func SetMsgEventFunc(event int, arg1, arg2, arg3, arg4 string) {
 	rtkPlatform.GoSetMsgEventFunc(uint32(event), arg1, arg2, arg3, arg4)
 }
 
-func SendXClipData(text, image, html, rtf string) {
-	log.Printf("[%s] text:%d, image:%d, html:%d, rtf:%d \n\n", rtkMisc.GetFuncInfo(), len(text), len(image), len(html), len(rtf))
-
-	imgData := []byte(nil)
-	if image != "" {
-		startTime := time.Now().UnixMilli()
-		data := rtkUtils.Base64Decode(image)
-		if data == nil {
-			return
-		}
-
-		format, width, height := rtkUtils.GetByteImageInfo(data)
-		jpegData, err := rtkUtils.ImageToJpeg(format, data)
-		if err != nil {
-			return
-		}
-		if len(jpegData) == 0 {
-			log.Printf("[CopyXClip] Error: jpeg data is empty")
-			return
-		}
-
-		imgData = jpegData
-		log.Printf("image get jpg size:[%d](%d,%d),decode use:[%d]ms", len(imgData), width, height, time.Now().UnixMilli()-startTime)
-	}
-
-	rtkPlatform.GoCopyXClipData([]byte(text), imgData, []byte(html), []byte(rtf))
+func SendXClipData(text, image, html /*, rtf*/ string) {
+	log.Printf("[%s] text:%d, image:%d, html:%d, rtf:%d \n\n", rtkMisc.GetFuncInfo(), len(text), len(image), len(html) /*, len(rtf)*/)
+	rtkPlatform.GoCopyXClipData(text, image, html, "" /* []byte(rtf)*/)
 }
 
 func GetClientListEx() string {
@@ -102,52 +67,11 @@ func SendNetInterfaces(name string, index int) {
 }
 
 func SendMultiFilesDropRequest(multiFilesData string) int {
-	var multiFileInfo MultiFilesDropRequestInfo
-	err := json.Unmarshal([]byte(multiFilesData), &multiFileInfo)
-	if err != nil {
-		log.Printf("[%s] Unmarshal[%s] err:%+v", rtkMisc.GetFuncInfo(), multiFilesData, err)
-		return int(rtkCommon.SendFilesRequestParameterErr)
-	}
-	log.Printf("id:[%s] ip:[%s] len:[%d] timestamp:[%d]", multiFileInfo.Id, multiFileInfo.Ip, len(multiFileInfo.PathList), multiFileInfo.TimeStamp)
-
-	fileList := make([]rtkCommon.FileInfo, 0)
-	folderList := make([]string, 0)
-	totalSize := uint64(0)
-
-	for _, file := range multiFileInfo.PathList {
-		if rtkMisc.FolderExists(file) {
-			rtkUtils.WalkPath(file, &folderList, &fileList, &totalSize)
-		} else if rtkMisc.FileExists(file) {
-			fileSize, err := rtkMisc.FileSize(file)
-			if err != nil {
-				log.Printf("[%s] get file:[%s] size error, skit it!", rtkMisc.GetFuncInfo(), file)
-				continue
-			}
-			fileList = append(fileList, rtkCommon.FileInfo{
-				FileSize_: rtkCommon.FileSize{
-					SizeHigh: uint32(fileSize >> 32),
-					SizeLow:  uint32(fileSize & 0xFFFFFFFF),
-				},
-				FilePath: file,
-				FileName: filepath.Base(file),
-			})
-			totalSize += fileSize
-		} else {
-			log.Printf("[%s] get file or path:[%s] is not exist , so skit it!", rtkMisc.GetFuncInfo(), file)
-		}
-	}
-	totalDesc := rtkMisc.FileSizeDesc(totalSize)
-
-	timestamp := uint64(multiFileInfo.TimeStamp)
-	if multiFileInfo.TimeStamp == 0 {
-		timestamp = uint64(time.Now().UnixMilli())
-	}
-	log.Printf("[%s] ID[%s] IP:[%s] get file count:[%d] folder count:[%d], totalSize:[%d] totalDesc:[%s] timestamp:[%d]", rtkMisc.GetFuncInfo(), multiFileInfo.Id, multiFileInfo.Ip, len(fileList), len(folderList), totalSize, totalDesc, timestamp)
-	return int(rtkPlatform.GoMultiFilesDropRequest(multiFileInfo.Id, &fileList, &folderList, totalSize, timestamp, totalDesc))
+	return int(rtkPlatform.GoMultiFilesDropRequest(multiFilesData))
 }
 
 func IfClipboardPasteFile(fileName, id string, isReceive bool) {
-	FilePath := rtkPlatform.GetDownloadPath()
+	/*FilePath := rtkPlatform.GetDownloadPath()
 	if fileName != "" {
 		FilePath = filepath.Join(FilePath, fileName)
 	} else {
@@ -160,7 +84,7 @@ func IfClipboardPasteFile(fileName, id string, isReceive bool) {
 	} else {
 		rtkPlatform.GoFileDropResponse(id, rtkCommon.FILE_DROP_REJECT, "")
 		log.Printf("(DST) FilePath:[%s] from id:[%s] reject", FilePath, id)
-	}
+	}*/
 }
 
 func CancelFileTrans(ip, id string, timestamp int64) {
