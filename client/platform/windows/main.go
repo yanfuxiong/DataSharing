@@ -28,12 +28,12 @@ static void StopClipboardMonitorCallbackFunc(StopClipboardMonitorCallback cb) {
     if (cb) cb();
 }
 
-typedef void (*FileListNotifyCallback)(const char *ipPort, const char *clientID, uint32_t cFileCount, uint64_t totalSize, uint64_t timestamp, const wchar_t *firstFileName, uint64_t firstFileSize,const char *fileInfoJson);
-static void FileListSendNotifyCallbackFunc(FileListNotifyCallback cb, const char *ipPort, const char *clientID, uint32_t cFileCount, uint64_t totalSize, uint64_t timestamp, const wchar_t *firstFileName, uint64_t firstFileSize,const char *fileInfoJson) {
-    if (cb) cb(ipPort, clientID, cFileCount, totalSize, timestamp, firstFileName, firstFileSize,fileInfoJson);
+typedef void (*FileListNotifyCallback)(const char *ipPort, const char *clientID, uint32_t cFileCount, uint64_t totalSize, uint64_t timestamp, const wchar_t *firstFileName, uint64_t firstFileSize,const char *fileDetails);
+static void FileListSendNotifyCallbackFunc(FileListNotifyCallback cb, const char *ipPort, const char *clientID, uint32_t cFileCount, uint64_t totalSize, uint64_t timestamp, const wchar_t *firstFileName, uint64_t firstFileSize,const char *fileDetails) {
+    if (cb) cb(ipPort, clientID, cFileCount, totalSize, timestamp, firstFileName, firstFileSize,fileDetails);
 }
-static void FileListReceiveNotifyCallbackFunc(FileListNotifyCallback cb, const char *ipPort, const char *clientID, uint32_t cFileCount, uint64_t totalSize, uint64_t timestamp, const wchar_t *firstFileName, uint64_t firstFileSize,const char *fileInfoJson) {
-    if (cb) cb(ipPort, clientID, cFileCount, totalSize, timestamp, firstFileName, firstFileSize, fileInfoJson);
+static void FileListReceiveNotifyCallbackFunc(FileListNotifyCallback cb, const char *ipPort, const char *clientID, uint32_t cFileCount, uint64_t totalSize, uint64_t timestamp, const wchar_t *firstFileName, uint64_t firstFileSize,const char *fileDetails) {
+    if (cb) cb(ipPort, clientID, cFileCount, totalSize, timestamp, firstFileName, firstFileSize, fileDetails);
 }
 
 typedef void (*UpdateProgressBarCallback)(const char *ipPort, const char *clientID, const wchar_t *currentFileName, uint32_t sentFilesCnt, uint32_t totalFilesCnt, uint64_t currentFileSize, uint64_t totalSize, uint64_t sentSize, uint64_t timestamp);
@@ -108,7 +108,6 @@ import (
 	rtkUtils "rtk-cross-share/client/utils"
 	rtkMisc "rtk-cross-share/misc"
 	"strings"
-	"time"
 	"unicode/utf16"
 	"unsafe"
 )
@@ -219,6 +218,8 @@ func init() {
 
 	rtkPlatform.SetConfirmDocumentsAccept(false)
 }
+
+/*======================================= Go Call Windows API =======================================*/
 
 func GoTriggerCallbackSetAuthViaIndex(index uint32) {
 	if g_AuthViaIndexCallback == nil {
@@ -376,7 +377,7 @@ func GoTriggerCallbackReceiveProgressBar(ip, id, currentFileName string, sentFil
 	C.UpdateReceiveProgressBarCallbackFunc(g_UpdateReceiveProgressBarCallback, cIp, cId, cCurrentFileName, cSentFileCnt, cTotalFileCnt, cCurrentFileSize, cTotalSize, cSentSize, cTimestamp)
 }
 
-func GoTriggerCallbackFileListSendNotify(ip, id string, fileCnt uint32, totalSize uint64, timestamp uint64, firstFileName string, firstFileSize uint64, fileInfoJson string) {
+func GoTriggerCallbackFileListSendNotify(ip, id string, fileCnt uint32, totalSize uint64, timestamp uint64, firstFileName string, firstFileSize uint64, fileDetails string) {
 	if g_FileListSendNotifyCallback == nil {
 		log.Printf("%s g_FileListSendNotifyCallback is not set!", rtkMisc.GetFuncInfo())
 		return
@@ -385,8 +386,8 @@ func GoTriggerCallbackFileListSendNotify(ip, id string, fileCnt uint32, totalSiz
 	defer C.free(unsafe.Pointer(cIp))
 	cId := C.CString(id)
 	defer C.free(unsafe.Pointer(cId))
-	cFileJson := C.CString(fileInfoJson)
-	defer C.free(unsafe.Pointer(cFileJson))
+	cFileDetails := C.CString(fileDetails)
+	defer C.free(unsafe.Pointer(cFileDetails))
 
 	cFileCnt := C.uint(fileCnt)
 	cToalSize := C.ulonglong(totalSize)
@@ -395,11 +396,11 @@ func GoTriggerCallbackFileListSendNotify(ip, id string, fileCnt uint32, totalSiz
 	cFirstFileName := GoStringToWChar(firstFileName)
 	defer C.free(unsafe.Pointer(cFirstFileName))
 
-	log.Printf("[%s] ID:[%s] IP:[%s] cnt:[%d] total:[%d] timestamp:[%d] firstFile:[%s] firstSize:[%d] %s", rtkMisc.GetFuncInfo(), id, ip, fileCnt, totalSize, timestamp, firstFileName, firstFileSize, fileInfoJson)
-	C.FileListSendNotifyCallbackFunc(g_FileListSendNotifyCallback, cIp, cId, cFileCnt, cToalSize, cTimestamp, cFirstFileName, cFirstFileSize, cFileJson)
+	log.Printf("[%s] ID:[%s] IP:[%s] cnt:[%d] total:[%d] timestamp:[%d] firstFile:[%s] firstSize:[%d] %s", rtkMisc.GetFuncInfo(), id, ip, fileCnt, totalSize, timestamp, firstFileName, firstFileSize, fileDetails)
+	C.FileListSendNotifyCallbackFunc(g_FileListSendNotifyCallback, cIp, cId, cFileCnt, cToalSize, cTimestamp, cFirstFileName, cFirstFileSize, cFileDetails)
 }
 
-func GoTriggerCallbackFileListReceiveNotify(ip, id string, fileCnt uint32, totalSize uint64, timestamp uint64, firstFileName string, firstFileSize uint64, fileInfoJson string) {
+func GoTriggerCallbackFileListReceiveNotify(ip, id string, fileCnt uint32, totalSize uint64, timestamp uint64, firstFileName string, firstFileSize uint64, fileDetails string) {
 	if g_FileListReceiveNotifyCallback == nil {
 		log.Printf("%s g_FileListReceiveNotifyCallback is not set!", rtkMisc.GetFuncInfo())
 		return
@@ -408,8 +409,8 @@ func GoTriggerCallbackFileListReceiveNotify(ip, id string, fileCnt uint32, total
 	defer C.free(unsafe.Pointer(cIp))
 	cId := C.CString(id)
 	defer C.free(unsafe.Pointer(cId))
-	cFileJson := C.CString(fileInfoJson)
-	defer C.free(unsafe.Pointer(cFileJson))
+	cFileDetails := C.CString(fileDetails)
+	defer C.free(unsafe.Pointer(cFileDetails))
 
 	cFileCnt := C.uint(fileCnt)
 	cToalSize := C.ulonglong(totalSize)
@@ -419,7 +420,7 @@ func GoTriggerCallbackFileListReceiveNotify(ip, id string, fileCnt uint32, total
 	defer C.free(unsafe.Pointer(cFirstFileName))
 
 	log.Printf("[%s] ID:[%s] IP:[%s] cnt:[%d] total:[%d] timestamp:[%d] firstFile:[%s] firstSize:[%d]", rtkMisc.GetFuncInfo(), id, ip, fileCnt, totalSize, timestamp, firstFileName, firstFileSize)
-	C.FileListReceiveNotifyCallbackFunc(g_FileListReceiveNotifyCallback, cIp, cId, cFileCnt, cToalSize, cTimestamp, cFirstFileName, cFirstFileSize, cFileJson)
+	C.FileListReceiveNotifyCallbackFunc(g_FileListReceiveNotifyCallback, cIp, cId, cFileCnt, cToalSize, cTimestamp, cFirstFileName, cFirstFileSize, cFileDetails)
 }
 
 func GoTriggerCallbackNotiMessage(fileName, clientName, platform string, timestamp uint64, isSender bool) {
@@ -484,6 +485,8 @@ func GoTriggerCallbackNotifyErrEvent(id string, errCode uint32, arg1, arg2, arg3
 	C.NotifyErrEventCallbackFunc(g_NotifyErrEventCallback, cId, cErrCode, cArg1, cArg2, cArg3, cArg4)
 }
 
+/*======================================= Windows Call Go API =======================================*/
+
 //export InitGoServer
 func InitGoServer(cRootPath, cDownloadPath, cDeviceName *C.wchar_t) {
 	rootPath := WCharToGoString(cRootPath)
@@ -509,30 +512,7 @@ func SendXClipData(cText, cImage, cHtml, cRtf *C.char) {
 	rtf := C.GoString(cRtf)
 
 	log.Printf("[%s] text:%d, image:%d, html:%d, rtf:%d \n\n", rtkMisc.GetFuncInfo(), len(text), len(image), len(html), len(rtf))
-
-	imgData := []byte(nil)
-	if image != "" {
-		startTime := time.Now().UnixMilli()
-		data := rtkUtils.Base64Decode(image)
-		if data == nil {
-			return
-		}
-
-		format, width, height := rtkUtils.GetByteImageInfo(data)
-		jpegData, err := rtkUtils.ImageToJpeg(format, data)
-		if err != nil {
-			return
-		}
-		if len(jpegData) == 0 {
-			log.Printf("[CopyXClip] Error: jpeg data is empty")
-			return
-		}
-
-		imgData = jpegData
-		log.Printf("image get jpg size:[%d](%d,%d),decode use:[%d]ms", len(imgData), width, height, time.Now().UnixMilli()-startTime)
-	}
-
-	rtkPlatform.GoCopyXClipData([]byte(text), imgData, []byte(html), []byte(rtf))
+	rtkPlatform.GoCopyXClipData(text, image, html, rtf)
 }
 
 //export SetFileDropResponse
@@ -670,6 +650,8 @@ func RequestUpdateDownloadPath(cDownloadPath *C.wchar_t) {
 	log.Printf("[%s] update downloadPath:[%s] success!", rtkMisc.GetFuncInfo(), downloadPath)
 	rtkPlatform.GoUpdateDownloadPath(downloadPath)
 }
+
+/*======================================= Windows set Go Callback =======================================*/
 
 //export SetStartClipboardMonitorCallback
 func SetStartClipboardMonitorCallback(callback C.StartClipboardMonitorCallback) {

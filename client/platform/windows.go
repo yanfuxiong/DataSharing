@@ -80,7 +80,7 @@ type (
 	CallbackCleanClipboardFunc         func()
 	CallbackFileListDropRequestFunc    func(string, []rtkCommon.FileInfo, []string, uint64, uint64, string, string)
 	CallbackDragFileListRequestFunc    func([]rtkCommon.FileInfo, []string, uint64, uint64, string, string)
-	CallbackFileListNotifyFunc         func(ip, id string, fileCnt uint32, totalSize, timestamp uint64, firstFileName string, firstFileSize uint64, fileInfoJson string)
+	CallbackFileListNotifyFunc         func(ip, id string, fileCnt uint32, totalSize, timestamp uint64, firstFileName string, firstFileSize uint64, fileDetails string)
 	CallbackProgressBarFunc            func(ip, id, currentFileName string, sendFileCnt, totalFileCnt uint32, currentFileSize, totalSize, sendSize, timestamp uint64)
 	CallbackNotiMessageFileTransFunc   func(fileName, clientName, platform string, timestamp uint64, isSender bool)
 	CallbackFileDropResponseFunc       func(string, rtkCommon.FileDropCmd, string)
@@ -281,13 +281,35 @@ func GoSetMsgEventFunc(event uint32, arg1, arg2, arg3, arg4 string) {
 	callbackSetMsgEvent(event, arg1, arg2, arg3, arg4)
 }
 
-func GoCopyXClipData(text, image, html, rtf []byte) {
+func GoCopyXClipData(text, image, html, rtf string) {
 	if callbackCopyXClipDataCB == nil {
 		log.Println("callbackCopyXClipDataCB is null!")
 		return
 	}
 
-	callbackCopyXClipDataCB(text, image, html, rtf)
+	imgData := []byte(nil)
+	if image != "" {
+		startTime := time.Now().UnixMilli()
+		data := rtkUtils.Base64Decode(image)
+		if data == nil {
+			return
+		}
+
+		format, width, height := rtkUtils.GetByteImageInfo(data)
+		jpegData, err := rtkUtils.ImageToJpeg(format, data)
+		if err != nil {
+			return
+		}
+		if len(jpegData) == 0 {
+			log.Printf("[CopyXClip] Error: jpeg data is empty")
+			return
+		}
+
+		imgData = jpegData
+		log.Printf("image get jpg size:[%d](%d,%d),decode use:[%d]ms", len(imgData), width, height, time.Now().UnixMilli()-startTime)
+	}
+
+	callbackCopyXClipDataCB([]byte(text), imgData, []byte(html), []byte(rtf))
 }
 
 func GoSetAuthStatusCode(status uint8) {
@@ -527,20 +549,20 @@ func GoSetupFileListDrop(ip, id, platform, totalDesc string, fileCount, folderCo
 	log.Printf("[%s] fileCnt:[%d] folderCnt:[%d] totalDesc:[%s]", rtkMisc.GetFuncInfo(), fileCount, folderCount, totalDesc)
 }
 
-func GoFileListSendNotify(ip, id string, fileCnt uint32, totalSize, timestamp uint64, firstFileName string, firstFileSize uint64, fileInfoJson string) {
+func GoFileListSendNotify(ip, id string, fileCnt uint32, totalSize, timestamp uint64, firstFileName string, firstFileSize uint64, fileDetails string) {
 	if callbackFileListSendNotify == nil {
 		log.Println("callbackFileListSendNotify is null !")
 		return
 	}
-	callbackFileListSendNotify(ip, id, fileCnt, totalSize, timestamp, firstFileName, firstFileSize, fileInfoJson)
+	callbackFileListSendNotify(ip, id, fileCnt, totalSize, timestamp, firstFileName, firstFileSize, fileDetails)
 }
 
-func GoFileListReceiveNotify(ip, id string, fileCnt uint32, totalSize uint64, timestamp uint64, firstFileName string, firstFileSize uint64, fileInfoJson string) {
+func GoFileListReceiveNotify(ip, id string, fileCnt uint32, totalSize uint64, timestamp uint64, firstFileName string, firstFileSize uint64, fileDetails string) {
 	if callbackFileListReceiveNotify == nil {
 		log.Println("callbackFileListReceiveNotify is null !")
 		return
 	}
-	callbackFileListReceiveNotify(ip, id, fileCnt, totalSize, timestamp, firstFileName, firstFileSize, fileInfoJson)
+	callbackFileListReceiveNotify(ip, id, fileCnt, totalSize, timestamp, firstFileName, firstFileSize, fileDetails)
 }
 
 func GoDragFileListFolderNotify(ip, id, folderName string, timestamp uint64) {
