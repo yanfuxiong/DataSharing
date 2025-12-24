@@ -69,6 +69,7 @@ type (
 	CallbackFileListDropRequestFunc        func(string, []rtkCommon.FileInfo, []string, uint64, uint64, string, string)
 	CallbackUpdateClientStatusFunc         func(clientInfo string)
 	CallbackUpdateProgressBar              func(string, string, string, uint32, uint32, uint64, uint64, uint64, uint64)
+	CallbackNotiMessageFileTransFunc       func(fileName, clientName, platform string, timestamp uint64, isSender bool)
 	CallbackCancelFileTransFunc            func(string, string, uint64)
 	CallbackNotifyErrEventFunc             func(id string, errCode uint32, arg1, arg2, arg3, arg4 string)
 	CallbackGetMacAddressFunc              func(string)
@@ -104,6 +105,7 @@ var (
 	callbackUpdateClientStatus         CallbackUpdateClientStatusFunc         = nil
 	callbackUpdateSendProgressBar      CallbackUpdateProgressBar              = nil
 	callbackUpdateReceiveProgressBar   CallbackUpdateProgressBar              = nil
+	callbackNotiMessageFileTransCB     CallbackNotiMessageFileTransFunc       = nil
 	callbackCancelFileTrans            CallbackCancelFileTransFunc            = nil
 	callbackNotifyErrEvent             CallbackNotifyErrEventFunc             = nil
 	callbackGetMacAddress              CallbackGetMacAddressFunc              = nil
@@ -151,6 +153,11 @@ func SetCallbackUpdateSendProgressBar(cb CallbackUpdateProgressBar) {
 func SetCallbackUpdateReceiveProgressBar(cb CallbackUpdateProgressBar) {
 	callbackUpdateReceiveProgressBar = cb
 }
+
+func SetCallbackNotiMessageFileTrans(cb CallbackNotiMessageFileTransFunc) {
+	callbackNotiMessageFileTransCB = cb
+}
+
 
 func SetCallbackMethodStartBrowseMdns(cb CallbackMethodStartBrowseMdns) {
 	callbackMethodStartBrowseMdns = cb
@@ -618,7 +625,11 @@ func GoUpdateSystemInfo(ip, serviceVer string) {
 }
 
 func GoNotiMessageFileTransfer(fileName, clientName, platform string, timestamp uint64, isSender bool) {
-
+	if callbackNotiMessageFileTransCB == nil {
+		log.Println("CallbackNotiMessageFileTransCB is null !")
+		return
+	}
+	callbackNotiMessageFileTransCB(fileName, clientName, platform, timestamp, isSender)
 }
 
 func GoNotifyErrEvent(id string, errCode rtkMisc.CrossShareErr, arg1, arg2, arg3, arg4 string) {
