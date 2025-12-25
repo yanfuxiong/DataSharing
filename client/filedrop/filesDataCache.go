@@ -152,7 +152,7 @@ func SetFilesCacheItemComplete(id string, timestamp uint64) {
 			} else {
 				log.Printf("[%s] ID:[%s] compelete a files cache item, id:[%d], still %d records left", rtkMisc.GetFuncInfo(), id, timestamp, nItemCount-1)
 			}
-
+			cacheData.cancelFn = nil
 			filesDataCacheMap[id] = cacheData
 		} else {
 			log.Printf("[%s] ID:[%s] Not fount cache map data\n\n", rtkMisc.GetFuncInfo(), id)

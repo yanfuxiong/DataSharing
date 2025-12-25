@@ -207,7 +207,7 @@ func processInbandRead(buffer []byte, len int, msg *Peer2PeerMessage) rtkMisc.Cr
 			var resultCode rtkMisc.CrossShareErr
 			err = json.Unmarshal(temp.ExtData, &resultCode)
 			if err != nil {
-				log.Printf("[%s] Err: decode ExtDataImg:%+v", rtkMisc.GetFuncInfo(), err)
+				log.Printf("[%s] Err: decode CrossShareErr:%+v", rtkMisc.GetFuncInfo(), err)
 				return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
 			}
 			msg.ExtData = resultCode
@@ -235,7 +235,7 @@ func processInbandRead(buffer []byte, len int, msg *Peer2PeerMessage) rtkMisc.Cr
 			var resultCode rtkMisc.CrossShareErr
 			err = json.Unmarshal(temp.ExtData, &resultCode)
 			if err != nil {
-				log.Printf("[%s] Err: decode ExtDataImg:%+v", rtkMisc.GetFuncInfo(), err)
+				log.Printf("[%s] Err: decode CrossShareErr:%+v", rtkMisc.GetFuncInfo(), err)
 				return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
 			}
 			msg.ExtData = resultCode
