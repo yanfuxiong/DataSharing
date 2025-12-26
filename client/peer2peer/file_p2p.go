@@ -142,6 +142,10 @@ func CancelSrcFileTransfer(id, ipAddr string, timestamp uint64, errCode rtkMisc.
 		log.Printf("(SRC) [%s] IP:[%s] timestamp:[%d] Copy file operation was canceled by dst GUI !", rtkMisc.GetFuncInfo(), ipAddr, timestamp)
 	} else {
 		log.Printf("(SRC) [%s] IP:[%s] timestamp:[%d] Copy file operation was canceled by dst errCode:%d!", rtkMisc.GetFuncInfo(), ipAddr, timestamp, errCode)
+		if errCode == rtkMisc.ERR_BIZ_FT_DST_OPEN_STREAM {
+			rtkPlatform.GoNotifyErrEvent(id, errCode, ipAddr, strconv.Itoa(int(timestamp)), "", "") // notice  errCode to platform
+			return
+		}
 	}
 	if rtkFileDrop.IsFileTransInProgress(id, timestamp) {
 		if value, ok := fileTransferInfoMap.Load(id); ok {

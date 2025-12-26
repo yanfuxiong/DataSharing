@@ -643,24 +643,33 @@ func processFileDrop(ctx context.Context, id, ipAddr string, event EventResult) 
 				}
 			}
 		} else if nextState == STATE_IO && nextCommand == COMM_DST {
-			timeStamp := rtkFileDrop.SetFilesDataToCacheAsDst(id)
-			if rtkUtils.GetPeerClientIsSupportQueueTrans(id) {
-				if fileDropInfo, ok := rtkFileDrop.GetFileDropData(id); ok { // [Dst]: every FileDropData need build a new stream
-					if errCode := rtkConnection.NewFileDropItemStream(ctx, id, fileDropInfo.TimeStamp); errCode != rtkMisc.SUCCESS {
-						log.Printf("[%s] new File Drop Item stream errCode:%+v ", rtkMisc.GetFuncInfo(), errCode)
-						return false
-					}
-				} else {
+			buildItemFileDropStream := func() (uint64, rtkMisc.CrossShareErr) { // [Dst]: every FileDropData need build a new stream
+				fileDropInfo, ok := rtkFileDrop.GetFileDropData(id)
+				if !ok {
 					log.Printf("[%s] ID:[%s] Not found fileDrop data", rtkMisc.GetFuncInfo(), id)
-					return false
+					return 0, rtkMisc.ERR_BIZ_FD_DATA_EMPTY
 				}
-			} else {
-				if errCode := rtkConnection.BuildFmtTypeTalker(ctx, id, event.Cmd.FmtType); errCode != rtkMisc.SUCCESS {
-					log.Printf("[%s]BuildFmtTypeTalker errCode:%+v ", rtkMisc.GetFuncInfo(), errCode)
-					return false
-				}
+
+				if rtkUtils.GetPeerClientIsSupportQueueTrans(id) {
+ 					if errCode := rtkConnection.NewFileDropItemStream(id, fileDropInfo.TimeStamp); errCode != rtkMisc.SUCCESS {
+ 						return fileDropInfo.TimeStamp, errCode
+ 					}
+				} else {
+					if errCode := rtkConnection.BuildFmtTypeTalker(id, event.Cmd.FmtType); errCode != rtkMisc.SUCCESS {
+						log.Printf("[%s]BuildFmtTypeTalker errCode:%+v ", rtkMisc.GetFuncInfo(), errCode)
+						return fileDropInfo.TimeStamp, errCode
+					}
+ 				}
+				return fileDropInfo.TimeStamp, rtkMisc.SUCCESS
 			}
 
+			fileTransDataId, errCode := buildItemFileDropStream()
+			if errCode != rtkMisc.SUCCESS {
+				SendFileTransOpenStreamErrToSrc(id, clientInfo.IpAddr, fileTransDataId)
+				return false
+ 			}
+			
+			timeStamp := rtkFileDrop.SetFilesDataToCacheAsDst(id)
 			if rtkFileDrop.GetFilesTransferDataCacheCount(id) <= rtkGlobal.FilesConcurrentTransferMaxSize {
 				rtkMisc.GoSafe(func() { processIoRead(ctx, id, ipAddr, event.Cmd.FmtType, timeStamp) }) // [Dst]: be ready to receive file drop raw data
 			} else {

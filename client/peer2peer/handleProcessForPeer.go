@@ -42,6 +42,12 @@ func SendFileTransCancelByGuiMsgToPeer(id, ipAddr string, fileTransDataId uint64
 	rtkConnection.CloseFileDropItemStream(id, fileTransDataId)
 }
 
+func SendFileTransOpenStreamErrToSrc(id, ipAddr string, fileTransDataId uint64) {
+	log.Printf("(DST) [%s] IP:[%s] timestamp:[%d] open file drop Item stream error!", rtkMisc.GetFuncInfo(), ipAddr, fileTransDataId)
+	sendFileTransInterruptMsgToPeer(id, COMM_FILE_TRANSFER_DST_INTERRUPT, rtkMisc.ERR_BIZ_FT_DST_OPEN_STREAM, fileTransDataId)
+	rtkPlatform.GoNotifyErrEvent(id, rtkMisc.ERR_BIZ_FT_DST_OPEN_STREAM, ipAddr, strconv.Itoa(int(fileTransDataId)), "", "")
+}
+
 func sendFileTransInterruptMsgToPeer(id string, cmd CommandType, errCode rtkMisc.CrossShareErr, timestamp uint64) {
 	extData := rtkCommon.ExtDataFilesTransferInterrupt{
 		Code:      errCode,
