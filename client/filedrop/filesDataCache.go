@@ -152,7 +152,7 @@ func SetFilesCacheItemComplete(id string, timestamp uint64) {
 			} else {
 				log.Printf("[%s] ID:[%s] compelete a files cache item, id:[%d], still %d records left", rtkMisc.GetFuncInfo(), id, timestamp, nItemCount-1)
 			}
-			cacheData.cancelFn = nil
+			//cacheData.cancelFn = nil
 			filesDataCacheMap[id] = cacheData
 		} else {
 			log.Printf("[%s] ID:[%s] Not fount cache map data\n\n", rtkMisc.GetFuncInfo(), id)
@@ -225,7 +225,23 @@ func SetFilesTransferDataInterrupt(id, srcFileName, dstFileName, dstFullName str
 	return false
 }
 
-func CancelNotStartFileTransFromCacheMap(id string, timestamp uint64) bool {
+func IsFileTransInProgress(id string, timestamp uint64) bool {
+	fileDropDataMutex.RLock()
+	defer fileDropDataMutex.RUnlock()
+	if cacheData, ok := filesDataCacheMap[id]; ok {
+		if len(cacheData.filesTransferDataQueue) > 0 {
+			if cacheData.filesTransferDataQueue[0].TimeStamp == timestamp {
+				return true
+			}
+		} else {
+			log.Printf("[%s] ID:[%s] Not fount cache map data\n\n", rtkMisc.GetFuncInfo(), id)
+		}
+	}
+
+	return false
+}
+
+func CancelFileTransFromCacheMap(id string, timestamp uint64) bool {
 	fileDropDataMutex.Lock()
 	defer fileDropDataMutex.Unlock()
 	if cacheData, ok := filesDataCacheMap[id]; ok {

@@ -202,7 +202,7 @@ func businessProcess(ctx context.Context) {
 					cancelBusinessFunc(rtkCommon.SourceCablePlugIn)
 					time.Sleep(100 * time.Millisecond) // wait for print cancel log
 					cancelBusinessFunc = nil
-					rtkConnection.Wait()
+					//rtkConnection.Wait()
 					rtkLogin.BrowseInstance()
 				}
 				log.Println("===========================================================================\n\n")
@@ -216,7 +216,7 @@ func businessProcess(ctx context.Context) {
 					cancelBusinessFunc(rtkCommon.SourceCablePlugOut)
 					cancelBusinessFunc = nil
 					time.Sleep(100 * time.Millisecond) // wait for print all cancel log
-					rtkConnection.Wait()
+					//rtkConnection.Wait()
 					rtkLogin.BrowseInstance()
 				} else {
 					log.Printf("******** DIAS is extract, business is not start! ******** ")
@@ -229,7 +229,7 @@ func businessProcess(ctx context.Context) {
 				log.Printf("******** Client Network is Switch, cancel old business! ******** ")
 				cancelBusinessFunc(rtkCommon.SourceNetworkSwitch)
 				time.Sleep(100 * time.Millisecond) // wait for print cancel log
-				rtkConnection.Wait()
+				//rtkConnection.Wait()
 				rtkLogin.BrowseInstance()
 				log.Println("===========================================================================\n\n")
 				log.Printf("[%s] business is restart!", rtkMisc.GetFuncInfo())
@@ -237,7 +237,7 @@ func businessProcess(ctx context.Context) {
 				sonCtx, cancelBusinessFunc = rtkUtils.WithCancelSource(ctx)
 				rtkMisc.GoSafe(func() { businessStart(sonCtx) })
 			} else {
-				rtkConnection.Wait()
+				//rtkConnection.Wait()
 				rtkLogin.BrowseInstance()
 				log.Printf("******** Client Network is Switch, business is not start! ******** ")
 				log.Println("===========================================================================\n\n")

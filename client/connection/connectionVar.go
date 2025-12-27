@@ -54,11 +54,11 @@ func SetSendDisconnectMsgToPeerCallback(cb callbackSendDisconnectMsgToPeerFunc) 
 	callbackSendDisconnectMsgToPeer = cb
 }
 
-func CondGroupAdd() {
+func condGroupAdd() {
 	cg.Add(1)
 }
 
-func CondGroupDone() {
+func condGroupDone() {
 	cg.Done()
 }
 

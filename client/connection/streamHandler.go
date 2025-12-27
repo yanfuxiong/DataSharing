@@ -305,7 +305,7 @@ func isTcpEOF(err error) (bool, rtkMisc.CrossShareErr) {
 func CloseAllFileDropStream(id string) {
 	streamPoolMutex.Lock()
 	defer streamPoolMutex.Unlock()
-	if fileStreamMap, ok := fileDataStreamItemMap[id]; ok {
+	if fileStreamMap, ok := clientFileDataStreamMap[id]; ok {
 		for timestamp, itemStream := range fileStreamMap {
 			itemStream.CloseRead()
 			itemStream.Close()
@@ -313,10 +313,10 @@ func CloseAllFileDropStream(id string) {
 			log.Printf("[%s] ID:[%s] close file drop Item stream success! timestamp:[%d] id:[%s]!", rtkMisc.GetFuncInfo(), id, timestamp, itemStream.ID())
 		}
 
-		fileDataStreamItemMap[id] = fileStreamMap
+		clientFileDataStreamMap[id] = fileStreamMap
 		return
 	}
-	log.Printf("[%s] ID:[%s] Unknown fileDataStreamItemMap info", rtkMisc.GetFuncInfo(), id)
+	log.Printf("[%s] ID:[%s] Unknown clientFileDataStreamMap info", rtkMisc.GetFuncInfo(), id)
 }
 
 func updateFmtTypeStreamInternal(stream network.Stream, fmtType rtkCommon.TransFmtType, isDst bool) {

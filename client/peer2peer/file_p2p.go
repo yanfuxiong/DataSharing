@@ -230,15 +230,15 @@ func getFileTransferCancelErrCode(ctx context.Context, ipAddr string, timeStamp 
 	return
 }
 
-func dealFilesCacheDataProcess(ctx context.Context, id, ipAddr string) {
+func dealFilesCacheDataProcess(p2pCtx context.Context, id, ipAddr string, timeStamp uint64) {
 	for rtkFileDrop.GetFilesTransferDataCacheCount(id) > 0 {
-		cacheData := rtkFileDrop.GetFilesTransferDataItem(id)
+		cacheData := rtkFileDrop.GetFilesTransferDataItem(id, timeStamp)
 		if cacheData == nil {
 			break
 		}
 
 		if cacheData.FileTransDirection == rtkFileDrop.FilesTransfer_As_Src {
-			resultCode, reTry := writeFileDataItemToSocket(ctx, id, ipAddr, cacheData)
+			resultCode, reTry := writeFileDataItemToSocket(p2pCtx, id, ipAddr, cacheData)
 			if resultCode != rtkMisc.SUCCESS {
 				if !reTry {
 					log.Printf("(SRC) ID[%s] IP[%s] Copy file data To Socket failed, timestamp:%d, ERR code:[%d],  and not resend!", id, ipAddr, cacheData.TimeStamp, resultCode)
@@ -258,7 +258,7 @@ func dealFilesCacheDataProcess(ctx context.Context, id, ipAddr string) {
 			}
 			rtkConnection.RemoveFileDropItemStreamListener(cacheData.TimeStamp)
 		} else if cacheData.FileTransDirection == rtkFileDrop.FilesTransfer_As_Dst {
-			resultCode, reTry := readFileDataItemFromSocket(ctx, id, ipAddr, cacheData)
+			resultCode, reTry := readFileDataItemFromSocket(p2pCtx, id, ipAddr, cacheData)
 			if resultCode != rtkMisc.SUCCESS {
 				if !reTry { // any exceptions and user cancellation need to Notify to platfrom
 					log.Printf("(DST) ID[%s] IP[%s] Copy file data To Socket failed, timestamp:%d, ERR code:[%d]  and not retry", id, ipAddr, cacheData.TimeStamp, resultCode)
@@ -290,7 +290,7 @@ func writeFileDataItemToSocket(p2pCtx context.Context, id, ipAddr string, fileDr
 	if p2pCtx.Err() != nil {                                        // deal file cache Data must return errCode and clear cache when p2p business is canceled
 		rtkConnection.CloseFileDropItemStream(id, fileDropReqData.TimeStamp)
 		rtkConnection.CloseFmtTypeStream(id, rtkCommon.FILE_DROP)
-		return getFileDataSendCancelErrCode(p2pCtx, ipAddr, fileDropReqData.TimeStamp)
+		return //getFileDataSendCancelErrCode(p2pCtx, ipAddr, fileDropReqData.TimeStamp)
 	}
 
 	var sFileDrop network.Stream
@@ -308,7 +308,7 @@ func writeFileDataItemToSocket(p2pCtx context.Context, id, ipAddr string, fileDr
 		return
 	}
 
-	fileCount := len(fileDropReqData.SrcFileList)
+	fileCount := uint32(len(fileDropReqData.SrcFileList))
 	folderCount := len(fileDropReqData.FolderList)
 	if (fileCount == 0 && folderCount == 0) || fileDropReqData.TimeStamp == 0 {
 		log.Printf("[%s] get file data is invalid! fileCount:[%d] folderCount:[%d] TimeStamp:[%d] ", rtkMisc.GetFuncInfo(), fileCount, folderCount, fileDropReqData.TimeStamp)
@@ -320,7 +320,7 @@ func writeFileDataItemToSocket(p2pCtx context.Context, id, ipAddr string, fileDr
 	ctx, cancel := rtkUtils.WithCancelSource(p2pCtx)
 	defer cancel(rtkCommon.FileTransDone)
 	SetFileTransferInfo(id, cancel)                   //Used when the receiving end is exception or cancellation
-	rtkFileDrop.SetCancelFileTransferFunc(id, cancel) //Used when the user cancels
+	rtkFileDrop.SetCancelFileTransferFunc(id, fileDropReqData.TimeStamp, cancel) //Used when the user cancels
 
 	progressBar := New64(int64(fileDropReqData.TotalSize))
 	var curFileName string
@@ -343,7 +343,7 @@ func writeFileDataItemToSocket(p2pCtx context.Context, id, ipAddr string, fileDr
 			case <-barTicker.C:
 				barCurrentBytes := progressBar.GetCurrentBytes()
 				if barLastBytes != barCurrentBytes {
-					rtkPlatform.GoUpdateSendProgressBar(ipAddr, id, curFileName, fileDoneCnt, nTotalFileCnt, curFileSize, fileDropReqData.TotalSize, uint64(barCurrentBytes), fileDropReqData.TimeStamp)
+					rtkPlatform.GoUpdateSendProgressBar(ipAddr, id, curFileName, fileDoneCnt, fileCount, curFileSize, fileDropReqData.TotalSize, uint64(barCurrentBytes), fileDropReqData.TimeStamp)
 					barLastBytes = barCurrentBytes
 					timeoutBarCnt = 0
 				} else {
@@ -423,7 +423,7 @@ func writeFileDataItemToSocket(p2pCtx context.Context, id, ipAddr string, fileDr
 		errCode = rtkMisc.ERR_BIZ_FT_INTERRUPT_INFO_INVALID
 		return
 	}
-	rtkPlatform.GoUpdateSendProgressBar(ipAddr, id, curFileName, fileDoneCnt, nTotalFileCnt, curFileSize, fileDropReqData.TotalSize, fileDropReqData.TotalSize, fileDropReqData.TimeStamp)
+	rtkPlatform.GoUpdateSendProgressBar(ipAddr, id, curFileName, fileDoneCnt, fileCount, curFileSize, fileDropReqData.TotalSize, fileDropReqData.TotalSize, fileDropReqData.TimeStamp)
 
 	log.Printf("(SRC) End Copy all file data to IP:[%s] success, id:[%d] file count:[%d] TotalDescribe:[%s], total use [%d] ms", ipAddr, fileDropReqData.TimeStamp, fileCount, fileDropReqData.TotalDescribe, time.Now().UnixMilli()-startTime)
 	ShowNotiMessageSendFileTransferDone(fileDropReqData, id)
@@ -492,7 +492,7 @@ func readFileDataItemFromSocket(p2pCtx context.Context, id, ipAddr string, fileD
 	if p2pCtx.Err() != nil { // deal file cache Data must return errCode and clear cache when p2p business is canceled
 		rtkConnection.CloseFileDropItemStream(id, fileDropData.TimeStamp)
 		rtkConnection.CloseFmtTypeStream(id, rtkCommon.FILE_DROP)
-		return getFileDataReceiveCancelErrCode(p2pCtx, ipAddr, fileDropData.TimeStamp)
+		return //getFileDataReceiveCancelErrCode(p2pCtx, ipAddr, fileDropData.TimeStamp)
 	}
 
 	var sFileDrop network.Stream
@@ -555,7 +555,7 @@ func readFileDataItemFromSocket(p2pCtx context.Context, id, ipAddr string, fileD
 	ctx, cancel := rtkUtils.WithCancelSource(p2pCtx)
 	defer cancel(rtkCommon.FileTransDone)
 	SetFileTransferInfo(id, cancel)                   //Used when there is an exception on the sending end
-	rtkFileDrop.SetCancelFileTransferFunc(id, cancel) //Used when the recipient cancels
+	rtkFileDrop.SetCancelFileTransferFunc(id, fileDropData.TimeStamp, cancel) //Used when the recipient cancels
 
 	currentFileSize := uint64(0)
 	doneFileCnt := uint32(0)
@@ -577,7 +577,7 @@ func readFileDataItemFromSocket(p2pCtx context.Context, id, ipAddr string, fileD
 			case <-barTicker.C:
 				barCurrentBytes := progressBar.GetCurrentBytes()
 				if barLastBytes != barCurrentBytes {
-					rtkPlatform.GoUpdateMultipleProgressBar(ipAddr, id, dstFullFilePath, doneFileCnt, nSrcFileCount, currentFileSize, fileDropData.TotalSize, uint64(barCurrentBytes), fileDropData.TimeStamp)
+					rtkPlatform.GoUpdateReceiveProgressBar(ipAddr, id, dstFullFilePath, doneFileCnt, nSrcFileCount, currentFileSize, fileDropData.TotalSize, uint64(barCurrentBytes), fileDropData.TimeStamp)
 					barLastBytes = barCurrentBytes
 					timeoutBarCnt = 0
 				} else {
@@ -608,7 +608,7 @@ func readFileDataItemFromSocket(p2pCtx context.Context, id, ipAddr string, fileD
 	offset := int64(0)
 	getInterruptFile := false
 	isRecoverFile := false
-	copyBuffer := make([]byte, copyBufNormalSize)
+	copyBuffer := make([]byte, copyBufSize)
 	for i, fileInfo := range fileDropData.SrcFileList {
 		currentFileSize = uint64(fileInfo.FileSize_.SizeHigh)<<32 | uint64(fileInfo.FileSize_.SizeLow)
 		if isRetry && fileInfo.FileName != fileDropData.InterruptSrcFileName && !getInterruptFile {
@@ -645,12 +645,7 @@ func readFileDataItemFromSocket(p2pCtx context.Context, id, ipAddr string, fileD
 		}
 
 		cancelableRead.realReader = io.LimitReader(sFileDrop, int64(currentFileSize))
-		if currentFileSize < uint64(copyBufNormalSize) {
-			copyBuffer = copyBuffer[:copyBufShortSize]
-		} else {
-			copyBuffer = copyBuffer[:copyBufNormalSize]
-		}
-
+		
 		dstTransResult := readFileFromSocket(id, ipAddr, &cancelableWrite, &cancelableRead, &progressBar, currentFileSize, fileDropData.TimeStamp, dstFileName, dstFullFilePath, &copyBuffer, &offset, isRecoverFile)
 		if dstTransResult != rtkMisc.SUCCESS {
 			if dstTransResult == rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL_BUSINESS ||
@@ -666,7 +661,7 @@ func readFileDataItemFromSocket(p2pCtx context.Context, id, ipAddr string, fileD
 
 		doneFileCnt++
 		if uint32(i) != (nSrcFileCount - 1) {
-			rtkPlatform.GoUpdateMultipleProgressBar(ipAddr, id, dstFullFilePath, doneFileCnt, nSrcFileCount, currentFileSize, fileDropData.TotalSize, uint64(progressBar.GetCurrentBytes()), fileDropData.TimeStamp)
+			rtkPlatform.GoUpdateReceiveProgressBar(ipAddr, id, dstFullFilePath, doneFileCnt, nSrcFileCount, currentFileSize, fileDropData.TotalSize, uint64(progressBar.GetCurrentBytes()), fileDropData.TimeStamp)
 		}
 	}
 
