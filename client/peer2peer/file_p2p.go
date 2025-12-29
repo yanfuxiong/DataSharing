@@ -269,7 +269,7 @@ func dealFilesCacheDataProcess(p2pCtx context.Context, id, ipAddr string, timeSt
 				} else {
 					log.Printf("(DST) ID[%s] IP[%s] Copy file data To Socket is interrupt, timestamp:[%d], wait to retry...", id, ipAddr, cacheData.TimeStamp)
 					rtkConnection.CloseAllFileDropStream(id)
-					rtkMisc.GoSafe(func() { checkRecoverProcessEventsForPeerAsDst(id, ipAddr, resultCode) })
+					//rtkMisc.GoSafe(func() { checkRecoverProcessEventsForPeerAsDst(id, ipAddr, resultCode) })
 					return
 				}
 			}
@@ -672,13 +672,13 @@ func readFileDataItemFromSocket(p2pCtx context.Context, id, ipAddr string, fileD
 		return
 	}
 
-	rtkPlatform.GoUpdateMultipleProgressBar(ipAddr, id, dstFullFilePath, doneFileCnt, nSrcFileCount, currentFileSize, fileDropData.TotalSize, fileDropData.TotalSize, fileDropData.TimeStamp)
+	rtkPlatform.GoUpdateReceiveProgressBar(ipAddr, id, dstFullFilePath, doneFileCnt, nSrcFileCount, currentFileSize, fileDropData.TotalSize, fileDropData.TotalSize, fileDropData.TimeStamp)
 	log.Printf("(DST) End Copy file data from IP:[%s] success, id:[%d] count:[%d] totalSize:[%d] totalDescribe:[%s] total use:[%d]ms", ipAddr, fileDropData.TimeStamp, nSrcFileCount, fileDropData.TotalSize, fileDropData.TotalDescribe, time.Now().UnixMilli()-startTime)
 	ShowNotiMessageRecvFileTransferDone(fileDropData, id)
 	return
 }
 
-func readFileFromSocket(id, ipAddr string, write *cancelableWriter, read *cancelableReader, totalBar **ProgressBar, fileSize, timeStamp uint64, dstfileName, dstFullPath string, buf *[]byte, offset *int64, isRecover bool) rtkMisc.CrossShareErr {
+func readFileFromSocket(id, ipAddr string, write *cancelableWriter, read *cancelableReader, totalBar **ProgressBar, fileSize, timeStamp uint64, dstFileName, dstFullPath string, buf *[]byte, offset *int64, isRecover bool) rtkMisc.CrossShareErr {
 	var dstFile *os.File
 	startTime := time.Now().UnixMilli()
 
@@ -689,9 +689,9 @@ func readFileFromSocket(id, ipAddr string, write *cancelableWriter, read *cancel
 	defer CloseFile(&dstFile)
 
 	if isRecover {
-		log.Printf("(DST) IP[%s] Retry to copy file:[%s], still has [%d] left ...", ipAddr, dstfileName, fileSize)
+		log.Printf("(DST) IP[%s] Retry to copy file:[%s], still has [%d] left ...", ipAddr, dstFileName, fileSize)
 	} else {
-		log.Printf("(DST) IP[%s] Start to copy file:[%s], size:[%d] ...", ipAddr, dstfileName, fileSize)
+		log.Printf("(DST) IP[%s] Start to copy file:[%s], size:[%d] ...", ipAddr, dstFileName, fileSize)
 	}
 
 	nDstWrite := int64(0)
@@ -734,10 +734,10 @@ func readFileFromSocket(id, ipAddr string, write *cancelableWriter, read *cancel
 	}
 
 	if uint64(nDstWrite) >= fileSize {
-		log.Printf("(DST) IP[%s] End to Copy file:[%s] success, total:[%d] use [%d] ms", ipAddr, dstfileName, nDstWrite, time.Now().UnixMilli()-startTime)
+		log.Printf("(DST) IP[%s] End to Copy file:[%s] success, total:[%d] use [%d] ms", ipAddr, dstFileName, nDstWrite, time.Now().UnixMilli()-startTime)
 		return rtkMisc.SUCCESS
 	} else {
-		log.Printf("(DST) IP[%s] End to Copy file:[%s] failed, total:[%d], it less then filesize:[%d]...", ipAddr, dstfileName, nDstWrite, fileSize)
+		log.Printf("(DST) IP[%s] End to Copy file:[%s] failed, total:[%d], it less then filesize:[%d]...", ipAddr, dstFileName, nDstWrite, fileSize)
 		return rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_LOSS
 	}
 }
@@ -814,7 +814,7 @@ func checkRecoverProcessEventsForPeerAsDst(id, ipAddr string, code rtkMisc.Cross
 		nCount++
 	}
 
-	cacheData := rtkFileDrop.GetFilesTransferDataItem(id)
+	cacheData := rtkFileDrop.GetFilesTransferDataItem(id,0)
 	if cacheData == nil {
 		return
 	}
@@ -823,7 +823,7 @@ func checkRecoverProcessEventsForPeerAsDst(id, ipAddr string, code rtkMisc.Cross
 }
 
 func recoverFileTransferProcessAsDst(ctx context.Context, id, ipAddr string) {
-	cacheData := rtkFileDrop.GetFilesTransferDataItem(id)
+	cacheData := rtkFileDrop.GetFilesTransferDataItem(id,0)
 	if cacheData == nil {
 		return
 	}
@@ -840,7 +840,7 @@ func recoverFileTransferProcessAsDst(ctx context.Context, id, ipAddr string) {
 
 	buildFileDropItemStream(ctx, id) // build UDP connect
 
-	dealFilesCacheDataProcess(ctx, id, ipAddr)
+	dealFilesCacheDataProcess(ctx, id, ipAddr,0)
 }
 
 func recoverFileTransferProcessAsSrc(ctx context.Context, id, ipAddr string, errCode rtkMisc.CrossShareErr) {
@@ -859,7 +859,7 @@ func recoverFileTransferProcessAsSrc(ctx context.Context, id, ipAddr string, err
 		errCode = code
 	}
 
-	cacheData := rtkFileDrop.GetFilesTransferDataItem(id)
+	cacheData := rtkFileDrop.GetFilesTransferDataItem(id,0)
 	if cacheData == nil {
 		errCode = rtkMisc.ERR_BIZ_FT_DATA_EMPTY
 	} else {
@@ -881,11 +881,11 @@ func recoverFileTransferProcessAsSrc(ctx context.Context, id, ipAddr string, err
 		return
 	}
 
-	dealFilesCacheDataProcess(ctx, id, ipAddr)
+	dealFilesCacheDataProcess(ctx, id, ipAddr,0)
 }
 
 func setFileDataItemProtocolListener(id string) rtkMisc.CrossShareErr {
-	cacheList := rtkFileDrop.GetFilesTransferDataList(id)
+	/*cacheList := rtkFileDrop.GetFilesTransferDataList(id)
 	if cacheList == nil {
 		return rtkMisc.ERR_BIZ_FT_DATA_EMPTY
 	}
@@ -893,13 +893,13 @@ func setFileDataItemProtocolListener(id string) rtkMisc.CrossShareErr {
 		if cacheData.FileTransDirection == rtkFileDrop.FilesTransfer_As_Src {
 			rtkConnection.BuildFileDropItemStreamListener(cacheData.TimeStamp)
 		}
-	}
+	}*/
 
 	return rtkMisc.SUCCESS
 }
 
 func buildFileDropItemStream(ctx context.Context, id string) rtkMisc.CrossShareErr {
-	cacheList := rtkFileDrop.GetFilesTransferDataList(id)
+	/*cacheList := rtkFileDrop.GetFilesTransferDataList(id)
 	if cacheList == nil {
 		return rtkMisc.ERR_BIZ_FT_DATA_EMPTY
 	}
@@ -911,7 +911,7 @@ func buildFileDropItemStream(ctx context.Context, id string) rtkMisc.CrossShareE
 				return errCode
 			}
 		}
-	}
+	}*/
 	return rtkMisc.SUCCESS
 }
 
@@ -921,7 +921,7 @@ func clearCacheFileDataList(id, ipAddr string, code rtkMisc.CrossShareErr) {
 
 	i := 0
 	for rtkFileDrop.GetFilesTransferDataCacheCount(id) > 0 {
-		cacheData := rtkFileDrop.GetFilesTransferDataItem(id)
+		cacheData := rtkFileDrop.GetFilesTransferDataItem(id,0)
 		if cacheData == nil {
 			break
 		}

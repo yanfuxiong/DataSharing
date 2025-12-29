@@ -543,8 +543,6 @@ func writeToSocket(msg *Peer2PeerMessage, id string) rtkMisc.CrossShareErr {
 }
 
 func processIoWrite(ctx context.Context, id, ipAddr string, fmtType rtkCommon.TransFmtType, timeStamp uint64) {
-	rtkConnection.CondGroupAdd()
-	defer rtkConnection.CondGroupDone()
 	resultCode := rtkMisc.SUCCESS
 	if fmtType == rtkCommon.FILE_DROP {
 		dealFilesCacheDataProcess(ctx, id, ipAddr, timeStamp)
@@ -560,8 +558,6 @@ func processIoWrite(ctx context.Context, id, ipAddr string, fmtType rtkCommon.Tr
 }
 
 func processIoRead(ctx context.Context, id, ipAddr string, fmtType rtkCommon.TransFmtType, timeStamp uint64) {
-	rtkConnection.CondGroupAdd()
-	defer rtkConnection.CondGroupDone()
 	resultCode := rtkMisc.SUCCESS
 	if fmtType == rtkCommon.FILE_DROP {
 		dealFilesCacheDataProcess(ctx, id, ipAddr, timeStamp)
@@ -647,15 +643,15 @@ func processFileDrop(ctx context.Context, id, ipAddr string, event EventResult) 
 				fileDropInfo, ok := rtkFileDrop.GetFileDropData(id)
 				if !ok {
 					log.Printf("[%s] ID:[%s] Not found fileDrop data", rtkMisc.GetFuncInfo(), id)
-					return 0, rtkMisc.ERR_BIZ_FD_DATA_EMPTY
+					return 0, rtkMisc.ERR_BIZ_FT_DATA_EMPTY
 				}
 
 				if rtkUtils.GetPeerClientIsSupportQueueTrans(id) {
- 					if errCode := rtkConnection.NewFileDropItemStream(id, fileDropInfo.TimeStamp); errCode != rtkMisc.SUCCESS {
+ 					if errCode := rtkConnection.NewFileDropItemStream(ctx, id, fileDropInfo.TimeStamp); errCode != rtkMisc.SUCCESS {
  						return fileDropInfo.TimeStamp, errCode
  					}
 				} else {
-					if errCode := rtkConnection.BuildFmtTypeTalker(id, event.Cmd.FmtType); errCode != rtkMisc.SUCCESS {
+					if errCode := rtkConnection.BuildFmtTypeTalker(ctx, id, event.Cmd.FmtType); errCode != rtkMisc.SUCCESS {
 						log.Printf("[%s]BuildFmtTypeTalker errCode:%+v ", rtkMisc.GetFuncInfo(), errCode)
 						return fileDropInfo.TimeStamp, errCode
 					}
@@ -665,7 +661,7 @@ func processFileDrop(ctx context.Context, id, ipAddr string, event EventResult) 
 
 			fileTransDataId, errCode := buildItemFileDropStream()
 			if errCode != rtkMisc.SUCCESS {
-				SendFileTransOpenStreamErrToSrc(id, clientInfo.IpAddr, fileTransDataId)
+				SendFileTransOpenStreamErrToSrc(id, ipAddr, fileTransDataId)
 				return false
  			}
 			
@@ -800,8 +796,6 @@ func isValidState(curState StateType, curCommand CommandType, nextState StateTyp
 }
 
 func ProcessEventsForPeer(ctx context.Context, id, ipAddr string) {
-	rtkConnection.CondGroupAdd()
-	defer rtkConnection.CondGroupDone()
 
 	curState := STATE_INIT
 	curCommand := COMM_INIT

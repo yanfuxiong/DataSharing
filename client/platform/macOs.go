@@ -487,7 +487,7 @@ func GoMultiFilesDropRequest(filesDataInfoJson string) rtkCommon.SendFilesReques
 	}
 
 	if totalSize > uint64(rtkGlobal.SendFilesRequestMaxSize) {
-		log.Printf("[%s] ID[%s] this file drop total size:[%d] [%s] is too large and over range !", rtkMisc.GetFuncInfo(), id, totalSize, totalDesc)
+		log.Printf("[%s] ID[%s] this file drop total size:[%d] [%s] is too large and over range !", rtkMisc.GetFuncInfo(), filesDataInfo.Id, totalSize, totalDesc)
 		return rtkCommon.SendFilesRequestSizeOverRange
 	}
 
