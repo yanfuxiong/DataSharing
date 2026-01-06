@@ -64,18 +64,63 @@ func createDb() error {
 	db.SetConnMaxIdleTime(time.Duration(0)) //connections are not closed due to a connection's idle time
 	db.SetMaxIdleConns(10)
 
-	dbMutex.Lock()
-	defer dbMutex.Unlock()
-	g_SqlInstance = db
-	_, err = g_SqlInstance.Exec(SqlDataCreateTable.toString())
-	if err != nil {
-		return err
-	}
+	initDB := func() error {
+		tx, err := db.Begin()
+		if err != nil {
+			log.Printf("[%s] Err: %s", rtkMisc.GetFuncInfo(), err.Error())
+			return err
+		}
+		defer tx.Rollback()
 
-	_, err = g_SqlInstance.Exec(SqlDataResetAuthInfo.toString())
-	if err != nil {
-		log.Println("[WARN] Database error: Reset auth info failed: ", err)
-	}
+		var tableCnt int
+		if err = tx.QueryRow(SqlDataQueryTableExist.toString()).Scan(&tableCnt); err != nil {
+			log.Printf("[%s] Scan Err: %s", rtkMisc.GetFuncInfo(), err.Error())
+			return err
+		}
+
+		var version int
+		if err = tx.QueryRow(SqlDataQueryDbVersion.toString()).Scan(&version); err != nil {
+			log.Printf("[%s] Scan Err: %s", rtkMisc.GetFuncInfo(), err.Error())
+			return err
+		}
+
+		//	If the database has not been created, create and update to the latest version
+		if tableCnt == 0 && version == 0 {
+			_, errUpdateVer := tx.Exec(getUpdateDbVersion(latestDBVersion))
+			if errUpdateVer != nil {
+				log.Printf("[%s] Exec Err: %s", rtkMisc.GetFuncInfo(), errUpdateVer.Error())
+				return errUpdateVer
+			}
+			log.Printf("[%s] tabl t_client_info is not exist, Upgrade database version from default(0) to (%d)", rtkMisc.GetFuncInfo(), latestDBVersion)
+		}
+
+		_, err = tx.Exec(SqlDataCreateTable.toString())
+		if err != nil {
+			log.Printf("[%s] Exec Err: %s", rtkMisc.GetFuncInfo(), err.Error())
+			return err
+		}
+
+		_, err = tx.Exec(SqlDataResetAuthInfo.toString())
+		if err != nil {
+			log.Printf("[%s] Exec Err: %s", rtkMisc.GetFuncInfo(), err.Error())
+			return err
+		}
+
+		if err = tx.Commit(); err != nil {
+			log.Printf("[%s] Commit Err: %s", rtkMisc.GetFuncInfo(), err.Error())
+		}
+ 		return err
+ 	}
+
+	initErr := initDB()
+	if initErr != nil {
+		db.Close()
+		return initErr
+ 	}
+ 
+	dbMutex.Lock()
+	g_SqlInstance = db
+	dbMutex.Unlock()
 
 	return nil
 }
@@ -104,7 +149,7 @@ func InitSqlite(ctx context.Context) {
 		}
 	}
 
-	upgradeDb()
+	upgradeDb()	//If the database is an old version, update it to the latest version in sequen
 
 	UpdateAllClientOffline()
 

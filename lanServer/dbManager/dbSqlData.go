@@ -50,6 +50,8 @@ const (
 			CreateTime		DATETIME NOT NULL DEFAULT (datetime('now','localtime'))
 		);`
 
+	SqlDataQueryTableExist SqlData = `SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name = 't_client_info';`
+
 	SqlDataUpsertClientInfo SqlData = `
 		INSERT INTO t_client_info (ClientId, Host, IPAddr, DeviceName, Platform, Version, UpdateTime)
 		VALUES (?, ?, ?, ?, ?, ?, (datetime('now','localtime')))
@@ -203,6 +205,8 @@ func (s SqlData) dump() string {
 // Upgrade database version
 // ==================================
 const (
+	latestDBVersion = 1
+	
 	SqlDataQueryDbVersion SqlData = `
 		PRAGMA user_version;`
 	SqlDataUpgradeDbVersion1 SqlData = `
@@ -215,8 +219,10 @@ type SqlDbVerData struct {
 	SQL SqlData
 }
 
+// If the database needs to be upgraded, it must be added in sequence
 var sqlDbVerData = []SqlDbVerData{
 	{Ver: 1, SQL: SqlDataUpgradeDbVersion1}, // Add column LastAuthTime in t_auth_info
+	{Ver: latestDBVersion, SQL: SqlDataUpgradeDbVersion1}, // Add column LastAuthTime in t_auth_info
 }
 
 func getUpdateDbVersion(ver int) string {
