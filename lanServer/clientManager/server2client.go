@@ -210,10 +210,10 @@ func dealC2SMsgMobileAuthDataIndex(id string, clientIndex uint32, ext *json.RawM
 	return authDataIndexMobileRsp
 }
 
-func dealC2SMsgReqClientList() interface{} {
+func dealC2SMsgReqClientList(clientIndex uint32) interface{} {
 	getClientListRsp := rtkMisc.GetClientListResponse{Response: rtkMisc.GetResponse(rtkMisc.SUCCESS), ClientList: make([]rtkMisc.ClientInfo, 0)}
 	clientInfoList := make([]rtkCommon.ClientInfoTb, 0)
-	errCode := rtkdbManager.QueryOnlineClientList(&clientInfoList)
+	errCode := rtkdbManager.ClientQueryOnlineClientList(int(clientIndex), &clientInfoList)
 	if errCode != rtkMisc.SUCCESS {
 		getClientListRsp.Response = rtkMisc.GetResponse(errCode)
 	}

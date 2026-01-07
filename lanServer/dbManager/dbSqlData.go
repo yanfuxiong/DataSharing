@@ -19,6 +19,7 @@ const (
 			Source			INTEGER NOT NULL DEFAULT 0,
 			Port			INTEGER NOT NULL DEFAULT 0,
 			Online			BOOLEAN NOT NULL DEFAULT TRUE,
+			GetClientList		BOOLEAN NOT NULL DEFAULT FALSE,
 			DeviceName		TEXT,
 			Platform		TEXT,
 			Version			TEXT NOT NULL,
@@ -31,7 +32,7 @@ const (
 			AuthStatus		BOOLEAN NOT NULL DEFAULT TRUE,
 			UpdateTime		DATETIME NOT NULL DEFAULT (datetime('now','localtime')),
 			CreateTime		DATETIME NOT NULL DEFAULT (datetime('now','localtime')),
-			LastAuthTime	DATETIME DEFAULT NULL
+			LastAuthTime		DATETIME DEFAULT NULL
 		);
 		CREATE TABLE IF NOT EXISTS t_timing_info (
 			Source			INTEGER NOT NULL,
@@ -63,7 +64,8 @@ const (
 			Platform	= excluded.Platform,
 			Version		= excluded.Version,
 			UpdateTime	= excluded.UpdateTime,
-			Online		= 1
+			Online		= 1,
+			GetClientList 	= 0
 		RETURNING t_client_info.PkIndex;`
 
 	SqlDataUpsertAuthInfo SqlData = `
@@ -133,6 +135,8 @@ const (
 	SqlCondOnline           SqlCond = "Online=1"
 	SqlCondOffline          SqlCond = "Online=0"
 	SqlCondAuthStatusIsTrue SqlCond = "AuthStatus=1"
+	SqlCondGetClientListTrue  SqlCond = "GetClientList=1"
+	SqlCondGetClientListFalse SqlCond = "GetClientList=0"
 	SqlCondPkIndex          SqlCond = "t_client_info.PkIndex=?"
 	SqlCondClientId         SqlCond = "ClientId=?"
 	SqlCondClientIndex      SqlCond = "ClientIndex=?"
@@ -205,13 +209,16 @@ func (s SqlData) dump() string {
 // Upgrade database version
 // ==================================
 const (
-	latestDBVersion = 1
+	latestDBVersion = 2
 	
 	SqlDataQueryDbVersion SqlData = `
 		PRAGMA user_version;`
 	SqlDataUpgradeDbVersion1 SqlData = `
 		ALTER TABLE t_auth_info
-		ADD COLUMN LastAuthTime DATE DEFAULT NULL;`
+		ADD COLUMN LastAuthTime 	DATE DEFAULT NULL;`
+	SqlDataUpgradeDbVersion2 SqlData = `
+		ALTER TABLE t_client_info
+		ADD COLUMN GetClientList		BOOLEAN NOT NULL DEFAULT FALSE;`
 )
 
 type SqlDbVerData struct {
@@ -222,7 +229,7 @@ type SqlDbVerData struct {
 // If the database needs to be upgraded, it must be added in sequence
 var sqlDbVerData = []SqlDbVerData{
 	{Ver: 1, SQL: SqlDataUpgradeDbVersion1}, // Add column LastAuthTime in t_auth_info
-	{Ver: latestDBVersion, SQL: SqlDataUpgradeDbVersion1}, // Add column LastAuthTime in t_auth_info
+	{Ver: latestDBVersion, SQL: SqlDataUpgradeDbVersion2}, // Add column GetClientList in t_client_info
 }
 
 func getUpdateDbVersion(ver int) string {

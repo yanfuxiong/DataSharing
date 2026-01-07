@@ -232,8 +232,8 @@ func upgradeDb() {
 	for _, data := range sqlDbVerData {
 		err := upgradeDbVer(data.Ver, data.SQL)
 		if err != rtkMisc.SUCCESS {
-			log.Printf("[%s] Err: Upgrade database version failed: %s", rtkMisc.GetFuncInfo(), rtkMisc.GetResponse(err).Msg)
-			break
+			log.Printf("[%s] Err: Upgrade database version:[%d] failed: %s", rtkMisc.GetFuncInfo(), data.Ver, rtkMisc.GetResponse(err).Msg)
+			//break
 		}
 	}
 }
@@ -448,6 +448,60 @@ func queryClientInfo(clientInfoList *[]rtkCommon.ClientInfoTb, conds []SqlCond, 
 	return rtkMisc.SUCCESS
 }
 
+func clientQueryClientList(clientPkIndex int, clientInfoList *[]rtkCommon.ClientInfoTb) rtkMisc.CrossShareErr {
+	dbMutex.Lock()
+	defer dbMutex.Unlock()
+	if clientPkIndex <= 0 {
+		log.Printf("[%s] clientPkIndex:[%d] is invalid!", rtkMisc.GetFuncInfo(), clientPkIndex)
+		return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
+	}
+
+	if clientInfoList == nil {
+		log.Printf("[%s] ClientInfoList is null", rtkMisc.GetFuncInfo())
+		return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
+	}
+
+	sqlData := SqlDataUpdateClientInfo.withCond_SET(SqlCondGetClientListTrue).withCond_WHERE(SqlCondPkIndex)
+	var pkIndex int
+	db, ok := getDb()
+	if !ok {
+		return rtkMisc.ERR_DB_SQLITE_INSTANCE_NULL
+	}
+	rowIndex := db.QueryRow(sqlData.toString(), clientPkIndex)
+	if err := rowIndex.Scan(&pkIndex); err != nil {
+		log.Printf("[%s] Err: %s", rtkMisc.GetFuncInfo(), err.Error())
+		return rtkMisc.ERR_DB_SQLITE_SCAN
+	}
+
+	sqlData = SqlDataQueryClientInfo.withCond_WHERE(SqlCondOnline, SqlCondAuthStatusIsTrue, SqlCondGetClientListTrue)
+	rows, err := db.Query(sqlData.toString())
+	if err != nil {
+		log.Printf("[%s] Query error[%+v]", rtkMisc.GetFuncInfo(), err)
+		log.Printf("[%s] Err: %s", rtkMisc.GetFuncInfo(), sqlData.toString())
+		return rtkMisc.ERR_DB_SQLITE_QUERY
+	}
+
+	*clientInfoList = (*clientInfoList)[:0]
+	for rows.Next() {
+		var client rtkCommon.ClientInfoTb
+		if err = rows.Scan(&client.Index, &client.ClientId, &client.Host, &client.IpAddr,
+			&client.Source, &client.Port, &client.DeviceName, &client.Platform, &client.Version,
+			&client.Online, &client.AuthStatus, &client.UpdateTime, &client.CreateTime, &client.LastAuthTime); err != nil {
+			log.Printf("[%s] Err: %s", rtkMisc.GetFuncInfo(), err.Error())
+			continue
+		}
+		*clientInfoList = append(*clientInfoList, client)
+	}
+
+	defer rows.Close()
+	if err = rows.Err(); err != nil {
+		log.Printf("[%s] rows err:%+v", rtkMisc.GetFuncInfo(), err)
+		return rtkMisc.ERR_DB_SQLITE_EXEC
+	}
+
+	return rtkMisc.SUCCESS
+}
+
 func upsertTimingInfo(source, port, width, height, framerate int) rtkMisc.CrossShareErr {
 	dbMutex.Lock()
 	defer dbMutex.Unlock()
@@ -557,6 +611,19 @@ func QueryOnlineClientList(clientInfoList *[]rtkCommon.ClientInfoTb) rtkMisc.Cro
 	return rtkMisc.SUCCESS
 }
 
+func ClientQueryOnlineClientList(pkIndex int, clientInfoList *[]rtkCommon.ClientInfoTb) rtkMisc.CrossShareErr {
+	err := clientQueryClientList(
+		pkIndex,
+		clientInfoList,
+	)
+	if err != rtkMisc.SUCCESS {
+		return err
+	}
+
+	log.Printf("ClientQueryOnlineClientList get len:%d", len(*clientInfoList)) //Including the client itself
+	return rtkMisc.SUCCESS
+}
+
 func QueryClientInfoByIndex(pkIndex int) (rtkCommon.ClientInfoTb, rtkMisc.CrossShareErr) {
 	if pkIndex <= 0 {
 		log.Printf("pkIndex:[%d] Err, QueryClientInfoByIndex failed! Invalid Client Index", pkIndex)
@@ -613,7 +680,7 @@ func QueryClientInfoBySrcPort(source, port int) ([]rtkCommon.ClientInfoTb, rtkMi
 func QueryReconnList(clientInfoList *[]rtkCommon.ClientInfoTb) rtkMisc.CrossShareErr {
 	err := queryClientInfo(
 		clientInfoList,
-		[]SqlCond{SqlCondOnline, SqlCondAuthStatusIsTrue, SqlCondLastUpdateTime},
+		[]SqlCond{SqlCondOnline, SqlCondAuthStatusIsTrue, SqlCondGetClientListTrue, SqlCondLastUpdateTime},
 		g_ReconnListInterval,
 	)
 
@@ -678,7 +745,7 @@ func UpdateClientOffline(pkIndex int) rtkMisc.CrossShareErr {
 	pkIndexList := make([]int, 0)
 	err := updateClientInfo(
 		&pkIndexList,
-		[]SqlCond{SqlCondOffline},
+		[]SqlCond{SqlCondOffline, SqlCondGetClientListFalse},
 		[]SqlCond{SqlCondPkIndex},
 		pkIndex,
 	)
@@ -721,7 +788,7 @@ func UpdateAllClientOffline() rtkMisc.CrossShareErr {
 	pkIndexList := make([]int, 0)
 	err := updateClientInfo(
 		&pkIndexList,
-		[]SqlCond{SqlCondOffline},
+		[]SqlCond{SqlCondOffline, SqlCondGetClientListFalse},
 		[]SqlCond{SqlCondOnline},
 	)
 	if err != rtkMisc.SUCCESS {

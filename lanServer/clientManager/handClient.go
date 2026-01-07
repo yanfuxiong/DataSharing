@@ -82,7 +82,7 @@ func handleReadFromClientMsg(buffer []byte, IPAddr string, MsgRsp *rtkMisc.C2SMe
 	case rtkMisc.C2SMsg_AUTH_DATA_INDEX_MOBILE:
 		MsgRsp.ExtData = dealC2SMsgMobileAuthDataIndex(msg.ClientID, msg.ClientIndex, &msg.ExtData)
 	case rtkMisc.C2SMsg_REQ_CLIENT_LIST:
-		MsgRsp.ExtData = dealC2SMsgReqClientList()
+		MsgRsp.ExtData = dealC2SMsgReqClientList(msg.ClientIndex)
 	case rtkMisc.CS2Msg_MESSAGE_EVENT:
 		MsgRsp.ExtData = dealC2SMsgReqPlatformMsgEvent(msg.ClientID, &msg.ExtData)
 	default:
