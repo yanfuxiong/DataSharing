@@ -9,6 +9,7 @@ import (
 	rtkCommon "rtk-cross-share/lanServer/common"
 	rtkGlobal "rtk-cross-share/lanServer/global"
 	rtkMisc "rtk-cross-share/misc"
+	"strings"
 	"sync"
 	"time"
 
@@ -91,7 +92,7 @@ func createDb() error {
 				log.Printf("[%s] Exec Err: %s", rtkMisc.GetFuncInfo(), errUpdateVer.Error())
 				return errUpdateVer
 			}
-			log.Printf("[%s] tabl t_client_info is not exist, Upgrade database version from default(0) to (%d)", rtkMisc.GetFuncInfo(), latestDBVersion)
+			log.Printf("[%s] table t_client_info is not exist, Upgrade database version from default(0) to (%d)", rtkMisc.GetFuncInfo(), latestDBVersion)
 		}
 
 		_, err = tx.Exec(SqlDataCreateTable.toString())
@@ -210,7 +211,12 @@ func upgradeDbVer(updateVer int, sqlData SqlData) rtkMisc.CrossShareErr {
 	_, errUpgrade := tx.Exec(sqlData.toString())
 	if errUpgrade != nil {
 		log.Printf("[%s] Err: %s", rtkMisc.GetFuncInfo(), errUpgrade.Error())
-		return rtkMisc.ERR_DB_SQLITE_EXEC
+		// Special case
+		if (version == 0) && strings.Contains(errUpgrade.Error(), "LastAuthTime") {
+			log.Printf("[%s] Skip the error: [duplicate column name: LastAuthTime] for compatibility", rtkMisc.GetFuncInfo())
+		} else {
+			return rtkMisc.ERR_DB_SQLITE_EXEC
+		}
 	}
 
 	_, errUpdateVer := tx.Exec(getUpdateDbVersion(updateVer))

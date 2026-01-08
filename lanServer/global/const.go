@@ -1,7 +1,7 @@
 package global
 
 const (
-	LanServerVersion  = "2.2.20" // it must notify client and update client version and VersionReadme.txt  when intermediate version is update
+	LanServerVersion  = "2.2.21" // it must notify client and update client version and VersionReadme.txt  when intermediate version is update
 	ClientBaseVersion = "2.3"    // Deprecated: unused
 	ClientCaptureIndexVerSerial = 48       // the client build ClientIndex color block on verification dialog
 
