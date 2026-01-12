@@ -494,6 +494,112 @@ func GetTargetDstPathName(dstFullPath, dstFileName string) (string, string) {
 	}
 }
 
+func GetTargetFolder(rootPath, folderPath string) string {
+	index := uint(0)
+	dstPath := folderPath
+	for {
+		if !rtkMisc.FolderExists(filepath.Join(rootPath, dstPath)) {
+			return dstPath
+		}
+		index++
+		dstPath = fmt.Sprintf("%s (%d)", folderPath, index)
+	}
+}
+
+func IsSingleLevelDir(path string) bool {
+	if path == "" {
+		return false
+	}
+
+	path = filepath.Clean(path)
+	if path == filepath.VolumeName(path)+string(filepath.Separator) {
+		return false
+	}
+
+	parts := strings.Split(path, string(filepath.Separator))
+	if len(parts) > 0 && parts[0] == "" {
+		parts = parts[1:]
+	}
+
+	return len(parts) == 1 && parts[0] != "" &&
+		parts[0] != "." && parts[0] != ".."
+}
+
+func GetTargetFileList(downloadPath string, fileList []rtkCommon.FileInfo, folderList []string) ([]rtkCommon.FileInfo, []string) {
+	targetFileList := fileList
+	targetFolderList := folderList
+
+	for _, path := range folderList {
+		path = rtkMisc.AdaptationPath(path)
+		if IsSingleLevelDir(path) {
+			path = strings.Trim(path, string(filepath.Separator))
+			targetFolder := GetTargetFolder(downloadPath, path)
+			if targetFolder != path {
+				targetFileList, targetFolderList = ReplaceFileListFirstFolder(targetFileList, targetFolderList, path, targetFolder)
+			}
+		}
+	}
+
+	return targetFileList, targetFolderList
+}
+
+func ReplaceFileListFirstFolder(fileList []rtkCommon.FileInfo, folderList []string, oldFolder, targetFolder string) ([]rtkCommon.FileInfo, []string) {
+	targetFileList := make([]rtkCommon.FileInfo, 0)
+	targetFolderList := make([]string, 0)
+
+	for _, folder := range folderList {
+		path := rtkMisc.AdaptationPath(folder)
+		targetFolderList = append(targetFolderList, ReplaceFirstLevelPath(path, oldFolder, targetFolder))
+	}
+
+	for _, fileInfo := range fileList {
+		targetFileList = append(targetFileList, rtkCommon.FileInfo{
+			FileSize_: rtkCommon.FileSize{
+				SizeHigh: fileInfo.FileSize_.SizeHigh,
+				SizeLow:  fileInfo.FileSize_.SizeLow,
+			},
+			FilePath: "", // src path
+			FileName: ReplaceFirstLevelPath(rtkMisc.AdaptationPath(fileInfo.FileName), oldFolder, targetFolder),
+		})
+	}
+
+	return targetFileList, targetFolderList
+}
+
+func ReplaceFirstLevelPath(oldPath, oldName, newName string) string {
+	if oldPath == "" || oldName == "" || newName == "" {
+		return oldPath
+	}
+
+	oldPath = filepath.Clean(oldPath)
+	if oldPath == filepath.VolumeName(oldPath)+string(filepath.Separator) {
+		return oldPath
+	}
+
+	parts := strings.Split(oldPath, string(filepath.Separator))
+	if len(parts) > 0 && parts[0] == "" {
+		parts = parts[1:]
+	}
+	if len(parts) == 0 {
+		return oldPath
+	}
+
+	if parts[0] == oldName {
+		parts[0] = newName
+	}
+
+	joined := filepath.Join(parts...)
+	if filepath.IsAbs(oldPath) {
+		vol := filepath.VolumeName(oldPath)
+		if vol != "" {
+			joined = vol + string(filepath.Separator) + joined
+		} else {
+			joined = string(filepath.Separator) + joined
+		}
+	}
+	return joined
+}
+
 // FIXME: hack code
 type DeviceInfo struct {
 	IP   string

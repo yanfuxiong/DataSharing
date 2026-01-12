@@ -230,6 +230,9 @@ func WatchFileDropRespEvent(ctx context.Context, id string, resultChan chan<- st
 // ********************  Setup Dst file info ****************
 
 func SetupDstFileListDrop(id, ip, platform, totalDesc string, fileList []rtkCommon.FileInfo, folderList []string, totalSize, timestamp uint64) {
+	if len(folderList) > 0 {
+		fileList, folderList = rtkUtils.GetTargetFileList(rtkPlatform.GetDownloadPath(), fileList, folderList)
+	}
 	UpdateFileListDropReqDataFromDst(id, fileList, folderList, totalSize, timestamp, totalDesc)
 
 	if rtkPlatform.GetConfirmDocumentsAccept() {

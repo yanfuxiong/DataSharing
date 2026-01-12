@@ -146,6 +146,9 @@ func UpdateDragFileListFromDst(fileInfoList []rtkCommon.FileInfo, folderList []s
 // ********************  Setup Dst file info ****************
 
 func SetupDstDragFileList(id, ip string, fileInfoList []rtkCommon.FileInfo, folderList []string, totalSize, timeStamp uint64, totalDesc string) {
+	if len(folderList) > 0 {
+		fileInfoList, folderList = rtkUtils.GetTargetFileList(rtkPlatform.GetDownloadPath(), fileInfoList, folderList)
+	}
 	UpdateDragFileListFromDst(fileInfoList, folderList, totalSize, timeStamp, totalDesc)
 	UpdateDragFileReqDataFromDst(id)
 
