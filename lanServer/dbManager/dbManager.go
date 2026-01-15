@@ -150,7 +150,7 @@ func InitSqlite(ctx context.Context) {
 		}
 	}
 
-	upgradeDb()	//If the database is an old version, update it to the latest version in sequen
+	upgradeDb() //If the database is an old version, update it to the latest version in sequence
 
 	UpdateAllClientOffline()
 

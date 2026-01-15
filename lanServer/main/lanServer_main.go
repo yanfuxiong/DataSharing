@@ -16,6 +16,7 @@ import (
 	rtkGlobal "rtk-cross-share/lanServer/global"
 	rtkIfaceMgr "rtk-cross-share/lanServer/interfaceMgr"
 	"strconv"
+	"syscall"
 
 	rtkNetwork "rtk-cross-share/lanServer/network"
 	rtkMisc "rtk-cross-share/misc"
@@ -387,7 +388,6 @@ func Run() {
 		time.Sleep(5 * time.Second)
 	}
 
-	defer listener.Close()
 	log.Printf("%s is listening on %s:%d success ! \n", rtkBuildConfig.ServerName, rtkGlobal.ServerIPAddr, rtkGlobal.ServerPort)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -397,16 +397,41 @@ func Run() {
 	rtkMisc.GoSafe(func() { rtkClientManager.HandleClientSignalChecking(ctx) })
 
 	rtkMisc.GoSafe(func() {
+		defer listener.Close()
 		for {
-			conn, err := listener.Accept()
-			if err != nil {
-				log.Printf("Server %s:%d accepting connection Error:%+v", rtkGlobal.ServerIPAddr, rtkGlobal.ServerPort, err.Error())
+			conn, accErr := listener.Accept()
+			if accErr != nil {
+				log.Printf("Server %s:%d accepting connection Error:%+v", rtkGlobal.ServerIPAddr, rtkGlobal.ServerPort, accErr.Error())
+				if opErr, ok := err.(*net.OpError); ok {
+					log.Printf("[%s] Accept OpError: %v, Op: %s, Net: %s, Err: %v", rtkMisc.GetFuncInfo(), opErr, opErr.Op, opErr.Net, opErr.Err)
+					if opErr.Temporary() {
+						log.Println("Temporary error, continuing...")
+						continue
+					}
+				}
+				var errno syscall.Errno
+				if errors.As(accErr, &errno) {
+					log.Printf("Accept errno: %v", errno)
+					if errno == syscall.EINVAL {
+						log.Printf("EINVAL")
+					} else if errno == syscall.ECONNRESET {
+						log.Printf("ECONNRESET")
+					}
+				}
+
 				acceptErrFlag <- struct{}{}
 				log.Printf("%s  %s:%d listening is cancel!\n\n", rtkBuildConfig.ServerName, rtkGlobal.ServerIPAddr, rtkGlobal.ServerPort)
 				return
 			}
 			timestamp := time.Now().UnixMicro()
 			log.Printf("%s Accept a connect, RemoteAddr: %s \n", rtkBuildConfig.ServerName, conn.RemoteAddr().String())
+
+			tcpConn, _ := conn.(*net.TCPConn)
+			if tcpConn != nil {
+				tcpConn.SetKeepAlive(true)
+				tcpConn.SetKeepAlivePeriod(15 * time.Second)
+			}
+
 			rtkMisc.GoSafe(func() { rtkClientManager.HandleClient(ctx, conn, timestamp) })
 		}
 	})
