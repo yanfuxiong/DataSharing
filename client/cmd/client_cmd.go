@@ -259,7 +259,10 @@ func businessProcess(ctx context.Context) {
 
 func businessStart(ctx context.Context) {
 	// Init connection
-	rtkConnection.ConnectionInit(ctx)
+	if !(rtkConnection.ConnectionInit(ctx)) {
+		log.Printf("[%s] ConnectionInit failed, skip businessStart flow", rtkMisc.GetFuncInfo())
+		return
+	}
 
 	rtkMisc.GoSafe(func() { rtkConnection.Run(ctx) })
 

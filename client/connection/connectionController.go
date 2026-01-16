@@ -46,7 +46,7 @@ func GetConnectNode() host.Host {
 	return node
 }
 
-func ConnectionInit(ctx context.Context) {
+func ConnectionInit(ctx context.Context) bool {
 	log.Printf("[%s] listen host[%s] port[%d] connection start init", rtkMisc.GetFuncInfo(), rtkGlobal.ListenHost, rtkGlobal.ListenPort)
 
 	ticker := time.NewTicker(3 * time.Second)
@@ -57,7 +57,7 @@ func ConnectionInit(ctx context.Context) {
 		}
 		select {
 		case <-ctx.Done():
-			return
+			return false
 		case <-ticker.C:
 		}
 	}
@@ -69,6 +69,7 @@ func ConnectionInit(ctx context.Context) {
 	}
 	pingServer = ping.NewPingService(node)
 	log.Printf("[%s] connection init success!\n\n", rtkMisc.GetFuncInfo())
+	return true
 }
 
 func cancelHostNode() {
