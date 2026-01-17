@@ -183,18 +183,22 @@ func dealC2SMsgMobileAuthDataIndex(id string, clientIndex uint32, ext *json.RawM
 	var authStatus = false
 	var source = 0
 	var port = 0
+	maxRetryCnt := 20
+	captrueMaxRetryCnt := 10
 	// Only check capture index in USB-C type
-	if extData.AuthData.Type == rtkMisc.DisplayModeUsbC {
+	// It's workaround that checking USB-C port. Remove it after video capture done
+	if (extData.AuthData.Type == rtkMisc.DisplayModeUsbC) && (len(rtkCommon.GetUsbCPort()) > 1) {
 		if rtkMisc.GetVersionSerialValue(clientInfo.Version) >= int(rtkGlobal.ClientCaptureIndexVerSerial) {
 			log.Printf("[%s] Get capture result. Index[%d]", rtkMisc.GetFuncInfo(), clientIndex)
-			authStatus, source, port = checkCaptureResult(int(clientIndex))
+			authStatus, source, port = checkCaptureResult(captrueMaxRetryCnt, int(clientIndex))
+			maxRetryCnt -= captrueMaxRetryCnt
 		}
 	}
 
 	if authStatus == false {
 		// Compare timing with TimingData & AuthData
 		log.Printf("[%s] Width[%d] Height[%d] Type[%d] Framerate[%d]  DisplayName:[%s]", rtkMisc.GetFuncInfo(), extData.AuthData.Width, extData.AuthData.Height, extData.AuthData.Type, extData.AuthData.Framerate, extData.AuthData.DisplayName)
-		authStatus, source, port = checkMobileTiming(int(clientIndex), extData.AuthData)
+		authStatus, source, port = checkMobileTiming(maxRetryCnt, int(clientIndex), extData.AuthData)
 	}
 
 	errCode := rtkdbManager.UpdateAuthAndSrcPort(int(clientIndex), authStatus, source, port)

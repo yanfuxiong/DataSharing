@@ -66,7 +66,7 @@ const (
 
 var (
 	ctxMgr            = NewSrcPortContextManager()
-	chanSrcPortTiming = make(chan rtkCommon.SrcPortTiming, 5)
+	chanSrcPortTiming = make(chan rtkCommon.SrcPortTiming)
 )
 
 // =============================
@@ -87,7 +87,12 @@ func UpdateSrcPortTiming(source, port, width, height, framerate int) rtkMisc.Cro
 		return dbErr
 	}
 
-	chanSrcPortTiming <- rtkCommon.SrcPortTiming{Source: source, Port: port, Width: width, Height: height, Framerate: framerate}
+	select {
+	case chanSrcPortTiming <- rtkCommon.SrcPortTiming{Source: source, Port: port, Width: width, Height: height, Framerate: framerate}:
+		log.Printf("[%s] Notify SrcPortTiming from UpdateSrcPortTiming", rtkMisc.GetFuncInfo())
+	default:
+		log.Printf("[%s] Err: UpdateSrcPortTiming failed. Chan receiver not existed", rtkMisc.GetFuncInfo())
+	}
 
 	return rtkMisc.SUCCESS
 }
@@ -118,7 +123,12 @@ func handleOfflineClientSignalChecking(clientIndex int) {
 	}
 
 	timingData := notifyGetTimingDataBySrcPortCallback(clientInfo.Source, clientInfo.Port)
-	chanSrcPortTiming <- rtkCommon.SrcPortTiming{Source: timingData.Source, Port: timingData.Port, Width: timingData.Width, Height: timingData.Height, Framerate: timingData.Framerate}
+	select {
+	case chanSrcPortTiming <- rtkCommon.SrcPortTiming{Source: timingData.Source, Port: timingData.Port, Width: timingData.Width, Height: timingData.Height, Framerate: timingData.Framerate}:
+		log.Printf("[%s] Notify SrcPortTiming from offline client", rtkMisc.GetFuncInfo())
+	default:
+		log.Printf("[%s] Err: UpdateSrcPortTiming failed. Chan receiver not existed", rtkMisc.GetFuncInfo())
+	}
 }
 
 func handleClientSignalCheckingInternal(ctx context.Context, srcPortTiming rtkCommon.SrcPortTiming) {

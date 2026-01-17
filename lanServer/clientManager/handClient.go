@@ -5,18 +5,27 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"net"
 	rtkCommon "rtk-cross-share/lanServer/common"
 	rtkdbManager "rtk-cross-share/lanServer/dbManager"
 	rtkGlobal "rtk-cross-share/lanServer/global"
 	rtkMisc "rtk-cross-share/misc"
+	"syscall"
 	"time"
 )
 
 const (
 	reconnListInternal = 5 * time.Second
 )
+
+type asynMsgInfo struct {
+	msg       rtkMisc.C2SMessage
+	timestamp int64
+}
+
+var asynC2SMsg = make(chan asynMsgInfo)
 
 // =============================
 // CaptureColorData get event
@@ -40,7 +49,7 @@ func SetNotifyGetTimingDataCallback(cb NotifyGetTimingDataCallback) {
 	notifyGetTimingDataCallback = cb
 }
 
-func handleReadFromClientMsg(buffer []byte, IPAddr string, MsgRsp *rtkMisc.C2SMessage) rtkMisc.CrossShareErr {
+func handleReadFromClientMsg(buffer []byte, IPAddr string, MsgRsp *rtkMisc.C2SMessage, timeStamp int64) rtkMisc.CrossShareErr {
 	if len(buffer) == 0 {
 		log.Printf("[%s] buffer is null!", rtkMisc.GetFuncInfo())
 		return rtkMisc.ERR_BIZ_S2C_READ_EMPTY_DATA
@@ -80,7 +89,13 @@ func handleReadFromClientMsg(buffer []byte, IPAddr string, MsgRsp *rtkMisc.C2SMe
 	case rtkMisc.C2SMsg_INIT_CLIENT:
 		MsgRsp.ClientIndex, MsgRsp.ExtData = dealC2SMsgInitClient(&msg.ExtData)
 	case rtkMisc.C2SMsg_AUTH_DATA_INDEX_MOBILE:
-		MsgRsp.ExtData = dealC2SMsgMobileAuthDataIndex(msg.ClientID, msg.ClientIndex, &msg.ExtData)
+		rtkMisc.GoSafe(func() {
+			MsgRsp.ExtData = dealC2SMsgMobileAuthDataIndex(msg.ClientID, msg.ClientIndex, &msg.ExtData)
+			asynC2SMsg <- asynMsgInfo{
+				msg:       *MsgRsp,
+				timestamp: timeStamp,
+			}
+		})
 	case rtkMisc.C2SMsg_REQ_CLIENT_LIST:
 		MsgRsp.ExtData = dealC2SMsgReqClientList(msg.ClientIndex)
 	case rtkMisc.CS2Msg_MESSAGE_EVENT:
@@ -93,22 +108,19 @@ func handleReadFromClientMsg(buffer []byte, IPAddr string, MsgRsp *rtkMisc.C2SMe
 	return rtkMisc.SUCCESS
 }
 
-func checkCaptureResult(clientIndex int) (bool, int, int) {
+func checkCaptureResult(maxRetryCnt int, clientIndex int) (bool, int, int) {
 	// TODO: discuss max count and interval
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 
-	maxRetryCnt := 20
 	retryCnt := 0
 	for {
 		<-ticker.C
 		src := rtkGlobal.Src_DP
-		for port := range rtkCommon.MAX_PORT_DP {
-			if rtkCommon.IsSourceTypeUsbC(port) {
-				ret := notifyCaptureIndexCallback(src, port, clientIndex)
-				if ret {
-					return true, src, port
-				}
+		for port := range rtkCommon.GetUsbCPort() {
+			ret := notifyCaptureIndexCallback(src, port, clientIndex)
+			if ret {
+				return true, src, port
 			}
 		}
 
@@ -121,11 +133,10 @@ func checkCaptureResult(clientIndex int) (bool, int, int) {
 	}
 }
 
-func checkMobileTiming(clientIndex int, authData rtkMisc.AuthDataInfo) (bool, int, int) {
+func checkMobileTiming(maxRetryCnt int, clientIndex int, authData rtkMisc.AuthDataInfo) (bool, int, int) {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 
-	maxRetryCnt := 20
 	retryCnt := 0
 	for {
 		<-ticker.C
@@ -180,9 +191,13 @@ func getMobileTimingSrcPort(clientIndex int, authData rtkMisc.AuthDataInfo) (int
 			// 	continue
 			// }
 		} else if timingData.DisplayMode == rtkMisc.DisplayModeUsbC {
+			if (timingData.Source != rtkGlobal.Src_DP) || !(rtkCommon.IsSourceTypeUsbC(timingData.Port)) {
+				continue
+			}
+
 			// FIXME: Always allow timing in iOS platform. We cannot get correct timing in iOS platform now.
 			if clientInfo.Platform == rtkMisc.PlatformiOS {
-				if timingData.Source == 13 && timingData.Port == 0 && timingData.Width > 0 && timingData.Height > 0 && timingData.Framerate > 0 {
+				if timingData.Width > 0 && timingData.Height > 0 && timingData.Framerate > 0 {
 					log.Printf("[%s] iOS special case: Always allow if USB-C timing existed. (%dx%d@%d)(Source,Port)=(%d,%d)",
 						rtkMisc.GetFuncInfo(), timingData.Width, timingData.Height, timingData.Framerate, timingData.Source, timingData.Port)
 					return timingData.Source, timingData.Port
@@ -220,34 +235,80 @@ func HandleClient(ctx context.Context, conn net.Conn, timestamp int64) {
 		}
 	}()
 
+	readResult := make(chan struct {
+		buffer string
+		err    error
+	}, 5)
+
+	rtkMisc.GoSafe(func() {
+		for {
+			select {
+			case <-ctx.Done():
+				log.Printf("IPAddr:[%s] connect cancel by context! ", conn.RemoteAddr().String())
+				close(readResult)
+				return
+			default:
+				err := conn.SetDeadline(time.Now().Add(time.Duration(rtkMisc.ClientHeartbeatInterval+5) * time.Second))
+				if err != nil {
+					log.Printf("IPAddr:[%s] connect SetDeadline err:%+v !", conn.RemoteAddr().String(), err)
+					time.Sleep(100 * time.Millisecond)
+					continue
+				}
+
+				// TODO: refine this flow
+				readStrLine, err := bufio.NewReader(conn).ReadString('\n')
+				if err != nil {
+					if opErr, ok := err.(*net.OpError); ok {
+						log.Printf("[%s] TCP Read OpError: %v, Op: %s, Net: %s, Err: %v", rtkMisc.GetFuncInfo(), opErr, opErr.Op, opErr.Net, opErr.Err)
+						if opErr.Temporary() && !opErr.Timeout() {
+							log.Println("Temporary error, continuing...")
+							time.Sleep(50 * time.Millisecond)
+							continue
+						}
+					}
+				}
+
+				readResult <- struct {
+					buffer string
+					err    error
+				}{buffer: readStrLine, err: err}
+
+				if err != nil {
+					if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
+						log.Printf("IPAddr:[%s] ClientIndex:[%d] ReadString timeout: %+v", conn.RemoteAddr().String(), clientIndex, err)
+					} else {
+						log.Printf("IPAddr:[%s] ClientIndex:[%d] ReadString error:%+v", conn.RemoteAddr().String(), clientIndex, err)
+						var errno syscall.Errno
+						if errors.As(err, &errno) {
+							log.Printf("[%s] Read errno: %v", rtkMisc.GetFuncInfo(), errno)
+						}
+					}
+					conn.Close()
+					return
+				}
+			}
+		}
+	})
+
 	for {
 		select {
 		case <-ctx.Done():
-			log.Printf("IPAddr:[%s] connect cancel by context! ", conn.RemoteAddr().String())
 			return
-		default:
-			err := conn.SetDeadline(time.Now().Add(time.Duration(rtkMisc.ClientHeartbeatInterval+5) * time.Second))
-			if err != nil {
-				log.Printf("IPAddr:[%s] connect SetDeadline err:%+v !", conn.RemoteAddr().String(), err)
+		case rspMsgInfo, _ := <-asynC2SMsg:
+			writeMsg(&rspMsgInfo.msg, rspMsgInfo.timestamp)
+		case readData, ok := <-readResult:
+			if !ok {
+				continue
+			}
+			if readData.err != nil {
 				return
 			}
 
-			// TODO: refine this flow
-			buf := bufio.NewReader(conn)
-			readStrLine, err := buf.ReadString('\n')
-			if err != nil {
-				if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
-					log.Printf("IPAddr:[%s] ClientIndex:[%d] ReadString timeout: %+v", conn.RemoteAddr().String(), clientIndex, err)
-				} else {
-					log.Printf("IPAddr:[%s] ClientIndex:[%d] ReadString error:%+v", conn.RemoteAddr().String(), clientIndex, err)
-				}
-				return
-			}
 			buffer := make([]byte, 1024)
-			buffer = []byte(readStrLine)
+			buffer = []byte(readData.buffer)
 
 			var C2SRsp rtkMisc.C2SMessage
-			errCode := handleReadFromClientMsg(buffer, conn.RemoteAddr().String(), &C2SRsp)
+			errCode := handleReadFromClientMsg(buffer, conn.RemoteAddr().String(), &C2SRsp, timestamp)
 			if errCode != rtkMisc.SUCCESS {
 				continue
 			}
@@ -258,9 +319,12 @@ func HandleClient(ctx context.Context, conn net.Conn, timestamp int64) {
 				updateConn(clientID, timestamp, conn)
 			}
 
-			if writeMsg(&C2SRsp, timestamp) != rtkMisc.SUCCESS {
-				return
+			if C2SRsp.MsgType != rtkMisc.C2SMsg_AUTH_DATA_INDEX_MOBILE { // asynchronous response message
+				if writeMsg(&C2SRsp, timestamp) != rtkMisc.SUCCESS {
+					return
+				}
 			}
+
 		}
 
 	}
