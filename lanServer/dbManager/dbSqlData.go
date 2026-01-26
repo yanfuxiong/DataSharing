@@ -132,22 +132,22 @@ const (
 	SqlDataQueryEarliestClient  SqlData = `SELECT PkIndex,UpdateTime FROM t_client_info WHERE Online=0 ORDER BY  UpdateTime ASC LIMIT 1;`
 	SqlDataDeleteAuthInfo       SqlData = `DELETE FROM t_auth_info WHERE %s;`
 
-	SqlCondOnline           SqlCond = "Online=1"
-	SqlCondOffline          SqlCond = "Online=0"
-	SqlCondAuthStatusIsTrue SqlCond = "AuthStatus=1"
+	SqlCondOnline             SqlCond = "Online=1"
+	SqlCondOffline            SqlCond = "Online=0"
+	SqlCondAuthStatusIsTrue   SqlCond = "AuthStatus=1"
 	SqlCondGetClientListTrue  SqlCond = "GetClientList=1"
 	SqlCondGetClientListFalse SqlCond = "GetClientList=0"
-	SqlCondPkIndex          SqlCond = "t_client_info.PkIndex=?"
-	SqlCondClientId         SqlCond = "ClientId=?"
-	SqlCondClientIndex      SqlCond = "ClientIndex=?"
-	SqlCondSource           SqlCond = "Source=?"
-	SqlCondPort             SqlCond = "Port=?"
-	SqlCondIPAddr           SqlCond = "IPAddr=?"
-	SqlCondDeviceName       SqlCond = "DeviceName=?"
-	SqlCondPlatform         SqlCond = "Platform=?"
-	SqlCondVersion          SqlCond = "Version=?"
-	SqlCondLinkNotEmpty     SqlCond = "Link!=''"
-	SqlCondLastUpdateTime   SqlCond = "(strftime('%s', 'now') - strftime('%s', t_client_info.UpdateTime)) > ?"
+	SqlCondPkIndex            SqlCond = "t_client_info.PkIndex=?"
+	SqlCondClientId           SqlCond = "ClientId=?"
+	SqlCondClientIndex        SqlCond = "ClientIndex=?"
+	SqlCondSource             SqlCond = "Source=?"
+	SqlCondPort               SqlCond = "Port=?"
+	SqlCondIPAddr             SqlCond = "IPAddr=?"
+	SqlCondDeviceName         SqlCond = "DeviceName=?"
+	SqlCondPlatform           SqlCond = "Platform=?"
+	SqlCondVersion            SqlCond = "Version=?"
+	SqlCondLinkNotEmpty       SqlCond = "Link!=''"
+	SqlCondLastUpdateTime     SqlCond = "(strftime('%s', 'now') - strftime('%s', t_client_info.UpdateTime)) > ?"
 )
 
 func (s SqlData) withCond_SET(conds ...SqlCond) SqlData {
@@ -210,12 +210,12 @@ func (s SqlData) dump() string {
 // ==================================
 const (
 	latestDBVersion = 2
-	
+
 	SqlDataQueryDbVersion SqlData = `
 		PRAGMA user_version;`
 	SqlDataUpgradeDbVersion1 SqlData = `
 		ALTER TABLE t_auth_info
-		ADD COLUMN LastAuthTime 	DATE DEFAULT NULL;`
+		ADD COLUMN LastAuthTime		DATE DEFAULT NULL;`
 	SqlDataUpgradeDbVersion2 SqlData = `
 		ALTER TABLE t_client_info
 		ADD COLUMN GetClientList		BOOLEAN NOT NULL DEFAULT FALSE;`
@@ -229,7 +229,7 @@ type SqlDbVerData struct {
 // If the database needs to be upgraded, it must be added in sequence
 var sqlDbVerData = []SqlDbVerData{
 	{Ver: 1, SQL: SqlDataUpgradeDbVersion1}, // Add column LastAuthTime in t_auth_info
-	{Ver: latestDBVersion, SQL: SqlDataUpgradeDbVersion2}, // Add column GetClientList in t_client_info
+	{Ver: 2, SQL: SqlDataUpgradeDbVersion2}, // Add column GetClientList in t_client_info
 }
 
 func getUpdateDbVersion(ver int) string {

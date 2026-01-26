@@ -1,8 +1,8 @@
 package global
 
 const (
-	LanServerVersion  = "2.2.21" // it must notify client and update client version and VersionReadme.txt  when intermediate version is update
-	ClientBaseVersion = "2.3"    // Deprecated: unused
+	LanServerVersion            = "2.2.22" // it must notify client and update client version and VersionReadme.txt  when intermediate version is update
+	ClientBaseVersion           = "2.3"    // Deprecated: unused
 	ClientCaptureIndexVerSerial = 48       // the client build ClientIndex color block on verification dialog
 
 	LOG_PATH         = "/data/vendor/realtek/cross_share/"
@@ -25,7 +25,6 @@ const (
 	DP_SRC_TYPE_MINI_DP DpSrcType = 2
 	DP_SRC_TYPE_USBC    DpSrcType = 3
 )
-
 
 type ClientEventMsgType int
 

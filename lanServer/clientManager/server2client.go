@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-var VERSION_CONTROL = false
+var VERSION_CONTROL = true
 
 // =============================
 // TimingData get event
