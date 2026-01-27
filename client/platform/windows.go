@@ -104,6 +104,7 @@ type (
 	CallbackConnectLanServerFunc       func(instance string)
 	CallbackBrowseLanServerFunc        func()
 	CallbackSetMsgEventFunc            func(event uint32, arg1, arg2, arg3, arg4 string)
+	CallbackReadyReCtrlFunc            func(ip string, mousePort, kybrdPort uint32)
 )
 
 var (
@@ -128,6 +129,7 @@ var (
 	callbackReqClientUpdateVer         CallbackReqClientUpdateVerFunc     = nil
 	callbackNotifyErrEvent             CallbackNotifyErrEventFunc         = nil
 	callbackSetMsgEvent                CallbackSetMsgEventFunc            = nil
+	callbackReadyReCtrl                CallbackReadyReCtrlFunc            = nil
 
 	// main.go Callback
 	callbackAuthViaIndex           CallbackAuthViaIndexCallbackFunc   = nil
@@ -270,6 +272,10 @@ func SetReqClientUpdateVerCallback(cb CallbackReqClientUpdateVerFunc) {
 
 func SetNotifyErrEventCallback(cb CallbackNotifyErrEventFunc) {
 	callbackNotifyErrEvent = cb
+}
+
+func SetReadyReCtrlCallback(cb CallbackReadyReCtrlFunc) {
+	callbackReadyReCtrl = cb
 }
 
 /*======================================= Used by main.go, Called by C++ =======================================*/
@@ -648,6 +654,14 @@ func GoNotifyErrEvent(id string, errCode rtkMisc.CrossShareErr, arg1, arg2, arg3
 	}
 
 	callbackNotifyErrEvent(id, uint32(errCode), arg1, arg2, arg3, arg4)
+}
+
+func GoSetupReadyReCtrl(ip string, mousePort, kybrdPort uint32) {
+	if callbackReadyReCtrl == nil {
+		log.Printf("callbackReadyReCtrl is null!\n")
+		return
+	}
+	callbackReadyReCtrl(ip, mousePort, kybrdPort)
 }
 
 func GoRequestUpdateClientVersion(ver string) {

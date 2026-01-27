@@ -752,3 +752,6 @@ func GoStopBrowseMdns() {
 func GoSetupAppLink(link string) {
 	rtkMisc.AppLink = link
 }
+
+func GoSetupReadyReCtrl(ip string, mousePort, kybrdPort uint32) {
+}

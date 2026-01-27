@@ -342,6 +342,7 @@ func initLanServer(ctx context.Context, bPrintErr bool) rtkMisc.CrossShareErr {
 	rtkPlatform.GoMonitorNameNotify(g_monitorName)
 	if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformWindows || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformMac {
 		NotifyDIASStatus(DIAS_Status_Checking_Authorization)
+		rtkPlatform.GoSetupReadyReCtrl(rtkGlobal.NodeInfo.IPAddr.PublicIP, 8080, 8081)
 	} else {
 		NotifyDIASStatus(DIAS_Status_Wait_screenCasting)
 	}
