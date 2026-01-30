@@ -85,6 +85,13 @@ func updateXClipData(id string, cbText, cbImage, cbHtml, cbRtf []byte) {
 			RtfLen:   int64(len(cbRtf)),
 		},
 	}
+	
+	if rtkUtils.ContentEqual([]byte(rtkMisc.PlatformAndroid), []byte(rtkGlobal.NodeInfo.Platform)) &&
+		rtkUtils.ContentEqual([]byte(id), []byte(rtkGlobal.NodeInfo.ID)) &&
+		rtkUtils.ContentEqual([]byte(clipboardData.Hash), []byte(GetLastClipboardData().Hash)) {
+ 		clipboardData.TimeStamp = GetLastClipboardData().TimeStamp
+ 	}
+	
 	updateLastClipboardData(clipboardData)
 }
 
