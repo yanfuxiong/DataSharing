@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 type TransFileStateType string
@@ -589,6 +590,26 @@ func ClosePeer(id string) {
 		log.Println("ClosePeer id:", id)
 	} else {
 		log.Printf("[%s] Err: Unknown stream of id:%s", rtkMisc.GetFuncInfo(), id)
+	}
+}
+
+func closePeer(id string) {
+	idB58, err := peer.Decode(id)
+	if err != nil {
+		log.Printf("[%s] ID decode failed: %s", rtkMisc.GetFuncInfo(), id)
+		return
+	}
+
+	nodeMutex.RLock()
+	defer nodeMutex.RUnlock()
+	if node == nil {
+		log.Printf("[%s] node is nil!", rtkMisc.GetFuncInfo())
+		return
+	}
+
+	err = node.Network().ClosePeer(idB58)
+	if err != nil {
+		log.Printf("[%s] ClosePeer peer%s error:%+v", rtkMisc.GetFuncInfo(), id, err)
 	}
 }
 
