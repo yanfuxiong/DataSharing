@@ -279,7 +279,7 @@ func IsQuicEOF(err error) bool {
 	return strings.Contains(err.Error(), "reset")
 }
 
-func isTcpEOF(err error) (bool, rtkMisc.CrossShareErr) {
+func isTcpEOF(id string, err error) (bool, rtkMisc.CrossShareErr) {
 	isEOF := false
 	code := rtkMisc.ERR_NETWORK_P2P_OTHER
 	errMsg := err.Error()
@@ -294,6 +294,7 @@ func isTcpEOF(err error) (bool, rtkMisc.CrossShareErr) {
 	} else if netErr, ok := err.(net.Error); ok {
 		log.Printf("[Socket] Err: Read fail network error(%v)", netErr.Error())
 		if netErr.Timeout() {
+			closePeer(id)
 			code = rtkMisc.ERR_NETWORK_P2P_TIMEOUT
 		}
 	} else if errors.Is(err, network.ErrReset) {
@@ -502,7 +503,6 @@ func AddStream(id string, pStream network.Stream) {
 }
 
 func closeStream(id string, isFromPeer bool) {
-	ClearFmtTypeStreamReadyFlag(id)
 	streamPoolMutex.Lock()
 	defer streamPoolMutex.Unlock()
 

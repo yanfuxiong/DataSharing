@@ -893,7 +893,6 @@ func buildFileDropItemStream(ctx context.Context, id string) rtkMisc.CrossShareE
 }
 
 func clearCacheFileDataList(id, ipAddr string, code rtkMisc.CrossShareErr) {
-	rtkConnection.ClearFmtTypeStreamReadyFlag(id) // clear all wait for file drop stream Ready chan flag
 	rtkConnection.CloseAllFileDropStream(id)      // close all file data transfer stream
 
 	i := 0
