@@ -557,305 +557,109 @@ func queryLinkInfo(conds []SqlCond, args ...any) (string, rtkMisc.CrossShareErr)
 	return link, rtkMisc.SUCCESS
 }
 
-// =============================
-// ClientInfo update event
-// =============================
-type NotifyUpdateClientInfoCallback func(rtkCommon.ClientInfoTb)
+func upsertSrcPortInfo(source, port, clientPkIndex, udpMousePort, udpKeyboardPort int) rtkMisc.CrossShareErr {
+	dbMutex.Lock()
+	defer dbMutex.Unlock()
 
-var notifyUpdateClientInfoCallback NotifyUpdateClientInfoCallback
+	if source <= 0 || port < 0 || clientPkIndex <= 0 || udpMousePort <= 0 || udpKeyboardPort <= 0 {
+		log.Printf("[%s] %d %d %d %d %d, args is invalid!", rtkMisc.GetFuncInfo(), clientPkIndex, source, port, udpMousePort, udpKeyboardPort)
+		return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
+	}
 
-func SetNotifyUpdateClientInfoCallback(cb NotifyUpdateClientInfoCallback) {
-	notifyUpdateClientInfoCallback = cb
+	sqlData := SqlDataUpsertSrcPortInfo
+	param := []any{source, port, clientPkIndex, udpMousePort, udpKeyboardPort}
+	if sqlData.checkArgsCount(param) == false {
+		return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
+	}
+
+	db, ok := getDb()
+	if !ok {
+		return rtkMisc.ERR_DB_SQLITE_INSTANCE_NULL
+	}
+
+	_, err := db.Exec(sqlData.toString(), param...)
+	if err != nil {
+		log.Printf("[%s] Exec error[%+v]", rtkMisc.GetFuncInfo(), err)
+		log.Printf("[%s] Err: %s", rtkMisc.GetFuncInfo(), sqlData.toString())
+		return rtkMisc.ERR_DB_SQLITE_QUERY
+	}
+
+	return rtkMisc.SUCCESS
 }
 
-func notifyUpdateClientInfo(pkIndexList []int) {
-	for _, pkIndex := range pkIndexList {
-		clientInfo, err := QueryClientInfoByIndex(pkIndex)
-		if err != rtkMisc.SUCCESS {
+func querySrcPortInfo(clientPkIndex int, srcPortInfoList *[]rtkMisc.SourcePortInfo) rtkMisc.CrossShareErr {
+	if clientPkIndex <= 0 {
+		log.Printf("[%s] clientPkIndex:%d, args is invalid!", rtkMisc.GetFuncInfo(), clientPkIndex)
+		return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
+	}
+	dbMutex.Lock()
+	defer dbMutex.Unlock()
+
+	sqlData := SqlDataQuerySrcPortInfo.withCond_WHERE(SqlCondClientIndex)
+	param := []any{clientPkIndex}
+	if sqlData.checkArgsCount(param) == false {
+		return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
+	}
+
+	db, ok := getDb()
+	if !ok {
+		return rtkMisc.ERR_DB_SQLITE_INSTANCE_NULL
+	}
+	rows, err := db.Query(sqlData.toString(), param...)
+	if err != nil {
+		log.Printf("[%s] Query error[%+v]", rtkMisc.GetFuncInfo(), err)
+		log.Printf("[%s] Err sql: %s", rtkMisc.GetFuncInfo(), sqlData.toString())
+		return rtkMisc.ERR_DB_SQLITE_QUERY
+	}
+
+	*srcPortInfoList = (*srcPortInfoList)[:0]
+	for rows.Next() {
+		var srcPortInfo rtkMisc.SourcePortInfo
+		if err = rows.Scan(&srcPortInfo.Source, &srcPortInfo.Port, &srcPortInfo.UdpMousePort, &srcPortInfo.UdpKeyboardPort); err != nil {
+			log.Printf("[%s] Err: %s", rtkMisc.GetFuncInfo(), err.Error())
 			continue
 		}
-
-		notifyUpdateClientInfoCallback(clientInfo)
-	}
-}
-
-// =============================
-// Query
-// =============================
-func QueryOnlineClientList(clientInfoList *[]rtkCommon.ClientInfoTb) rtkMisc.CrossShareErr {
-	err := queryClientInfo(
-		clientInfoList,
-		[]SqlCond{SqlCondOnline, SqlCondAuthStatusIsTrue},
-	)
-	if err != rtkMisc.SUCCESS {
-		return err
+		*srcPortInfoList = append(*srcPortInfoList, srcPortInfo)
 	}
 
-	log.Printf("QueryOnlineClientList get len:%d", len(*clientInfoList))
+	defer rows.Close()
+	if err = rows.Err(); err != nil {
+		log.Printf("[%s] rows err:%+v", rtkMisc.GetFuncInfo(), err)
+		return rtkMisc.ERR_DB_SQLITE_EXEC
+	}
+
 	return rtkMisc.SUCCESS
 }
 
-func ClientQueryOnlineClientList(pkIndex int, clientInfoList *[]rtkCommon.ClientInfoTb) rtkMisc.CrossShareErr {
-	err := clientQueryClientList(
-		pkIndex,
-		clientInfoList,
-	)
-	if err != rtkMisc.SUCCESS {
-		return err
-	}
+func resetSrcPortInfo(source, port int) rtkMisc.CrossShareErr {
+	dbMutex.Lock()
+	defer dbMutex.Unlock()
 
-	log.Printf("ClientQueryOnlineClientList get len:%d", len(*clientInfoList)) //Including the client itself
-	return rtkMisc.SUCCESS
-}
-
-func QueryClientInfoByIndex(pkIndex int) (rtkCommon.ClientInfoTb, rtkMisc.CrossShareErr) {
-	if pkIndex <= 0 {
-		log.Printf("pkIndex:[%d] Err, QueryClientInfoByIndex failed! Invalid Client Index", pkIndex)
-		return rtkCommon.ClientInfoTb{}, rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
-	}
-
-	clientInfoList := make([]rtkCommon.ClientInfoTb, 0)
-	err := queryClientInfo(&clientInfoList,
-		[]SqlCond{SqlCondPkIndex},
-		pkIndex,
-	)
-	if err != rtkMisc.SUCCESS {
-		return rtkCommon.ClientInfoTb{}, err
-	}
-
-	if len(clientInfoList) == 0 {
-		return rtkCommon.ClientInfoTb{}, rtkMisc.ERR_DB_SQLITE_EMPTY_RESULT
-	}
-
-	if len(clientInfoList) > 1 {
-		log.Printf("[%s] WARNING! The result count from database more than 1", rtkMisc.GetFuncInfo())
-	}
-
-	return clientInfoList[0], rtkMisc.SUCCESS
-}
-
-func QueryClientInfoBySrcPort(source, port int) ([]rtkCommon.ClientInfoTb, rtkMisc.CrossShareErr) {
-	if source < 0 || port < 0 {
-		log.Printf("[%s] Invalid (source,port)=(%d,%d)", rtkMisc.GetFuncInfo(), source, port)
-		return []rtkCommon.ClientInfoTb{}, rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
-	}
-
-	clientInfoList := make([]rtkCommon.ClientInfoTb, 0)
-	err := queryClientInfo(
-		&clientInfoList,
-		[]SqlCond{SqlCondSource, SqlCondPort},
-		source, port,
-	)
-	if err != rtkMisc.SUCCESS {
-		return []rtkCommon.ClientInfoTb{}, err
-	}
-
-	if len(clientInfoList) == 0 {
-		return []rtkCommon.ClientInfoTb{}, rtkMisc.ERR_DB_SQLITE_EMPTY_RESULT
-	}
-
-	if len(clientInfoList) > 1 {
-		log.Printf("[%s] WARNING! The result count from database more than 1", rtkMisc.GetFuncInfo())
-	}
-
-	return clientInfoList, rtkMisc.SUCCESS
-}
-
-func QueryReconnList(clientInfoList *[]rtkCommon.ClientInfoTb) rtkMisc.CrossShareErr {
-	err := queryClientInfo(
-		clientInfoList,
-		[]SqlCond{SqlCondOnline, SqlCondAuthStatusIsTrue, SqlCondGetClientListTrue, SqlCondLastUpdateTime},
-		g_ReconnListInterval,
-	)
-
-	return err
-}
-
-func QueryMaxVersion() (string, rtkMisc.CrossShareErr) {
-	clientInfoList := make([]rtkCommon.ClientInfoTb, 0)
-	err := QueryOnlineClientList(&clientInfoList)
-
-	maxVer := string("")
-	nMaxVerVal := int(0)
-	for _, client := range clientInfoList {
-		verVal := rtkMisc.GetVersionValue(client.Version)
-		if nMaxVerVal < verVal {
-			nMaxVerVal = verVal
-			maxVer = rtkMisc.GetShortVersion(client.Version)
-		}
-	}
-
-	return maxVer, err
-}
-
-func QueryLinkInfoByIndex(pkIndex int) (string, rtkMisc.CrossShareErr) {
-	if pkIndex <= 0 {
-		log.Printf("pkIndex:[%d] Err, QueryLinkInfoByIndex failed! Invalid Client Index", pkIndex)
-		return "", rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
-	}
-
-	return queryLinkInfo([]SqlCond{SqlCondClientIndex}, pkIndex)
-}
-
-func QueryLinkInfoByPlatform(platform string) (string, rtkMisc.CrossShareErr) {
-	if platform == "" {
-		log.Printf("platform is empty, QueryLinkInfoByPlatform failed! Invalid Client Index")
-		return "", rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
-	}
-
-	return queryLinkInfo([]SqlCond{SqlCondPlatform, SqlCondLinkNotEmpty}, platform)
-}
-
-// =============================
-// Update/Insert
-// =============================
-func UpsertClientInfo(clientId, host, ipAddr, deviceName, platform, version string) (int, rtkMisc.CrossShareErr) {
-	pkIndex := 0
-	err := upsertClientInfo(&pkIndex, clientId, host, ipAddr, deviceName, platform, version)
-	if err != rtkMisc.SUCCESS {
-		return 0, err
-	}
-
-	notifyUpdateClientInfo([]int{pkIndex})
-	return pkIndex, err
-}
-
-func UpdateClientOffline(pkIndex int) rtkMisc.CrossShareErr {
-	if pkIndex <= 0 {
-		log.Printf("pkIndex:[%d] Err, UpdateClientOffline skip!", pkIndex)
-		return rtkMisc.ERR_BIZ_S2C_INVALID_INDEX
-	}
-
-	pkIndexList := make([]int, 0)
-	err := updateClientInfo(
-		&pkIndexList,
-		[]SqlCond{SqlCondOffline, SqlCondGetClientListFalse},
-		[]SqlCond{SqlCondPkIndex},
-		pkIndex,
-	)
-	if err != rtkMisc.SUCCESS {
-		return err
-	}
-
-	authPkIndex := int(0)
-	errUpsertAuthStatus := upsertAuthStatus(&authPkIndex, pkIndex, false)
-	if errUpsertAuthStatus != rtkMisc.SUCCESS {
-		return errUpsertAuthStatus
-	}
-
-	notifyUpdateClientInfo(pkIndexList)
-	return rtkMisc.SUCCESS
-}
-
-func UpdateClientOnline(pkIndex int) rtkMisc.CrossShareErr {
-	if pkIndex <= 0 {
-		log.Printf("pkIndex:[%d] Err, UpdateClientOnline skip!", pkIndex)
-		return rtkMisc.ERR_BIZ_S2C_INVALID_INDEX
-	}
-
-	pkIndexList := make([]int, 0)
-	err := updateClientInfo(
-		&pkIndexList,
-		[]SqlCond{SqlCondOnline},
-		[]SqlCond{SqlCondPkIndex},
-		pkIndex,
-	)
-	if err != rtkMisc.SUCCESS {
-		return err
-	}
-
-	notifyUpdateClientInfo(pkIndexList)
-	return rtkMisc.SUCCESS
-}
-
-func UpdateAllClientOffline() rtkMisc.CrossShareErr {
-	pkIndexList := make([]int, 0)
-	err := updateClientInfo(
-		&pkIndexList,
-		[]SqlCond{SqlCondOffline, SqlCondGetClientListFalse},
-		[]SqlCond{SqlCondOnline},
-	)
-	if err != rtkMisc.SUCCESS {
-		return err
-	}
-
-	notifyUpdateClientInfo(pkIndexList)
-	return rtkMisc.SUCCESS
-}
-
-func UpdateAuthAndSrcPort(pkIndex int, status bool, source, port int) rtkMisc.CrossShareErr {
-	if pkIndex <= 0 {
-		log.Printf("pkIndex:[%d] Err, UpdateClientSourceAndPort skip!", pkIndex)
-		return rtkMisc.ERR_BIZ_S2C_INVALID_INDEX
-	}
-	if source < 0 || port < 0 {
-		log.Printf("[%s] Invalid (source,port)=(%d,%d)", rtkMisc.GetFuncInfo(), source, port)
+	if source <= 0 || port < 0 {
+		log.Printf("[%s] source:%d port:%d , args is invalid!", rtkMisc.GetFuncInfo(), source, port)
 		return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
 	}
 
-	// Notify if source/port is changed
-	preClientInfo, errQueryPre := QueryClientInfoByIndex(pkIndex)
-	if errQueryPre == rtkMisc.SUCCESS {
-		if preClientInfo.Source != source || preClientInfo.Port != port {
-			emptyClientInfo := rtkCommon.ClientInfoTb{}
-			emptyClientInfo.Source = preClientInfo.Source
-			emptyClientInfo.Port = preClientInfo.Port
-			notifyUpdateClientInfoCallback(emptyClientInfo)
-		}
+	db, ok := getDb()
+	if !ok {
+		return rtkMisc.ERR_DB_SQLITE_INSTANCE_NULL
 	}
 
-	// Update AuthStatus
-	authPkIndex := 0
-	errUpsertAuthStatus := upsertAuthStatus(&authPkIndex, pkIndex, status)
-	if errUpsertAuthStatus != rtkMisc.SUCCESS {
-		return errUpsertAuthStatus
+	sqlData := SqlDataResetSrcPortInfo
+	sqlData.withCond_WHERE(SqlCondSource, SqlCondPort)
+	param := []any{source, port}
+	if sqlData.checkArgsCount(param) == false {
+		return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
 	}
 
-	// Update Source, Port
-	// Only update source and port if AuthStatus=1
-	if status {
-		pkIndexList := make([]int, 0)
-		errUpdateSrcPort := updateClientInfo(
-			&pkIndexList,
-			[]SqlCond{SqlCondSource, SqlCondPort},
-			[]SqlCond{SqlCondPkIndex},
-			source, port, pkIndex,
-		)
-		if errUpdateSrcPort != rtkMisc.SUCCESS {
-			return errUpdateSrcPort
-		}
-	}
-
-	// Notify the lastest ClientInfoTb
-	curClientInfo, errQueryCur := QueryClientInfoByIndex(pkIndex)
-	if errQueryCur == rtkMisc.SUCCESS {
-		notifyUpdateClientInfoCallback(curClientInfo)
+	_, err := db.Exec(sqlData.toString(), param...)
+	if err != nil {
+		log.Printf("[%s] Exec error[%+v]", rtkMisc.GetFuncInfo(), err)
+		log.Printf("[%s] Err sql: %s", rtkMisc.GetFuncInfo(), sqlData.toString())
+		return rtkMisc.ERR_DB_SQLITE_QUERY
 	}
 
 	return rtkMisc.SUCCESS
-}
-
-func UpsertTimingInfo(source, port, width, height, framerate int) rtkMisc.CrossShareErr {
-	if source < 0 || port < 0 {
-		log.Printf("[%s] Invalid (source,port)=(%d,%d)", rtkMisc.GetFuncInfo(), source, port)
-		return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
-	}
-
-	if width < 0 || height < 0 || framerate < 0 {
-		log.Printf("[%s] Invalid timing=(%dx%d@%d)", rtkMisc.GetFuncInfo(), width, height, framerate)
-		return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
-	}
-
-	return upsertTimingInfo(source, port, width, height, framerate)
-}
-
-func UpsertLinkInfo(pkIndex int, link string) rtkMisc.CrossShareErr {
-	if pkIndex <= 0 {
-		log.Printf("pkIndex:[%d] Err, UpsertLinkInfo failed! Invalid Client Index", pkIndex)
-		return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
-	}
-
-	return upsertLinkInfo(pkIndex, link)
 }
 
 // =============================

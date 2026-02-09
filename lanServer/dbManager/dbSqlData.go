@@ -49,6 +49,16 @@ const (
 			Link			TEXT,
 			UpdateTime		DATETIME NOT NULL DEFAULT (datetime('now','localtime')),
 			CreateTime		DATETIME NOT NULL DEFAULT (datetime('now','localtime'))
+		);
+		CREATE TABLE IF NOT EXISTS t_srcport_info (
+			Source			INTEGER NOT NULL,
+			Port			INTEGER NOT NULL,
+			ClientIndex		INTEGER NOT NULL,
+			UdpMousePort		INTEGER NOT NULL,
+			UdpKeyboardPort		INTEGER NOT NULL,
+			UpdateTime		DATETIME NOT NULL DEFAULT (datetime('now','localtime')),
+			CreateTime		DATETIME NOT NULL DEFAULT (datetime('now','localtime')),
+			PRIMARY KEY (Source, Port)
 		);`
 
 	SqlDataQueryTableExist SqlData = `SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name = 't_client_info';`
@@ -127,6 +137,26 @@ const (
 		LEFT JOIN t_client_info ON t_client_info.pkIndex=t_link_info.ClientIndex
 		WHERE %s
 		ORDER BY t_link_info.UpdateTime DESC;`
+
+	SqlDataUpsertSrcPortInfo SqlData = `
+		INSERT INTO t_srcport_info (Source, Port, ClientIndex,UdpMousePort,UdpKeyboardPort,UpdateTime)
+		VALUES (?, ?, ?, ?, ?,(datetime('now','localtime')))
+		ON CONFLICT(Source, Port)
+		DO UPDATE SET
+			ClientIndex		= excluded.ClientIndex,
+		    UdpMousePort	= excluded.UdpMousePort,
+		    UdpKeyboardPort	= excluded.UdpKeyboardPort,
+			UpdateTime		= excluded.UpdateTime;`
+
+	SqlDataResetSrcPortInfo SqlData = `
+		UPDATE t_srcport_info
+		SET ClientIndex=0,UdpMousePort=0,UdpKeyboardPort=0, UpdateTime=(datetime('now','localtime'))
+		WHERE %s ;`
+
+	SqlDataQuerySrcPortInfo SqlData = `
+		SELECT Source, Port, UdpMousePort,UdpKeyboardPort 
+		FROM t_srcport_info 
+		WHERE %s ;`
 
 	SqlDataQueryeClientMaxIndex SqlData = `SELECT PkIndex FROM t_client_info ORDER BY PkIndex DESC limit 1;`
 	SqlDataQueryEarliestClient  SqlData = `SELECT PkIndex,UpdateTime FROM t_client_info WHERE Online=0 ORDER BY  UpdateTime ASC LIMIT 1;`
@@ -209,7 +239,7 @@ func (s SqlData) dump() string {
 // Upgrade database version
 // ==================================
 const (
-	latestDBVersion = 2
+	latestDBVersion = 3
 
 	SqlDataQueryDbVersion SqlData = `
 		PRAGMA user_version;`
@@ -219,6 +249,18 @@ const (
 	SqlDataUpgradeDbVersion2 SqlData = `
 		ALTER TABLE t_client_info
 		ADD COLUMN GetClientList		BOOLEAN NOT NULL DEFAULT FALSE;`
+
+	SqlDataUpgradeDbVersion3 SqlData = `
+		CREATE TABLE IF NOT EXISTS t_srcport_info (
+			Source			INTEGER NOT NULL,
+			Port			INTEGER NOT NULL,
+			ClientIndex		INTEGER NOT NULL,
+			UdpMousePort		INTEGER NOT NULL,
+			UdpKeyboardPort		INTEGER NOT NULL,
+			UpdateTime		DATETIME NOT NULL DEFAULT (datetime('now','localtime')),
+			CreateTime		DATETIME NOT NULL DEFAULT (datetime('now','localtime')),
+			PRIMARY KEY (Source, Port)
+		);`
 )
 
 type SqlDbVerData struct {
@@ -230,6 +272,7 @@ type SqlDbVerData struct {
 var sqlDbVerData = []SqlDbVerData{
 	{Ver: 1, SQL: SqlDataUpgradeDbVersion1}, // Add column LastAuthTime in t_auth_info
 	{Ver: 2, SQL: SqlDataUpgradeDbVersion2}, // Add column GetClientList in t_client_info
+	{Ver: 3, SQL: SqlDataUpgradeDbVersion3}, // Add table t_srcport_info
 }
 
 func getUpdateDbVersion(ver int) string {

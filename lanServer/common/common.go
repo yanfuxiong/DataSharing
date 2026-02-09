@@ -8,25 +8,27 @@ import (
 
 // sqlite table struct
 type ClientInfoTb struct {
-	Index        int
-	ClientId     string
-	Host         string
-	IpAddr       string
-	Source       int
-	Port         int
-	DeviceName   string
-	Platform     string
-	Version      string
-	Online       bool
-	AuthStatus   bool
-	UpdateTime   string
-	CreateTime   string
-	LastAuthTime string
+	Index           int
+	ClientId        string
+	Host            string
+	IpAddr          string
+	Source          int
+	Port            int
+	UdpMousePort    int
+	UdpKeyboardPort int
+	DeviceName      string
+	Platform        string
+	Version         string
+	Online          bool
+	AuthStatus      bool
+	UpdateTime      string
+	CreateTime      string
+	LastAuthTime    string
 }
 
 func (c *ClientInfoTb) Dump() {
-	log.Printf("[ClientInfoTb] Index:%d, ClientId:%s, Host:%s, IpAddr:%s", c.Index, c.ClientId, c.Host, c.IpAddr)
-	log.Printf("[ClientInfoTb] Source:%d, Port:%d, DeviceName:%s, Platform:%s, Version:%s", c.Source, c.Port, c.DeviceName, c.Platform, c.Version)
+	log.Printf("[ClientInfoTb] Index:%d, ClientId:%s, Host:%s, IpAddr:%s, DeviceName:%s, Platform:%s", c.Index, c.ClientId, c.Host, c.IpAddr, c.DeviceName, c.Platform)
+	log.Printf("[ClientInfoTb] Source:%d, Port:%d, UdpMousePort:%d, UdpKybrdPort:%d, Version:%s", c.Source, c.Port, c.UdpMousePort, c.UdpKeyboardPort, c.Version)
 	log.Printf("[ClientInfoTb] Online:%t, AuthStatus:%t, UpdateTime:%s, CreateTime:%s", c.Online, c.AuthStatus, c.UpdateTime, c.CreateTime)
 	log.Println()
 }

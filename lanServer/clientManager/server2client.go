@@ -251,6 +251,26 @@ func dealC2SMsgReqPlatformMsgEvent(id string, ext *json.RawMessage) interface{} 
 	return msgEventRsp
 }
 
+func dealC2SMsgReqUpdateClientSrcPortInfo(id string, clientIndex uint32, ext *json.RawMessage) interface{} {
+	var extData rtkMisc.UpdateClientSrcPortInfoReq
+	updateSrcPortInfoRsp := rtkMisc.UpdateClientSrcPortInfoResponse{Response: rtkMisc.GetResponse(rtkMisc.SUCCESS)}
+	err := json.Unmarshal(*ext, &extData)
+	if err != nil {
+		log.Printf("clientID:[%s] decode ExtDataText Err: %s", id, err.Error())
+		updateSrcPortInfoRsp.Response = rtkMisc.GetResponse(rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL)
+		return updateSrcPortInfoRsp
+	}
+
+	updateSrcPortInfoRsp.Source = extData.Source
+	updateSrcPortInfoRsp.Port = extData.Port
+	errCode := rtkdbManager.UpdateSrcPortInfo(int(clientIndex), extData.Source, extData.Port, extData.UdpMousePort, extData.UdpKeyboardPort)
+	if errCode != rtkMisc.SUCCESS {
+		updateSrcPortInfoRsp.Response = rtkMisc.GetResponse(errCode)
+	}
+
+	return updateSrcPortInfoRsp
+}
+
 func buildNotifyClientVersion(id, version string) rtkMisc.CrossShareErr {
 	clientInfoList := make([]rtkCommon.ClientInfoTb, 0)
 	errCode := rtkdbManager.QueryOnlineClientList(&clientInfoList)

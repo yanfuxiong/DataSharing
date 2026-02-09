@@ -100,6 +100,8 @@ func handleReadFromClientMsg(buffer []byte, IPAddr string, MsgRsp *rtkMisc.C2SMe
 		MsgRsp.ExtData = dealC2SMsgReqClientList(msg.ClientIndex)
 	case rtkMisc.CS2Msg_MESSAGE_EVENT:
 		MsgRsp.ExtData = dealC2SMsgReqPlatformMsgEvent(msg.ClientID, &msg.ExtData)
+	case rtkMisc.CS2Msg_UPDATE_SRCPORT_INFO:
+		MsgRsp.ExtData = dealC2SMsgReqUpdateClientSrcPortInfo(msg.ClientID, msg.ClientIndex, &msg.ExtData)
 	default:
 		log.Printf("[%s]Unknown MsgType:[%s]", rtkMisc.GetFuncInfo(), msg.MsgType)
 		return rtkMisc.ERR_BIZ_S2C_UNKNOWN_MSG_TYPE

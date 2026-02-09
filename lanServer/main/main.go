@@ -15,6 +15,8 @@ typedef struct CLIENT_INFO_DATA
 	char platform[16];
 	int online;
 	int authStatus;
+	int udpMousePort;
+	int udpKeyboardPort;
 	char updateTime[32];
 	char createTime[32];
 } CLIENT_INFO_DATA;
@@ -449,6 +451,8 @@ func goToCClientInfo(clientInfo rtkCommon.ClientInfoTb) C.CLIENT_INFO_DATA {
 	copyStringToFixedArray(&cData.ipAddr, clientInfo.IpAddr)
 	cData.source = C.int(clientInfo.Source)
 	cData.port = C.int(clientInfo.Port)
+	cData.udpMousePort = C.int(clientInfo.UdpMousePort)
+	cData.udpKeyboardPort = C.int(clientInfo.UdpKeyboardPort)
 	copyStringToFixedArray(&cData.deviceName, clientInfo.DeviceName)
 	copyStringToFixedArray(&cData.platform, clientInfo.Platform)
 	cData.online = goBoolToCInt(clientInfo.Online)

@@ -13,6 +13,7 @@ const (
 	CS2Msg_RECONN_CLIENT_LIST     C2SMsgType = "RECONN_CLIENT_LIST"
 	CS2Msg_NOTIFY_CLIENT_VERSION  C2SMsgType = "NOTIFY_CLIENT_VERSION"
 	CS2Msg_MESSAGE_EVENT          C2SMsgType = "MESSAGE_EVENT"
+	CS2Msg_UPDATE_SRCPORT_INFO    C2SMsgType = "UPDATE_SRCPORT_INFO"
 )
 
 type PlatformMsgEventReq struct {
@@ -83,6 +84,17 @@ type NotifyClientVersionReq struct {
 	ClientVersion string
 }
 
+type UpdateClientSrcPortInfoReq struct {
+	SourcePort
+	UdpMousePort    int
+	UdpKeyboardPort int
+}
+
+type UpdateClientSrcPortInfoResponse struct {
+	SourcePort
+	Response
+}
+
 type ReconnDirection int
 
 const (
@@ -101,12 +113,19 @@ type C2SMessage struct {
 	ClientIndex uint32
 	MsgType     C2SMsgType
 	TimeStamp   int64
-	ExtData     interface{} //InitClientMessageReq InitClientMessageResponse GetClientListResponse ResetClientResponse ReconnClientListReq AuthDataIndexMobileReq NotifyClientVersionReq PlatformMsgEventReq
+	ExtData     interface{} //InitClientMessageReq InitClientMessageResponse GetClientListResponse ResetClientResponse ReconnClientListReq AuthDataIndexMobileReq
+	// NotifyClientVersionReq PlatformMsgEventReq UpdateClientSrcPortInfoReq UpdateClientSrcPortInfoResponse
 }
 
 type SourcePort struct {
 	Source int
 	Port   int
+}
+
+type SourcePortInfo struct {
+	SourcePort
+	UdpMousePort    int
+	UdpKeyboardPort int
 }
 
 type AuthDataInfo struct {

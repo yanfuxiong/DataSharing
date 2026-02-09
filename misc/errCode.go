@@ -199,6 +199,7 @@ var errInfoMap = map[CrossShareErr]string{
 	ERR_DB_SQLITE_LAST_INSERTID: "get sqlite last insert id error!",
 	ERR_DB_SQLITE_INVALID_ARGS:  "invalid sqlite arguments",
 	ERR_DB_SQLITE_EMPTY_RESULT:  "empty result",
+	ERR_DB_SQLITE_INSTANCE_NULL: "get db instance is null!",
 
 	ERR_BIZ_JSON_MARSHAL:           "json marshal failed!",
 	ERR_BIZ_JSON_UNMARSHAL:         "json unmarshal failed!",
