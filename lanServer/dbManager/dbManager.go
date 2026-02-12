@@ -561,7 +561,7 @@ func upsertSrcPortInfo(source, port, clientPkIndex, udpMousePort, udpKeyboardPor
 	dbMutex.Lock()
 	defer dbMutex.Unlock()
 
-	if source <= 0 || port < 0 || clientPkIndex <= 0 || udpMousePort <= 0 || udpKeyboardPort <= 0 {
+	if source <= 0 || port < 0 || clientPkIndex < 0 || udpMousePort < 0 || udpKeyboardPort < 0 {
 		log.Printf("[%s] %d %d %d %d %d, args is invalid!", rtkMisc.GetFuncInfo(), clientPkIndex, source, port, udpMousePort, udpKeyboardPort)
 		return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
 	}
@@ -631,12 +631,12 @@ func querySrcPortInfo(clientPkIndex int, srcPortInfoList *[]rtkMisc.SourcePortIn
 	return rtkMisc.SUCCESS
 }
 
-func resetSrcPortInfo(source, port int) rtkMisc.CrossShareErr {
+func resetSrcPortInfo(pkIndexList []int) rtkMisc.CrossShareErr {
 	dbMutex.Lock()
 	defer dbMutex.Unlock()
 
-	if source <= 0 || port < 0 {
-		log.Printf("[%s] source:%d port:%d , args is invalid!", rtkMisc.GetFuncInfo(), source, port)
+	if len(pkIndexList) == 0 {
+		log.Printf("[%s] pkIndexList is null!", rtkMisc.GetFuncInfo())
 		return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
 	}
 
@@ -645,18 +645,22 @@ func resetSrcPortInfo(source, port int) rtkMisc.CrossShareErr {
 		return rtkMisc.ERR_DB_SQLITE_INSTANCE_NULL
 	}
 
-	sqlData := SqlDataResetSrcPortInfo
-	sqlData.withCond_WHERE(SqlCondSource, SqlCondPort)
-	param := []any{source, port}
-	if sqlData.checkArgsCount(param) == false {
-		return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
-	}
+	sqlData := SqlDataResetSrcPortInfo.withCond_WHERE(SqlCondClientIndex)
 
-	_, err := db.Exec(sqlData.toString(), param...)
-	if err != nil {
-		log.Printf("[%s] Exec error[%+v]", rtkMisc.GetFuncInfo(), err)
-		log.Printf("[%s] Err sql: %s", rtkMisc.GetFuncInfo(), sqlData.toString())
-		return rtkMisc.ERR_DB_SQLITE_QUERY
+	for _, pkIndex := range pkIndexList {
+		param := []any{pkIndex}
+		if sqlData.checkArgsCount(param) == false {
+			return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
+		}
+
+		result, err := db.Exec(sqlData.toString(), param...)
+		if err != nil {
+			log.Printf("[%s] Exec error[%+v]", rtkMisc.GetFuncInfo(), err)
+			log.Printf("[%s] Err sql: %s", rtkMisc.GetFuncInfo(), sqlData.toString())
+			return rtkMisc.ERR_DB_SQLITE_QUERY
+		}
+		affectCount, _ := result.RowsAffected()
+		log.Printf("[%s] reset src port info success, clientIndex:%d, rowsAffected:%d", rtkMisc.GetFuncInfo(), pkIndex, affectCount)
 	}
 
 	return rtkMisc.SUCCESS

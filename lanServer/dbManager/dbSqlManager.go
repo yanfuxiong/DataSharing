@@ -17,34 +17,39 @@ func SetNotifyUpdateClientInfoCallback(cb NotifyUpdateClientInfoCallback) {
 	notifyUpdateClientInfoCallback = cb
 }
 
-func notifyUpdateClientInfo(pkIndexList []int) {
+func notifyUpdateClientInfo(pkIndexList []int, isOffline bool) {
 	for _, pkIndex := range pkIndexList {
 		clientInfo, err := QueryClientInfoByIndex(pkIndex)
 		if err != rtkMisc.SUCCESS {
 			continue
 		}
 
-		if clientInfo.Online {
-			clientInfoList := make([]rtkMisc.SourcePortInfo, 0)
-			err = querySrcPortInfo(pkIndex, &clientInfoList)
-			if err != rtkMisc.SUCCESS {
-				continue
-			}
+		clientInfoList := make([]rtkMisc.SourcePortInfo, 0)
+		err = querySrcPortInfo(pkIndex, &clientInfoList)
+		if err != rtkMisc.SUCCESS {
+			continue
+		}
 
+		if len(clientInfoList) > 0 {
 			for _, srcPortInfo := range clientInfoList {
 				clientInfo.Source = srcPortInfo.Source
 				clientInfo.Port = srcPortInfo.Port
-				clientInfo.UdpMousePort = srcPortInfo.UdpMousePort
-				clientInfo.UdpKeyboardPort = srcPortInfo.UdpKeyboardPort
 
+				if isOffline {
+					clientInfo.UdpMousePort = 0
+					clientInfo.UdpKeyboardPort = 0
+				} else {
+					clientInfo.UdpMousePort = srcPortInfo.UdpMousePort
+					clientInfo.UdpKeyboardPort = srcPortInfo.UdpKeyboardPort
+				}
 				notifyUpdateClientInfoCallback(clientInfo)
 			}
-
-		} else { // TODO: check it
+		} else {
 			clientInfo.Source = 0
 			clientInfo.Port = 0
 			clientInfo.UdpMousePort = 0
 			clientInfo.UdpKeyboardPort = 0
+
 			notifyUpdateClientInfoCallback(clientInfo)
 		}
 	}
@@ -187,7 +192,7 @@ func UpsertClientInfo(clientId, host, ipAddr, deviceName, platform, version stri
 		return 0, err
 	}
 
-	notifyUpdateClientInfo([]int{pkIndex})
+	notifyUpdateClientInfo([]int{pkIndex}, false)
 	return pkIndex, err
 }
 
@@ -214,8 +219,9 @@ func UpdateClientOffline(pkIndex int) rtkMisc.CrossShareErr {
 		return errUpsertAuthStatus
 	}
 
-	notifyUpdateClientInfo(pkIndexList)
-	return rtkMisc.SUCCESS
+	notifyUpdateClientInfo(pkIndexList, true)
+
+	return resetSrcPortInfo(pkIndexList)
 }
 
 func UpdateClientOnline(pkIndex int) rtkMisc.CrossShareErr {
@@ -235,7 +241,7 @@ func UpdateClientOnline(pkIndex int) rtkMisc.CrossShareErr {
 		return err
 	}
 
-	notifyUpdateClientInfo(pkIndexList)
+	notifyUpdateClientInfo(pkIndexList, false)
 	return rtkMisc.SUCCESS
 }
 
@@ -250,8 +256,9 @@ func UpdateAllClientOffline() rtkMisc.CrossShareErr {
 		return err
 	}
 
-	notifyUpdateClientInfo(pkIndexList)
-	return rtkMisc.SUCCESS
+	notifyUpdateClientInfo(pkIndexList, true)
+
+	return resetSrcPortInfo(pkIndexList)
 }
 
 func UpdateAuthAndSrcPort(pkIndex int, status bool, source, port int) rtkMisc.CrossShareErr {
@@ -306,13 +313,13 @@ func UpdateAuthAndSrcPort(pkIndex int, status bool, source, port int) rtkMisc.Cr
 	return rtkMisc.SUCCESS
 }
 
-func UpdateSrcPortInfo(clientIndex, source, port, udpMousePort, udpKeyboardPort int) rtkMisc.CrossShareErr {
-	errCode := upsertSrcPortInfo(source, port, clientIndex, udpMousePort, udpKeyboardPort)
+func UpdateSrcPortInfo(clientIndex, extClientIndex, source, port, udpMousePort, udpKeyboardPort int) rtkMisc.CrossShareErr {
+	errCode := upsertSrcPortInfo(source, port, extClientIndex, udpMousePort, udpKeyboardPort)
 	if errCode != rtkMisc.SUCCESS {
 		return errCode
 	}
 
-	log.Printf("[%s] update srcPort success, source:%d, port:%d clientIndex:%d mousePort:%d kybrdPort:%d", rtkMisc.GetFuncInfo(), source, port, clientIndex, udpMousePort, udpKeyboardPort)
+	log.Printf("[%s] update srcPort success, source:%d, port:%d clientIndex:%d mousePort:%d keyboardPort:%d", rtkMisc.GetFuncInfo(), source, port, extClientIndex, udpMousePort, udpKeyboardPort)
 
 	clientInfo, err := QueryClientInfoByIndex(clientIndex)
 	if err != rtkMisc.SUCCESS {

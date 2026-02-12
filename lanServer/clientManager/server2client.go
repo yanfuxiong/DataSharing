@@ -263,7 +263,7 @@ func dealC2SMsgReqUpdateClientSrcPortInfo(id string, clientIndex uint32, ext *js
 
 	updateSrcPortInfoRsp.Source = extData.Source
 	updateSrcPortInfoRsp.Port = extData.Port
-	errCode := rtkdbManager.UpdateSrcPortInfo(int(clientIndex), extData.Source, extData.Port, extData.UdpMousePort, extData.UdpKeyboardPort)
+	errCode := rtkdbManager.UpdateSrcPortInfo(int(clientIndex), extData.ClientIndex, extData.Source, extData.Port, extData.UdpMousePort, extData.UdpKeyboardPort)
 	if errCode != rtkMisc.SUCCESS {
 		updateSrcPortInfoRsp.Response = rtkMisc.GetResponse(errCode)
 	}
