@@ -2,6 +2,7 @@ package login
 
 import (
 	"context"
+	rtkCommon "rtk-cross-share/client/common"
 	rtkMisc "rtk-cross-share/misc"
 	"sync"
 	"sync/atomic"
@@ -40,7 +41,6 @@ type browseParam struct {
 var (
 	serverInstanceMap       sync.Map //KEY: instance
 	cancelBrowse            func()
-	lanServerAddr           string
 	lanServerInstance       string
 	g_ProductName           string
 	g_monitorName           string
@@ -51,6 +51,7 @@ var (
 	mobileAuthData          rtkMisc.AuthDataInfo
 	g_lookupByUnicast       bool
 	initLanServerMutex      sync.Mutex
+	displayInfoList         []rtkCommon.DisplayEventInfo //current plug in display info list
 
 	// connect reliability
 	heartBeatTicker     *HeartBeatTicker

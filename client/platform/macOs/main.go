@@ -122,15 +122,18 @@ static void invokeCallbackNotifyBrowseResult(char* monitorName, char* instance, 
 import "C"
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	rtkBuildConfig "rtk-cross-share/client/buildConfig"
 	rtkCmd "rtk-cross-share/client/cmd"
+	rtkCommon "rtk-cross-share/client/common"
 	rtkGlobal "rtk-cross-share/client/global"
 	rtkPlatform "rtk-cross-share/client/platform"
 	rtkUtils "rtk-cross-share/client/utils"
 	rtkMisc "rtk-cross-share/misc"
 	"strings"
+	"time"
 	"unsafe"
 )
 
@@ -622,7 +625,27 @@ func SetMacAddress(cMacAddress *C.char, length C.int) {
 		macBytes[3], macBytes[4], macBytes[5])
 
 	log.Printf("[%s] MacAddress [%s]", rtkMisc.GetFuncInfo(), macAddress)
-	rtkPlatform.GoSetMacAddress(macAddress)
+	//rtkPlatform.GoSetMacAddress(macAddress)
+}
+
+//export  SetDisplayEventInfo
+func SetDisplayEventInfo(cDisplayInfoJson *C.char) {
+	displayInfoJson := C.GoString(cDisplayInfoJson)
+
+	var displayEventInfo rtkCommon.DisplayEventInfo
+	err := json.Unmarshal([]byte(displayInfoJson), &displayEventInfo)
+	if err != nil {
+		log.Printf("[%s] Unmarshal[%s] err:%+v", rtkMisc.GetFuncInfo(), displayInfoJson, err)
+		return
+	}
+
+	log.Printf("[%s] PlugEvent:[%d] MacAddr:[%s] MonitorId:[%s] src:[%s] port:[%d] UdpMousePort:[%s] UdpKeyboardPort:[%s]", rtkMisc.GetFuncInfo(), displayEventInfo.PlugEvent,
+		displayEventInfo.MacAddr, displayEventInfo.MonitorId, displayEventInfo.Source, displayEventInfo.Port, displayEventInfo.UdpMousePort, displayEventInfo.UdpKeyboardPort)
+
+	if displayEventInfo.PlugEvent != 0 && displayEventInfo.PlugEvent != 1 {
+		displayEventInfo.PlugEvent = 1
+	}
+	rtkPlatform.GoSetDisplayEvent(&displayEventInfo)
 }
 
 //export SetExtractDIAS

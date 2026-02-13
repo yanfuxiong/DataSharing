@@ -91,6 +91,46 @@ func init() {
 		detectCablePlugEvent(true)
 	})
 
+	rtkPlatform.SetGoGetDisplayEventCallback(func(displayEventInfo rtkCommon.DisplayEventInfo) {
+		log.Printf("[%s] Detect display event, plug:%d, mac:%s, src:%d, port:%d", rtkMisc.GetFuncInfo(),
+			displayEventInfo.PlugEvent, displayEventInfo.MacAddr, displayEventInfo.Source, displayEventInfo.Port)
+
+		if lastCablePlugEventTimeStamp != 0 && (time.Now().UnixMilli()-lastCablePlugEventTimeStamp < 200) {
+			log.Printf("Display event trigger interval time is too short, so discard it!")
+			return
+		}
+		lastCablePlugEventTimeStamp = time.Now().UnixMilli()
+
+		if rtkLogin.IsChangeInstance(displayEventInfo.MacAddr) {
+			// TODO:Diff macAddr to implement
+			log.Printf("Detect Display event trigger macAddr changed, this case not yet achieved!")
+			return
+		}
+
+		if displayEventInfo.PlugEvent == 1 {
+			if rtkLogin.IsFirstPlugInEvent() {
+				rtkLogin.SetPlugDisplayEventInfo(displayEventInfo)
+				rtkLogin.SetLanServerInstance(displayEventInfo.MacAddr)
+				detectCablePlugEvent(true)
+			} else {
+				if rtkLogin.IsSameDisplayInfo(displayEventInfo.SourcePortInfo) {
+					log.Printf("[%s] Detect this display event info is same with history event, so discard it!", rtkMisc.GetFuncInfo())
+					return
+				}
+				rtkLogin.SetPlugDisplayEventInfo(displayEventInfo)
+				rtkLogin.SendReqUpdateSrcPortInfo(displayEventInfo.SourcePort)
+			}
+		} else {
+			lastFlag := rtkLogin.IsLastPlugInEvent()
+			rtkLogin.SetPlugDisplayEventInfo(displayEventInfo)
+			rtkLogin.SendReqUpdateSrcPortInfo(displayEventInfo.SourcePort)
+
+			if lastFlag {
+				detectCablePlugEvent(false)
+			}
+		}
+	})
+
 	rtkPlatform.SetGoAuthStatusCodeCallback(func(status uint8) {
 		log.Printf("Get auth status: %d", status)
 		if status == 1 {

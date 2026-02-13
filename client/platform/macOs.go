@@ -75,6 +75,7 @@ type (
 	CallbackCancelFileTransFunc            func(string, string, uint64)
 	CallbackNotifyErrEventFunc             func(id string, errCode uint32, arg1, arg2, arg3, arg4 string)
 	CallbackGetMacAddressFunc              func(string)
+	CallbackDisplayEventFunc               func(rtkCommon.DisplayEventInfo)
 	CallbackAuthStatusCodeFunc             func(uint8)
 	CallbackExtractDIASFunc                func()
 	CallbackDIASSourceAndPortFunc          func(uint8, uint8)
@@ -113,6 +114,7 @@ var (
 	callbackCancelFileTrans            CallbackCancelFileTransFunc            = nil
 	callbackNotifyErrEvent             CallbackNotifyErrEventFunc             = nil
 	callbackGetMacAddress              CallbackGetMacAddressFunc              = nil
+	callbackDisplayEvent               CallbackDisplayEventFunc               = nil
 	callbackAuthStatusCodeCB           CallbackAuthStatusCodeFunc             = nil
 	callbackExtractDIAS                CallbackExtractDIASFunc                = nil
 	callbackAuthViaIndex               CallbackAuthViaIndexFunc               = nil
@@ -235,6 +237,10 @@ func SetGoGetMacAddressCallback(cb CallbackGetMacAddressFunc) {
 	callbackGetMacAddress = cb
 }
 
+func SetGoGetDisplayEventCallback(cb CallbackDisplayEventFunc) {
+	callbackDisplayEvent = cb
+}
+
 func SetDetectPluginEventCallback(cb CallbackDetectPluginEventFunc) {
 	callbackDetectPluginEvent = cb
 }
@@ -346,8 +352,13 @@ func GoExtractDIASCallback() {
 	callbackExtractDIAS()
 }
 
-func SetConfirmDocumentsAccept(ifConfirm bool) {
-	ifConfirmDocumentsAccept = ifConfirm
+func GoSetDisplayEvent(displayEventInfo *rtkCommon.DisplayEventInfo) {
+	if callbackDisplayEvent == nil {
+		log.Println("callbackDisplayEvent is null!")
+		return
+	}
+
+	callbackDisplayEvent(*displayEventInfo)
 }
 
 func GoSetAuthStatusCode(status uint8) {
@@ -364,6 +375,10 @@ func GoSetDIASSourceAndPort(src, port uint8) {
 		return
 	}
 	callbackDIASSourceAndPortCB(src, port)
+}
+
+func SetConfirmDocumentsAccept(ifConfirm bool) {
+	ifConfirmDocumentsAccept = ifConfirm
 }
 
 func GoCopyXClipData(text, image, html, rtf string) {

@@ -1,5 +1,9 @@
 package common
 
+import (
+	rtkMisc "rtk-cross-share/misc"
+)
+
 type FileDropCmd string
 
 const (
@@ -45,6 +49,13 @@ type RegResponseMessage struct {
 	GUEST_LIST            []string
 	GUEST_PUBLIC_TCP_IP   string
 	GUEST_PUBLIC_TCP_PORT string
+}
+
+type DisplayEventInfo struct {
+	rtkMisc.SourcePortInfo
+	MacAddr   string
+	MonitorId string
+	PlugEvent int // 0: plug out   1: plug in
 }
 
 const (

@@ -32,6 +32,27 @@ func sendReqHeartbeatToLanServer() rtkMisc.CrossShareErr {
 	return sendReqMsgToLanServer(rtkMisc.C2SMsg_CLIENT_HEARTBEAT)
 }
 
+func SendReqUpdateSrcPortInfo(srcPort rtkMisc.SourcePort) rtkMisc.CrossShareErr {
+	extData := rtkMisc.UpdateClientSrcPortInfoReq{
+		SourcePort: rtkMisc.SourcePort{
+			Source: srcPort.Source,
+			Port:   srcPort.Port,
+		},
+		ClientIndex:     0,
+		UdpMousePort:    0,
+		UdpKeyboardPort: 0,
+	}
+	for _, display := range displayInfoList {
+		if display.Source == srcPort.Source && display.Port == srcPort.Port {
+			extData.ClientIndex = int(rtkGlobal.NodeInfo.ClientIndex)
+			extData.UdpMousePort = display.UdpMousePort
+			extData.UdpKeyboardPort = display.UdpKeyboardPort
+			break
+		}
+	}
+	return sendReqMsgToLanServer(rtkMisc.CS2Msg_UPDATE_SRCPORT_INFO, extData)
+}
+
 func sendPlatformMsgEventToLanServer(event uint32, arg1, arg2, arg3, arg4 string) {
 	extData := rtkMisc.PlatformMsgEventReq{
 		Event: event,
@@ -100,7 +121,14 @@ func buildMessageReq(msg *rtkMisc.C2SMessage, extData ...interface{}) rtkMisc.Cr
 	case rtkMisc.CS2Msg_MESSAGE_EVENT:
 		msg.ClientIndex = rtkGlobal.NodeInfo.ClientIndex
 		if len(extData) < 1 {
-			log.Printf("ext data is null!")
+			log.Printf("[%s] msg MESSAGE_EVENT ext data is null!", rtkMisc.GetFuncInfo())
+			return rtkMisc.ERR_BIZ_C2S_EXT_DATA_EMPTY
+		}
+		msg.ExtData = extData[0]
+	case rtkMisc.CS2Msg_UPDATE_SRCPORT_INFO:
+		msg.ClientIndex = rtkGlobal.NodeInfo.ClientIndex
+		if len(extData) < 1 {
+			log.Printf("[%s] msg UPDATE_SRCPORT_INFO ext data is null!", rtkMisc.GetFuncInfo())
 			return rtkMisc.ERR_BIZ_C2S_EXT_DATA_EMPTY
 		}
 		msg.ExtData = extData[0]
@@ -152,6 +180,8 @@ func handleReadMessageFromServer(buffer []byte) rtkMisc.CrossShareErr {
 		return dealS2CMsgNotifyClientVersion(rspMsg.ClientID, rspMsg.ExtData)
 	case rtkMisc.CS2Msg_MESSAGE_EVENT:
 		return dealS2CMsgMessageEvent(rspMsg.ClientID, rspMsg.ExtData)
+	case rtkMisc.CS2Msg_UPDATE_SRCPORT_INFO:
+		return dealS2CMsgUpdateSrcPortInfo(rspMsg.ClientID, rspMsg.ExtData)
 	default:
 		log.Printf("[%s]Unknown MsgType:[%s]", rtkMisc.GetFuncInfo(), rspMsg.MsgType)
 		return rtkMisc.ERR_BIZ_C2S_UNKNOWN_MSG_TYPE
@@ -260,6 +290,15 @@ func dealS2CMsgRespClientList(id string, extData json.RawMessage) rtkMisc.CrossS
 		GetClientListFlag <- clientList
 	}
 
+	if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformWindows || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformMac {
+		nLen := len(displayInfoList)
+		if nLen > 0 {
+			SendReqUpdateSrcPortInfo(displayInfoList[nLen-1].SourcePort)
+		} else {
+			log.Printf("[%s] ID:[%s] displayInfoList is null, not send ReqUpdateSrcPortInfo !", rtkMisc.GetFuncInfo(), id)
+		}
+	}
+
 	log.Printf("Request Client List success, get other online ClienList len [%d], self SourcePortType:[%s]", nClientCount, rtkGlobal.NodeInfo.SourcePortType)
 	return rtkMisc.SUCCESS
 }
@@ -326,6 +365,21 @@ func dealS2CMsgMessageEvent(id string, extData json.RawMessage) rtkMisc.CrossSha
 	if messageEventRsp.Code != rtkMisc.SUCCESS {
 		log.Printf("[%s] Message Event Response failed, errCode:[%d]  errMsg:[%s]!", rtkMisc.GetFuncInfo(), messageEventRsp.Code, messageEventRsp.Msg)
 		return messageEventRsp.Code
+	}
+	return rtkMisc.SUCCESS
+}
+
+func dealS2CMsgUpdateSrcPortInfo(id string, extData json.RawMessage) rtkMisc.CrossShareErr {
+	var updateSrcPortInfoRsp rtkMisc.UpdateClientSrcPortInfoResponse
+	err := json.Unmarshal(extData, &updateSrcPortInfoRsp)
+	if err != nil {
+		log.Printf("[%s] clientID:[%s]  Err: decode ExtDataText:%+v", rtkMisc.GetFuncInfo(), id, err)
+		return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
+	}
+
+	if updateSrcPortInfoRsp.Code != rtkMisc.SUCCESS {
+		log.Printf("[%s] Message Event Response failed, errCode:[%d]  errMsg:[%s]!", rtkMisc.GetFuncInfo(), updateSrcPortInfoRsp.Code, updateSrcPortInfoRsp.Msg)
+		return updateSrcPortInfoRsp.Code
 	}
 	return rtkMisc.SUCCESS
 }

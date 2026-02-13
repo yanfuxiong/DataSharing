@@ -108,6 +108,7 @@ type (
 	CallbackGetMacAddressFunc          func(string)
 	CallbackCancelFileTransFunc        func(string, string, uint64)
 	CallbackDetectPluginEventFunc      func(isPlugin bool, productName string)
+	CallbackDisplayEventFunc           func(rtkCommon.DisplayEventInfo)
 	CallbackDIASSourceAndPortFunc      func(uint8, uint8)
 	CallbackAuthStatusCodeFunc         func(uint8)
 	CallbackExtractDIASFunc            func()
@@ -121,7 +122,7 @@ type (
 
 var (
 	callbackNetworkSwitchCB            CallbackNetworkSwitchFunc          = nil
-	callbackXClipCopyCB                CallbackCopyXClipFunc              = nil
+	callbackCopyXClipCB                CallbackCopyXClipFunc              = nil
 	callbackInstanceFileDropResponseCB CallbackFileDropResponseFunc       = nil
 	callbackFileListDropRequestCB      CallbackFileListDropRequestFunc    = nil
 	callbackDragFileListRequestCB      CallbackDragFileListRequestFunc    = nil
@@ -145,7 +146,7 @@ func SetGoNetworkSwitchCallback(cb CallbackNetworkSwitchFunc) {
 
 // Notify to Clipboard/FileDrop
 func SetCopyXClipCallback(cb CallbackCopyXClipFunc) {
-	callbackXClipCopyCB = cb
+	callbackCopyXClipCB = cb
 }
 
 func SetGoFileDropResponseCallback(cb CallbackFileDropResponseFunc) {
@@ -170,6 +171,9 @@ func SetGoGetMacAddressCallback(cb CallbackGetMacAddressFunc) {
 
 func SetDetectPluginEventCallback(cb CallbackDetectPluginEventFunc) {
 	callbackDetectPluginEventCB = cb
+}
+
+func SetGoGetDisplayEventCallback(cb CallbackDisplayEventFunc) {
 }
 
 func SetGoAuthStatusCodeCallback(cb CallbackAuthStatusCodeFunc) {
@@ -282,8 +286,8 @@ func GoSetHostListenAddr(listenHost string, listenPort int) {
 }
 
 func GoCopyXClipData(text, image, html, rtf string) {
-	if callbackXClipCopyCB == nil {
-		log.Println("callbackXClipCopyCB is null!")
+	if callbackCopyXClipCB == nil {
+		log.Println("callbackCopyXClipCB is null!")
 		return
 	}
 
@@ -309,7 +313,7 @@ func GoCopyXClipData(text, image, html, rtf string) {
 		log.Printf("image get jpg size:[%d](%d,%d),decode use:[%d]ms", len(imgData), width, height, time.Now().UnixMilli()-startTime)
 	}
 
-	callbackXClipCopyCB([]byte(text), imgData, []byte(html), []byte(rtf))
+	callbackCopyXClipCB([]byte(text), imgData, []byte(html), []byte(rtf))
 }
 
 func GoFileDropResponse(id string, fileCmd rtkCommon.FileDropCmd, fileName string) {

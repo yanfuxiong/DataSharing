@@ -80,6 +80,7 @@ type (
 	CallbackMethodStopBrowseMdns           func()
 	CallbackMethodBrowseMdnsResultFunc     func(string, string, int, string, string, string, string)
 	CallbackDetectPluginEventFunc          func(isPlugin bool, productName string)
+	CallbackDisplayEventFunc               func(rtkCommon.DisplayEventInfo)
 	CallbackGetAuthDataFunc                func(uint32) string
 	CallbackDIASStatusFunc                 func(uint32)
 	CallbackMonitorNameFunc                func(string)
@@ -232,6 +233,9 @@ func SetGoGetMacAddressCallback(cb CallbackGetMacAddressFunc) {
 
 func SetDetectPluginEventCallback(cb CallbackDetectPluginEventFunc) {
 	callbackDetectPluginEvent = cb
+}
+
+func SetGoGetDisplayEventCallback(cb CallbackDisplayEventFunc) {
 }
 
 func SetGoAuthStatusCodeCallback(cb CallbackAuthStatusCodeFunc) {

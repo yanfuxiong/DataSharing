@@ -87,6 +87,7 @@ type (
 	CallbackCancelFileTransFunc        func(string, string, uint64)
 	CallbackExtractDIASFunc            func()
 	CallbackGetMacAddressFunc          func(string)
+	CallbackDisplayEventFunc           func(rtkCommon.DisplayEventInfo)
 	CallbackAuthStatusCodeFunc         func(uint8)
 	CallbackDIASSourceAndPortFunc      func(uint8, uint8)
 	CallbackMethodBrowseMdnsResultFunc func(string, string, int, string, string, string, string)
@@ -123,6 +124,7 @@ var (
 	callbackCancelFileTransDragCB      CallbackCancelFileTransFunc        = nil
 	callbackExtractDIASCB              CallbackExtractDIASFunc            = nil
 	callbackGetMacAddressCB            CallbackGetMacAddressFunc          = nil
+	callbackDisplayEvent               CallbackDisplayEventFunc           = nil
 	callbackAuthStatusCodeCB           CallbackAuthStatusCodeFunc         = nil
 	callbackDIASSourceAndPortCB        CallbackDIASSourceAndPortFunc      = nil
 	callbackMethodBrowseMdnsResult     CallbackMethodBrowseMdnsResultFunc = nil
@@ -175,6 +177,10 @@ func SetGoExtractDIASCallback(cb CallbackExtractDIASFunc) {
 
 func SetGoGetMacAddressCallback(cb CallbackGetMacAddressFunc) {
 	callbackGetMacAddressCB = cb
+}
+
+func SetGoGetDisplayEventCallback(cb CallbackDisplayEventFunc) {
+	callbackDisplayEvent = cb
 }
 
 func SetDetectPluginEventCallback(cb CallbackDetectPluginEventFunc) {
@@ -332,6 +338,15 @@ func GoExtractDIASCallback() {
 
 func GoSetMacAddress(macAddr string) {
 	callbackGetMacAddressCB(macAddr)
+}
+
+func GoSetDisplayEvent(displayEventInfo *rtkCommon.DisplayEventInfo) {
+	if callbackDisplayEvent == nil {
+		log.Println("callbackDisplayEvent is null!")
+		return
+	}
+
+	callbackDisplayEvent(*displayEventInfo)
 }
 
 func GoMultiFilesDropRequest(id, ipAddr string, fileStrList *[]string, timeStamp uint64) rtkCommon.SendFilesRequestErrCode {

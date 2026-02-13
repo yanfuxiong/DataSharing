@@ -20,16 +20,63 @@ func SetLanServerInstance(name string) {
 	lanServerInstance = name
 }
 
+func IsFirstPlugInEvent() bool {
+	if len(displayInfoList) == 0 {
+		return true
+	}
+	return false
+}
+
+func IsLastPlugInEvent() bool {
+	if len(displayInfoList) <= 1 {
+		return true
+	}
+	return false
+}
+
+func IsChangeInstance(instance string) bool {
+	if lanServerInstance == "" {
+		return false
+	}
+	return !rtkUtils.ContentEqual([]byte(instance), []byte(lanServerInstance))
+}
+
+func SetPlugDisplayEventInfo(displayEventInfo rtkCommon.DisplayEventInfo) {
+	if displayEventInfo.PlugEvent == 1 {
+		displayInfoList = append(displayInfoList, displayEventInfo)
+	} else {
+		tmpDisplayList := make([]rtkCommon.DisplayEventInfo, 0)
+		for _, display := range displayInfoList {
+			if display.Source == displayEventInfo.Source && display.Port == displayEventInfo.Port {
+				continue
+			}
+			tmpDisplayList = append(tmpDisplayList, display)
+		}
+		displayInfoList = displayInfoList[:0]
+		displayInfoList = tmpDisplayList
+	}
+}
+
+func IsSameDisplayInfo(srcPortInfo rtkMisc.SourcePortInfo) bool {
+	for _, display := range displayInfoList {
+		if display.Source == srcPortInfo.Source && display.Port == srcPortInfo.Port &&
+			display.UdpMousePort == srcPortInfo.UdpMousePort && display.UdpKeyboardPort == srcPortInfo.UdpKeyboardPort {
+			return true
+		}
+	}
+	return false
+}
+
 func SetProductName(name string) {
 	g_ProductName = name
 }
 
 func init() {
 	lanServerInstance = ""
-	lanServerAddr = ""
 	g_ProductName = ""
 	g_monitorName = ""
 	lanServerRunning.Store(false)
+	displayInfoList = make([]rtkCommon.DisplayEventInfo, 0)
 
 	pSafeConnect = &safeConnect{
 		connectMutex:     sync.RWMutex{},
@@ -47,7 +94,6 @@ func init() {
 	rtkPlatform.SetGoBrowseLanServerCallback(func() {
 		log.Printf("[%s][mobile] Browse LanServer monitor triggered!", rtkMisc.GetFuncInfo())
 		lanServerInstance = ""
-		lanServerAddr = ""
 		stopLanServerBusiness()
 		BrowseInstance()
 	})
@@ -71,7 +117,6 @@ func computerInitLanServer(ctx context.Context) {
 		if retryCnt == g_retryServerMaxCnt {
 			bPrintErrLog = false
 			log.Printf("initLanServer %d times failed, errCode:%d ! try to lookup Service over again ...", retryCnt, errCode)
-			lanServerAddr = ""
 			serverInstanceMap.Delete(lanServerInstance)
 			NotifyDIASStatus(DIAS_Status_Connected_DiasService_Failed)
 		}
@@ -121,7 +166,6 @@ func mobileInitLanServer(instance string) {
 	}
 
 	lanServerInstance = instance
-	lanServerAddr = mapValue.(browseParam).ip
 	g_monitorName = mapValue.(browseParam).monitorName
 
 	retryCnt := 0
@@ -252,14 +296,14 @@ func heartBeatFunc(ctx context.Context) {
 }
 
 func getLanServerAddr(ctx context.Context, bPrintErr bool) (string, rtkMisc.CrossShareErr) {
-	if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformWindows || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformMac {
-		if lanServerInstance == "" {
-			if bPrintErr {
-				log.Printf("[%s] lanServerInstance is not set!", rtkMisc.GetFuncInfo())
-			}
-			return "", rtkMisc.ERR_BIZ_C2S_GET_NO_SERVER_NAME
+	if lanServerInstance == "" {
+		if bPrintErr {
+			log.Printf("[%s] lanServerInstance is not set!", rtkMisc.GetFuncInfo())
 		}
+		return "", rtkMisc.ERR_BIZ_C2S_GET_NO_SERVER_NAME
+	}
 
+	if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformWindows || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformMac {
 		mapValue, ok := serverInstanceMap.Load(lanServerInstance)
 		if ok {
 			lanServerIp := mapValue.(browseParam).ip
@@ -275,46 +319,39 @@ func getLanServerAddr(ctx context.Context, bPrintErr bool) (string, rtkMisc.Cros
 		defer cancel()
 		return lookupLanServer(tOctx, lanServerInstance, rtkMisc.LanServiceType, rtkMisc.LanServerDomain, bPrintErr)
 	} else {
-		if lanServerInstance != "" {
-			mapValue, ok := serverInstanceMap.Load(lanServerInstance)
-			if ok {
-				lanServerIp := mapValue.(browseParam).ip
-				g_monitorName = mapValue.(browseParam).monitorName
-				log.Printf("[%s][Mobile] get service Instance=(%s), ip=(%s) from map", rtkMisc.GetFuncInfo(), lanServerInstance, lanServerIp)
-				return lanServerIp, rtkMisc.SUCCESS
-			} else {
-				log.Printf("[%s] lanServerInstance:[%s] is invalid or get no data from map!", rtkMisc.GetFuncInfo(), lanServerInstance)
-			}
+		mapValue, ok := serverInstanceMap.Load(lanServerInstance)
+		if ok {
+			lanServerIp := mapValue.(browseParam).ip
+			g_monitorName = mapValue.(browseParam).monitorName
+			log.Printf("[%s][Mobile] get service Instance=(%s), ip=(%s) from map", rtkMisc.GetFuncInfo(), lanServerInstance, lanServerIp)
+			return lanServerIp, rtkMisc.SUCCESS
 		} else {
-			if bPrintErr {
-				log.Printf("[%s] lanServerInstance is null!", rtkMisc.GetFuncInfo())
-			}
+			log.Printf("[%s] lanServerInstance:[%s] is invalid, get no data from instance map!", rtkMisc.GetFuncInfo(), lanServerInstance)
 		}
+
 	}
 	return "", rtkMisc.ERR_NETWORK_C2S_BROWSER_INVALID
 }
 
 func connectToLanServer(ctx context.Context, bPrintErr bool) rtkMisc.CrossShareErr {
 	if !pSafeConnect.IsAlive() {
-		if lanServerAddr == "" {
-			serverAddr, errCode := getLanServerAddr(ctx, bPrintErr)
-			if errCode != rtkMisc.SUCCESS {
-				return errCode
-			}
-			lanServerAddr = serverAddr
+		serverAddr, errCode := getLanServerAddr(ctx, bPrintErr)
+		if errCode != rtkMisc.SUCCESS {
+			return errCode
 		}
 
 		if bPrintErr {
-			log.Printf("get LanServer addr:%s  by serverInstance:[%s], try to Dial it!", lanServerAddr, lanServerInstance)
+			log.Printf("get LanServer addr:%s  by serverInstance:[%s], try to Dial it!", serverAddr, lanServerInstance)
 		}
 
 		tOctx, dialCancelFn := context.WithTimeout(ctx, time.Duration(5*time.Second))
 		defer dialCancelFn()
 		d := net.Dialer{Timeout: time.Duration(5 * time.Second)}
-		pConnectLanServer, err := d.DialContext(tOctx, "tcp", lanServerAddr)
+		pConnectLanServer, err := d.DialContext(tOctx, "tcp", serverAddr)
+
 		if err != nil {
 			if bPrintErr {
-				log.Printf("connecting to lanServerAddr[%s] Error:%+v ", lanServerAddr, err.Error())
+				log.Printf("connecting to lanServerAddr[%s] Error:%+v ", serverAddr, err.Error())
 			}
 
 			if netErr, ok := err.(net.Error); ok {
@@ -326,7 +363,7 @@ func connectToLanServer(ctx context.Context, bPrintErr bool) rtkMisc.CrossShareE
 		}
 
 		pSafeConnect.Reset(pConnectLanServer)
-		log.Printf("Connect LanServerAddr:[%s] success! LocalAddr:[%s]", lanServerAddr, pConnectLanServer.LocalAddr().String())
+		log.Printf("Connect LanServerAddr:[%s] success! LocalAddr:[%s]", serverAddr, pConnectLanServer.LocalAddr().String())
 
 		stopBrowseInstance() // mobile need stop Browse
 	}
@@ -342,7 +379,6 @@ func initLanServer(ctx context.Context, bPrintErr bool) rtkMisc.CrossShareErr {
 	rtkPlatform.GoMonitorNameNotify(g_monitorName)
 	if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformWindows || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformMac {
 		NotifyDIASStatus(DIAS_Status_Checking_Authorization)
-		rtkPlatform.GoSetupReadyReCtrl(rtkGlobal.NodeInfo.IPAddr.PublicIP, 8080, 8081)
 	} else {
 		NotifyDIASStatus(DIAS_Status_Wait_screenCasting)
 	}
@@ -373,12 +409,10 @@ func ReConnectLanServer(ctx context.Context) {
 			NotifyDIASStatus(DIAS_Status_Connectting_DiasService)
 			rtkPlatform.GoMonitorNameNotify("")
 
-			lanServerAddr = ""
 			if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformWindows || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformMac {
 				serverInstanceMap.Delete(lanServerInstance)
 				log.Printf("initLanServer %d times failed, errCode:%d ! try to Lookup Service over again...", retryCnt, errCode)
 			} else {
-				lanServerInstance = ""
 				log.Printf("initLanServer %d times failed, errCode:%d ! try to Browse Service over again...", retryCnt, errCode)
 				BrowseInstance()
 			}
@@ -414,6 +448,7 @@ func stopLanServerBusiness() {
 	pSafeConnect.Close()
 	rtkPlatform.GoMonitorNameNotify("")
 	NotifyDIASStatus(DIAS_Status_Connectting_DiasService)
+	displayInfoList = displayInfoList[:0]
 
 	if disconnectAllClientFunc == nil {
 		log.Printf("disconnectAllClientFunc is nil, not cancel all client stream and business!")
@@ -426,9 +461,10 @@ func cancelLanServerBusiness() {
 	log.Printf("connect lanServer business is all cancel!")
 	rtkPlatform.GoMonitorNameNotify("")
 	pSafeConnect.Close()
-	lanServerAddr = ""
+	lanServerInstance = ""
 	stopBrowseInstance()
 	lanServerRunning.Store(false)
+	displayInfoList = displayInfoList[:0]
 }
 
 func NotifyDIASStatus(status CrossShareDiasStatus) {
