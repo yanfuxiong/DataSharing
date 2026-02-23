@@ -86,6 +86,7 @@ type NotifyClientVersionReq struct {
 
 type UpdateClientSrcPortInfoReq struct {
 	SourcePort
+	ClientIndex     int
 	UdpMousePort    int
 	UdpKeyboardPort int
 }

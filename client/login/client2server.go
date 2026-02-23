@@ -252,7 +252,6 @@ func dealS2CMsgMobileAuthDataResp(id string, index uint32, extData json.RawMessa
 		NotifyDIASStatus(DIAS_Status_Authorization_Failed)
 		return rtkMisc.ERR_BIZ_S2C_UNAUTH
 	}
-
 	return SendReqClientListToLanServer()
 }
 
