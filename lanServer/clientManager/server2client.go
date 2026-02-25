@@ -158,6 +158,14 @@ func dealC2SMsgInitClient(ext *json.RawMessage) (uint32, interface{}) {
 		initClientRsp.Response = rtkMisc.GetResponse(errCode)
 		return 0, initClientRsp
 	}
+	
+	if extData.Platform == rtkMisc.PlatformMnt {
+		errCode = rtkdbManager.UpdateAuthAndSrcPort(pkIndex, true, rtkMisc.Src_MNT, rtkMisc.Port_MNT)
+		if errCode != rtkMisc.SUCCESS {
+			initClientRsp.Response = rtkMisc.GetResponse(errCode)
+			return 0, initClientRsp
+		}
+	}
 
 	initClientRsp.ClientIndex = uint32(pkIndex)
 	return initClientRsp.ClientIndex, initClientRsp
