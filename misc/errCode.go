@@ -103,6 +103,7 @@ const ( // public business error code
 	ERR_BIZ_GET_STREAM_RESET
 	ERR_BIZ_GET_CALLBACK_INSTANCE_NULL
 	ERR_BIZ_VERSION_INVALID
+	ERR_BIZ_DISPLAY_EVENT_EMPTY
 )
 
 // client to lan server business error code
@@ -185,8 +186,10 @@ const (
 	ERR_BIZ_DF_INVALID_TIMESTAMP
 	ERR_BIZ_DF_FILE_NOT_EXISTS
 	ERR_BIZ_DF_CACHE_OVER_RANGE
-	
+
 	ERR_BIZ_FT_DST_OPEN_STREAM
+	ERR_BIZ_FT_COPY_DETAILS
+	ERR_BIZ_FT_DST_COPY_DETAILS
 )
 
 var errInfoMap = map[CrossShareErr]string{

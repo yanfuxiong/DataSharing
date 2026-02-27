@@ -154,8 +154,8 @@ const (
 		WHERE %s ;`
 
 	SqlDataQuerySrcPortInfo SqlData = `
-		SELECT Source, Port, UdpMousePort,UdpKeyboardPort 
-		FROM t_srcport_info 
+		SELECT Source, Port, ClientIndex, UdpMousePort, UdpKeyboardPort, UpdateTime, CreateTime
+		FROM t_srcport_info
 		WHERE %s ;`
 
 	SqlDataQueryeClientMaxIndex SqlData = `SELECT PkIndex FROM t_client_info ORDER BY PkIndex DESC limit 1;`

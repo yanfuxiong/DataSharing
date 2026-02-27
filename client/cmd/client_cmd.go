@@ -16,15 +16,18 @@ import (
 	rtkMisc "rtk-cross-share/misc"
 
 	"strconv"
+	"sync"
 	"time"
 )
 
 var (
-	isBusinessProcessStart      bool
-	cablePlugEventFlagChan      = make(chan bool, 1)
-	networkSwitchFlagChan       = make(chan struct{})
-	clientVerInvalidFlagChan    = make(chan struct{})
-	lastCablePlugEventTimeStamp int64
+	isBusinessProcessStart         bool
+	cablePlugEventFlagChan         = make(chan bool, 1)
+	networkSwitchFlagChan          = make(chan struct{})
+	clientVerInvalidFlagChan       = make(chan struct{})
+	lastCablePlugEventTimeStamp    int64
+	lastCablePlugEventTimeStampMap sync.Map
+	cablePlugEventMutex            sync.Mutex
 )
 
 func detectCablePlugEvent(event bool) {
@@ -92,14 +95,8 @@ func init() {
 	})
 
 	rtkPlatform.SetGoGetDisplayEventCallback(func(displayEventInfo rtkCommon.DisplayEventInfo) {
-		log.Printf("[%s] Detect display event, plug:%d, mac:%s, src:%d, port:%d", rtkMisc.GetFuncInfo(),
-			displayEventInfo.PlugEvent, displayEventInfo.MacAddr, displayEventInfo.Source, displayEventInfo.Port)
-
-		if lastCablePlugEventTimeStamp != 0 && (time.Now().UnixMilli()-lastCablePlugEventTimeStamp < 200) {
-			log.Printf("Display event trigger interval time is too short, so discard it!")
-			return
-		}
-		lastCablePlugEventTimeStamp = time.Now().UnixMilli()
+		cablePlugEventMutex.Lock()
+		defer cablePlugEventMutex.Unlock()
 
 		if rtkLogin.IsChangeInstance(displayEventInfo.MacAddr) {
 			// TODO:Diff macAddr to implement
@@ -107,28 +104,38 @@ func init() {
 			return
 		}
 
+		nCount := rtkLogin.GetPlugDisplayEventInfoCnt()
+
 		if displayEventInfo.PlugEvent == 1 {
-			if rtkLogin.IsFirstPlugInEvent() {
+			if nCount == 0 {
+				if lastTimestamp, ok := lastCablePlugEventTimeStampMap.Load(displayEventInfo.SourcePort); ok {
+					if displayEventInfo.TimeStamp-lastTimestamp.(int64) < 200 {
+						log.Printf("this display event trigger interval time is too short, so discard it!")
+						return
+					}
+				}
 				rtkLogin.SetPlugDisplayEventInfo(displayEventInfo)
 				rtkLogin.SetLanServerInstance(displayEventInfo.MacAddr)
 				detectCablePlugEvent(true)
 			} else {
-				if rtkLogin.IsSameDisplayInfo(displayEventInfo.SourcePortInfo) {
-					log.Printf("[%s] Detect this display event info is same with history event, so discard it!", rtkMisc.GetFuncInfo())
+				if rtkLogin.IsRepeatDisplayEvent(displayEventInfo) {
+					log.Printf("[%s] detect this display event is repeat with history events, so discard it!", rtkMisc.GetFuncInfo())
 					return
 				}
+
 				rtkLogin.SetPlugDisplayEventInfo(displayEventInfo)
-				rtkLogin.SendReqUpdateSrcPortInfo(displayEventInfo.SourcePort)
+				if rtkLogin.IsGetClientList() {
+					rtkLogin.SendReqUpdateSrcPortInfo(displayEventInfo.SourcePort)
+				}
 			}
 		} else {
-			lastFlag := rtkLogin.IsLastPlugInEvent()
 			rtkLogin.SetPlugDisplayEventInfo(displayEventInfo)
 			rtkLogin.SendReqUpdateSrcPortInfo(displayEventInfo.SourcePort)
-
-			if lastFlag {
+			if nCount == 0 {
 				detectCablePlugEvent(false)
 			}
 		}
+		lastCablePlugEventTimeStampMap.Store(displayEventInfo.SourcePort, displayEventInfo.TimeStamp)
 	})
 
 	rtkPlatform.SetGoAuthStatusCodeCallback(func(status uint8) {
@@ -207,7 +214,6 @@ func MainInit(serverId, serverIpInfo, listenHost string, listentPort int) {
 		rtkGlobal.NodeInfo.IPAddr.PublicPort = strconv.Itoa(listentPort)
 		log.Printf("set relayServerID: [%s], relayServerIPInfo:[%s]", serverId, serverIpInfo)
 		log.Printf("p2p set host[%s] listen port: [%d]\n", listenHost, listentPort)
-		rtkPlatform.SetNetWorkConnected(true)
 	} else {
 		log.Printf("listenHost:[%s] listentPort:[%d]", listenHost, listentPort)
 		log.Fatalf("MainInit  parameter is invalid \n\n")
@@ -242,21 +248,23 @@ func businessProcess(ctx context.Context) {
 					cancelBusinessFunc(rtkCommon.SourceCablePlugIn)
 					time.Sleep(100 * time.Millisecond) // wait for print cancel log
 					cancelBusinessFunc = nil
-					//rtkConnection.Wait()
+					rtkConnection.Wait()
 					rtkLogin.BrowseInstance()
 				}
 				log.Println("===========================================================================\n\n")
+
 				rtkLogin.NotifyDIASStatus(rtkLogin.DIAS_Status_Connectting_DiasService)
 				sonCtx, cancelBusinessFunc = rtkUtils.WithCancelSource(ctx)
 				rtkMisc.GoSafe(func() { businessStart(sonCtx) })
 			} else {
 				log.Println("===========================================================================")
+				rtkLogin.SetLanServerInstance("")
 				if cancelBusinessFunc != nil {
 					log.Printf("****************** DIAS is extract, cancel all business! ******************")
 					cancelBusinessFunc(rtkCommon.SourceCablePlugOut)
 					cancelBusinessFunc = nil
 					time.Sleep(100 * time.Millisecond) // wait for print all cancel log
-					//rtkConnection.Wait()
+					rtkConnection.Wait()
 					rtkLogin.BrowseInstance()
 				} else {
 					log.Printf("******** DIAS is extract, business is not start! ******** ")
@@ -269,7 +277,7 @@ func businessProcess(ctx context.Context) {
 				log.Printf("******** Client Network is Switch, cancel old business! ******** ")
 				cancelBusinessFunc(rtkCommon.SourceNetworkSwitch)
 				time.Sleep(100 * time.Millisecond) // wait for print cancel log
-				//rtkConnection.Wait()
+				rtkConnection.Wait()
 				rtkLogin.BrowseInstance()
 				log.Println("===========================================================================\n\n")
 				log.Printf("[%s] business is restart!", rtkMisc.GetFuncInfo())
@@ -277,11 +285,12 @@ func businessProcess(ctx context.Context) {
 				sonCtx, cancelBusinessFunc = rtkUtils.WithCancelSource(ctx)
 				rtkMisc.GoSafe(func() { businessStart(sonCtx) })
 			} else {
-				//rtkConnection.Wait()
+				rtkConnection.Wait()
 				rtkLogin.BrowseInstance()
 				log.Printf("******** Client Network is Switch, business is not start! ******** ")
 				log.Println("===========================================================================\n\n")
 			}
+
 		case <-clientVerInvalidFlagChan:
 			log.Println("===========================================================================")
 			log.Printf("******** Client Version is too old, and must be forcibly updated, cancel all business! ******** ")

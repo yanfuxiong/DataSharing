@@ -2,6 +2,7 @@ package main
 
 /*
 #include <stdlib.h>
+#include <string.h>
 
 typedef struct CLIENT_INFO_DATA
 {
@@ -15,10 +16,10 @@ typedef struct CLIENT_INFO_DATA
 	char platform[16];
 	int online;
 	int authStatus;
-	int udpMousePort;
-	int udpKeyboardPort;
 	char updateTime[32];
 	char createTime[32];
+	int udpMousePort;
+	int udpKeyboardPort;
 } CLIENT_INFO_DATA;
 
 typedef struct TIMING_DATA
@@ -220,7 +221,7 @@ func UpdateMiracastInfo(cIp *C.char, cMacAddr *C.uchar, cName *C.char) {
 func GetClientInfoData(cSource, cPort C.int) C.CLIENT_INFO_DATA {
 	source := int(cSource)
 	port := int(cPort)
-	clientInfoData := rtkIfaceMgr.GetInterfaceMgr().GetClientInfodData(source, port)
+	clientInfoData := rtkIfaceMgr.GetInterfaceMgr().GetClientInfoData(source, port)
 	return goToCClientInfo(clientInfoData)
 }
 
@@ -421,26 +422,29 @@ func copyStringToFixedArray(dst interface{}, src string) {
 	if v.Kind() != reflect.Ptr || v.Elem().Kind() != reflect.Array {
 		return
 	}
-
 	arr := v.Elem()
+
+	if arr.Type().Elem() != reflect.TypeOf(C.char(0)) {
+		return
+	}
+
 	maxLen := arr.Len()
+	if maxLen <= 0 {
+		return
+	}
+
+	firstElemPtr := arr.Index(0).Addr().UnsafePointer()
+
+	C.memset(firstElemPtr, 0, C.size_t(maxLen))
 
 	b := []byte(src)
-	length := len(b)
-	if length >= maxLen {
-		length = maxLen - 1 // for end '\0'
+	if len(b) > maxLen-1 {
+		b = b[:maxLen-1]
 	}
 
-	basePtr := arr.UnsafeAddr()
-
-	for i := 0; i < length; i++ {
-		ptr := (*C.char)(unsafe.Pointer(basePtr + uintptr(i)))
-		*ptr = C.char(b[i])
+	if len(b) > 0 {
+		C.memcpy(firstElemPtr, unsafe.Pointer(&b[0]), C.size_t(len(b)))
 	}
-
-	// null terminator
-	ptr := (*C.char)(unsafe.Pointer(basePtr + uintptr(length)))
-	*ptr = 0
 }
 
 func goToCClientInfo(clientInfo rtkCommon.ClientInfoTb) C.CLIENT_INFO_DATA {

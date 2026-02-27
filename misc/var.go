@@ -23,10 +23,6 @@ const (
 	PlatformMac     = "macOs"
 	PlatformiOS     = "iOS"
 	PlatformMnt     = "mnt"
-
-	Src_MNT  = 255
-	Port_MNT = 0
-	
 )
 
 var (

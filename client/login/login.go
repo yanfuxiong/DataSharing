@@ -20,20 +20,6 @@ func SetLanServerInstance(name string) {
 	lanServerInstance = name
 }
 
-func IsFirstPlugInEvent() bool {
-	if len(displayInfoList) == 0 {
-		return true
-	}
-	return false
-}
-
-func IsLastPlugInEvent() bool {
-	if len(displayInfoList) <= 1 {
-		return true
-	}
-	return false
-}
-
 func IsChangeInstance(instance string) bool {
 	if lanServerInstance == "" {
 		return false
@@ -41,29 +27,38 @@ func IsChangeInstance(instance string) bool {
 	return !rtkUtils.ContentEqual([]byte(instance), []byte(lanServerInstance))
 }
 
+func GetPlugDisplayEventInfoCnt() int {
+	displayInfoMutex.RLock()
+	defer displayInfoMutex.RUnlock()
+
+	return len(displayInfoMap)
+}
+
 func SetPlugDisplayEventInfo(displayEventInfo rtkCommon.DisplayEventInfo) {
+	displayInfoMutex.Lock()
+	defer displayInfoMutex.Unlock()
+
 	if displayEventInfo.PlugEvent == 1 {
-		displayInfoList = append(displayInfoList, displayEventInfo)
+		displayInfoMap[displayEventInfo.SourcePort] = displayEventInfo
 	} else {
-		tmpDisplayList := make([]rtkCommon.DisplayEventInfo, 0)
-		for _, display := range displayInfoList {
-			if display.Source == displayEventInfo.Source && display.Port == displayEventInfo.Port {
-				continue
-			}
-			tmpDisplayList = append(tmpDisplayList, display)
-		}
-		displayInfoList = displayInfoList[:0]
-		displayInfoList = tmpDisplayList
+		delete(displayInfoMap, displayEventInfo.SourcePort)
 	}
 }
 
-func IsSameDisplayInfo(srcPortInfo rtkMisc.SourcePortInfo) bool {
-	for _, display := range displayInfoList {
-		if display.Source == srcPortInfo.Source && display.Port == srcPortInfo.Port &&
-			display.UdpMousePort == srcPortInfo.UdpMousePort && display.UdpKeyboardPort == srcPortInfo.UdpKeyboardPort {
-			return true
+func IsRepeatDisplayEvent(displayEventInfo rtkCommon.DisplayEventInfo) bool {
+	displayInfoMutex.RLock()
+	defer displayInfoMutex.RUnlock()
+
+	if display, ok := displayInfoMap[displayEventInfo.SourcePort]; ok {
+		if display.Source == displayEventInfo.Source && display.Port == displayEventInfo.Port &&
+			display.UdpMousePort == displayEventInfo.UdpMousePort && display.UdpKeyboardPort == displayEventInfo.UdpKeyboardPort {
+
+			if displayEventInfo.TimeStamp-display.TimeStamp < 200 {
+				return true
+			}
 		}
 	}
+
 	return false
 }
 
@@ -76,7 +71,7 @@ func init() {
 	g_ProductName = ""
 	g_monitorName = ""
 	lanServerRunning.Store(false)
-	displayInfoList = make([]rtkCommon.DisplayEventInfo, 0)
+	displayInfoMap = make(map[rtkMisc.SourcePort]rtkCommon.DisplayEventInfo, 0)
 
 	pSafeConnect = &safeConnect{
 		connectMutex:     sync.RWMutex{},
@@ -377,7 +372,8 @@ func initLanServer(ctx context.Context, bPrintErr bool) rtkMisc.CrossShareErr {
 	}
 
 	rtkPlatform.GoMonitorNameNotify(g_monitorName)
-	if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformWindows || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformMac {
+	if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformWindows || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformMac ||
+		rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformMnt {
 		NotifyDIASStatus(DIAS_Status_Checking_Authorization)
 	} else {
 		NotifyDIASStatus(DIAS_Status_Wait_screenCasting)
@@ -448,7 +444,6 @@ func stopLanServerBusiness() {
 	pSafeConnect.Close()
 	rtkPlatform.GoMonitorNameNotify("")
 	NotifyDIASStatus(DIAS_Status_Connectting_DiasService)
-	displayInfoList = displayInfoList[:0]
 
 	if disconnectAllClientFunc == nil {
 		log.Printf("disconnectAllClientFunc is nil, not cancel all client stream and business!")
@@ -461,10 +456,8 @@ func cancelLanServerBusiness() {
 	log.Printf("connect lanServer business is all cancel!")
 	rtkPlatform.GoMonitorNameNotify("")
 	pSafeConnect.Close()
-	lanServerInstance = ""
 	stopBrowseInstance()
 	lanServerRunning.Store(false)
-	displayInfoList = displayInfoList[:0]
 }
 
 func NotifyDIASStatus(status CrossShareDiasStatus) {
@@ -478,4 +471,11 @@ func NotifyDIASStatus(status CrossShareDiasStatus) {
 			currentDiasStatus = status
 		}
 	}
+}
+
+func IsGetClientList() bool {
+	if currentDiasStatus == DIAS_Status_Wait_Other_Clients || currentDiasStatus == DIAS_Status_Get_Clients_Success {
+		return true
+	}
+	return false
 }

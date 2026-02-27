@@ -1,7 +1,7 @@
 package global
 
 const (
-	LanServerVersion            = "2.2.23" // it must notify client and update client version and VersionReadme.txt  when intermediate version is update
+	LanServerVersion            = "2.2.25" // it must notify client and update client version and VersionReadme.txt  when intermediate version is update
 	ClientBaseVersion           = "2.3"    // Deprecated: unused
 	ClientCaptureIndexVerSerial = 48       // the client build ClientIndex color block on verification dialog
 
@@ -13,8 +13,10 @@ const (
 	Src_HDMI              = 8
 	Src_DP                = 13
 	Src_STREAM            = 12
+	Src_MNT               = 255
 	Port_max              = 4
 	Port_subType_Miracast = 9
+	Port_MNT              = 0
 )
 
 type DpSrcType int

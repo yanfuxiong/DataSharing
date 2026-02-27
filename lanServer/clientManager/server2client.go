@@ -158,9 +158,9 @@ func dealC2SMsgInitClient(ext *json.RawMessage) (uint32, interface{}) {
 		initClientRsp.Response = rtkMisc.GetResponse(errCode)
 		return 0, initClientRsp
 	}
-	
+
 	if extData.Platform == rtkMisc.PlatformMnt {
-		errCode = rtkdbManager.UpdateAuthAndSrcPort(pkIndex, true, rtkMisc.Src_MNT, rtkMisc.Port_MNT)
+		errCode = rtkdbManager.UpdateAuthAndSrcPort(pkIndex, true, rtkGlobal.Src_MNT, rtkGlobal.Port_MNT)
 		if errCode != rtkMisc.SUCCESS {
 			initClientRsp.Response = rtkMisc.GetResponse(errCode)
 			return 0, initClientRsp
@@ -269,11 +269,13 @@ func dealC2SMsgReqUpdateClientSrcPortInfo(id string, clientIndex uint32, ext *js
 		return updateSrcPortInfoRsp
 	}
 
-	updateSrcPortInfoRsp.Source = extData.Source
-	updateSrcPortInfoRsp.Port = extData.Port
-	errCode := rtkdbManager.UpdateSrcPortInfo(int(clientIndex), extData.ClientIndex, extData.Source, extData.Port, extData.UdpMousePort, extData.UdpKeyboardPort)
+	errCode := rtkdbManager.UpdateSrcPortInfo(int(clientIndex), extData.ClientIndex, extData.SourcePortInfoList)
 	if errCode != rtkMisc.SUCCESS {
 		updateSrcPortInfoRsp.Response = rtkMisc.GetResponse(errCode)
+	}
+
+	for _, srcPortInfo := range extData.SourcePortInfoList {
+		updateSrcPortInfoRsp.SourcePortList = append(updateSrcPortInfoRsp.SourcePortList, srcPortInfo.SourcePort)
 	}
 
 	return updateSrcPortInfoRsp

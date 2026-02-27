@@ -55,6 +55,7 @@ type DisplayEventInfo struct {
 	rtkMisc.SourcePortInfo
 	MacAddr   string
 	MonitorId string
+	TimeStamp int64
 	PlugEvent int // 0: plug out   1: plug in
 }
 

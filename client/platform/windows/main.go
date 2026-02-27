@@ -577,12 +577,13 @@ func SetDisplayEventInfo(cDisplayInfoJson *C.char) {
 		return
 	}
 
-	log.Printf("[%s] PlugEvent:[%d] MacAddr:[%s] source:[%s] port:[%d] UdpMousePort:[%s] UdpKeyboardPort:[%s]", rtkMisc.GetFuncInfo(), displayEventInfo.PlugEvent,
-		displayEventInfo.MacAddr, displayEventInfo.Source, displayEventInfo.Port, displayEventInfo.UdpMousePort, displayEventInfo.UdpKeyboardPort)
+	log.Printf("[%s] PlugEvent:[%d] MacAddr:[%s] MonitorId:[%s] source:[%d] port:[%d] UdpMousePort:[%d] UdpKeyboardPort:[%d]", rtkMisc.GetFuncInfo(), displayEventInfo.PlugEvent,
+		displayEventInfo.MacAddr, displayEventInfo.MonitorId, displayEventInfo.Source, displayEventInfo.Port, displayEventInfo.UdpMousePort, displayEventInfo.UdpKeyboardPort)
 
 	if displayEventInfo.PlugEvent != 0 && displayEventInfo.PlugEvent != 1 {
 		displayEventInfo.PlugEvent = 1
 	}
+	displayEventInfo.TimeStamp = time.Now().UnixMilli()
 	rtkPlatform.GoSetDisplayEvent(&displayEventInfo)
 }
 

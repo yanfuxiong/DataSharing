@@ -671,14 +671,6 @@ func GoNotifyErrEvent(id string, errCode rtkMisc.CrossShareErr, arg1, arg2, arg3
 	callbackNotifyErrEvent(id, uint32(errCode), arg1, arg2, arg3, arg4)
 }
 
-func GoSetupReadyReCtrl(ip string, mousePort, kybrdPort uint32) {
-	if callbackReadyReCtrl == nil {
-		log.Printf("callbackReadyReCtrl is null!\n")
-		return
-	}
-	callbackReadyReCtrl(ip, mousePort, kybrdPort)
-}
-
 func GoRequestUpdateClientVersion(ver string) {
 	if callbackReqClientUpdateVer == nil {
 		log.Printf("callbackReqClientUpdateVer is null!\n")
@@ -728,15 +720,6 @@ func GetHostIDPath() string {
 
 func GetPlatform() string {
 	return rtkMisc.PlatformWindows
-}
-
-// Deprecated: unused
-func SetNetWorkConnected(bConnected bool) {
-}
-
-// Deprecated: unused
-func GetNetWorkConnected() bool {
-	return false
 }
 
 func LockFile() error {

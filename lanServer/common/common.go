@@ -33,6 +33,22 @@ func (c *ClientInfoTb) Dump() {
 	log.Println()
 }
 
+type SourcePortInfoTb struct {
+	Source          int
+	Port            int
+	ClientIndex     int
+	UdpMousePort    int
+	UdpKeyboardPort int
+	UpdateTime      string
+	CreateTime      string
+}
+
+func (s *SourcePortInfoTb) Dump() {
+	log.Printf("[SourcePortInfoTb] Source:%d, Port:%d, ClientIndex:%d", s.Source, s.Port, s.ClientIndex)
+	log.Printf("[SourcePortInfoTb] UdpMousePort:%d, UdpKeyboarddPort:%d, UpdateTime:%s, CreateTime:%s", s.UdpMousePort, s.UdpKeyboardPort, s.UpdateTime, s.CreateTime)
+	log.Println()
+}
+
 type TimingData struct {
 	Source      int
 	Port        int

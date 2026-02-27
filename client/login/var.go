@@ -51,7 +51,9 @@ var (
 	mobileAuthData          rtkMisc.AuthDataInfo
 	g_lookupByUnicast       bool
 	initLanServerMutex      sync.Mutex
-	displayInfoList         []rtkCommon.DisplayEventInfo //current plug in display info list
+
+	displayInfoMutex sync.RWMutex
+	displayInfoMap   map[rtkMisc.SourcePort]rtkCommon.DisplayEventInfo // current plug in display info map
 
 	// connect reliability
 	heartBeatTicker     *HeartBeatTicker

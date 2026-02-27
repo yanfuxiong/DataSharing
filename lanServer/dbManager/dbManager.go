@@ -557,47 +557,69 @@ func queryLinkInfo(conds []SqlCond, args ...any) (string, rtkMisc.CrossShareErr)
 	return link, rtkMisc.SUCCESS
 }
 
-func upsertSrcPortInfo(source, port, clientPkIndex, udpMousePort, udpKeyboardPort int) rtkMisc.CrossShareErr {
+func upsertSrcPortInfo(clientPkIndex int, srcPortInfoList []rtkMisc.SourcePortInfo) rtkMisc.CrossShareErr {
 	dbMutex.Lock()
 	defer dbMutex.Unlock()
 
-	if source <= 0 || port < 0 || clientPkIndex < 0 || udpMousePort < 0 || udpKeyboardPort < 0 {
-		log.Printf("[%s] %d %d %d %d %d, args is invalid!", rtkMisc.GetFuncInfo(), clientPkIndex, source, port, udpMousePort, udpKeyboardPort)
+	if clientPkIndex < 0 || len(srcPortInfoList) <= 0 {
+		log.Printf("[%s] clientPkIndex:%d srcPortList len:%d, args is invalid!", rtkMisc.GetFuncInfo(), clientPkIndex, len(srcPortInfoList))
 		return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
 	}
 
 	sqlData := SqlDataUpsertSrcPortInfo
-	param := []any{source, port, clientPkIndex, udpMousePort, udpKeyboardPort}
-	if sqlData.checkArgsCount(param) == false {
-		return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
-	}
-
 	db, ok := getDb()
 	if !ok {
 		return rtkMisc.ERR_DB_SQLITE_INSTANCE_NULL
 	}
-
-	_, err := db.Exec(sqlData.toString(), param...)
+	tx, err := db.Begin()
 	if err != nil {
-		log.Printf("[%s] Exec error[%+v]", rtkMisc.GetFuncInfo(), err)
-		log.Printf("[%s] Err: %s", rtkMisc.GetFuncInfo(), sqlData.toString())
-		return rtkMisc.ERR_DB_SQLITE_QUERY
+		log.Printf("[%s] Err: %s", rtkMisc.GetFuncInfo(), err.Error())
+		return rtkMisc.ERR_DB_SQLITE_BEGIN
+	}
+	defer tx.Rollback()
+
+	nCount := uint8(0)
+	for _, srcPortInfo := range srcPortInfoList {
+		if srcPortInfo.Source <= 0 || srcPortInfo.Port < 0 || srcPortInfo.UdpMousePort < 0 || srcPortInfo.UdpKeyboardPort < 0 {
+			log.Printf("[%s] %d %d %d %d , args is invalid, continue!", rtkMisc.GetFuncInfo(), srcPortInfo.Source, srcPortInfo.Port, srcPortInfo.UdpMousePort, srcPortInfo.UdpKeyboardPort)
+			continue
+		}
+
+		param := []any{srcPortInfo.Source, srcPortInfo.Port, clientPkIndex, srcPortInfo.UdpMousePort, srcPortInfo.UdpKeyboardPort}
+		if sqlData.checkArgsCount(param) == false {
+			return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
+		}
+
+		_, err = tx.Exec(sqlData.toString(), param...)
+		if err != nil {
+			log.Printf("[%s] Exec error[%+v]", rtkMisc.GetFuncInfo(), err)
+			log.Printf("[%s] Err: %s", rtkMisc.GetFuncInfo(), sqlData.toString())
+			return rtkMisc.ERR_DB_SQLITE_QUERY
+		}
+		nCount++
 	}
 
+	err = tx.Commit()
+	if err != nil {
+		log.Printf("[%s] Err: %s", rtkMisc.GetFuncInfo(), err.Error())
+		return rtkMisc.ERR_DB_SQLITE_COMMIT
+	}
+
+	log.Printf("[%s] update srcPortInfo success, nCount:%d", rtkMisc.GetFuncInfo(), nCount)
 	return rtkMisc.SUCCESS
 }
 
-func querySrcPortInfo(clientPkIndex int, srcPortInfoList *[]rtkMisc.SourcePortInfo) rtkMisc.CrossShareErr {
-	if clientPkIndex <= 0 {
-		log.Printf("[%s] clientPkIndex:%d, args is invalid!", rtkMisc.GetFuncInfo(), clientPkIndex)
+func querySrcPortInfo(srcPortInfoList *[]rtkCommon.SourcePortInfoTb, conds []SqlCond, args ...any) rtkMisc.CrossShareErr {
+	if srcPortInfoList == nil {
+		log.Printf("[%s] srcPortInfoList is null", rtkMisc.GetFuncInfo())
 		return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
 	}
+
 	dbMutex.Lock()
 	defer dbMutex.Unlock()
 
-	sqlData := SqlDataQuerySrcPortInfo.withCond_WHERE(SqlCondClientIndex)
-	param := []any{clientPkIndex}
-	if sqlData.checkArgsCount(param) == false {
+	sqlData := SqlDataQuerySrcPortInfo.withCond_WHERE(conds...)
+	if sqlData.checkArgsCount(args) == false {
 		return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
 	}
 
@@ -605,7 +627,7 @@ func querySrcPortInfo(clientPkIndex int, srcPortInfoList *[]rtkMisc.SourcePortIn
 	if !ok {
 		return rtkMisc.ERR_DB_SQLITE_INSTANCE_NULL
 	}
-	rows, err := db.Query(sqlData.toString(), param...)
+	rows, err := db.Query(sqlData.toString(), args...)
 	if err != nil {
 		log.Printf("[%s] Query error[%+v]", rtkMisc.GetFuncInfo(), err)
 		log.Printf("[%s] Err sql: %s", rtkMisc.GetFuncInfo(), sqlData.toString())
@@ -614,8 +636,9 @@ func querySrcPortInfo(clientPkIndex int, srcPortInfoList *[]rtkMisc.SourcePortIn
 
 	*srcPortInfoList = (*srcPortInfoList)[:0]
 	for rows.Next() {
-		var srcPortInfo rtkMisc.SourcePortInfo
-		if err = rows.Scan(&srcPortInfo.Source, &srcPortInfo.Port, &srcPortInfo.UdpMousePort, &srcPortInfo.UdpKeyboardPort); err != nil {
+		var srcPortInfo rtkCommon.SourcePortInfoTb
+		if err = rows.Scan(&srcPortInfo.Source, &srcPortInfo.Port, &srcPortInfo.ClientIndex,
+			&srcPortInfo.UdpMousePort, &srcPortInfo.UdpKeyboardPort, &srcPortInfo.UpdateTime, &srcPortInfo.CreateTime); err != nil {
 			log.Printf("[%s] Err: %s", rtkMisc.GetFuncInfo(), err.Error())
 			continue
 		}
@@ -647,13 +670,20 @@ func resetSrcPortInfo(pkIndexList []int) rtkMisc.CrossShareErr {
 
 	sqlData := SqlDataResetSrcPortInfo.withCond_WHERE(SqlCondClientIndex)
 
+	tx, err := db.Begin()
+	if err != nil {
+		log.Printf("[%s] Err: %s", rtkMisc.GetFuncInfo(), err.Error())
+		return rtkMisc.ERR_DB_SQLITE_BEGIN
+	}
+	defer tx.Rollback()
+
 	for _, pkIndex := range pkIndexList {
 		param := []any{pkIndex}
 		if sqlData.checkArgsCount(param) == false {
 			return rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
 		}
 
-		result, err := db.Exec(sqlData.toString(), param...)
+		result, err := tx.Exec(sqlData.toString(), param...)
 		if err != nil {
 			log.Printf("[%s] Exec error[%+v]", rtkMisc.GetFuncInfo(), err)
 			log.Printf("[%s] Err sql: %s", rtkMisc.GetFuncInfo(), sqlData.toString())
@@ -661,6 +691,12 @@ func resetSrcPortInfo(pkIndexList []int) rtkMisc.CrossShareErr {
 		}
 		affectCount, _ := result.RowsAffected()
 		log.Printf("[%s] reset src port info success, clientIndex:%d, rowsAffected:%d", rtkMisc.GetFuncInfo(), pkIndex, affectCount)
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		log.Printf("[%s] Err: %s", rtkMisc.GetFuncInfo(), err.Error())
+		return rtkMisc.ERR_DB_SQLITE_COMMIT
 	}
 
 	return rtkMisc.SUCCESS

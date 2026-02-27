@@ -17,38 +17,39 @@ func SetNotifyUpdateClientInfoCallback(cb NotifyUpdateClientInfoCallback) {
 	notifyUpdateClientInfoCallback = cb
 }
 
-func notifyUpdateClientInfo(pkIndexList []int, isOffline bool) {
+func notifyUpdateClientInfo(pkIndexList []int) {
 	for _, pkIndex := range pkIndexList {
 		clientInfo, err := QueryClientInfoByIndex(pkIndex)
 		if err != rtkMisc.SUCCESS {
 			continue
 		}
 
-		clientInfoList := make([]rtkMisc.SourcePortInfo, 0)
-		err = querySrcPortInfo(pkIndex, &clientInfoList)
+		sourcePortInfoList := make([]rtkCommon.SourcePortInfoTb, 0)
+		err = querySrcPortInfo(
+			&sourcePortInfoList,
+			[]SqlCond{SqlCondClientIndex},
+			pkIndex,
+		)
 		if err != rtkMisc.SUCCESS {
 			continue
 		}
 
-		if len(clientInfoList) > 0 {
-			for _, srcPortInfo := range clientInfoList {
-				clientInfo.Source = srcPortInfo.Source
-				clientInfo.Port = srcPortInfo.Port
+		if len(sourcePortInfoList) > 0 {
+			for _, srcPortInfoTb := range sourcePortInfoList {
+				clientInfo.Source = srcPortInfoTb.Source
+				clientInfo.Port = srcPortInfoTb.Port
 
-				if isOffline {
-					clientInfo.UdpMousePort = 0
-					clientInfo.UdpKeyboardPort = 0
-				} else {
-					clientInfo.UdpMousePort = srcPortInfo.UdpMousePort
-					clientInfo.UdpKeyboardPort = srcPortInfo.UdpKeyboardPort
-				}
+				clientInfo.UdpMousePort = srcPortInfoTb.UdpMousePort
+				clientInfo.UdpKeyboardPort = srcPortInfoTb.UdpKeyboardPort
+
 				notifyUpdateClientInfoCallback(clientInfo)
 			}
 		} else {
-			clientInfo.Source = 0
-			clientInfo.Port = 0
-			clientInfo.UdpMousePort = 0
-			clientInfo.UdpKeyboardPort = 0
+			// for forward compatibility
+			if clientInfo.UdpMousePort == 0 || clientInfo.UdpKeyboardPort == 0 {
+				clientInfo.UdpMousePort = 8080
+				clientInfo.UdpKeyboardPort = 8081
+			}
 
 			notifyUpdateClientInfoCallback(clientInfo)
 		}
@@ -116,8 +117,43 @@ func QueryClientInfoBySrcPort(source, port int) ([]rtkCommon.ClientInfoTb, rtkMi
 		return []rtkCommon.ClientInfoTb{}, rtkMisc.ERR_DB_SQLITE_INVALID_ARGS
 	}
 
+	sourcePortInfoList := make([]rtkCommon.SourcePortInfoTb, 0)
+	err := querySrcPortInfo(
+		&sourcePortInfoList,
+		[]SqlCond{SqlCondSource, SqlCondPort},
+		source, port,
+	)
+	if err != rtkMisc.SUCCESS {
+		return []rtkCommon.ClientInfoTb{}, err
+	}
+
+	// Query from SourcePortInfo first, if not found then query from ClientInfo by source/port directly
+	if (len(sourcePortInfoList) > 0) && (sourcePortInfoList[0].ClientIndex > 0) {
+		// query ClientInfo by index from SourcePortInfo
+		clientInfoList := make([]rtkCommon.ClientInfoTb, 0)
+		err = queryClientInfo(
+			&clientInfoList,
+			[]SqlCond{SqlCondPkIndex},
+			sourcePortInfoList[0].ClientIndex,
+		)
+		if err != rtkMisc.SUCCESS {
+			return []rtkCommon.ClientInfoTb{}, err
+		}
+
+		clientInfoListCnt := len(clientInfoList)
+		if clientInfoListCnt >= 1 {
+			if clientInfoListCnt > 1 {
+				log.Printf("[%s] WARNING! The result count from database more than 1", rtkMisc.GetFuncInfo())
+			}
+
+			return clientInfoList, rtkMisc.SUCCESS
+		}
+	}
+
+	// compatibility for old version
+	// query ClientInfo by source and port
 	clientInfoList := make([]rtkCommon.ClientInfoTb, 0)
-	err := queryClientInfo(
+	err = queryClientInfo(
 		&clientInfoList,
 		[]SqlCond{SqlCondSource, SqlCondPort},
 		source, port,
@@ -192,7 +228,7 @@ func UpsertClientInfo(clientId, host, ipAddr, deviceName, platform, version stri
 		return 0, err
 	}
 
-	notifyUpdateClientInfo([]int{pkIndex}, false)
+	notifyUpdateClientInfo([]int{pkIndex})
 	return pkIndex, err
 }
 
@@ -219,7 +255,7 @@ func UpdateClientOffline(pkIndex int) rtkMisc.CrossShareErr {
 		return errUpsertAuthStatus
 	}
 
-	notifyUpdateClientInfo(pkIndexList, true)
+	notifyUpdateClientInfo(pkIndexList)
 
 	return resetSrcPortInfo(pkIndexList)
 }
@@ -241,7 +277,7 @@ func UpdateClientOnline(pkIndex int) rtkMisc.CrossShareErr {
 		return err
 	}
 
-	notifyUpdateClientInfo(pkIndexList, false)
+	notifyUpdateClientInfo(pkIndexList)
 	return rtkMisc.SUCCESS
 }
 
@@ -256,7 +292,7 @@ func UpdateAllClientOffline() rtkMisc.CrossShareErr {
 		return err
 	}
 
-	notifyUpdateClientInfo(pkIndexList, true)
+	notifyUpdateClientInfo(pkIndexList)
 
 	return resetSrcPortInfo(pkIndexList)
 }
@@ -275,10 +311,7 @@ func UpdateAuthAndSrcPort(pkIndex int, status bool, source, port int) rtkMisc.Cr
 	preClientInfo, errQueryPre := QueryClientInfoByIndex(pkIndex)
 	if errQueryPre == rtkMisc.SUCCESS {
 		if preClientInfo.Source != source || preClientInfo.Port != port {
-			emptyClientInfo := rtkCommon.ClientInfoTb{}
-			emptyClientInfo.Source = preClientInfo.Source
-			emptyClientInfo.Port = preClientInfo.Port
-			notifyUpdateClientInfoCallback(emptyClientInfo)
+			notifyUpdateClientInfo([]int{pkIndex})
 		}
 	}
 
@@ -305,32 +338,18 @@ func UpdateAuthAndSrcPort(pkIndex int, status bool, source, port int) rtkMisc.Cr
 	}
 
 	// Notify the lastest ClientInfoTb
-	curClientInfo, errQueryCur := QueryClientInfoByIndex(pkIndex)
-	if errQueryCur == rtkMisc.SUCCESS {
-		notifyUpdateClientInfoCallback(curClientInfo)
-	}
+	notifyUpdateClientInfo([]int{pkIndex})
 
 	return rtkMisc.SUCCESS
 }
 
-func UpdateSrcPortInfo(clientIndex, extClientIndex, source, port, udpMousePort, udpKeyboardPort int) rtkMisc.CrossShareErr {
-	errCode := upsertSrcPortInfo(source, port, extClientIndex, udpMousePort, udpKeyboardPort)
+func UpdateSrcPortInfo(clientIndex, extClientIndex int, srcPortInfoList []rtkMisc.SourcePortInfo) rtkMisc.CrossShareErr {
+	errCode := upsertSrcPortInfo(extClientIndex, srcPortInfoList)
 	if errCode != rtkMisc.SUCCESS {
 		return errCode
 	}
 
-	log.Printf("[%s] update srcPort success, source:%d, port:%d clientIndex:%d mousePort:%d keyboardPort:%d", rtkMisc.GetFuncInfo(), source, port, extClientIndex, udpMousePort, udpKeyboardPort)
-
-	clientInfo, err := QueryClientInfoByIndex(clientIndex)
-	if err != rtkMisc.SUCCESS {
-		return err
-	}
-	clientInfo.Source = source
-	clientInfo.Port = port
-	clientInfo.UdpMousePort = udpMousePort
-	clientInfo.UdpKeyboardPort = udpKeyboardPort
-
-	notifyUpdateClientInfoCallback(clientInfo)
+	notifyUpdateClientInfo([]int{clientIndex})
 
 	return rtkMisc.SUCCESS
 }

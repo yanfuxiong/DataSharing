@@ -249,7 +249,7 @@ func (mgr *InterfaceMgr) GetDiasId() string {
 	return rtkGlobal.ServerMdnsId
 }
 
-// Deprecated: Use GetClientInfodData
+// Deprecated: Use GetClientInfoData
 func (mgr *InterfaceMgr) GetDeviceName(source, port int) string {
 	clientInfoTbList, err := rtkdbManager.QueryClientInfoBySrcPort(source, port)
 	if err != rtkMisc.SUCCESS {
@@ -277,7 +277,7 @@ func (mgr *InterfaceMgr) UpdateMiracastInfo(ip string, macAddr []byte, name stri
 	log.Printf("[%s][%s] TODO: Add miracast info to Database AuthTable. IP=%s, macAddr=%s, name=%s", tag, rtkMisc.GetFuncInfo(), ip, macAddrStr, name)
 }
 
-func (mgr *InterfaceMgr) GetClientInfodData(source, port int) rtkCommon.ClientInfoTb {
+func (mgr *InterfaceMgr) GetClientInfoData(source, port int) rtkCommon.ClientInfoTb {
 	clientInfoTbList, err := rtkdbManager.QueryClientInfoBySrcPort(source, port)
 	if err != rtkMisc.SUCCESS && err != rtkMisc.ERR_DB_SQLITE_EMPTY_RESULT {
 		log.Printf("[%s][%s] Error: query clientInfo data failed: %d", tag, rtkMisc.GetFuncInfo(), err)

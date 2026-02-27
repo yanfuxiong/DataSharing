@@ -30,7 +30,7 @@ func BrowseInstance() rtkMisc.CrossShareErr {
 	var err rtkMisc.CrossShareErr
 	if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformiOS {
 		err = browseLanServeriOS(ctx, rtkMisc.LanServiceType, resultChan)
-	} else if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformAndroid {
+	} else if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformAndroid || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformMnt {
 		err = browseLanServerAndroid(ctx, rtkMisc.LanServiceType, rtkMisc.LanServerDomain, resultChan)
 	} else {
 		err = browseLanServer(ctx, rtkMisc.LanServiceType, rtkMisc.LanServerDomain, resultChan)
@@ -40,6 +40,14 @@ func BrowseInstance() rtkMisc.CrossShareErr {
 		for param := range resultChan {
 			if len(param.instance) > 0 && len(param.ip) > 0 {
 				serverInstanceMap.Store(param.instance, param)
+
+				if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformAndroid || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformMnt ||
+					rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformiOS {
+					if lanServerRunning.Load() {
+						rtkPlatform.GoNotifyBrowseResult(param.monitorName, param.instance, param.ip, param.ver, param.timeStamp)
+					}
+				}
+
 			}
 		}
 	})
@@ -143,18 +151,14 @@ func browseLanServerAndroid(ctx context.Context, serviceType, domain string, res
 						continue
 					}
 				}
-				stamp, err := strconv.Atoi(textRecordTimeStamp)
+				stamp, err := strconv.ParseInt(textRecordTimeStamp, 10, 64)
 				if err != nil {
 					log.Printf("[%s] WARNING: invalid timestamp:%s, err:%+v", rtkMisc.GetFuncInfo(), rtkMisc.TextRecordKeyTimestamp, err)
 				}
 
-				log.Printf("Found target Service, mName:[%s] instance:[%s] IP:[%s] ver:[%s] timestamp:[%s], use %d ms", textRecordmName, entry.Instance, lanServerIp, textRecordKeyVersion, textRecordTimeStamp, time.Now().UnixMilli()-startTime)
+				log.Printf("Found target Service, mName:[%s] instance:[%s] IP:[%s] ver:[%s] timestamp:[%d], use %d ms", textRecordmName, entry.Instance, lanServerIp, textRecordKeyVersion, stamp, time.Now().UnixMilli()-startTime)
 
-				if lanServerRunning.Load() {
-					rtkPlatform.GoNotifyBrowseResult(textRecordmName, entry.Instance, lanServerIp, textRecordKeyVersion, int64(stamp))
-				}
-
-				resultChan <- browseParam{entry.Instance, lanServerIp, textRecordmName, textRecordKeyVersion, int64(stamp)}
+				resultChan <- browseParam{entry.Instance, lanServerIp, textRecordmName, textRecordKeyVersion, stamp}
 			}
 		}
 		log.Printf("Stop Browse service instances")
@@ -178,14 +182,11 @@ func browseLanServeriOS(ctx context.Context, serviceType string, resultChan chan
 		lanServerIp := fmt.Sprintf("%s:%d", ip, port)
 		log.Printf("Browse get a Service:[%s] IP:[%s],use [%d] ms", instance, lanServerIp, time.Now().UnixMilli()-startTime)
 
-		stamp, err := strconv.Atoi(timestamp)
+		stamp, err := strconv.ParseInt(timestamp, 10, 64)
 		if err != nil {
 			log.Printf("[%s] WARNING: invalid[%s]:%d. err:%s", rtkMisc.GetFuncInfo(), rtkMisc.TextRecordKeyTimestamp, stamp, err)
 		}
 
-		if lanServerRunning.Load() {
-			rtkPlatform.GoNotifyBrowseResult(mName, instance, lanServerIp, version, int64(stamp))
-		}
 		resultChan <- browseParam{instance, lanServerIp, mName, version, int64(stamp)}
 	})
 	rtkPlatform.GoStartBrowseMdns("", serviceType)
