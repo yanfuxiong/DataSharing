@@ -1,5 +1,4 @@
 //go:build ios
-// +build ios
 
 package main
 
@@ -537,9 +536,8 @@ func SetCancelFileTransfer(ipPort, clientID string, timeStamp uint64) {
 }
 
 //export SetNetWorkConnected
-func SetNetWorkConnected(isConnect bool) {
+func SetNetWorkConnected(isConnect bool) { // Deprecated: unused
 	log.Printf("[%s] SetNetWorkConnected:[%v]", rtkMisc.GetFuncInfo(), isConnect)
-	//rtkPlatform.SetNetWorkConnected(isConnect)
 }
 
 //export SetHostListenAddr

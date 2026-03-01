@@ -587,9 +587,8 @@ func RequestUpdateDownloadPath(downloadPath string) {
 }
 
 //export SetNetWorkConnected
-func SetNetWorkConnected(isConnect bool) {
+func SetNetWorkConnected(isConnect bool) { // Deprecated: unused
 	log.Printf("[%s] SetNetWorkConnected:[%v]", rtkMisc.GetFuncInfo(), isConnect)
-	//rtkPlatform.SetNetWorkConnected(isConnect)
 }
 
 //export SetHostListenAddr

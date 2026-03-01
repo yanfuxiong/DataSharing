@@ -19,7 +19,6 @@ import (
 )
 
 var (
-	isNetWorkConnected       bool // Deprecated: unused
 	ifConfirmDocumentsAccept bool
 	privKeyFile              string
 	hostID                   string
@@ -719,16 +718,6 @@ func UnlockFile() error {
 
 	lockFd.Close()
 	return err
-}
-
-// Deprecated: unused
-func SetNetWorkConnected(bConnected bool) {
-	isNetWorkConnected = bConnected
-}
-
-// Deprecated: unused
-func GetNetWorkConnected() bool {
-	return isNetWorkConnected
 }
 
 func GetConfirmDocumentsAccept() bool {
