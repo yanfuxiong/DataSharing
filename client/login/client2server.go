@@ -47,14 +47,12 @@ func SendReqUpdateSrcPortInfo(srcPort rtkMisc.SourcePort) rtkMisc.CrossShareErr 
 
 	displayInfoMutex.RLock()
 	defer displayInfoMutex.RUnlock()
-	displayInfo, ok := displayInfoMap[srcPort]
-	if !ok {
-		log.Printf("[%s] get no data in displayInfoMap by source:[%d] port:[%d]", rtkMisc.GetFuncInfo(), srcPort.Source, srcPort.Port)
-		return rtkMisc.ERR_BIZ_DISPLAY_EVENT_EMPTY
+
+	if displayInfo, ok := displayInfoMap[srcPort]; !ok {
+		extData.ClientIndex = int(rtkGlobal.NodeInfo.ClientIndex)
+		extData.SourcePortInfoList[0].UdpMousePort = displayInfo.UdpMousePort
+		extData.SourcePortInfoList[0].UdpKeyboardPort = displayInfo.UdpKeyboardPort
 	}
-	extData.ClientIndex = int(rtkGlobal.NodeInfo.ClientIndex)
-	extData.SourcePortInfoList[0].UdpMousePort = displayInfo.UdpMousePort
-	extData.SourcePortInfoList[0].UdpKeyboardPort = displayInfo.UdpKeyboardPort
 
 	return sendReqMsgToLanServer(rtkMisc.CS2Msg_UPDATE_SRCPORT_INFO, extData)
 }
@@ -406,10 +404,10 @@ func dealS2CMsgUpdateSrcPortInfo(id string, extData json.RawMessage) rtkMisc.Cro
 	}
 
 	if updateSrcPortInfoRsp.Code != rtkMisc.SUCCESS {
-		log.Printf("[%s] Message Event Response failed, errCode:[%d]  errMsg:[%s]!", rtkMisc.GetFuncInfo(), updateSrcPortInfoRsp.Code, updateSrcPortInfoRsp.Msg)
+		log.Printf("[%s] UpdateSrcPortInfo Response failed, errCode:[%d]  errMsg:[%s]!", rtkMisc.GetFuncInfo(), updateSrcPortInfoRsp.Code, updateSrcPortInfoRsp.Msg)
 		return updateSrcPortInfoRsp.Code
 	}
-	log.Printf("[%s] Message UpdateSrcPortInfo Response success, srcPortInfo len:[%d] !", rtkMisc.GetFuncInfo(), len(updateSrcPortInfoRsp.SourcePortList))
+	log.Printf("[%s] UpdateSrcPortInfo Response success, srcPortInfo len:[%d] !", rtkMisc.GetFuncInfo(), len(updateSrcPortInfoRsp.SourcePortList))
 	return rtkMisc.SUCCESS
 }
 

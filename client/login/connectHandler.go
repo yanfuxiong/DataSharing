@@ -101,9 +101,8 @@ func (s *safeConnect) Read(b *[]byte) (int, error) { // Deprecated: unused
 }
 
 func (s *safeConnect) Close() error {
-	// use RLock to immediately trigger shutdown
-	s.connectMutex.RLock()
-	defer s.connectMutex.RUnlock()
+	s.connectMutex.Lock()
+	defer s.connectMutex.Unlock()
 	if s.isAlive {
 		s.isAlive = false
 		if s.connectLanServer != nil {

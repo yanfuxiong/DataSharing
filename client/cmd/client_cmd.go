@@ -21,13 +21,12 @@ import (
 )
 
 var (
-	isBusinessProcessStart         bool
-	cablePlugEventFlagChan         = make(chan bool, 1)
-	networkSwitchFlagChan          = make(chan struct{})
-	clientVerInvalidFlagChan       = make(chan struct{})
-	lastCablePlugEventTimeStamp    int64
-	lastCablePlugEventTimeStampMap sync.Map
-	cablePlugEventMutex            sync.Mutex
+	isBusinessProcessStart      bool
+	cablePlugEventFlagChan      = make(chan bool, 1)
+	networkSwitchFlagChan       = make(chan struct{})
+	clientVerInvalidFlagChan    = make(chan struct{})
+	lastCablePlugEventTimeStamp int64
+	cablePlugEventMutex         sync.Mutex
 )
 
 func detectCablePlugEvent(event bool) {
@@ -104,16 +103,8 @@ func init() {
 			return
 		}
 
-		nCount := rtkLogin.GetPlugDisplayEventInfoCnt()
-
 		if displayEventInfo.PlugEvent == 1 {
-			if nCount == 0 {
-				if lastTimestamp, ok := lastCablePlugEventTimeStampMap.Load(displayEventInfo.SourcePort); ok {
-					if displayEventInfo.TimeStamp-lastTimestamp.(int64) < 200 {
-						log.Printf("this display event trigger interval time is too short, so discard it!")
-						return
-					}
-				}
+			if rtkLogin.GetPlugDisplayEventInfoCnt() == 0 {
 				rtkLogin.SetPlugDisplayEventInfo(displayEventInfo)
 				rtkLogin.SetLanServerInstance(displayEventInfo.MacAddr)
 				detectCablePlugEvent(true)
@@ -131,11 +122,10 @@ func init() {
 		} else {
 			rtkLogin.SetPlugDisplayEventInfo(displayEventInfo)
 			rtkLogin.SendReqUpdateSrcPortInfo(displayEventInfo.SourcePort)
-			if nCount == 0 {
+			if rtkLogin.GetPlugDisplayEventInfoCnt() == 0 {
 				detectCablePlugEvent(false)
 			}
 		}
-		lastCablePlugEventTimeStampMap.Store(displayEventInfo.SourcePort, displayEventInfo.TimeStamp)
 	})
 
 	rtkPlatform.SetGoAuthStatusCodeCallback(func(status uint8) {
