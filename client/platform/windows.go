@@ -97,7 +97,7 @@ type (
 	CallbackUpdateSystemInfoFunc       func(ipAddr string, verInfo string)
 	CallbackUpdateClientStatusFunc     func(status uint32, ip, id, deviceName, deviceType string)
 	CallbackUpdateClientStatusExFunc   func(clientInfo string)
-	CallbackDetectPluginEventFunc      func(isPlugin bool, productName string)
+	CallbackPluginEventFunc            func(isPlugin bool, productName string)
 	CallbackGetFilesTransCodeFunc      func(id string) rtkCommon.SendFilesRequestErrCode
 	CallbackGetFilesCacheSendCountFunc func(id string) int
 	CallbackReqClientUpdateVerFunc     func(clientVer string)
@@ -183,7 +183,7 @@ func SetGoGetDisplayEventCallback(cb CallbackDisplayEventFunc) {
 	callbackDisplayEvent = cb
 }
 
-func SetDetectPluginEventCallback(cb CallbackDetectPluginEventFunc) {
+func SetPluginEventCallback(cb CallbackPluginEventFunc) {
 	//callbackDetectPluginEventCB = cb
 }
 

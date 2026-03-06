@@ -28,7 +28,6 @@ const (
 )
 
 var (
-	isNetWorkConnected       bool // Deprecated: unused
 	ifConfirmDocumentsAccept bool
 	privKeyFile              string
 	hostID                   string
@@ -107,7 +106,7 @@ type (
 	CallbackDragFileListRequestFunc    func([]rtkCommon.FileInfo, []string, uint64, uint64, string, string)
 	CallbackGetMacAddressFunc          func(string)
 	CallbackCancelFileTransFunc        func(string, string, uint64)
-	CallbackDetectPluginEventFunc      func(isPlugin bool, productName string)
+	CallbackPluginEventFunc            func(isPlugin bool, productName string)
 	CallbackDisplayEventFunc           func(rtkCommon.DisplayEventInfo)
 	CallbackDIASSourceAndPortFunc      func(uint8, uint8)
 	CallbackAuthStatusCodeFunc         func(uint8)
@@ -128,7 +127,7 @@ var (
 	callbackDragFileListRequestCB      CallbackDragFileListRequestFunc    = nil
 	callbackGetMacAddressCB            CallbackGetMacAddressFunc          = nil
 	callbackCancelFileTransDragCB      CallbackCancelFileTransFunc        = nil
-	callbackDetectPluginEventCB        CallbackDetectPluginEventFunc      = nil
+	callbackPluginEventCB              CallbackPluginEventFunc            = nil
 	callbackDIASSourceAndPortCB        CallbackDIASSourceAndPortFunc      = nil
 	callbackAuthStatusCodeCB           CallbackAuthStatusCodeFunc         = nil
 	callbackExtractDIASCB              CallbackExtractDIASFunc            = nil
@@ -169,8 +168,8 @@ func SetGoGetMacAddressCallback(cb CallbackGetMacAddressFunc) {
 	callbackGetMacAddressCB = cb
 }
 
-func SetDetectPluginEventCallback(cb CallbackDetectPluginEventFunc) {
-	callbackDetectPluginEventCB = cb
+func SetPluginEventCallback(cb CallbackPluginEventFunc) {
+	callbackPluginEventCB = cb
 }
 
 func SetGoGetDisplayEventCallback(cb CallbackDisplayEventFunc) {
@@ -212,7 +211,8 @@ func SetGoSetMsgEventCallback(cb CallbackSetMsgEventFunc) {
 	callbackSetMsgEvent = cb
 }
 
-/***************** Used  by android *****************/
+/*======================================= Used by android client =======================================*/
+
 func SetupRootPath(path string) {
 	if path == "" {
 		return
@@ -423,13 +423,13 @@ func GoGetMacAddress(mac string) {
 	callbackGetMacAddressCB(mac)
 }
 
-func GoTriggerDetectPluginEvent(isPlugin bool, productName string) {
-	if callbackDetectPluginEventCB == nil {
-		log.Println("callbackDetectPluginEventCB is null!")
+func GoPluginEvent(isPlugin bool, productName string) {
+	if callbackPluginEventCB == nil {
+		log.Println("callbackPluginEventCB is null!")
 		return
 	}
 
-	callbackDetectPluginEventCB(isPlugin, productName)
+	callbackPluginEventCB(isPlugin, productName)
 }
 
 func GoCancelFileTrans(ip, id string, timestamp int64) {
@@ -462,7 +462,11 @@ func GoBrowseLanServer() {
 	rtkMisc.GoSafe(func() { callbackBrowseLanServer() })
 }
 
-/***************** Used  by GO business *****************/
+func GoGetClientVersion() string {
+	return rtkGlobal.ClientVersion
+}
+
+/*======================================= Used by GO business =======================================*/
 
 func GoSetupDstPasteFile(desc, fileName, platform string, fileSizeHigh uint32, fileSizeLow uint32) {
 	fileSize := int64(fileSizeHigh)<<32 | int64(fileSizeLow)
@@ -674,16 +678,6 @@ func UnlockFile() error {
 	return err
 }
 
-// Deprecated: unused
-func SetNetWorkConnected(bConnected bool) {
-	isNetWorkConnected = bConnected
-}
-
-// Deprecated: unused
-func GetNetWorkConnected() bool {
-	return isNetWorkConnected
-}
-
 func GetConfirmDocumentsAccept() bool {
 	return ifConfirmDocumentsAccept
 }
@@ -727,6 +721,9 @@ func GoDIASStatusNotify(diasStatus uint32) {
 	CallbackInstance.CallbackUpdateDiasStatus(int(diasStatus))
 }
 
+func GoTriggerDetectPluginEvent(isPlugin bool) {
+}
+
 func GetAuthData(clientIndex uint32) (rtkMisc.CrossShareErr, rtkMisc.AuthDataInfo) {
 	if CallbackInstance == nil {
 		log.Println("GetAuthData - failed - callbackInstance is nil")
@@ -755,7 +752,4 @@ func GoStopBrowseMdns() {
 
 func GoSetupAppLink(link string) {
 	rtkMisc.AppLink = link
-}
-
-func GoSetupReadyReCtrl(ip string, mousePort, kybrdPort uint32) {
 }

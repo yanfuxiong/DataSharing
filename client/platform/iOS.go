@@ -78,7 +78,8 @@ type (
 	CallbackMethodStartBrowseMdns          func(string, string)
 	CallbackMethodStopBrowseMdns           func()
 	CallbackMethodBrowseMdnsResultFunc     func(string, string, int, string, string, string, string)
-	CallbackDetectPluginEventFunc          func(isPlugin bool, productName string)
+	CallbackPluginEventFunc                func(isPlugin bool, productName string)
+	CallbackGoDetectPluginEventFunc        func(plugEvent bool)
 	CallbackDisplayEventFunc               func(rtkCommon.DisplayEventInfo)
 	CallbackGetAuthDataFunc                func(uint32) string
 	CallbackDIASStatusFunc                 func(uint32)
@@ -115,7 +116,8 @@ var (
 	callbackMethodStartBrowseMdns      CallbackMethodStartBrowseMdns          = nil
 	callbackMethodStopBrowseMdns       CallbackMethodStopBrowseMdns           = nil
 	callbackMethodBrowseMdnsResult     CallbackMethodBrowseMdnsResultFunc     = nil
-	callbackDetectPluginEvent          CallbackDetectPluginEventFunc          = nil
+	callbackPluginEvent                CallbackPluginEventFunc                = nil
+	CallbackGoDetectPluginEvent        CallbackGoDetectPluginEventFunc        = nil
 	callbackGetAuthData                CallbackGetAuthDataFunc                = nil
 	callbackDIASStatus                 CallbackDIASStatusFunc                 = nil
 	callbackMonitorName                CallbackMonitorNameFunc                = nil
@@ -175,6 +177,10 @@ func SetCallbackDIASStatus(cb CallbackDIASStatusFunc) {
 	callbackDIASStatus = cb
 }
 
+func SetGoDetectPluginEventCallback(cb CallbackGoDetectPluginEventFunc) {
+	CallbackGoDetectPluginEvent = cb
+}
+
 func SetCallbackMonitorName(cb CallbackMonitorNameFunc) {
 	callbackMonitorName = cb
 }
@@ -230,8 +236,8 @@ func SetGoGetMacAddressCallback(cb CallbackGetMacAddressFunc) {
 	callbackGetMacAddress = cb
 }
 
-func SetDetectPluginEventCallback(cb CallbackDetectPluginEventFunc) {
-	callbackDetectPluginEvent = cb
+func SetPluginEventCallback(cb CallbackPluginEventFunc) {
+	callbackPluginEvent = cb
 }
 
 func SetGoGetDisplayEventCallback(cb CallbackDisplayEventFunc) {
@@ -358,8 +364,8 @@ func GoGetMacAddressCallback(mac string) {
 	callbackGetMacAddress(mac)
 }
 
-func GoTriggerDetectPluginEvent(isPlugin bool) {
-	callbackDetectPluginEvent(isPlugin, "")
+func GoPluginEvent(isPlugin bool) {
+	callbackPluginEvent(isPlugin, "")
 }
 
 func SetConfirmDocumentsAccept(ifConfirm bool) {
@@ -755,6 +761,14 @@ func GoDIASStatusNotify(diasStatus uint32) {
 		return
 	}
 	callbackDIASStatus(diasStatus)
+}
+
+func GoTriggerDetectPluginEvent(plugEvent bool) {
+	if CallbackGoDetectPluginEvent == nil {
+		log.Printf("[%s] CallbackGoDetectPluginEvent is nil, GoTriggerDetectPluginEvent failed!", rtkMisc.GetFuncInfo())
+		return
+	}
+	CallbackGoDetectPluginEvent(plugEvent)
 }
 
 func GetAuthData(clientIndex uint32) (rtkMisc.CrossShareErr, rtkMisc.AuthDataInfo) {

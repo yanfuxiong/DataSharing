@@ -81,7 +81,7 @@ type (
 	CallbackMethodStartBrowseMdns          func(string, string)
 	CallbackMethodStopBrowseMdns           func()
 	CallbackMethodBrowseMdnsResultFunc     func(string, string, int, string, string, string, string)
-	CallbackDetectPluginEventFunc          func(isPlugin bool, productName string)
+	CallbackPluginEventFunc                func(isPlugin bool, productName string)
 	CallbackReqSourceAndPortFunc           func()
 	CallbackDIASStatusFunc                 func(uint32)
 	CallbackAuthViaIndexFunc               func(uint32)
@@ -121,7 +121,7 @@ var (
 	callbackMethodStartBrowseMdns      CallbackMethodStartBrowseMdns          = nil
 	callbackMethodStopBrowseMdns       CallbackMethodStopBrowseMdns           = nil
 	callbackMethodBrowseMdnsResult     CallbackMethodBrowseMdnsResultFunc     = nil
-	callbackDetectPluginEvent          CallbackDetectPluginEventFunc          = nil
+	callbackPluginEvent                CallbackPluginEventFunc                = nil
 	callbackReqSourceAndPort           CallbackReqSourceAndPortFunc           = nil
 	callbackDIASStatus                 CallbackDIASStatusFunc                 = nil
 	callbackMonitorName                CallbackMonitorNameFunc                = nil
@@ -240,8 +240,8 @@ func SetGoGetDisplayEventCallback(cb CallbackDisplayEventFunc) {
 	callbackDisplayEvent = cb
 }
 
-func SetDetectPluginEventCallback(cb CallbackDetectPluginEventFunc) {
-	callbackDetectPluginEvent = cb
+func SetPluginEventCallback(cb CallbackPluginEventFunc) {
+	callbackPluginEvent = cb
 }
 
 func SetGoAuthStatusCodeCallback(cb CallbackAuthStatusCodeFunc) {
@@ -816,6 +816,9 @@ func UnlockFile() error {
 
 func GetConfirmDocumentsAccept() bool {
 	return ifConfirmDocumentsAccept
+}
+
+func GoTriggerDetectPluginEvent(isPlugin bool) {
 }
 
 func GoNotifyBrowseResult(monitorName, instance, ipAddr, version string, timestamp int64) {

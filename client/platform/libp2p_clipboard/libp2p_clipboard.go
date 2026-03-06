@@ -45,9 +45,9 @@ func SetMsgEventFunc(event int, arg1, arg2, arg3, arg4 string) {
 	rtkPlatform.GoSetMsgEventFunc(uint32(event), arg1, arg2, arg3, arg4)
 }
 
-func SendXClipData(text, image, html /*, rtf*/ string) {
-	log.Printf("[%s] text:%d, image:%d, html:%d, rtf:%d \n\n", rtkMisc.GetFuncInfo(), len(text), len(image), len(html) /*, len(rtf)*/)
-	rtkPlatform.GoCopyXClipData(text, image, html, "" /* []byte(rtf)*/)
+func SendXClipData(text, image, html, rtf string) {
+	log.Printf("[%s] text:%d, image:%d, html:%d, rtf:%d \n\n", rtkMisc.GetFuncInfo(), len(text), len(image), len(html), len(rtf))
+	rtkPlatform.GoCopyXClipData(text, image, html, rtf)
 }
 
 func GetClientListEx() string {
@@ -92,9 +92,9 @@ func CancelFileTrans(ip, id string, timestamp int64) {
 	rtkPlatform.GoCancelFileTrans(ip, id, timestamp)
 }
 
+// Deprecated: unused
 func SetNetWorkConnected(isConnect bool) {
 	log.Printf("[%s] SetNetWorkConnected:[%v]", rtkMisc.GetFuncInfo(), isConnect)
-	rtkPlatform.SetNetWorkConnected(isConnect)
 }
 
 func SetHostListenAddr(listenHost string, listenPort int) {
@@ -104,12 +104,12 @@ func SetHostListenAddr(listenHost string, listenPort int) {
 
 func SetDIASID(DiasID string) {
 	log.Printf(" [%s]  DiasID:[%s]", rtkMisc.GetFuncInfo(), DiasID)
-	rtkPlatform.GoGetMacAddress(DiasID)
+	//rtkPlatform.GoGetMacAddress(DiasID)
 }
 
 func SetDetectPluginEvent(isPlugin bool, productName string) {
 	log.Printf(" [%s] isPlugin:[%+v]  productName:[%s]", rtkMisc.GetFuncInfo(), isPlugin, productName)
-	rtkPlatform.GoTriggerDetectPluginEvent(isPlugin, productName)
+	rtkPlatform.GoPluginEvent(isPlugin, productName)
 }
 
 func SetConfirmDocumentsAccept(ifConfirm bool) {
@@ -118,7 +118,7 @@ func SetConfirmDocumentsAccept(ifConfirm bool) {
 }
 
 func GetVersion() string {
-	return rtkGlobal.ClientVersion
+	return rtkPlatform.GoGetClientVersion()
 }
 
 func GetBuildDate() string {

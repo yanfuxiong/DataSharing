@@ -61,7 +61,7 @@ func init() {
 		networkSwitchFlagChan <- struct{}{}
 	})
 
-	rtkPlatform.SetDetectPluginEventCallback(func(isPlugin bool, productName string) {
+	rtkPlatform.SetPluginEventCallback(func(isPlugin bool, productName string) {
 		if lastCablePlugEventTimeStamp != 0 && (time.Now().UnixMilli()-lastCablePlugEventTimeStamp < 200) {
 			log.Printf("Detect plug event interval time is too short, so discard it!")
 			return

@@ -28,6 +28,7 @@ typedef void (*CallbackPasteXClipData)(char *text, char *image, char *html, char
 typedef void (*CallbackRequestUpdateClientVersion)(char* clientVer);
 typedef void (*CallbackNotifyErrEvent)(char* id, unsigned int errCode, char* arg1, char* arg2, char* arg3, char* arg4);
 typedef void (*CallbackNotifyBrowseResult)(char* monitorName, char* instance, char* ip, char* version, unsigned long long timestamp);
+typedef void (*CallbackSetPlugEvent)(unsigned int plugEvent);
 
 static CallbackUpdateClientStatus gCallbackUpdateClientStatus = 0;
 static CallbackMethodFileListNotify gCallbackFileListSendNotify = 0;
@@ -44,7 +45,7 @@ static CallbackPasteXClipData gCallbackPasteXClipData = 0;
 static CallbackRequestUpdateClientVersion gCallbackRequestUpdateClientVersion = 0;
 static CallbackNotifyErrEvent gCallbackNotifyErrEvent = 0;
 static CallbackNotifyBrowseResult gCallbackNotifyBrowseResult = 0;
-
+static CallbackSetPlugEvent gCallbackSetPlugEvent = 0;
 
 static void setCallbackUpdateClientStatus(CallbackUpdateClientStatus cb) {gCallbackUpdateClientStatus = cb;}
 static void invokeCallbackUpdateClientStatus(char* clientJsonStr) {
@@ -106,6 +107,10 @@ static void invokeCallbackNotifyErrEvent(char* id, unsigned int errCode, char* a
 static void setCallbackNotifyBrowseResult(CallbackNotifyBrowseResult cb) {gCallbackNotifyBrowseResult = cb;}
 static void invokeCallbackNotifyBrowseResult(char* monitorName, char* instance, char* ip, char* version, unsigned long long timestamp) {
 	if (gCallbackNotifyBrowseResult) { gCallbackNotifyBrowseResult(monitorName, instance, ip, version, timestamp);}
+}
+static void setCallbackSetPlugEvent(CallbackSetPlugEvent cb) {gCallbackSetPlugEvent = cb;}
+static void invokeCallbackSetPlugEvent(unsigned int plugEvent) {
+	if (gCallbackSetPlugEvent) { gCallbackSetPlugEvent(plugEvent);}
 }
 */
 import "C"
@@ -177,6 +182,7 @@ func init() {
 	rtkPlatform.SetCallbackRequestUpdateClientVersion(GoTriggerCallbackReqClientUpdateVer)
 	rtkPlatform.SetCallbackNotifyErrEvent(GoTriggerCallbackNotifyErrEvent)
 	rtkPlatform.SetCallbackNotifyBrowseResult(GoTriggerCallbackNotifyBrowseResult)
+	rtkPlatform.SetGoDetectPluginEventCallback(GoTriggerCallbackDetectPluginEvent)
 
 	rtkPlatform.SetConfirmDocumentsAccept(false)
 }
@@ -392,6 +398,15 @@ func GoTriggerCallbackNotifyBrowseResult(monitorName, instance, ipAddr, version 
 	C.invokeCallbackNotifyBrowseResult(cMonitorName, cInstance, cIpAddr, cVersion, cTimeStamp)
 }
 
+func GoTriggerCallbackDetectPluginEvent(plugEvent bool) {
+	cPlugEvent := C.uint(0)
+	if plugEvent {
+		cPlugEvent = C.uint(1)
+	}
+	C.invokeCallbackSetPlugEvent(cPlugEvent)
+	log.Printf("[%s] cPlugEvent:%d", rtkMisc.GetFuncInfo(), cPlugEvent)
+}
+
 //export SetCallbackUpdateClientStatus
 func SetCallbackUpdateClientStatus(cb C.CallbackUpdateClientStatus) {
 	C.setCallbackUpdateClientStatus(cb)
@@ -472,6 +487,12 @@ func SetCallbackNotifyErrEvent(cb C.CallbackNotifyErrEvent) {
 func SetCallbackNotifyBrowseResult(cb C.CallbackNotifyBrowseResult) {
 	log.Printf("[%s] SetCallbackNotifyBrowseResult", rtkMisc.GetFuncInfo())
 	C.setCallbackNotifyBrowseResult(cb)
+}
+
+//export SetCallbackSetPlugEvent
+func SetCallbackSetPlugEvent(cb C.CallbackSetPlugEvent) {
+	log.Printf("[%s] SetCallbackSetPlugEvent", rtkMisc.GetFuncInfo())
+	C.setCallbackSetPlugEvent(cb)
 }
 
 //export MainInit
@@ -555,7 +576,7 @@ func SetDIASID(DiasID string) {
 //export SetDetectPluginEvent
 func SetDetectPluginEvent(isPlugin bool) {
 	log.Printf(" [%s] isPlugin:[%+v]", rtkMisc.GetFuncInfo(), isPlugin)
-	rtkPlatform.GoTriggerDetectPluginEvent(isPlugin)
+	rtkPlatform.GoPluginEvent(isPlugin)
 }
 
 //export GetVersion
