@@ -23,6 +23,11 @@ const (
 	PlatformMac     = "macOs"
 	PlatformiOS     = "iOS"
 	PlatformMnt     = "mnt"
+
+	//PlatformType
+	PlatformType_Mobile = 0
+	PlatformType_PC     = 1
+	PlatformType_Mnt    = 2
 )
 
 var (

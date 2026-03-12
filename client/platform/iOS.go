@@ -31,7 +31,7 @@ var (
 	rootPath                 string
 )
 
-func initFilePath() {
+func init() {
 	privKeyFile = ".priv.pem"
 	hostID = ".HostID"
 	nodeID = ".ID"
@@ -39,6 +39,7 @@ func initFilePath() {
 	lockFile = "singleton.lock"
 	crashLogFile = "crash.log"
 	downloadPath = ""
+	rtkGlobal.NodeInfo.Platform = rtkMisc.PlatformiOS
 }
 
 func GetRootPath() string {
@@ -117,7 +118,7 @@ var (
 	callbackMethodStopBrowseMdns       CallbackMethodStopBrowseMdns           = nil
 	callbackMethodBrowseMdnsResult     CallbackMethodBrowseMdnsResultFunc     = nil
 	callbackPluginEvent                CallbackPluginEventFunc                = nil
-	CallbackGoDetectPluginEvent        CallbackGoDetectPluginEventFunc        = nil
+	callbackGoDetectPluginEvent        CallbackGoDetectPluginEventFunc        = nil
 	callbackGetAuthData                CallbackGetAuthDataFunc                = nil
 	callbackDIASStatus                 CallbackDIASStatusFunc                 = nil
 	callbackMonitorName                CallbackMonitorNameFunc                = nil
@@ -178,7 +179,7 @@ func SetCallbackDIASStatus(cb CallbackDIASStatusFunc) {
 }
 
 func SetGoDetectPluginEventCallback(cb CallbackGoDetectPluginEventFunc) {
-	CallbackGoDetectPluginEvent = cb
+	callbackGoDetectPluginEvent = cb
 }
 
 func SetCallbackMonitorName(cb CallbackMonitorNameFunc) {
@@ -282,7 +283,6 @@ func SetupRootPath(path string) {
 		return
 	}
 	rootPath = path
-	initFilePath()
 
 	getPath := func(dirPath, filePath string) string {
 		return dirPath + "/" + filePath
@@ -697,10 +697,6 @@ func GetHostIDPath() string {
 	return hostID
 }
 
-func GetPlatform() string {
-	return rtkMisc.PlatformiOS
-}
-
 func LockFile() error {
 	var err error
 	lockFd, err = os.OpenFile(lockFile, os.O_CREATE|os.O_RDWR, 0666)
@@ -764,11 +760,11 @@ func GoDIASStatusNotify(diasStatus uint32) {
 }
 
 func GoTriggerDetectPluginEvent(plugEvent bool) {
-	if CallbackGoDetectPluginEvent == nil {
-		log.Printf("[%s] CallbackGoDetectPluginEvent is nil, GoTriggerDetectPluginEvent failed!", rtkMisc.GetFuncInfo())
+	if callbackGoDetectPluginEvent == nil {
+		log.Printf("[%s] callbackGoDetectPluginEvent is nil, GoTriggerDetectPluginEvent failed!", rtkMisc.GetFuncInfo())
 		return
 	}
-	CallbackGoDetectPluginEvent(plugEvent)
+	callbackGoDetectPluginEvent(plugEvent)
 }
 
 func GetAuthData(clientIndex uint32) (rtkMisc.CrossShareErr, rtkMisc.AuthDataInfo) {

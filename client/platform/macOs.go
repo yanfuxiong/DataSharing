@@ -32,7 +32,7 @@ var (
 	rootPath                 string
 )
 
-func initFilePath() {
+func init() {
 	privKeyFile = ".priv.pem"
 	hostID = ".HostID"
 	nodeID = ".ID"
@@ -40,6 +40,7 @@ func initFilePath() {
 	lockFile = "singleton.lock"
 	crashLogFile = "crash.log"
 	downloadPath = ""
+	rtkGlobal.NodeInfo.Platform = rtkMisc.PlatformMac
 }
 
 func GetRootPath() string {
@@ -281,7 +282,6 @@ func SetupRootPath(path string) {
 		return
 	}
 	rootPath = path
-	initFilePath()
 
 	getPath := func(dirPath, filePath string) string {
 		return dirPath + "/" + filePath
@@ -783,10 +783,6 @@ func GetIDPath() string {
 
 func GetHostIDPath() string {
 	return hostID
-}
-
-func GetPlatform() string {
-	return rtkMisc.PlatformMac
 }
 
 func LockFile() error {

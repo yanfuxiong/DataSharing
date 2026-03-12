@@ -321,7 +321,9 @@ func getLanServerAddr(ctx context.Context, bPrintErr bool) (string, rtkMisc.Cros
 			log.Printf("[%s][Mobile] get service Instance=(%s), ip=(%s) from map", rtkMisc.GetFuncInfo(), lanServerInstance, lanServerIp)
 			return lanServerIp, rtkMisc.SUCCESS
 		} else {
-			log.Printf("[%s] lanServerInstance:[%s] is invalid, get no data from instance map!", rtkMisc.GetFuncInfo(), lanServerInstance)
+			if bPrintErr {
+				log.Printf("[%s] lanServerInstance:[%s] is invalid, get no data from instance map!", rtkMisc.GetFuncInfo(), lanServerInstance)
+			}
 		}
 
 	}

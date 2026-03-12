@@ -48,7 +48,7 @@ func SendReqUpdateSrcPortInfo(srcPort rtkMisc.SourcePort) rtkMisc.CrossShareErr 
 	displayInfoMutex.RLock()
 	defer displayInfoMutex.RUnlock()
 
-	if displayInfo, ok := displayInfoMap[srcPort]; !ok {
+	if displayInfo, ok := displayInfoMap[srcPort]; ok {
 		extData.ClientIndex = int(rtkGlobal.NodeInfo.ClientIndex)
 		extData.SourcePortInfoList[0].UdpMousePort = displayInfo.UdpMousePort
 		extData.SourcePortInfoList[0].UdpKeyboardPort = displayInfo.UdpKeyboardPort
@@ -212,6 +212,8 @@ func handleReadMessageFromServer(buffer []byte) rtkMisc.CrossShareErr {
 		return dealS2CMsgMessageEvent(rspMsg.ClientID, rspMsg.ExtData)
 	case rtkMisc.CS2Msg_UPDATE_SRCPORT_INFO:
 		return dealS2CMsgUpdateSrcPortInfo(rspMsg.ClientID, rspMsg.ExtData)
+	case rtkMisc.CS2Msg_UPDATE_PLUG_EVENT:
+		return dealS2CMsgUpdatePlugEventReq(rspMsg.ClientID, rspMsg.ExtData)
 	default:
 		log.Printf("[%s]Unknown MsgType:[%s]", rtkMisc.GetFuncInfo(), rspMsg.MsgType)
 		return rtkMisc.ERR_BIZ_C2S_UNKNOWN_MSG_TYPE
@@ -408,6 +410,24 @@ func dealS2CMsgUpdateSrcPortInfo(id string, extData json.RawMessage) rtkMisc.Cro
 		return updateSrcPortInfoRsp.Code
 	}
 	log.Printf("[%s] UpdateSrcPortInfo Response success, srcPortInfo len:[%d] !", rtkMisc.GetFuncInfo(), len(updateSrcPortInfoRsp.SourcePortList))
+	return rtkMisc.SUCCESS
+}
+
+func dealS2CMsgUpdatePlugEventReq(id string, extData json.RawMessage) rtkMisc.CrossShareErr {
+	var updatePlugEventReq rtkMisc.UpdatePlugEventReq
+	err := json.Unmarshal(extData, &updatePlugEventReq)
+	if err != nil {
+		log.Printf("[%s] clientID:[%s]  Err: decode ExtDataText:%+v", rtkMisc.GetFuncInfo(), id, err)
+		return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
+	}
+
+	if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformiOS {
+		log.Printf("[%s] UpdatePlugEvent request success, plug:[%d] !", rtkMisc.GetFuncInfo(), updatePlugEventReq.PlugEvent)
+		if !updatePlugEventReq.PlugEvent { // only cable out event need Call ios Platfrom
+			rtkPlatform.GoTriggerDetectPluginEvent(updatePlugEventReq.PlugEvent)
+		}
+	}
+
 	return rtkMisc.SUCCESS
 }
 

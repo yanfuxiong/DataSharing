@@ -213,6 +213,18 @@ func SetGoSetMsgEventCallback(cb CallbackSetMsgEventFunc) {
 
 /*======================================= Used by android client =======================================*/
 
+func SetPlatform(platformType int) {
+	rtkGlobal.NodeInfo.Platform = ""
+
+	if platformType == rtkMisc.PlatformType_Mobile {
+		rtkGlobal.NodeInfo.Platform = rtkMisc.PlatformAndroid
+	} else if platformType == rtkMisc.PlatformType_Mnt {
+		rtkGlobal.NodeInfo.Platform = rtkMisc.PlatformMnt
+	} else {
+		log.Printf("[%s] Unknown platformType:[%d]!", rtkMisc.GetFuncInfo(), platformType)
+	}
+}
+
 func SetupRootPath(path string) {
 	if path == "" {
 		return
@@ -650,7 +662,7 @@ func GetHostIDPath() string {
 }
 
 func GetPlatform() string {
-	return rtkMisc.PlatformAndroid
+	return rtkGlobal.NodeInfo.Platform
 }
 
 func LockFile() error {

@@ -801,7 +801,7 @@ func SetNotifyErrEventCallback(cb C.NotifyErrEventCallback) {
 }
 
 //export SetReadyReCtrlCallback
-func SetReadyReCtrlCallback(cb C.ReadyReCtrlCallback) {
+func SetReadyReCtrlCallback(cb C.ReadyReCtrlCallback) { // Deprecated: unused
 	log.Println("SetReadyReCtrlCallback")
 	g_ReadyReCtrlCallback = cb
 }

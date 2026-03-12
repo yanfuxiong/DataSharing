@@ -36,6 +36,7 @@ func InitPlatform(rootPath, downLoadPath, deviceName string) {
 	} else {
 		rtkGlobal.NodeInfo.DeviceName = deviceName
 	}
+	rtkGlobal.NodeInfo.Platform = rtkMisc.PlatformWindows
 
 	getPath := func(dirPath, filePath string) string {
 		return filepath.Join(dirPath, filePath)
@@ -765,6 +766,9 @@ func UnlockFile() error {
 
 func GoTriggerNetworkSwitch() {
 	callbackNetworkSwitchCB()
+}
+
+func GoTriggerDetectPluginEvent(isPlug bool) {
 }
 
 func GoGetSrcAndPortFromIni() rtkMisc.SourcePort {

@@ -43,7 +43,6 @@ func init() {
 
 	rtkGlobal.ListenHost = rtkMisc.DefaultIp
 	rtkGlobal.ListenPort = rtkGlobal.DefaultPort
-	rtkGlobal.NodeInfo.Platform = rtkPlatform.GetPlatform()
 
 	rtkConnection.SetStartProcessForPeerCallback(rtkPeer2Peer.StartProcessForPeer)
 	rtkConnection.SetSendDisconnectMsgToPeerCallback(rtkPeer2Peer.SendDisconnectMsgToPeer)

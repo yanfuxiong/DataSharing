@@ -14,6 +14,7 @@ const (
 	CS2Msg_NOTIFY_CLIENT_VERSION  C2SMsgType = "NOTIFY_CLIENT_VERSION"
 	CS2Msg_MESSAGE_EVENT          C2SMsgType = "MESSAGE_EVENT"
 	CS2Msg_UPDATE_SRCPORT_INFO    C2SMsgType = "UPDATE_SRCPORT_INFO"
+	CS2Msg_UPDATE_PLUG_EVENT      C2SMsgType = "UPDATE_PLUG_EVENT"
 )
 
 type PlatformMsgEventReq struct {
@@ -94,6 +95,11 @@ type UpdateClientSrcPortInfoResponse struct {
 	Response
 }
 
+type UpdatePlugEventReq struct {
+	PlugEvent   bool
+	ProductName string
+}
+
 type ReconnDirection int
 
 const (
@@ -113,7 +119,7 @@ type C2SMessage struct {
 	MsgType     C2SMsgType
 	TimeStamp   int64
 	ExtData     interface{} //InitClientMessageReq InitClientMessageResponse GetClientListResponse ResetClientResponse ReconnClientListReq AuthDataIndexMobileReq
-	// NotifyClientVersionReq PlatformMsgEventReq UpdateClientSrcPortInfoReq UpdateClientSrcPortInfoResponse
+	// NotifyClientVersionReq PlatformMsgEventReq UpdateClientSrcPortInfoReq UpdateClientSrcPortInfoResponse    UpdatePlugEventReq
 }
 
 type SourcePort struct {

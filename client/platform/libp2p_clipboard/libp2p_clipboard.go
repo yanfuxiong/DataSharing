@@ -27,6 +27,11 @@ func BrowseLanServer() {
 	rtkPlatform.GoBrowseLanServer()
 }
 
+func SetPlatform(platformType int) {
+	log.Printf("[%s] platformType:[%d]!", rtkMisc.GetFuncInfo(), platformType)
+	rtkPlatform.SetPlatform(platformType)
+}
+
 func MainInit(cb Callback, rootPath, deviceName, serverId, serverIpInfo, listentHost string, listentPort int) {
 	rtkPlatform.SetCallback(cb)
 	rtkPlatform.SetDeviceName(deviceName)
@@ -35,6 +40,10 @@ func MainInit(cb Callback, rootPath, deviceName, serverId, serverIpInfo, listent
 		log.Fatalf("[%s] RootPath :[%s] is invalid!", rtkMisc.GetFuncInfo(), rootPath)
 	}
 	rtkPlatform.SetupRootPath(rootPath)
+	if rtkPlatform.GetPlatform() == "" {
+		log.Printf("[%s] Platform is not set!", rtkMisc.GetFuncInfo())
+		return
+	}
 
 	log.Printf("[%s] rootPath:[%s] device name:[%s] host:[%s] port:[%d]", rtkMisc.GetFuncInfo(), rootPath, deviceName, listentHost, listentPort)
 	rtkCmd.MainInit(serverId, serverIpInfo, listentHost, listentPort)
