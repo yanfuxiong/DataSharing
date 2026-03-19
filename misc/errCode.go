@@ -103,7 +103,7 @@ const ( // public business error code
 	ERR_BIZ_GET_STREAM_RESET
 	ERR_BIZ_GET_CALLBACK_INSTANCE_NULL
 	ERR_BIZ_VERSION_INVALID
-	ERR_BIZ_DISPLAY_EVENT_EMPTY
+	ERR_BIZ_SOURCE_PORT_INVALID
 )
 
 // client to lan server business error code
@@ -209,4 +209,5 @@ var errInfoMap = map[CrossShareErr]string{
 	ERR_BIZ_JSON_EXTDATA_UNMARSHAL: "json ext data unmarshal failed!",
 	ERR_BIZ_S2C_INVALID_INDEX:      "client index is invalid",
 	ERR_BIZ_S2C_UNAUTH:             "unauthorized device",
+	ERR_BIZ_SOURCE_PORT_INVALID:    "invalid source and port",
 }

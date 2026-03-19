@@ -211,11 +211,11 @@ func checkClientOfflineCond(source, port int, signalTime time.Time) (rtkCommon.C
 		}
 	}
 
-	if time.Since(latestTime) < (kMaxAuthTimeCnt * time.Second) {
+	if (time.Since(latestTime) > 0) && (time.Since(latestTime) < (kMaxAuthTimeCnt * time.Second)) {
 		return retClientInfoTb, SIG_CHK_OVER_AUTH_TIME
 	}
 
-	if time.Since(signalTime) < (kMaxSignalTimeCnt * time.Second) {
+	if (time.Since(signalTime) > 0) && (time.Since(signalTime) < (kMaxSignalTimeCnt * time.Second)) {
 		return retClientInfoTb, SIG_CHK_OVER_SIG_TIME
 	}
 

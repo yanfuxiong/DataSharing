@@ -16,22 +16,46 @@ var VERSION_CONTROL = true
 // =============================
 // TimingData get event
 // =============================
-type SendPlatformMsgEventCallback func(event int, arg1, arg2, arg3, arg4 string)
+type (
+	SendPlatformMsgEventCallback  func(event int, arg1, arg2, arg3, arg4 string)
+	SendDragFileListStartCallback func(source, port, horzSize, vertSize, posX, posY int) rtkMisc.CrossShareErr
+)
 
-var sendPlatformMsgEventCallback SendPlatformMsgEventCallback
+var (
+	sendPlatformMsgEventCallback  SendPlatformMsgEventCallback  = nil
+	sendDragFileListStartCallback SendDragFileListStartCallback = nil
+)
 
 func SetSendPlatformMsgEventCallback(cb SendPlatformMsgEventCallback) {
 	sendPlatformMsgEventCallback = cb
 }
 
-// TODO: call by via InterfaceMgr
+func SetSendDragFileListStartCallback(cb SendDragFileListStartCallback) {
+	sendDragFileListStartCallback = cb
+}
+
 func SendDragFileEvent(srcId, targetId string, srcClientIndex uint32) rtkMisc.CrossShareErr {
 	msg := rtkMisc.C2SMessage{
 		ClientID:    srcId,
 		ClientIndex: srcClientIndex,
-		MsgType:     rtkMisc.C2SMsg_REQ_CLIENT_DRAG_FILE,
+		MsgType:     rtkMisc.C2SMsg_DRAG_FILE_END,
 		TimeStamp:   time.Now().UnixMilli(),
 		ExtData:     targetId,
+	}
+
+	return writeMsg(&msg, 0)
+}
+
+func SendClientPlugEventUpdate(id string, clientIndex uint32, plugEvent bool) rtkMisc.CrossShareErr {
+	msg := rtkMisc.C2SMessage{
+		ClientID:    id,
+		ClientIndex: clientIndex,
+		MsgType:     rtkMisc.CS2Msg_UPDATE_PLUG_EVENT,
+		TimeStamp:   time.Now().UnixMilli(),
+		ExtData: rtkMisc.UpdatePlugEventReq{
+			PlugEvent:   plugEvent,
+			ProductName: "",
+		},
 	}
 
 	return writeMsg(&msg, 0)
@@ -219,6 +243,8 @@ func dealC2SMsgMobileAuthDataIndex(id string, clientIndex uint32, ext *json.RawM
 		log.Printf("[%s] clientID:[%s] WARNING: Authorize failed", id, rtkMisc.GetFuncInfo())
 	}
 	authDataIndexMobileRsp.AuthStatus = authStatus
+	authDataIndexMobileRsp.Source = source
+	authDataIndexMobileRsp.Port = port
 	return authDataIndexMobileRsp
 }
 
@@ -279,6 +305,27 @@ func dealC2SMsgReqUpdateClientSrcPortInfo(id string, clientIndex uint32, ext *js
 	}
 
 	return updateSrcPortInfoRsp
+}
+
+func dealC2SMsgReqDragFileListStart(id string, ext *json.RawMessage) interface{} {
+	dragFileListStartRsp := rtkMisc.DragFileStartResponse{Response: rtkMisc.GetResponse(rtkMisc.SUCCESS)}
+	var dragFileListStartReq rtkMisc.DragFileStartInfo
+	err := json.Unmarshal(*ext, &dragFileListStartReq)
+	if err != nil {
+		log.Printf("clientID:[%s] decode ExtDataText Err: %s", id, err.Error())
+		dragFileListStartRsp.Response = rtkMisc.GetResponse(rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL)
+		return dragFileListStartRsp
+	}
+
+	errCode := sendDragFileListStartCallback(dragFileListStartReq.Source, dragFileListStartReq.Port, dragFileListStartReq.HorzSize,
+		dragFileListStartReq.VertSize, dragFileListStartReq.PosX, dragFileListStartReq.PosY)
+	if errCode != rtkMisc.SUCCESS {
+		dragFileListStartRsp.Response = rtkMisc.GetResponse(errCode)
+	} else {
+		dragFileListStartRsp.SourcePort = dragFileListStartReq.SourcePort
+	}
+
+	return dragFileListStartRsp
 }
 
 func buildNotifyClientVersion(id, version string) rtkMisc.CrossShareErr {

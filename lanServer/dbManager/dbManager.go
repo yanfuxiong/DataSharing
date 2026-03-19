@@ -13,8 +13,7 @@ import (
 	"sync"
 	"time"
 
-	_ "github.com/ncruces/go-sqlite3/driver"
-	_ "github.com/ncruces/go-sqlite3/embed"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 const (
@@ -49,7 +48,6 @@ func reCreateDb() error {
 
 	return createDb()
 }
-
 
 func createDb() error {
 	err := rtkMisc.CreateDir(rtkGlobal.DB_PATH, os.ModePerm)
@@ -211,6 +209,7 @@ func upgradeDbVer(updateVer int, sqlData SqlData) rtkMisc.CrossShareErr {
 	_, errUpgrade := tx.Exec(sqlData.toString())
 	if errUpgrade != nil {
 		log.Printf("[%s] Err: %s", rtkMisc.GetFuncInfo(), errUpgrade.Error())
+
 		// Special case
 		if (version == 0) && strings.Contains(errUpgrade.Error(), "LastAuthTime") {
 			log.Printf("[%s] Skip the error: [duplicate column name: LastAuthTime] for compatibility", rtkMisc.GetFuncInfo())

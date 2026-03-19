@@ -114,11 +114,15 @@ static void onSendMsgEventCb(int event, const char* arg1, const char* arg2, cons
 */
 import "C"
 import (
+	"os"
 	"reflect"
 	rtkCommon "rtk-cross-share/lanServer/common"
 	rtkGlobal "rtk-cross-share/lanServer/global"
 	rtkIfaceMgr "rtk-cross-share/lanServer/interfaceMgr"
 	rtkMisc "rtk-cross-share/misc"
+	"runtime"
+	"runtime/pprof"
+	"runtime/trace"
 	"unsafe"
 )
 
@@ -260,6 +264,14 @@ func EnableCrossShare(cEnable C.int) {
 	rtkIfaceMgr.GetInterfaceMgr().EnableCrossShare(enable)
 }
 
+//export UpdateSrcPlugging
+func UpdateSrcPlugging(cSource, cPort, cPlugEvent C.int) {
+	source := int(cSource)
+	port := int(cPort)
+	plugEvent := int(cPlugEvent)
+	rtkIfaceMgr.GetInterfaceMgr().UpdateSrcPlugging(source, port, plugEvent)
+}
+
 //export Init
 func Init() {
 	initFunc()
@@ -272,6 +284,10 @@ func InitWithName(cMonitorName *C.char) {
 }
 
 func initFunc() {
+	// // Performance debug
+	// startPerformanceProfile()
+	// time.AfterFunc(5*time.Minute, stopPerformanceProfile)
+
 	rtkIfaceMgr.GetInterfaceMgr().SetupCallbackFromServer(
 		goUpdateDeviceNameCb,
 		goDragFileStartCb,
@@ -464,4 +480,102 @@ func goToCClientInfo(clientInfo rtkCommon.ClientInfoTb) C.CLIENT_INFO_DATA {
 	copyStringToFixedArray(&cData.updateTime, clientInfo.UpdateTime)
 	copyStringToFixedArray(&cData.createTime, clientInfo.CreateTime)
 	return cData
+}
+
+/**
+ *	Performance debug
+ *	- startCPUProfile: Record the CPU usage info and save as cpu.prof
+ *	- startTrace: Record backtrace and save as trace.prof
+ *	- writeHeapProfile: Record the heap info and save as heap.prof
+ */
+func startPerformanceProfile() {
+	startCPUProfile()
+	startTrace()
+}
+
+func stopPerformanceProfile() {
+	stopCPUProfile()
+	stopTrace()
+	writeHeapProfile()
+}
+
+var cpuProfFile *os.File
+var traceFile *os.File
+
+func startCPUProfile() C.int {
+	if cpuProfFile != nil {
+		return 0
+	}
+
+	goPath := "/data/vendor/realtek/cross_share/cpu.prof"
+
+	f, err := os.Create(goPath)
+	if err != nil {
+		return -1
+	}
+
+	if err := pprof.StartCPUProfile(f); err != nil {
+		f.Close()
+		return -2
+	}
+
+	cpuProfFile = f
+	return 0
+}
+
+func stopCPUProfile() {
+	if cpuProfFile == nil {
+		return
+	}
+	pprof.StopCPUProfile()
+	cpuProfFile.Close()
+	cpuProfFile = nil
+}
+
+func writeHeapProfile() C.int {
+	goPath := "/data/vendor/realtek/cross_share/heap.prof"
+
+	f, err := os.Create(goPath)
+	if err != nil {
+		return -1
+	}
+	defer f.Close()
+
+	// Execute GC first, display live objects on profile
+	runtime.GC()
+
+	if err := pprof.WriteHeapProfile(f); err != nil {
+		return -2
+	}
+	return 0
+}
+
+func startTrace() C.int {
+	if traceFile != nil {
+		return 0
+	}
+
+	goPath := "/data/vendor/realtek/cross_share/trace.prof"
+
+	f, err := os.Create(goPath)
+	if err != nil {
+		return -1
+	}
+
+	if err := trace.Start(f); err != nil {
+		f.Close()
+		return -2
+	}
+
+	traceFile = f
+	return 0
+}
+
+func stopTrace() {
+	if traceFile == nil {
+		return
+	}
+	trace.Stop()
+	traceFile.Close()
+	traceFile = nil
 }

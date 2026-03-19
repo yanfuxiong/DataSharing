@@ -59,10 +59,11 @@ func GetInterfaceMgr() *InterfaceMgr {
 
 func (mgr *InterfaceMgr) initCallbackToClient() {
 	rtkdbManager.SetNotifyUpdateClientInfoCallback(mgr.TriggerUpdateClientInfo)
-	rtkClientManager.SetNotifyCaptureIndexCallback(mgr.TriggerCaptureIndex)	
+	rtkClientManager.SetNotifyCaptureIndexCallback(mgr.TriggerCaptureIndex)
 	rtkClientManager.SetNotifyGetTimingDataCallback(mgr.TriggerGetTimingData)
 	rtkClientManager.SetNotifyGetTimingDataBySrcPortCallback(mgr.TriggerGetTimingDataBySrcPort)
 	rtkClientManager.SetSendPlatformMsgEventCallback(mgr.TriggerSendMsgEvent)
+	rtkClientManager.SetSendDragFileListStartCallback(mgr.UpdateMousePos)
 }
 
 func (mgr *InterfaceMgr) SetupCallbackFromServer(
@@ -206,24 +207,26 @@ func (mgr *InterfaceMgr) AuthDevice(source, port, index int) bool {
 	return true
 }
 
-func (mgr *InterfaceMgr) UpdateMousePos(source, port, horzSize, vertSize, posX, posY int) {
+func (mgr *InterfaceMgr) UpdateMousePos(source, port, horzSize, vertSize, posX, posY int) rtkMisc.CrossShareErr {
 	clientInfoTbList, err := rtkdbManager.QueryClientInfoBySrcPort(source, port)
 	if err != rtkMisc.SUCCESS {
 		log.Printf("[%s][%s] Error: get client by (source,port):(%d,%d) failed: %d", tag, rtkMisc.GetFuncInfo(), source, port, err)
-		return
+		return err
 	}
 
 	for _, clientInfo := range clientInfoTbList {
 		if (clientInfo.Online == true) || (clientInfo.AuthStatus == true) {
 			if mgr.TriggerDragFileStart(source, port, horzSize, vertSize, posX, posY) {
 				mgr.mDragFileSrcInfo = DragFileSrcInfo{clientInfo.Index, clientInfo.ClientId}
-				return
+				return rtkMisc.SUCCESS
 			}
 		}
 	}
 
 	log.Printf("[%s][%s] Error: not found valid client (source,port):(%d,%d)",
 		tag, rtkMisc.GetFuncInfo(), source, port)
+
+	return rtkMisc.ERR_BIZ_SOURCE_PORT_INVALID
 }
 
 func (mgr *InterfaceMgr) DragFileEnd(source, port int) {
@@ -236,6 +239,30 @@ func (mgr *InterfaceMgr) DragFileEnd(source, port int) {
 	for _, clientInfo := range clientInfoTbList {
 		if (clientInfo.Online == true) && (clientInfo.AuthStatus == true) {
 			rtkClientManager.SendDragFileEvent(mgr.mDragFileSrcInfo.id, clientInfo.ClientId, uint32(mgr.mDragFileSrcInfo.index))
+			return
+		}
+	}
+
+	log.Printf("[%s][%s] Error: not found valid client (source,port):(%d,%d)",
+		tag, rtkMisc.GetFuncInfo(), source, port)
+}
+
+func (mgr *InterfaceMgr) UpdateSrcPlugging(source, port, plugEvent int) {
+	clientInfoTbList, err := rtkdbManager.QueryClientInfoBySrcPort(source, port)
+	if err != rtkMisc.SUCCESS {
+		log.Printf("[%s][%s] Error: get client by (source,port):(%d,%d) failed: %d", tag, rtkMisc.GetFuncInfo(), source, port, err)
+		return
+	}
+
+	for _, clientInfo := range clientInfoTbList {
+		if (clientInfo.Online == true) && (clientInfo.AuthStatus == true) && clientInfo.Platform == rtkMisc.PlatformiOS {
+			bPlugEvent := true
+			if plugEvent == 0 { // only ios Plug out need send  UPDATE_PLUG_EVENT message
+				bPlugEvent = false
+			} else {
+				return
+			}
+			rtkClientManager.SendClientPlugEventUpdate(clientInfo.ClientId, uint32(clientInfo.Index), bPlugEvent)
 			return
 		}
 	}
