@@ -6,7 +6,6 @@ import (
 	"log"
 	rtkBuildConfig "rtk-cross-share/client/buildConfig"
 	rtkCmd "rtk-cross-share/client/cmd"
-	rtkGlobal "rtk-cross-share/client/global"
 	rtkPlatform "rtk-cross-share/client/platform"
 	rtkUtils "rtk-cross-share/client/utils"
 	rtkMisc "rtk-cross-share/misc"
@@ -77,6 +76,10 @@ func SendNetInterfaces(name string, index int) {
 
 func SendMultiFilesDropRequest(multiFilesData string) int {
 	return int(rtkPlatform.GoMultiFilesDropRequest(multiFilesData))
+}
+
+func SetDragFileListRequest(dragFileInfoJson string) int {
+	return int(rtkPlatform.GoDragFileListRequest(dragFileInfoJson))
 }
 
 func IfClipboardPasteFile(fileName, id string, isReceive bool) {

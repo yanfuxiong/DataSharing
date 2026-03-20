@@ -42,18 +42,23 @@ var (
 	serverInstanceMap       sync.Map //KEY: instance
 	cancelBrowse            func()
 	lanServerInstance       string
-	g_ProductName           string
 	g_monitorName           string
 	pSafeConnect            *safeConnect
 	lanServerRunning        atomic.Bool
 	disconnectAllClientFunc callbackDisconnectAllClientFunc
 	cancelAllBusinessFunc   callbackCancelAllBusinessFunc
-	mobileAuthData          rtkMisc.AuthDataInfo
 	g_lookupByUnicast       bool
 	initLanServerMutex      sync.Mutex
+	currentDiasStatus       CrossShareDiasStatus
 
+	//PC  variable
 	displayInfoMutex sync.RWMutex
 	displayInfoMap   map[rtkMisc.SourcePort]rtkCommon.DisplayEventInfo // current plug in display info map
+
+	// Mobile variable
+	g_ProductName  string
+	mobileAuthData rtkMisc.AuthDataInfo
+	sourcePort     rtkMisc.SourcePort
 
 	// connect reliability
 	heartBeatTicker     *HeartBeatTicker
@@ -63,8 +68,6 @@ var (
 
 	// Used by connection package
 	GetClientListFlag = make(chan []rtkMisc.ClientInfo)
-
-	currentDiasStatus CrossShareDiasStatus
 )
 
 func SetDisconnectAllClientCallback(cb callbackDisconnectAllClientFunc) {

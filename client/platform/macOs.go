@@ -94,6 +94,7 @@ type (
 	CallbackConnectLanServerFunc           func(instance string)
 	CallbackBrowseLanServerFunc            func()
 	CallbackSetMsgEventFunc                func(event uint32, arg1, arg2, arg3, arg4 string)
+	CallbackSendDragFileStartFunc          func(*rtkMisc.DragFileStartInfo) rtkMisc.CrossShareErr
 )
 
 var (
@@ -273,6 +274,9 @@ func SetGoBrowseLanServerCallback(cb CallbackBrowseLanServerFunc) {
 
 func SetGoSetMsgEventCallback(cb CallbackSetMsgEventFunc) {
 	callbackSetMsgEvent = cb
+}
+
+func SetGoSendDragFileStartCallback(cb CallbackSendDragFileStartFunc) {
 }
 
 /*======================================= Used  by ios API =======================================*/

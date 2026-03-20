@@ -92,6 +92,7 @@ type (
 	CallbackConnectLanServerFunc           func(instance string)
 	CallbackBrowseLanServerFunc            func()
 	CallbackSetMsgEventFunc                func(event uint32, arg1, arg2, arg3, arg4 string)
+	CallbackSendDragFileStartFunc          func(*rtkMisc.DragFileStartInfo) rtkMisc.CrossShareErr
 )
 
 var (
@@ -129,6 +130,7 @@ var (
 	callbackConnectLanServer           CallbackConnectLanServerFunc           = nil
 	callbackBrowseLanServer            CallbackBrowseLanServerFunc            = nil
 	callbackSetMsgEvent                CallbackSetMsgEventFunc                = nil
+	callbackSendDragFileStart          CallbackSendDragFileStartFunc          = nil
 )
 
 /*======================================= Used by main.go, set Callback =======================================*/
@@ -274,6 +276,10 @@ func SetGoBrowseLanServerCallback(cb CallbackBrowseLanServerFunc) {
 
 func SetGoSetMsgEventCallback(cb CallbackSetMsgEventFunc) {
 	callbackSetMsgEvent = cb
+}
+
+func SetGoSendDragFileStartCallback(cb CallbackSendDragFileStartFunc) {
+	callbackSendDragFileStart = cb
 }
 
 /*======================================= Used  by ios API =======================================*/
@@ -529,6 +535,86 @@ func GoCancelFileTrans(ip, id string, timestamp uint64) {
 		return
 	}
 	callbackCancelFileTrans(id, ip, timestamp)
+}
+
+func GoDragFileListRequest(dragFileInfoJson string) rtkCommon.SendFilesRequestErrCode {
+	if callbackDragFileListRequestCB == nil || callbackSendDragFileStart == nil {
+		log.Printf("[%s] callbackDragFileListRequestCB or callbackSendDragFileStart is null!", rtkMisc.GetFuncInfo())
+		return rtkCommon.SendFilesRequestCallbackNotSet
+	}
+
+	var dragFileInfo rtkCommon.DragFileListRequestInfo
+	err := json.Unmarshal([]byte(dragFileInfoJson), &dragFileInfo)
+	if err != nil {
+		log.Printf("[%s] Unmarshal[%s] err:%+v", rtkMisc.GetFuncInfo(), dragFileInfoJson, err)
+		return rtkCommon.SendFilesRequestParameterErr
+	}
+	log.Printf("[%s] horzSize:[%d] vertSize:[%d] posX:[%d] posY:[%d] Path len:[%d] timestamp:[%d]", rtkMisc.GetFuncInfo(),
+		dragFileInfo.HorzSize, dragFileInfo.VertSize, dragFileInfo.PosX, dragFileInfo.PosY, len(dragFileInfo.PathList), dragFileInfo.TimeStamp)
+
+	fileList := make([]rtkCommon.FileInfo, 0)
+	folderList := make([]string, 0)
+	totalSize := uint64(0)
+	nFileCnt := 0
+	nFolderCnt := 0
+	nPathSize := uint64(0)
+
+	for _, file := range dragFileInfo.PathList {
+		if rtkMisc.FolderExists(file) {
+			nFileCnt = len(fileList)
+			nFolderCnt = len(folderList)
+			nPathSize = totalSize
+			rtkUtils.WalkPath(file, &folderList, &fileList, &totalSize)
+			log.Printf("[%s] walk a path:[%s], get [%d] files and [%d] folders, total size:[%d]", rtkMisc.GetFuncInfo(), file, len(fileList)-nFileCnt, len(folderList)-nFolderCnt, totalSize-nPathSize)
+		} else if rtkMisc.FileExists(file) {
+			fileSize, err := rtkMisc.FileSize(file)
+			if err != nil {
+				log.Printf("[%s] get file:[%s] size error, skit it!", rtkMisc.GetFuncInfo(), file)
+				continue
+			}
+			fileList = append(fileList, rtkCommon.FileInfo{
+				FileSize_: rtkCommon.FileSize{
+					SizeHigh: uint32(fileSize >> 32),
+					SizeLow:  uint32(fileSize & 0xFFFFFFFF),
+				},
+				FilePath: file,
+				FileName: filepath.Base(file),
+			})
+			totalSize += fileSize
+		} else {
+			log.Printf("[%s] get file or path:[%s] is not exist, so skit it!", rtkMisc.GetFuncInfo(), file)
+		}
+	}
+	totalDesc := rtkMisc.FileSizeDesc(totalSize)
+	timestamp := uint64(dragFileInfo.TimeStamp)
+	if dragFileInfo.TimeStamp == 0 {
+		timestamp = uint64(time.Now().UnixMilli())
+	}
+	log.Printf("[%s] get file count:[%d] folder count:[%d], totalSize:[%d] totalDesc:[%s] timestamp:[%d]", rtkMisc.GetFuncInfo(), len(fileList), len(folderList), totalSize, totalDesc, timestamp)
+
+	if len(fileList) == 0 && len(folderList) == 0 {
+		log.Println("file list content is null!")
+		return rtkCommon.SendFilesRequestParameterErr
+	}
+
+	nMsgLength := int(rtkGlobal.P2PMsgMagicLength) //p2p null msg length
+	for _, file := range fileList {
+		nMsgLength = nMsgLength + len(file.FileName) + rtkGlobal.FileInfoMagicLength
+	}
+
+	for _, folder := range folderList {
+		nMsgLength = nMsgLength + len(folder) + rtkGlobal.StringArrayMagicLength
+	}
+	if nMsgLength >= rtkGlobal.P2PMsgMaxLength {
+		log.Printf("[%s] file count:[%d] folder count:[%d], the p2p message is too long and over range!", rtkMisc.GetFuncInfo(), len(fileList), len(folderList))
+		return rtkCommon.SendFilesRequestLengthOverRange
+	}
+
+	callbackDragFileListRequestCB(fileList, folderList, totalSize, timestamp, totalDesc)
+
+	callbackSendDragFileStart(&dragFileInfo.DragFileStartInfo)
+
+	return rtkCommon.SendFilesRequestSuccess
 }
 
 /*======================================= Used  by GO business =======================================*/

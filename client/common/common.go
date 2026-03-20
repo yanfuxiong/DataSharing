@@ -59,6 +59,12 @@ type DisplayEventInfo struct {
 	PlugEvent int // 0: plug out   1: plug in
 }
 
+type DragFileListRequestInfo struct {
+	TimeStamp int64
+	rtkMisc.DragFileStartInfo
+	PathList []string
+}
+
 const (
 	P2P_EVENT_SERVER_CONNEDTED    = 0
 	P2P_EVENT_SERVER_CONNECT_FAIL = 1

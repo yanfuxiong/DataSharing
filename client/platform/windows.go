@@ -107,6 +107,7 @@ type (
 	CallbackBrowseLanServerFunc        func()
 	CallbackSetMsgEventFunc            func(event uint32, arg1, arg2, arg3, arg4 string)
 	CallbackReadyReCtrlFunc            func(ip string, mousePort, kybrdPort uint32)
+	CallbackSendDragFileStartFunc      func(*rtkMisc.DragFileStartInfo) rtkMisc.CrossShareErr
 )
 
 var (
@@ -219,11 +220,11 @@ func SetGoSetMsgEventCallback(cb CallbackSetMsgEventFunc) {
 	callbackSetMsgEvent = cb
 }
 
-/*======================================= Used by main.go, set Callback =======================================*/
+func SetGoSendDragFileStartCallback(cb CallbackSendDragFileStartFunc) {
 
-func SetPasteXClipCallback(cb CallbackPasteXClipFunc) {
-	callbackPasteXClipDataCB = cb
 }
+
+/*======================================= Used by main.go, set Callback =======================================*/
 
 func SetAuthViaIndexCallback(cb CallbackAuthViaIndexCallbackFunc) {
 	callbackAuthViaIndex = cb

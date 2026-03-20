@@ -94,6 +94,7 @@ func init() {
 	})
 
 	rtkPlatform.SetGoSetMsgEventCallback(sendPlatformMsgEventToLanServer)
+	rtkPlatform.SetGoSendDragFileStartCallback(sendReqDragFileStartToLanServer)
 }
 
 func computerInitLanServer(ctx context.Context) {

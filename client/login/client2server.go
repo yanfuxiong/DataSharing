@@ -94,6 +94,12 @@ func sendPlatformMsgEventToLanServer(event uint32, arg1, arg2, arg3, arg4 string
 	sendReqMsgToLanServer(rtkMisc.CS2Msg_MESSAGE_EVENT, extData)
 }
 
+func sendReqDragFileStartToLanServer(extData *rtkMisc.DragFileStartInfo) rtkMisc.CrossShareErr {
+	extData.Source = sourcePort.Source
+	extData.Port = sourcePort.Port
+	return sendReqMsgToLanServer(rtkMisc.C2SMsg_DRAG_FILE_START, *extData)
+}
+
 func sendReqMsgToLanServer(MsgType rtkMisc.C2SMsgType, extData ...interface{}) rtkMisc.CrossShareErr {
 	var msg rtkMisc.C2SMessage
 	msg.MsgType = MsgType
@@ -162,6 +168,13 @@ func buildMessageReq(msg *rtkMisc.C2SMessage, extData ...interface{}) rtkMisc.Cr
 			return rtkMisc.ERR_BIZ_C2S_EXT_DATA_EMPTY
 		}
 		msg.ExtData = extData[0]
+	case rtkMisc.C2SMsg_DRAG_FILE_START:
+		msg.ClientIndex = rtkGlobal.NodeInfo.ClientIndex
+		if len(extData) < 1 {
+			log.Printf("[%s] msg DRAG_FILE_START ext data is null!", rtkMisc.GetFuncInfo())
+			return rtkMisc.ERR_BIZ_C2S_EXT_DATA_EMPTY
+		}
+		msg.ExtData = extData[0]
 	default:
 		log.Printf("Unknown MsgType[%s]", msg.MsgType)
 		return rtkMisc.ERR_BIZ_C2S_UNKNOWN_MSG_TYPE
@@ -202,7 +215,7 @@ func handleReadMessageFromServer(buffer []byte) rtkMisc.CrossShareErr {
 		return dealS2CMsgMobileAuthDataResp(rspMsg.ClientID, rspMsg.ClientIndex, rspMsg.ExtData)
 	case rtkMisc.C2SMsg_REQ_CLIENT_LIST:
 		return dealS2CMsgRespClientList(rspMsg.ClientID, rspMsg.ExtData)
-	case rtkMisc.C2SMsg_REQ_CLIENT_DRAG_FILE:
+	case rtkMisc.C2SMsg_DRAG_FILE_END:
 		return dealS2CMsgReqClientDragFiles(rspMsg.ClientID, rspMsg.ExtData)
 	case rtkMisc.CS2Msg_RECONN_CLIENT_LIST:
 		return dealS2CMsgReconnClientList(rspMsg.ClientID, rspMsg.ExtData)
@@ -214,6 +227,8 @@ func handleReadMessageFromServer(buffer []byte) rtkMisc.CrossShareErr {
 		return dealS2CMsgUpdateSrcPortInfo(rspMsg.ClientID, rspMsg.ExtData)
 	case rtkMisc.CS2Msg_UPDATE_PLUG_EVENT:
 		return dealS2CMsgUpdatePlugEventReq(rspMsg.ClientID, rspMsg.ExtData)
+	case rtkMisc.C2SMsg_DRAG_FILE_START:
+		return dealS2CMsgDragFileListStartResponse(rspMsg.ClientID, rspMsg.ExtData)
 	default:
 		log.Printf("[%s]Unknown MsgType:[%s]", rtkMisc.GetFuncInfo(), rspMsg.MsgType)
 		return rtkMisc.ERR_BIZ_C2S_UNKNOWN_MSG_TYPE
@@ -286,6 +301,9 @@ func dealS2CMsgMobileAuthDataResp(id string, index uint32, extData json.RawMessa
 		NotifyDIASStatus(DIAS_Status_Authorization_Failed)
 		return rtkMisc.ERR_BIZ_S2C_UNAUTH
 	}
+	sourcePort.Source = authIndexMobileRsp.Source
+	sourcePort.Port = authIndexMobileRsp.Port
+	log.Printf("Request MobileAuthData response success, Get (source,port)=(%d, %d)", sourcePort.Source, sourcePort.Port)
 	return SendReqClientListToLanServer()
 }
 
@@ -315,7 +333,9 @@ func dealS2CMsgRespClientList(id string, extData json.RawMessage) rtkMisc.CrossS
 			rtkGlobal.NodeInfo.SourcePortType = client.SourcePortType
 		}
 	}
+
 	nClientCount := len(clientList)
+	log.Printf("Request Client List success, get other online ClienList len [%d], self SourcePortType:[%s]", nClientCount, rtkGlobal.NodeInfo.SourcePortType)
 	if nClientCount == 0 {
 		NotifyDIASStatus(DIAS_Status_Wait_Other_Clients)
 	} else {
@@ -326,8 +346,6 @@ func dealS2CMsgRespClientList(id string, extData json.RawMessage) rtkMisc.CrossS
 	if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformWindows || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformMac {
 		SendReqUpdateSrcPortMapInfo()
 	}
-
-	log.Printf("Request Client List success, get other online ClienList len [%d], self SourcePortType:[%s]", nClientCount, rtkGlobal.NodeInfo.SourcePortType)
 	return rtkMisc.SUCCESS
 }
 
@@ -426,6 +444,21 @@ func dealS2CMsgUpdatePlugEventReq(id string, extData json.RawMessage) rtkMisc.Cr
 		if !updatePlugEventReq.PlugEvent { // only cable out event need Call ios Platfrom
 			rtkPlatform.GoTriggerDetectPluginEvent(updatePlugEventReq.PlugEvent)
 		}
+	}
+
+	return rtkMisc.SUCCESS
+}
+
+func dealS2CMsgDragFileListStartResponse(id string, extData json.RawMessage) rtkMisc.CrossShareErr {
+	var dragFileListStartRsp rtkMisc.DragFileStartResponse
+	err := json.Unmarshal(extData, &dragFileListStartRsp)
+	if err != nil {
+		log.Printf("[%s] clientID:[%s]  Err: decode ExtDataText:%+v", rtkMisc.GetFuncInfo(), id, err)
+		return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
+	}
+
+	if dragFileListStartRsp.Code != rtkMisc.SUCCESS {
+		log.Printf("[%s] DragFileListStart  Response error, Code:[%d] msg:[%s] !", rtkMisc.GetFuncInfo(), int(dragFileListStartRsp.Code), dragFileListStartRsp.Msg)
 	}
 
 	return rtkMisc.SUCCESS
