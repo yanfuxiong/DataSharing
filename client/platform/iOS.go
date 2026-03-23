@@ -92,7 +92,7 @@ type (
 	CallbackConnectLanServerFunc           func(instance string)
 	CallbackBrowseLanServerFunc            func()
 	CallbackSetMsgEventFunc                func(event uint32, arg1, arg2, arg3, arg4 string)
-	CallbackSendDragFileStartFunc          func(*rtkMisc.DragFileStartInfo) rtkMisc.CrossShareErr
+	CallbackSendDragFileStartFunc          func(*rtkMisc.DragFileStartInfo) rtkCommon.SendFilesRequestErrCode
 )
 
 var (
@@ -612,9 +612,7 @@ func GoDragFileListRequest(dragFileInfoJson string) rtkCommon.SendFilesRequestEr
 
 	callbackDragFileListRequestCB(fileList, folderList, totalSize, timestamp, totalDesc)
 
-	callbackSendDragFileStart(&dragFileInfo.DragFileStartInfo)
-
-	return rtkCommon.SendFilesRequestSuccess
+	return callbackSendDragFileStart(&dragFileInfo.DragFileStartInfo)
 }
 
 /*======================================= Used  by GO business =======================================*/

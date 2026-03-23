@@ -94,10 +94,14 @@ func sendPlatformMsgEventToLanServer(event uint32, arg1, arg2, arg3, arg4 string
 	sendReqMsgToLanServer(rtkMisc.CS2Msg_MESSAGE_EVENT, extData)
 }
 
-func sendReqDragFileStartToLanServer(extData *rtkMisc.DragFileStartInfo) rtkMisc.CrossShareErr {
+func sendReqDragFileStartToLanServer(extData *rtkMisc.DragFileStartInfo) rtkCommon.SendFilesRequestErrCode {
+	if isMobileFileDragUnavailable() {
+		return rtkCommon.LanServerVersionDragFileUnavailable
+	}
 	extData.Source = sourcePort.Source
 	extData.Port = sourcePort.Port
-	return sendReqMsgToLanServer(rtkMisc.C2SMsg_DRAG_FILE_START, *extData)
+	sendReqMsgToLanServer(rtkMisc.C2SMsg_DRAG_FILE_START, *extData)
+	return rtkCommon.SendFilesRequestSuccess
 }
 
 func sendReqMsgToLanServer(MsgType rtkMisc.C2SMsgType, extData ...interface{}) rtkMisc.CrossShareErr {
@@ -551,4 +555,16 @@ func checkPingServerTimeout() {
 			pSafeConnect.Close()
 		}
 	}
+}
+
+func isMobileFileDragUnavailable() bool {
+	if mapValue, ok := serverInstanceMap.Load(lanServerInstance); ok {
+		mntVer := mapValue.(browseParam).ver
+		mntVerSerial := rtkMisc.GetVersionSerialValue(mntVer)
+		if mntVerSerial < rtkGlobal.LanServerMobileDragFileVerSerial {
+			log.Printf("[%s] lanServer ver:[%s], not support mobile file drag!", rtkMisc.GetFuncInfo(), mntVer)
+			return true
+		}
+	}
+	return false
 }
