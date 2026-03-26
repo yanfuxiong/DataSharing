@@ -93,6 +93,7 @@ type (
 	CallbackBrowseLanServerFunc            func()
 	CallbackSetMsgEventFunc                func(event uint32, arg1, arg2, arg3, arg4 string)
 	CallbackSendDragFileStartFunc          func(*rtkMisc.DragFileStartInfo) rtkCommon.SendFilesRequestErrCode
+	CallbackGetShareFeatAvailableFunc      func() int
 )
 
 var (
@@ -131,6 +132,7 @@ var (
 	callbackBrowseLanServer            CallbackBrowseLanServerFunc            = nil
 	callbackSetMsgEvent                CallbackSetMsgEventFunc                = nil
 	callbackSendDragFileStart          CallbackSendDragFileStartFunc          = nil
+	callbackGetShareFeatAvailable      CallbackGetShareFeatAvailableFunc      = nil
 )
 
 /*======================================= Used by main.go, set Callback =======================================*/
@@ -282,6 +284,10 @@ func SetGoSendDragFileStartCallback(cb CallbackSendDragFileStartFunc) {
 	callbackSendDragFileStart = cb
 }
 
+func SetGoGetShareFeatAvailableCallback(cb CallbackGetShareFeatAvailableFunc) {
+	callbackGetShareFeatAvailable = cb
+}
+
 /*======================================= Used  by ios API =======================================*/
 
 func SetupRootPath(path string) {
@@ -424,6 +430,15 @@ func GoCopyXClipData(text, image, html, rtf string) {
 	}
 
 	callbackCopyXClipData([]byte(text), imgData, []byte(html), []byte(rtf))
+}
+
+func GoGetShareFeatAvailable() int {
+	if callbackGetShareFeatAvailable == nil {
+		log.Println("callbackGetShareFeatAvailable is null!")
+		return 0
+	}
+
+	return callbackGetShareFeatAvailable()
 }
 
 func GoFileDropResponse(id string, fileCmd rtkCommon.FileDropCmd, fileName string) {

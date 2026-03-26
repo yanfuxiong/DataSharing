@@ -108,6 +108,7 @@ type (
 	CallbackSetMsgEventFunc            func(event uint32, arg1, arg2, arg3, arg4 string)
 	CallbackReadyReCtrlFunc            func(ip string, mousePort, kybrdPort uint32)
 	CallbackSendDragFileStartFunc      func(*rtkMisc.DragFileStartInfo) rtkCommon.SendFilesRequestErrCode
+	CallbackGetShareFeatAvailableFunc  func() int
 )
 
 var (
@@ -134,6 +135,7 @@ var (
 	callbackNotifyErrEvent             CallbackNotifyErrEventFunc         = nil
 	callbackSetMsgEvent                CallbackSetMsgEventFunc            = nil
 	callbackReadyReCtrl                CallbackReadyReCtrlFunc            = nil
+	callbackGetShareFeatAvailable      CallbackGetShareFeatAvailableFunc  = nil
 
 	// main.go Callback
 	callbackAuthViaIndex           CallbackAuthViaIndexCallbackFunc   = nil
@@ -222,6 +224,10 @@ func SetGoSetMsgEventCallback(cb CallbackSetMsgEventFunc) {
 
 func SetGoSendDragFileStartCallback(cb CallbackSendDragFileStartFunc) {
 
+}
+
+func SetGoGetShareFeatAvailableCallback(cb CallbackGetShareFeatAvailableFunc) {
+	callbackGetShareFeatAvailable = cb
 }
 
 /*======================================= Used by main.go, set Callback =======================================*/
@@ -324,6 +330,15 @@ func GoCopyXClipData(text, image, html, rtf string) {
 	}
 
 	callbackCopyXClipDataCB([]byte(text), imgData, []byte(html), []byte(rtf))
+}
+
+func GoGetShareFeatAvailable() int {
+	if callbackGetShareFeatAvailable == nil {
+		log.Println("callbackGetShareFeatAvailable is null!")
+		return 0
+	}
+
+	return callbackGetShareFeatAvailable()
 }
 
 func GoSetAuthStatusCode(status uint8) {

@@ -538,6 +538,11 @@ func SendXClipData(cText, cImage, cHtml, cRtf *C.char) {
 	rtkPlatform.GoCopyXClipData(text, image, html, rtf)
 }
 
+//export GetShareFeatAvailable
+func GetShareFeatAvailable() C.int {
+	return C.int(rtkPlatform.GoGetShareFeatAvailable())
+}
+
 //export SetFileDropResponse
 func SetFileDropResponse(statusCode C.int, ipPort *C.char, clientID *C.char, fileSize C.uint64_t, timestamp C.uint64_t, fileName *C.wchar_t) {
 	fmt.Printf("SetFileDropResponse(%d, %q, %q, %d, %d, %q)\n",

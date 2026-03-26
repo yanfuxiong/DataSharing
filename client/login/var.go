@@ -50,6 +50,7 @@ var (
 	g_lookupByUnicast       bool
 	initLanServerMutex      sync.Mutex
 	currentDiasStatus       CrossShareDiasStatus
+	shareFeatAvailable      int // 0:false   1: true
 
 	//PC  variable
 	displayInfoMutex sync.RWMutex

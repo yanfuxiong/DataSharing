@@ -72,6 +72,7 @@ func init() {
 	g_monitorName = ""
 	lanServerRunning.Store(false)
 	displayInfoMap = make(map[rtkMisc.SourcePort]rtkCommon.DisplayEventInfo, 0)
+	shareFeatAvailable = 0
 
 	pSafeConnect = &safeConnect{
 		connectMutex:     sync.RWMutex{},
@@ -95,6 +96,7 @@ func init() {
 
 	rtkPlatform.SetGoSetMsgEventCallback(sendPlatformMsgEventToLanServer)
 	rtkPlatform.SetGoSendDragFileStartCallback(sendReqDragFileStartToLanServer)
+	rtkPlatform.SetGoGetShareFeatAvailableCallback(func() int { return shareFeatAvailable })
 }
 
 func computerInitLanServer(ctx context.Context) {

@@ -519,6 +519,11 @@ func SendXClipData(text, image, html, rtf string) {
 	rtkPlatform.GoCopyXClipData(text, image, html, rtf)
 }
 
+//export GetShareFeatAvailable
+func GetShareFeatAvailable() int {
+	return rtkPlatform.GoGetShareFeatAvailable()
+}
+
 //export GetClientListEx
 func GetClientListEx() *C.char {
 	clientList := rtkUtils.GetClientListEx()

@@ -562,7 +562,7 @@ func isMobileFileDragUnavailable() bool {
 		mntVer := mapValue.(browseParam).ver
 		mntVerSerial := rtkMisc.GetVersionSerialValue(mntVer)
 		if mntVerSerial < rtkGlobal.LanServerMobileDragFileVerSerial {
-			log.Printf("[%s] lanServer ver:[%s], not support mobile file drag!", rtkMisc.GetFuncInfo(), mntVer)
+			log.Printf("[%s] service instance version:[%s], not support mobile file drag!", rtkMisc.GetFuncInfo(), mntVer)
 			return true
 		}
 	}

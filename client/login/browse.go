@@ -27,13 +27,18 @@ func BrowseInstance() rtkMisc.CrossShareErr {
 
 	resultChan := make(chan browseParam)
 
-	var err rtkMisc.CrossShareErr
+	var errCode rtkMisc.CrossShareErr
 	if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformiOS {
-		err = browseLanServeriOS(ctx, rtkMisc.LanServiceType, resultChan)
+		errCode = browseLanServeriOS(ctx, rtkMisc.LanServiceType, resultChan)
 	} else if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformAndroid || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformMnt {
-		err = browseLanServerAndroid(ctx, rtkMisc.LanServiceType, rtkMisc.LanServerDomain, resultChan)
+		errCode = browseLanServerAndroid(ctx, rtkMisc.LanServiceType, rtkMisc.LanServerDomain, resultChan)
 	} else {
-		err = browseLanServer(ctx, rtkMisc.LanServiceType, rtkMisc.LanServerDomain, resultChan)
+		errCode = browseLanServer(ctx, rtkMisc.LanServiceType, rtkMisc.LanServerDomain, resultChan)
+	}
+
+	if errCode != rtkMisc.SUCCESS {
+		close(resultChan)
+		return errCode
 	}
 
 	rtkMisc.GoSafe(func() {
@@ -51,7 +56,7 @@ func BrowseInstance() rtkMisc.CrossShareErr {
 			}
 		}
 	})
-	return err
+	return rtkMisc.SUCCESS
 }
 
 func stopBrowseInstance() {
