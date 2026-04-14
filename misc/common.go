@@ -11,11 +11,20 @@ const (
 	C2SMsg_CLIENT_HEARTBEAT       C2SMsgType = "CLIENT_HEARTBEAT"
 	C2SMsg_DRAG_FILE_START        C2SMsgType = "DRAG_FILE_START"
 	C2SMsg_DRAG_FILE_END          C2SMsgType = "REQ_CLIENT_DRAG_FILE"
-	CS2Msg_RECONN_CLIENT_LIST     C2SMsgType = "RECONN_CLIENT_LIST"
+	CS2Msg_PERIODIC_NOTIFY        C2SMsgType = "RECONN_CLIENT_LIST"
 	CS2Msg_NOTIFY_CLIENT_VERSION  C2SMsgType = "NOTIFY_CLIENT_VERSION"
 	CS2Msg_MESSAGE_EVENT          C2SMsgType = "MESSAGE_EVENT"
 	CS2Msg_UPDATE_SRCPORT_INFO    C2SMsgType = "UPDATE_SRCPORT_INFO"
 	CS2Msg_UPDATE_PLUG_EVENT      C2SMsgType = "UPDATE_PLUG_EVENT"
+)
+
+type ScenarioType int
+
+const (
+	ScenarioType_SingleView ScenarioType = iota + 0
+	ScenarioType_ViewManager
+	ScenarioType_MultiWindow
+	ScenarioType_SingleView_PIP
 )
 
 type PlatformMsgEventReq struct {
@@ -53,6 +62,7 @@ type InitClientMessageResponse struct {
 	Response
 	ClientIndex   uint32
 	ClientVersion string
+	Scenario      ScenarioType
 }
 
 type ResetClientResponse struct {
@@ -109,10 +119,11 @@ const (
 	RECONN_LESS    ReconnDirection = 1
 )
 
-type ReconnClientListReq struct {
+type PeriodicNotifyReq struct {
 	ClientList    []ClientInfo
 	ConnDirect    ReconnDirection
 	ClientVersion string
+	Scenario      ScenarioType
 }
 
 type C2SMessage struct {

@@ -206,7 +206,7 @@ func handleReadMessageFromServer(buffer []byte) rtkMisc.CrossShareErr {
 		return rtkMisc.ERR_BIZ_JSON_UNMARSHAL
 	}
 
-	if rspMsg.MsgType != rtkMisc.C2SMsg_CLIENT_HEARTBEAT && rspMsg.MsgType != rtkMisc.CS2Msg_RECONN_CLIENT_LIST {
+	if rspMsg.MsgType != rtkMisc.C2SMsg_CLIENT_HEARTBEAT && rspMsg.MsgType != rtkMisc.CS2Msg_PERIODIC_NOTIFY {
 		log.Printf("Received a Response msg from Server, clientID:[%s] ClientIndex:[%d] MsgType:[%s] RTT:[%d]ms", rspMsg.ClientID, rspMsg.ClientIndex, rspMsg.MsgType, time.Now().UnixMilli()-rspMsg.TimeStamp)
 	}
 
@@ -221,8 +221,8 @@ func handleReadMessageFromServer(buffer []byte) rtkMisc.CrossShareErr {
 		return dealS2CMsgRespClientList(rspMsg.ClientID, rspMsg.ExtData)
 	case rtkMisc.C2SMsg_DRAG_FILE_END:
 		return dealS2CMsgReqClientDragFiles(rspMsg.ClientID, rspMsg.ExtData)
-	case rtkMisc.CS2Msg_RECONN_CLIENT_LIST:
-		return dealS2CMsgReconnClientList(rspMsg.ClientID, rspMsg.ExtData)
+	case rtkMisc.CS2Msg_PERIODIC_NOTIFY:
+		return dealS2CMsgPeriodicNotify(rspMsg.ClientID, rspMsg.ExtData)
 	case rtkMisc.CS2Msg_NOTIFY_CLIENT_VERSION:
 		return dealS2CMsgNotifyClientVersion(rspMsg.ClientID, rspMsg.ExtData)
 	case rtkMisc.CS2Msg_MESSAGE_EVENT:
@@ -243,6 +243,7 @@ func handleReadMessageFromServer(buffer []byte) rtkMisc.CrossShareErr {
 
 func dealS2CMsgInitClient(id string, extData json.RawMessage) rtkMisc.CrossShareErr {
 	var initClientRsp rtkMisc.InitClientMessageResponse
+	initClientRsp.Scenario = rtkMisc.ScenarioType_ViewManager
 	err := json.Unmarshal(extData, &initClientRsp)
 	if err != nil {
 		log.Printf("clientID:[%s]decode ExtDataText  Err: %+v", id, err)
@@ -268,7 +269,9 @@ func dealS2CMsgInitClient(id string, extData json.RawMessage) rtkMisc.CrossShare
 	}
 
 	rtkGlobal.NodeInfo.ClientIndex = initClientRsp.ClientIndex
-	log.Printf("Requst Init Client success, get Client Index:[%d]", initClientRsp.ClientIndex)
+	scenario = initClientRsp.Scenario
+
+	log.Printf("Init Client Response success, get Client Index:[%d], Scenario:[%d]", initClientRsp.ClientIndex, scenario)
 
 	if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformAndroid || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformiOS { // mobile  client
 		errCode, authData := rtkPlatform.GetAuthData(rtkGlobal.NodeInfo.ClientIndex)
@@ -365,26 +368,31 @@ func dealS2CMsgReqClientDragFiles(id string, extData json.RawMessage) rtkMisc.Cr
 	return rtkFileDrop.UpdateDragFileReqDataFromLocal(targetID)
 }
 
-func dealS2CMsgReconnClientList(id string, extData json.RawMessage) rtkMisc.CrossShareErr {
-	var reconnListReq rtkMisc.ReconnClientListReq
-	err := json.Unmarshal(extData, &reconnListReq)
+func dealS2CMsgPeriodicNotify(id string, extData json.RawMessage) rtkMisc.CrossShareErr {
+	var periodicNotify rtkMisc.PeriodicNotifyReq
+	periodicNotify.Scenario = rtkMisc.ScenarioType_ViewManager // default value
+	err := json.Unmarshal(extData, &periodicNotify)
 	if err != nil {
 		log.Printf("clientID:[%s] Err: decode ExtDataText:%+v", id, err)
 		return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
 	}
 
-	notifyVerValue := rtkMisc.GetVersionValue(reconnListReq.ClientVersion)
+	notifyVerValue := rtkMisc.GetVersionValue(periodicNotify.ClientVersion)
 	if notifyVerValue < 0 {
-		log.Printf("[%s] ClientVersion:[%s]  GetVersionValue failed!", rtkMisc.GetFuncInfo(), reconnListReq.ClientVersion)
+		log.Printf("[%s] ClientVersion:[%s]  GetVersionValue failed!", rtkMisc.GetFuncInfo(), periodicNotify.ClientVersion)
 		return rtkMisc.ERR_BIZ_VERSION_INVALID
 	}
 
-	if checkClientVersionInvalid(reconnListReq.ClientVersion) {
+	if checkClientVersionInvalid(periodicNotify.ClientVersion) {
 		return rtkMisc.SUCCESS
 	}
 
-	clientList := reconnListHandler(reconnListReq.ClientList, reconnListReq.ConnDirect)
-	GetClientListFlag <- clientList
+	scenario = periodicNotify.Scenario
+
+	clientList := reconnListHandler(periodicNotify.ClientList, periodicNotify.ConnDirect)
+	if len(clientList) > 0 {
+		GetClientListFlag <- clientList
+	}
 	return rtkMisc.SUCCESS
 }
 
