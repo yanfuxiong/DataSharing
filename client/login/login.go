@@ -95,6 +95,7 @@ func init() {
 	})
 
 	rtkPlatform.SetGoSetMsgEventCallback(sendPlatformMsgEventToLanServer)
+	rtkPlatform.SetGoSendDragFileStartCallback(sendReqDragFileStartToLanServer)
 	rtkPlatform.SetGoGetShareFeatAvailableCallback(func() int {
 		if isShareFeatureAvailable() {
 			return 1
@@ -162,11 +163,8 @@ func mobileInitLanServer(instance string) {
 		return
 	}
 
-	if currentDiasStatus > DIAS_Status_Connectting_DiasService {
-		log.Printf("[%s][mobile] currentDiasStatus:%d, not allowed connect LanServer over again! ", rtkMisc.GetFuncInfo(), currentDiasStatus)
-		if currentDiasStatus != DIAS_Status_Wait_Other_Clients && currentDiasStatus != DIAS_Status_Get_Clients_Success {
-			NotifyDIASStatus(DIAS_Status_Connected_DiasService_Failed)
-		}
+	if currentDiasStatus == DIAS_Status_Wait_screenCasting {
+		log.Printf("[%s][mobile] currentDiasStatus:%d, init LanServer is in progress, skip it! ", rtkMisc.GetFuncInfo(), currentDiasStatus)
 		return
 	}
 
@@ -200,7 +198,6 @@ func mobileInitLanServer(instance string) {
 		}
 		<-time.After(g_retryServerInterval)
 	}
-
 }
 
 func ConnectLanServerRun(ctx context.Context) {
@@ -433,6 +430,7 @@ func ReConnectLanServer(ctx context.Context) {
 			} else {
 				log.Printf("initLanServer %d times failed, errCode:%d ! try to Browse Service over again...", retryCnt, errCode)
 				BrowseInstance()
+				break
 			}
 
 			bPrintErrLog = false
@@ -484,14 +482,9 @@ func cancelLanServerBusiness() {
 
 func NotifyDIASStatus(status CrossShareDiasStatus) {
 	if currentDiasStatus != status {
+		currentDiasStatus = status
 		rtkPlatform.GoDIASStatusNotify(uint32(status))
-
-		if (status == DIAS_Status_Wait_DiasMonitor) ||
-			(status == DIAS_Status_Connectting_DiasService) ||
-			(status == DIAS_Status_Wait_Other_Clients) ||
-			(status == DIAS_Status_Get_Clients_Success) {
-			currentDiasStatus = status
-		}
+		
 	}
 }
 

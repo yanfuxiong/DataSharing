@@ -95,8 +95,8 @@ func sendPlatformMsgEventToLanServer(event uint32, arg1, arg2, arg3, arg4 string
 }
 
 func sendReqDragFileStartToLanServer(extData *rtkMisc.DragFileStartInfo) rtkCommon.SendFilesRequestErrCode {
-	if isMobileFileDragUnavailable() {
-		return rtkCommon.LanServerVersionDragFileUnavailable
+	if !isSupportMobileFileDrag() {
+		return rtkCommon.UnsupportMobileDragFile
 	}
 	extData.Source = sourcePort.Source
 	extData.Port = sourcePort.Port
@@ -565,14 +565,17 @@ func checkPingServerTimeout() {
 	}
 }
 
-func isMobileFileDragUnavailable() bool {
-	if mapValue, ok := serverInstanceMap.Load(lanServerInstance); ok {
-		mntVer := mapValue.(browseParam).ver
-		mntVerSerial := rtkMisc.GetVersionSerialValue(mntVer)
-		if mntVerSerial < rtkGlobal.LanServerMobileDragFileVerSerial {
-			log.Printf("[%s] service instance version:[%s], not support mobile file drag!", rtkMisc.GetFuncInfo(), mntVer)
-			return true
-		}
+func isSupportMobileFileDrag() bool {
+	mapValue, ok := serverInstanceMap.Load(lanServerInstance)
+	if !ok {
+		return false
 	}
-	return false
+
+	mntVer := mapValue.(browseParam).ver
+	mntVerSerial := rtkMisc.GetVersionSerialValue(mntVer)
+	if mntVerSerial < rtkGlobal.LanServerMobileDragFileVerSerial {
+		log.Printf("[%s] service instance version:[%s], not support mobile file drag!", rtkMisc.GetFuncInfo(), mntVer)
+		return false
+	}
+	return true
 }

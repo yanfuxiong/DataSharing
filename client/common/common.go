@@ -83,7 +83,7 @@ const (
 	SendFilesRequestLengthOverRange
 	SendFilesRequestSizeOverRange
 	SendFilesRequestCacheOverRange
-	LanServerVersionDragFileUnavailable
+	UnsupportMobileDragFile
 )
 
 type CancelBusinessSource int

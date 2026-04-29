@@ -2,6 +2,8 @@ package utils
 
 import (
 	"bufio"
+	"bytes"
+	"context"
 	"crypto/md5"
 	"encoding/base64"
 	"encoding/json"
@@ -464,6 +466,34 @@ func Base64Decode(src string) []byte {
 
 func Base64Encode(src []byte) string {
 	return base64.StdEncoding.EncodeToString(src)
+}
+
+func DecodeOctalString(s string) string {
+	// match \DDD escape byte
+	re := regexp.MustCompile(`\\(\d{3})`)
+	locs := re.FindAllStringSubmatchIndex(s, -1)
+	var out bytes.Buffer
+	last := 0
+	for _, loc := range locs {
+		if _, errOut := out.WriteString(s[last:loc[0]]); errOut != nil {
+			log.Printf("[%s] WriteString failed. Error:[%+v]", rtkMisc.GetFuncInfo(), errOut)
+			return s
+		}
+		octStr := s[loc[2]:loc[3]]
+		v, err := strconv.ParseUint(octStr, 10, 8)
+		if err == nil {
+			if errOut := out.WriteByte(byte(v)); errOut != nil {
+				log.Printf("[%s] WriteByte failed. Error:[%+v]", rtkMisc.GetFuncInfo(), errOut)
+				return s
+			}
+		}
+		last = loc[1]
+	}
+	if _, errOut := out.WriteString(s[last:]); errOut != nil {
+		log.Printf("[%s] WriteString failed. Error:[%+v]", rtkMisc.GetFuncInfo(), errOut)
+		return s
+	}
+	return out.String()
 }
 
 func addSuffixBeforeExt(path, suffix string) string {

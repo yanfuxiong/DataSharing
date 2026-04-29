@@ -1,14 +1,14 @@
 package global
 
 const (
-	ClientVersion = "2.3.61"
+	ClientVersion = "2.3.66"
 
 	ClientDefaultVersion          = "2.3.0" // when the other client is an old version and cannot obtain the version number, use this default version
 	ClientXClipVerSerial          = 46      // the client support XClip since third version(serial number) 46
 	ClientCaptureIndexVerSerial   = 48      // the client build ClientIndex color block on verification dialog
 	ClientQueueFileTransVerSerial = 50      // the client file drop queue transfer since third version(serial number) 50
 
-	LanServerMobileDragFileVerSerial = 30 //  the lanserver support mobile drag file since third version(serial number) 30
+	LanServerMobileDragFileVerSerial = 31 //  the lanserver support mobile drag file since third version(serial number) 31
 	ProtocolID                       = "/libp2p/dcutr"
 	HostProtocolID                   = "host_register"
 

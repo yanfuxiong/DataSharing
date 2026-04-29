@@ -90,7 +90,7 @@ func browseLanServer(ctx context.Context, serviceType, domain string, resultChan
 			if len(entry.AddrIPv4) > 0 {
 				lanServerIp := fmt.Sprintf("%s:%d", entry.AddrIPv4[0].String(), entry.Port)
 				txtMap := getTextRecordMap(entry.Text)
-				textRecordmonitorName := txtMap[rtkMisc.TextRecordKeyMonitorName]
+				textRecordmonitorName := rtkUtils.DecodeOctalString(txtMap[rtkMisc.TextRecordKeyMonitorName])
 				textRecordTimeStamp := txtMap[rtkMisc.TextRecordKeyTimestamp]
 				textRecordKeyVersion := txtMap[rtkMisc.TextRecordKeyVersion]
 				log.Printf("Browse get a Service, mName:[%s] instance:[%s] IP:[%s] ver:[%s] timestamp:[%s], use %d ms", textRecordmonitorName, entry.Instance, lanServerIp, textRecordKeyVersion, textRecordTimeStamp, time.Now().UnixMilli()-startTime)
@@ -142,7 +142,7 @@ func browseLanServerAndroid(ctx context.Context, serviceType, domain string, res
 				txtMap := getTextRecordMap(entry.Text)
 				textRecordIp := txtMap[rtkMisc.TextRecordKeyIp]
 				textRecordProductName := txtMap[rtkMisc.TextRecordKeyProductName]
-				textRecordmName := txtMap[rtkMisc.TextRecordKeyMonitorName]
+				textRecordmName := rtkUtils.DecodeOctalString(txtMap[rtkMisc.TextRecordKeyMonitorName])
 				textRecordTimeStamp := txtMap[rtkMisc.TextRecordKeyTimestamp]
 				textRecordKeyVersion := txtMap[rtkMisc.TextRecordKeyVersion]
 				if textRecordIp != entryIp {
@@ -245,7 +245,7 @@ func lookupLanServer(ctx context.Context, instance, serviceType, domain string, 
 			break
 		}
 		txtMap := getTextRecordMap(entry.Text)
-		textRecordmonitorName := txtMap[rtkMisc.TextRecordKeyMonitorName]
+		textRecordmonitorName := rtkUtils.DecodeOctalString(txtMap[rtkMisc.TextRecordKeyMonitorName])
 		textRecordTimeStamp := txtMap[rtkMisc.TextRecordKeyTimestamp]
 		textRecordKeyVersion := txtMap[rtkMisc.TextRecordKeyVersion]
 

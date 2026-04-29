@@ -19,8 +19,8 @@ type CrossShareDiasStatus int
 const (
 	DIAS_Status_Wait_DiasMonitor CrossShareDiasStatus = iota + 1
 	DIAS_Status_Connectting_DiasService
-	DIAS_Status_Checking_Authorization //Windows
-	DIAS_Status_Wait_screenCasting     // Android
+	DIAS_Status_Checking_Authorization // PC
+	DIAS_Status_Wait_screenCasting     // mobile
 	DIAS_Status_Authorization_Failed
 	DIAS_Status_Wait_Other_Clients
 	DIAS_Status_Get_Clients_Success
@@ -50,7 +50,7 @@ var (
 	g_lookupByUnicast       bool
 	initLanServerMutex      sync.Mutex
 	currentDiasStatus       CrossShareDiasStatus
-	shareFeatAvailable      int // 0:false   1: true
+	scenario                rtkMisc.ScenarioType
 
 	//PC  variable
 	displayInfoMutex sync.RWMutex
