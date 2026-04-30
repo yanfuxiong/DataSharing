@@ -63,6 +63,7 @@ type InitClientMessageResponse struct {
 	ClientIndex   uint32
 	ClientVersion string
 	Scenario      ScenarioType
+	IsSupportFileDrag bool
 }
 
 type ResetClientResponse struct {

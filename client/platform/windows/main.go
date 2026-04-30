@@ -99,10 +99,6 @@ static void NotifyErrEventCallbackFunc(NotifyErrEventCallback cb, const char *cl
     if (cb) cb(clienID, errCode, arg1, arg2, arg3, arg4);
 }
 
-typedef void (*ReadyReCtrlCallback)(const char *ip, uint32_t mousePort, uint32_t kybrdPort);
-static void ReadyReCtrlCallbackFunc(ReadyReCtrlCallback cb, const char *ip, uint32_t mousePort, uint32_t kybrdPort) {
-    if (cb) cb(ip, mousePort, kybrdPort);
-}
 */
 import "C"
 import (
@@ -202,7 +198,6 @@ var (
 	g_SetupDstPasteXClipDataCallback     C.SetupDstPasteXClipDataCallback     = nil
 	g_RequestUpdateClientVersionCallback C.RequestUpdateClientVersionCallback = nil
 	g_NotifyErrEventCallback             C.NotifyErrEventCallback             = nil
-	g_ReadyReCtrlCallback                C.ReadyReCtrlCallback                = nil
 )
 
 func main() {}
@@ -229,20 +224,6 @@ func init() {
 }
 
 /*======================================= Go Call Windows API =======================================*/
-
-func GoTriggerCallbackReadyReCtrl(ip string, mousePort, kybrdPort uint32) {
-	if g_ReadyReCtrlCallback == nil {
-		log.Printf("%s g_AuthViaIndexCallback is not set!", rtkMisc.GetFuncInfo())
-		return
-	}
-	cIp := C.CString(ip)
-	defer C.free(unsafe.Pointer(cIp))
-	cMousePort := C.uint32_t(mousePort)
-	cKybrdPort := C.uint32_t(kybrdPort)
-
-	log.Printf("[%s] readyReCtrl Addr:[%s - %d %d]", rtkMisc.GetFuncInfo(), ip, mousePort, kybrdPort)
-	C.ReadyReCtrlCallbackFunc(g_ReadyReCtrlCallback, cIp, cMousePort, cKybrdPort)
-}
 
 func GoTriggerCallbackSetAuthViaIndex(index uint32) {
 	if g_AuthViaIndexCallback == nil {
@@ -543,6 +524,15 @@ func GetShareFeatAvailable() C.int {
 	return C.int(rtkPlatform.GoGetShareFeatAvailable())
 }
 
+//export GetIsSupportFileDrag
+func GetIsSupportFileDrag() C.int {
+	cIsSupport := C.int(0)
+	if rtkPlatform.GoGetIsSupportFileDrag() {
+		cIsSupport = C.int(1)
+	}
+	return cIsSupport
+}
+
 //export SetFileDropResponse
 func SetFileDropResponse(statusCode C.int, ipPort *C.char, clientID *C.char, fileSize C.uint64_t, timestamp C.uint64_t, fileName *C.wchar_t) {
 	fmt.Printf("SetFileDropResponse(%d, %q, %q, %d, %d, %q)\n",
@@ -803,10 +793,4 @@ func SetRequestUpdateClientVersionCallback(cb C.RequestUpdateClientVersionCallba
 func SetNotifyErrEventCallback(cb C.NotifyErrEventCallback) {
 	log.Println("SetNotifyErrEventCallback")
 	g_NotifyErrEventCallback = cb
-}
-
-//export SetReadyReCtrlCallback
-func SetReadyReCtrlCallback(cb C.ReadyReCtrlCallback) { // Deprecated: unused
-	log.Println("SetReadyReCtrlCallback")
-	g_ReadyReCtrlCallback = cb
 }

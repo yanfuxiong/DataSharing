@@ -27,5 +27,6 @@ var (
 	ClientInfoMap     = make(map[string]rtkCommon.ClientInfoEx)
 	ClientListRWMutex = sync.RWMutex{}
 
-	RTT map[string]time.Duration = make(map[string]time.Duration)
+	RTT               map[string]time.Duration = make(map[string]time.Duration)
+	IsSupportFileDrag bool
 )

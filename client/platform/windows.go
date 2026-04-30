@@ -106,7 +106,6 @@ type (
 	CallbackConnectLanServerFunc       func(instance string)
 	CallbackBrowseLanServerFunc        func()
 	CallbackSetMsgEventFunc            func(event uint32, arg1, arg2, arg3, arg4 string)
-	CallbackReadyReCtrlFunc            func(ip string, mousePort, kybrdPort uint32)
 	CallbackSendDragFileStartFunc      func(*rtkMisc.DragFileStartInfo) rtkCommon.SendFilesRequestErrCode
 	CallbackGetShareFeatAvailableFunc  func() int
 )
@@ -134,7 +133,6 @@ var (
 	callbackReqClientUpdateVer         CallbackReqClientUpdateVerFunc     = nil
 	callbackNotifyErrEvent             CallbackNotifyErrEventFunc         = nil
 	callbackSetMsgEvent                CallbackSetMsgEventFunc            = nil
-	callbackReadyReCtrl                CallbackReadyReCtrlFunc            = nil
 	callbackGetShareFeatAvailable      CallbackGetShareFeatAvailableFunc  = nil
 
 	// main.go Callback
@@ -286,10 +284,6 @@ func SetReqClientUpdateVerCallback(cb CallbackReqClientUpdateVerFunc) {
 
 func SetNotifyErrEventCallback(cb CallbackNotifyErrEventFunc) {
 	callbackNotifyErrEvent = cb
-}
-
-func SetReadyReCtrlCallback(cb CallbackReadyReCtrlFunc) {
-	callbackReadyReCtrl = cb
 }
 
 /*======================================= Used by main.go, Called by C++ =======================================*/
@@ -544,6 +538,10 @@ func GoCancelFileTrans(ip, id string, timestamp int64) {
 
 func GoUpdateDownloadPath(path string) {
 	downloadPath = path
+}
+
+func GoGetIsSupportFileDrag() bool {
+	return rtkGlobal.IsSupportFileDrag
 }
 
 /*======================================= Used by GO business =======================================*/

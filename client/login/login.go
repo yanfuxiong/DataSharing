@@ -464,7 +464,8 @@ func stopLanServerBusiness() {
 	pSafeConnect.Close()
 	rtkPlatform.GoMonitorNameNotify("")
 	NotifyDIASStatus(DIAS_Status_Connectting_DiasService)
-
+	rtkGlobal.IsSupportFileDrag = false
+	
 	if disconnectAllClientFunc == nil {
 		log.Printf("disconnectAllClientFunc is nil, not cancel all client stream and business!")
 		return
@@ -478,6 +479,7 @@ func cancelLanServerBusiness() {
 	pSafeConnect.Close()
 	stopBrowseInstance()
 	lanServerRunning.Store(false)
+	rtkGlobal.IsSupportFileDrag = false
 }
 
 func NotifyDIASStatus(status CrossShareDiasStatus) {
