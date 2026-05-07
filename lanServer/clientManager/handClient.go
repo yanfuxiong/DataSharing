@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	reconnListInternal = 5 * time.Second
+	periodicNotifyInternal = 5 * time.Second
 )
 
 type asynMsgInfo struct {
@@ -341,7 +341,7 @@ func writeMsg(msg *rtkMisc.C2SMessage, timestamp int64) rtkMisc.CrossShareErr {
 		return rtkMisc.ERR_BIZ_JSON_MARSHAL
 	}
 
-	if msg.MsgType != rtkMisc.C2SMsg_CLIENT_HEARTBEAT && msg.MsgType != rtkMisc.CS2Msg_RECONN_CLIENT_LIST {
+	if msg.MsgType != rtkMisc.C2SMsg_CLIENT_HEARTBEAT && msg.MsgType != rtkMisc.CS2Msg_PERIODIC_NOTIFY {
 		log.Printf("Write a msg to clientID:[%s] ClientIndex:[%d] MsgType:[%s]", msg.ClientID, msg.ClientIndex, msg.MsgType)
 	}
 	return write(encodedData, msg.ClientID, timestamp)

@@ -8,6 +8,7 @@ import (
 	rtkdbManager "rtk-cross-share/lanServer/dbManager"
 	rtkGlobal "rtk-cross-share/lanServer/global"
 	rtkMisc "rtk-cross-share/misc"
+	"strconv"
 	"sync"
 )
 
@@ -34,6 +35,7 @@ type (
 	GetTimingDataCb          func() []rtkCommon.TimingData
 	GetTimingDataBySrcPortCb func(source, port int) rtkCommon.TimingData
 	SendMsgEventCb           func(event int, arg1, arg2, arg3, arg4 string)
+	GetCapabilityCb          func() int
 	InterfaceMgr             struct {
 		mu                        sync.RWMutex
 		mUpdateDeviceNameCb       UpdateDeviceNameCb
@@ -46,6 +48,7 @@ type (
 		mGetTimingDataCb          GetTimingDataCb
 		mGetTimingDataBySrcPortCb GetTimingDataBySrcPortCb
 		mSendMsgEventCb           SendMsgEventCb
+		mGetCapabilityCb          GetCapabilityCb
 	}
 )
 
@@ -76,6 +79,8 @@ func (mgr *InterfaceMgr) SetupCallbackFromServer(
 	getTimingDataCb GetTimingDataCb,
 	getTimingDataBySrcPortCb GetTimingDataBySrcPortCb,
 	sendMsgEventCb SendMsgEventCb,
+	getCapabilityCb GetCapabilityCb,
+
 ) {
 	mgr.mu.Lock()
 	defer mgr.mu.Unlock()
@@ -88,105 +93,140 @@ func (mgr *InterfaceMgr) SetupCallbackFromServer(
 	mgr.mGetTimingDataCb = getTimingDataCb
 	mgr.mGetTimingDataBySrcPortCb = getTimingDataBySrcPortCb
 	mgr.mSendMsgEventCb = sendMsgEventCb
+	mgr.mGetCapabilityCb = getCapabilityCb
 }
 
 // Deprecated: Use UpdateClientInfodData
 func (mgr *InterfaceMgr) TriggerUpdateDeviceName(source, port int, name string) bool {
 	mgr.mu.RLock()
-	if mgr.mUpdateDeviceNameCb == nil {
+	cb := mgr.mUpdateDeviceNameCb
+	mgr.mu.RUnlock()
+
+	if cb == nil {
 		log.Printf("[%s][%s] Error: UpdateDevice callback is null", tag, rtkMisc.GetFuncInfo())
 		return false
 	}
-	mgr.mu.RUnlock()
 
-	mgr.mUpdateDeviceNameCb(source, port, name)
+	cb(source, port, name)
 	return true
 }
 
 func (mgr *InterfaceMgr) TriggerDragFileStart(source, port, horzSize, vertSize, posX, posY int) bool {
 	mgr.mu.RLock()
-	if mgr.mDragFileStartCb == nil {
+	cb := mgr.mDragFileStartCb
+	mgr.mu.RUnlock()
+
+	if cb == nil {
 		log.Printf("[%s][%s] Error: DragFileStart callback is null", tag, rtkMisc.GetFuncInfo())
 		return false
 	}
-	mgr.mu.RUnlock()
 
-	mgr.mDragFileStartCb(source, port, horzSize, vertSize, posX, posY)
+	cb(source, port, horzSize, vertSize, posX, posY)
 	return true
 }
 
 func (mgr *InterfaceMgr) TriggerUpdateClientInfo(clientInfo rtkCommon.ClientInfoTb) {
 	mgr.mu.RLock()
-	if mgr.mUpdateClientInfoCb == nil {
+	cb := mgr.mUpdateClientInfoCb
+	mgr.mu.RUnlock()
+
+	if cb == nil {
 		log.Printf("[%s][%s] Error: UpdateClientInfo callback is null", tag, rtkMisc.GetFuncInfo())
 		return
 	}
-	mgr.mu.RUnlock()
 
-	mgr.mUpdateClientInfoCb(clientInfo)
+	cb(clientInfo)
 }
 
 func (mgr *InterfaceMgr) TriggerDisplayMonitorName() {
 	mgr.mu.RLock()
-	if mgr.mDisplayMonitorNameCb == nil {
+	cb := mgr.mDisplayMonitorNameCb
+	mgr.mu.RUnlock()
+
+	if cb == nil {
 		log.Printf("[%s][%s] Error: DisplayMonitorName callback is null", tag, rtkMisc.GetFuncInfo())
 		return
 	}
-	mgr.mu.RUnlock()
-	mgr.mDisplayMonitorNameCb()
+
+	cb()
 }
 
 func (mgr *InterfaceMgr) TriggerGetDpSrcTypeCb(source, port int) rtkGlobal.DpSrcType {
 	mgr.mu.RLock()
-	if mgr.mGetDpSrcTypeCb == nil {
+	cb := mgr.mGetDpSrcTypeCb
+	mgr.mu.RUnlock()
+
+	if cb == nil {
 		log.Printf("[%s][%s] Error: GetDpSrcType callback is null", tag, rtkMisc.GetFuncInfo())
 		return rtkGlobal.DP_SRC_TYPE_NONE
 	}
-	mgr.mu.RUnlock()
-	return mgr.mGetDpSrcTypeCb(source, port)
+
+	return cb(source, port)
 }
 
 func (mgr *InterfaceMgr) TriggerCaptureIndex(source, port, clientIndex int) bool {
 	mgr.mu.RLock()
-	if mgr.mCaptureIndexCb == nil {
+	cb := mgr.mCaptureIndexCb
+	mgr.mu.RUnlock()
+
+	if cb == nil {
 		log.Printf("[%s][%s] Error: CaptureIndex callback is null", tag, rtkMisc.GetFuncInfo())
 		return false
 	}
-	mgr.mu.RUnlock()
-	return mgr.mCaptureIndexCb(source, port, clientIndex)
+
+	return cb(source, port, clientIndex)
 }
 
 func (mgr *InterfaceMgr) TriggerGetTimingData() []rtkCommon.TimingData {
 	mgr.mu.RLock()
-	if mgr.mGetTimingDataCb == nil {
+	cb := mgr.mGetTimingDataCb
+	mgr.mu.RUnlock()
+
+	if cb == nil {
 		log.Printf("[%s][%s] Error: GetTimingData callback is null", tag, rtkMisc.GetFuncInfo())
 		return make([]rtkCommon.TimingData, 0)
 	}
-	mgr.mu.RUnlock()
 
-	return mgr.mGetTimingDataCb()
+	return cb()
 }
 
 func (mgr *InterfaceMgr) TriggerGetTimingDataBySrcPort(source, port int) rtkCommon.TimingData {
 	mgr.mu.RLock()
-	if mgr.mGetTimingDataBySrcPortCb == nil {
+	cb := mgr.mGetTimingDataBySrcPortCb
+	mgr.mu.RUnlock()
+
+	if cb == nil {
 		log.Printf("[%s][%s] Error: GetTimingDataBySrcPortCb callback is null", tag, rtkMisc.GetFuncInfo())
 		return rtkCommon.TimingData{}
 	}
-	mgr.mu.RUnlock()
 
-	return mgr.mGetTimingDataBySrcPortCb(source, port)
+	return cb(source, port)
 }
 
 func (mgr *InterfaceMgr) TriggerSendMsgEvent(event int, arg1, arg2, arg3, arg4 string) {
 	mgr.mu.RLock()
-	if mgr.mSendMsgEventCb == nil {
+	cb := mgr.mSendMsgEventCb
+	mgr.mu.RUnlock()
+
+	if cb == nil {
 		log.Printf("[%s][%s] Error: SendMsgEvent callback is null", tag, rtkMisc.GetFuncInfo())
 		return
 	}
+
+	cb(event, arg1, arg2, arg3, arg4)
+}
+
+func (mgr *InterfaceMgr) TriggerGetCapability() {
+	mgr.mu.RLock()
+	cb := mgr.mGetCapabilityCb
 	mgr.mu.RUnlock()
 
-	mgr.mSendMsgEventCb(event, arg1, arg2, arg3, arg4)
+	if cb == nil {
+		log.Printf("[%s][%s] Error: GetCapability callback is null", tag, rtkMisc.GetFuncInfo())
+		return
+	}
+	rtkGlobal.Capability = cb()
+	log.Printf("[%s][%s] GetCapability :[%d]", tag, rtkMisc.GetFuncInfo(), rtkGlobal.Capability)
 }
 
 func (mgr *InterfaceMgr) AuthDevice(source, port, index int) bool {
@@ -269,6 +309,18 @@ func (mgr *InterfaceMgr) UpdateSrcPlugging(source, port, plugEvent int) {
 
 	log.Printf("[%s][%s] Error: not found valid client (source,port):(%d,%d)",
 		tag, rtkMisc.GetFuncInfo(), source, port)
+}
+
+func (mgr *InterfaceMgr) NotifyEvent(eventType rtkCommon.EventType, arg1, arg2, arg3, arg4 string) {
+	if eventType == rtkCommon.EventType_UpdateScenario {
+		scen, err := strconv.Atoi(arg1)
+		if err != nil {
+			log.Printf("[%s][%s] Error: invalid  arg1:[%s]", tag, rtkMisc.GetFuncInfo(), arg1)
+			return
+		}
+		rtkGlobal.Scenario = rtkMisc.ScenarioType(scen)
+	}
+	log.Printf("[%s][%s] eventType:[%d], arg1:%s, arg2:%s, arg3:%s, arg4:%s", tag, rtkMisc.GetFuncInfo(), eventType, arg1, arg2, arg3, arg4)
 }
 
 // Deprecated: Unused

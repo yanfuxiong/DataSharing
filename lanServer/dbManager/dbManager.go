@@ -120,7 +120,6 @@ func createDb() error {
 	dbMutex.Lock()
 	g_SqlInstance = db
 	dbMutex.Unlock()
-
 	return nil
 }
 

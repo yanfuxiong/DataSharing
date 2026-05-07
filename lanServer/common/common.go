@@ -79,6 +79,12 @@ const (
 	SrcPortType_MIRACAST SourcePortType = "Miracast"
 )
 
+type EventType int
+
+const (
+	EventType_UpdateScenario EventType = 0
+)
+
 var (
 	MAX_PORT_HDMI = 2 // Now only support 2 port in HDMI
 	MAX_PORT_DP   = 2 // Now only support 2 port in DP
@@ -141,4 +147,11 @@ type SrcPortTiming struct {
 
 func (s *SrcPortTiming) IsSingal() bool {
 	return s.Width > 0 && s.Height > 0 && s.Framerate > 0
+}
+
+func IsSupportFileDrag() bool {
+	if (rtkGlobal.Capability & rtkGlobal.FuncCapFileDrag) > 0 {
+		return true
+	}
+	return false
 }

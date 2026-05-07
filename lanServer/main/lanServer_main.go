@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"path/filepath"
 	rtkBuildConfig "rtk-cross-share/lanServer/buildConfig"
 	rtkClientManager "rtk-cross-share/lanServer/clientManager"
 	rtkCommon "rtk-cross-share/lanServer/common"
@@ -36,8 +37,24 @@ var (
 
 	serviceForServer = flag.String("serviceForServer", rtkMisc.LanServiceTypeForServer, "Set the service type of the new service.")
 
-	g_foundOtherServer bool = false
+	g_foundOtherServer bool     = false
+	lockFd             *os.File = nil
+	lockFilePath       string
 )
+
+func init() {
+	flag.Parse()
+
+	logFile := fmt.Sprintf("%s%s.log", rtkGlobal.LOG_PATH, rtkBuildConfig.ServerName)
+	crashLogFile := fmt.Sprintf("%s%sCrash.log", rtkGlobal.LOG_PATH, rtkBuildConfig.ServerName)
+	rtkMisc.InitLog(logFile, crashLogFile, 32)
+	rtkMisc.SetupLogConsoleFile()
+
+	rtkMisc.CreateDir(rtkGlobal.SOCKET_PATH_ROOT, os.ModePerm)
+
+	lockFilePath = filepath.Join(rtkGlobal.LOG_PATH, "singleton.lock")
+	rtkGlobal.Scenario = rtkMisc.ScenarioType_ViewManager
+}
 
 func checkLanServerExists() (string, bool) {
 	startTime := time.Now().UnixMilli()
@@ -116,6 +133,7 @@ func browseOtherServer(ctx context.Context) {
 		case <-ticker.C:
 			if subCancel != nil {
 				subCancel()
+				time.Sleep(1 * time.Second)
 			}
 			var subCtx context.Context
 			subCtx, subCancel = context.WithCancel(ctx)
@@ -125,19 +143,17 @@ func browseOtherServer(ctx context.Context) {
 }
 
 func MainInit() {
-	flag.Parse()
-
-	logFile := fmt.Sprintf("%s%s.log", rtkGlobal.LOG_PATH, rtkBuildConfig.ServerName)
-	crashLogFile := fmt.Sprintf("%s%sCrash.log", rtkGlobal.LOG_PATH, rtkBuildConfig.ServerName)
-	rtkMisc.InitLog(logFile, crashLogFile, 32)
-	rtkMisc.SetupLogConsoleFile()
-
-	rtkMisc.CreateDir(rtkGlobal.SOCKET_PATH_ROOT, os.ModePerm)
-
 	log.Println("=====================================================")
 	log.Printf("%s LanServer Version: %s ", rtkBuildConfig.ServerName, rtkGlobal.LanServerVersion)
 	log.Printf("%s Build Date: %s", rtkBuildConfig.ServerName, rtkBuildConfig.BuildDate)
 	log.Printf("=====================================================\n\n")
+
+	err := lockFile()
+	if err != nil {
+		log.Printf("Another instance is already running, return!\n\n")
+		return
+	}
+	defer unLockFile()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -160,6 +176,7 @@ func MainInit() {
 
 	rtkGlobal.ServerIPAddr = ""
 
+	rtkIfaceMgr.GetInterfaceMgr().TriggerGetCapability()
 	rtkMisc.GoSafe(func() { rtkDebug.DebugCmdLine() })
 	rtkMisc.GoSafe(func() { rtkNetwork.WatchNetworkInfo(ctx) })
 	rtkMisc.GoSafe(func() { Run() })
@@ -269,11 +286,6 @@ func registerMdns(server **zeroconf.Server, serverForSearch **zeroconf.Server) [
 					}
 				}
 			}
-			rtkGlobal.ServerPort, _ = getAvailablePort()
-			if rtkGlobal.ServerPort == 0 {
-				rtkGlobal.ServerPort = *port
-			}
-
 			// It's necessary be a contentText.
 			// If the contentText is null or empty, that iOS cannot discover service
 			// iOS use the IP in textRecord to skip the different IP from bonjour service
@@ -393,7 +405,7 @@ func Run() {
 	defer cancel()
 
 	rtkMisc.GoSafe(func() { browseOtherServer(ctx) })
-	rtkMisc.GoSafe(func() { rtkClientManager.ReconnClientListHandler(ctx) })
+	rtkMisc.GoSafe(func() { rtkClientManager.PeriodicNotifyHandler(ctx) })
 	rtkMisc.GoSafe(func() { rtkClientManager.HandleClientSignalChecking(ctx) })
 
 	rtkMisc.GoSafe(func() {
@@ -448,22 +460,27 @@ func Run() {
 	}
 }
 
-func getAvailablePort() (int, error) {
-	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
+func lockFile() error {
+	var err error
+	lockFd, err = os.OpenFile(lockFilePath, os.O_CREATE|os.O_RDWR, 0666)
 	if err != nil {
-		log.Printf("[%s] error:%+v ", rtkMisc.GetFuncInfo(), err)
-		return 0, err
+		log.Printf("Failed to open or create lock file:[%s] err:%+v", lockFilePath, err)
+		return err
 	}
 
-	l, err := net.ListenTCP("tcp", addr)
+	err = syscall.Flock(int(lockFd.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
 	if err != nil {
-		log.Printf("[%s]  error:%+v", rtkMisc.GetFuncInfo(), err)
-		return 0, err
+		log.Printf("Failed to lock file[%s] err:%+v", lockFilePath, err)
 	}
-	defer l.Close()
 
-	nPort := l.Addr().(*net.TCPAddr).Port
-	log.Printf("[%s] get port:%d\n", rtkMisc.GetFuncInfo(), nPort)
-	return nPort, nil
+	return err
 }
 
+func unLockFile() error {
+	err := syscall.Flock(int(lockFd.Fd()), syscall.LOCK_UN|syscall.LOCK_NB)
+	if err != nil {
+		log.Printf("Failed to unlock file[%s] err:%+v", lockFilePath, err)
+	}
+	lockFd.Close()
+	return err
+}

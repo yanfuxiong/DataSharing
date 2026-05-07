@@ -60,9 +60,9 @@ type PlatformMsgEventResponse struct {
 
 type InitClientMessageResponse struct {
 	Response
-	ClientIndex   uint32
-	ClientVersion string
-	Scenario      ScenarioType
+	ClientIndex       uint32
+	ClientVersion     string
+	Scenario          ScenarioType
 	IsSupportFileDrag bool
 }
 

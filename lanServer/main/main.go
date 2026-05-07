@@ -44,6 +44,7 @@ typedef void (*GetTimingDataBySrcPortCb)(int source, int port, TIMING_DATA* timi
 typedef void (*DisplayMonitorNameCb)();
 typedef void (*GetDpSrcTypeCb)(int source, int port, int* dpSrcType);
 typedef void (*SendMsgEventCb)(int event, const char* arg1, const char* arg2, const char* arg3, const char* arg4);
+typedef int (*GetCapabilityCb)();
 
 // store callback pointer
 static UpdateDeviceNameCb g_updateDeviceNameCb = 0;
@@ -55,6 +56,7 @@ static GetTimingDataBySrcPortCb g_getTimingDataBySrcPortCb = 0;
 static DisplayMonitorNameCb g_displayMonitorNameCb = 0;
 static GetDpSrcTypeCb g_getDpSrcTypeCb = 0;
 static SendMsgEventCb g_sendMsgEventCb = 0;
+static GetCapabilityCb g_getCapabilityCb = 0;
 
 // function GO can call to invoke callback
 static void setUpdateDeviceNameCb(UpdateDeviceNameCb cb) {g_updateDeviceNameCb = cb;}
@@ -111,9 +113,17 @@ static void onSendMsgEventCb(int event, const char* arg1, const char* arg2, cons
 		g_sendMsgEventCb(event, arg1, arg2, arg3, arg4);
 	}
 }
+static void setGetCapabilityCb(GetCapabilityCb cb) {g_getCapabilityCb = cb;}
+static int onGetCapabilityCb() {
+	if (g_getCapabilityCb) {
+		return g_getCapabilityCb();
+	}
+	return 0;
+}
 */
 import "C"
 import (
+	"log"
 	"os"
 	"reflect"
 	rtkCommon "rtk-cross-share/lanServer/common"
@@ -126,49 +136,66 @@ import (
 	"unsafe"
 )
 
+const tag = "main"
+
 //export SetUpdateDeviceNameCb
 func SetUpdateDeviceNameCb(cb C.UpdateDeviceNameCb) {
 	C.setUpdateDeviceNameCb(cb)
+	log.Printf("[%s][%s] SetUpdateDeviceNameCb", tag, rtkMisc.GetFuncInfo())
 }
 
 //export SetDragFileStartCb
 func SetDragFileStartCb(cb C.DragFileStartCb) {
 	C.setDragFileStartCb(cb)
+	log.Printf("[%s][%s] SetDragFileStartCb", tag, rtkMisc.GetFuncInfo())
 }
 
 //export SetUpdateClientInfoCb
 func SetUpdateClientInfoCb(cb C.UpdateClientInfoCb) {
 	C.setUpdateClientInfoCb(cb)
+	log.Printf("[%s][%s] SetUpdateClientInfoCb", tag, rtkMisc.GetFuncInfo())
 }
 
 //export SetCaptureIndexCb
 func SetCaptureIndexCb(cb C.CaptureIndexCb) {
 	C.setCaptureIndexCb(cb)
+	log.Printf("[%s][%s] SetCaptureIndexCb", tag, rtkMisc.GetFuncInfo())
 }
 
 //export SetGetTimingDataCb
 func SetGetTimingDataCb(cb C.GetTimingDataCb) {
 	C.setGetTimingDataCb(cb)
+	log.Printf("[%s][%s] SetGetTimingDataCb", tag, rtkMisc.GetFuncInfo())
 }
 
 //export SetGetTimingDataBySrcPortCb
 func SetGetTimingDataBySrcPortCb(cb C.GetTimingDataBySrcPortCb) {
 	C.setGetTimingDataBySrcPortCb(cb)
+	log.Printf("[%s][%s] SetGetTimingDataBySrcPortCb", tag, rtkMisc.GetFuncInfo())
 }
 
 //export SetDisplayMonitorNameCb
 func SetDisplayMonitorNameCb(cb C.DisplayMonitorNameCb) {
 	C.setDisplayMonitorNameCb(cb)
+	log.Printf("[%s][%s] SetDisplayMonitorNameCb", tag, rtkMisc.GetFuncInfo())
 }
 
 //export SetGetDpSrcTypeCb
 func SetGetDpSrcTypeCb(cb C.GetDpSrcTypeCb) {
 	C.setGetDpSrcTypeCb(cb)
+	log.Printf("[%s][%s] SetGetDpSrcTypeCb", tag, rtkMisc.GetFuncInfo())
 }
 
 //export SetSendMsgEventCb
 func SetSendMsgEventCb(cb C.SendMsgEventCb) {
 	C.setSendMsgEventCb(cb)
+	log.Printf("[%s][%s] SetSendMsgEventCb", tag, rtkMisc.GetFuncInfo())
+}
+
+//export SetGetCapabilityCb
+func SetGetCapabilityCb(cb C.GetCapabilityCb) {
+	C.setGetCapabilityCb(cb)
+	log.Printf("[%s][%s] SetGetCapabilityCb", tag, rtkMisc.GetFuncInfo())
 }
 
 //export AuthDevice
@@ -272,6 +299,16 @@ func UpdateSrcPlugging(cSource, cPort, cPlugEvent C.int) {
 	rtkIfaceMgr.GetInterfaceMgr().UpdateSrcPlugging(source, port, plugEvent)
 }
 
+//export NotifyEvent
+func NotifyEvent(cEventType C.int, cArg1, cArg2, cArg3, cArg4 *C.char) {
+	eventType := rtkCommon.EventType(int(cEventType))
+	arg1 := C.GoString(cArg1)
+	arg2 := C.GoString(cArg2)
+	arg3 := C.GoString(cArg3)
+	arg4 := C.GoString(cArg4)
+	rtkIfaceMgr.GetInterfaceMgr().NotifyEvent(eventType, arg1, arg2, arg3, arg4)
+}
+
 //export Init
 func Init() {
 	initFunc()
@@ -297,7 +334,8 @@ func initFunc() {
 		goCaptureIndexCb,
 		goGetTimingDataCb,
 		goGetTimingDataBySrcPortCb,
-		goSendMsgEventCb)
+		goSendMsgEventCb,
+		goGetCapabilityCb)
 
 	rtkMisc.GoSafe(func() {
 		MainInit()
@@ -411,6 +449,10 @@ func goSendMsgEventCb(event int, arg1, arg2, arg3, arg4 string) {
 	cArg4 := C.CString(arg4)
 	defer C.free(unsafe.Pointer(cArg4))
 	C.onSendMsgEventCb(cEvent, cArg1, cArg2, cArg3, cArg4)
+}
+
+func goGetCapabilityCb() int {
+	return int(C.onGetCapabilityCb())
 }
 
 func main() {

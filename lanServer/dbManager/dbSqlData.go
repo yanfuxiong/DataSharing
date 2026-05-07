@@ -144,8 +144,8 @@ const (
 		ON CONFLICT(Source, Port)
 		DO UPDATE SET
 			ClientIndex		= excluded.ClientIndex,
-		    UdpMousePort	= excluded.UdpMousePort,
-		    UdpKeyboardPort	= excluded.UdpKeyboardPort,
+			UdpMousePort	= excluded.UdpMousePort,
+			UdpKeyboardPort	= excluded.UdpKeyboardPort,
 			UpdateTime		= excluded.UpdateTime;`
 
 	SqlDataResetSrcPortInfo SqlData = `

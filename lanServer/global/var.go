@@ -1,7 +1,13 @@
 package global
 
-var ServerIPAddr string
-var ServerPort int
-var ServerMdnsId string = ""
-var ServerMonitorName string = "Unknown"
-var ServerProductName string = ""
+import rtkMisc "rtk-cross-share/misc"
+
+var (
+	ServerIPAddr      string
+	ServerPort        int
+	ServerMdnsId      string = ""
+	ServerMonitorName string = "Unknown"
+	ServerProductName string = ""
+	Scenario          rtkMisc.ScenarioType
+	Capability        int
+)

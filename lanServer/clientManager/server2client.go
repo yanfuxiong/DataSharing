@@ -61,8 +61,8 @@ func SendClientPlugEventUpdate(id string, clientIndex uint32, plugEvent bool) rt
 	return writeMsg(&msg, 0)
 }
 
-func ReconnClientListHandler(ctx context.Context) {
-	ticker := time.NewTicker(reconnListInternal)
+func PeriodicNotifyHandler(ctx context.Context) {
+	ticker := time.NewTicker(periodicNotifyInternal)
 	defer ticker.Stop()
 
 	connDirectoin := rtkMisc.RECONN_GREATER
@@ -71,9 +71,9 @@ func ReconnClientListHandler(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			errCode := buildReconnClientList(connDirectoin)
+			errCode := buildPeriodicNotify(connDirectoin)
 			if errCode != rtkMisc.SUCCESS {
-				log.Printf("[%s] Build ReconnClientListReq failed: errCode[%d]", rtkMisc.GetFuncInfo(), errCode)
+				log.Printf("[%s] Build PeriodicNotify failed: errCode[%d]", rtkMisc.GetFuncInfo(), errCode)
 			}
 
 			if connDirectoin == rtkMisc.RECONN_GREATER {
@@ -85,8 +85,8 @@ func ReconnClientListHandler(ctx context.Context) {
 	}
 }
 
-func buildReconnClientList(reconnDirection rtkMisc.ReconnDirection) rtkMisc.CrossShareErr {
-	reconnListReq := rtkMisc.ReconnClientListReq{ClientList: make([]rtkMisc.ClientInfo, 0), ConnDirect: reconnDirection, ClientVersion: ""}
+func buildPeriodicNotify(reconnDirection rtkMisc.ReconnDirection) rtkMisc.CrossShareErr {
+	periodicNotifyReq := rtkMisc.PeriodicNotifyReq{ClientList: make([]rtkMisc.ClientInfo, 0), ConnDirect: reconnDirection, ClientVersion: ""}
 	clientInfoList := make([]rtkCommon.ClientInfoTb, 0)
 	errCode := rtkdbManager.QueryReconnList(&clientInfoList)
 	if errCode != rtkMisc.SUCCESS {
@@ -95,7 +95,7 @@ func buildReconnClientList(reconnDirection rtkMisc.ReconnDirection) rtkMisc.Cros
 
 	nMaxVerValue := int(0)
 	for _, client := range clientInfoList {
-		reconnListReq.ClientList = append(reconnListReq.ClientList, rtkMisc.ClientInfo{
+		periodicNotifyReq.ClientList = append(periodicNotifyReq.ClientList, rtkMisc.ClientInfo{
 			ID:             client.ClientId,
 			IpAddr:         client.IpAddr,
 			Platform:       client.Platform,
@@ -105,26 +105,28 @@ func buildReconnClientList(reconnDirection rtkMisc.ReconnDirection) rtkMisc.Cros
 
 		clientVerVal := rtkMisc.GetVersionValue(client.Version)
 		if nMaxVerValue < clientVerVal { // get max version
-			reconnListReq.ClientVersion = rtkMisc.GetShortVersion(client.Version)
+			periodicNotifyReq.ClientVersion = rtkMisc.GetShortVersion(client.Version)
 			nMaxVerValue = clientVerVal
 		}
 	}
 
+	periodicNotifyReq.Scenario = rtkGlobal.Scenario
 	retErrCode := rtkMisc.SUCCESS
-	for _, client := range reconnListReq.ClientList {
-		err := sendReconnClientList(client.ID, reconnListReq)
+	for _, client := range periodicNotifyReq.ClientList {
+		err := sendPeriodicNotify(client.ID, periodicNotifyReq)
 		if err != rtkMisc.SUCCESS {
 			retErrCode = err
 		}
 	}
+	log.Printf("[%s] client count: %d connDirect: %d", rtkMisc.GetFuncInfo(), len(periodicNotifyReq.ClientList), periodicNotifyReq.ConnDirect)
 	return retErrCode
 }
 
-func sendReconnClientList(id string, extData rtkMisc.ReconnClientListReq) rtkMisc.CrossShareErr {
+func sendPeriodicNotify(id string, extData rtkMisc.PeriodicNotifyReq) rtkMisc.CrossShareErr {
 	msg := rtkMisc.C2SMessage{
 		ClientID:    id,
 		ClientIndex: 0,
-		MsgType:     rtkMisc.CS2Msg_RECONN_CLIENT_LIST,
+		MsgType:     rtkMisc.CS2Msg_PERIODIC_NOTIFY,
 		TimeStamp:   time.Now().UnixMilli(),
 		ExtData:     extData,
 	}
@@ -192,6 +194,8 @@ func dealC2SMsgInitClient(ext *json.RawMessage) (uint32, interface{}) {
 	}
 
 	initClientRsp.ClientIndex = uint32(pkIndex)
+	initClientRsp.Scenario = rtkGlobal.Scenario
+	initClientRsp.IsSupportFileDrag = rtkCommon.IsSupportFileDrag()
 	return initClientRsp.ClientIndex, initClientRsp
 }
 
@@ -317,8 +321,21 @@ func dealC2SMsgReqDragFileListStart(id string, ext *json.RawMessage) interface{}
 		return dragFileListStartRsp
 	}
 
-	errCode := sendDragFileListStartCallback(dragFileListStartReq.Source, dragFileListStartReq.Port, dragFileListStartReq.HorzSize,
-		dragFileListStartReq.VertSize, dragFileListStartReq.PosX, dragFileListStartReq.PosY)
+	resizeWidth, resizeHeight, resizeX, resizeY := resizeMobileRect(
+		rtkMisc.SourcePort{Source: dragFileListStartReq.Source, Port: dragFileListStartReq.Port},
+		dragFileListStartReq.HorzSize,
+		dragFileListStartReq.VertSize,
+		dragFileListStartReq.PosX,
+		dragFileListStartReq.PosY,
+	)
+	errCode := sendDragFileListStartCallback(
+		dragFileListStartReq.Source,
+		dragFileListStartReq.Port,
+		resizeWidth,
+		resizeHeight,
+		resizeX,
+		resizeY,
+	)
 	if errCode != rtkMisc.SUCCESS {
 		dragFileListStartRsp.Response = rtkMisc.GetResponse(errCode)
 	} else {
@@ -326,6 +343,21 @@ func dealC2SMsgReqDragFileListStart(id string, ext *json.RawMessage) interface{}
 	}
 
 	return dragFileListStartRsp
+}
+
+func resizeMobileRect(srcPort rtkMisc.SourcePort, width, height, x, y int) (int, int, int, int) {
+	timingData := notifyGetTimingDataBySrcPortCallback(srcPort.Source, srcPort.Port)
+	if timingData.Width == 0 || timingData.Height == 0 || width == 0 || height == 0 {
+		return width, height, x, y
+	}
+
+	if timingData.Width == width && timingData.Height == height {
+		return width, height, x, y
+	}
+
+	retX := x * (timingData.Width / width)
+	retY := y * (timingData.Height / height)
+	return timingData.Width, timingData.Height, retX, retY
 }
 
 func buildNotifyClientVersion(id, version string) rtkMisc.CrossShareErr {

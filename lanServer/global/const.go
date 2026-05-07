@@ -1,7 +1,7 @@
 package global
 
 const (
-	LanServerVersion            = "2.2.30" // it must notify client and update client version and VersionReadme.txt  when intermediate version is update
+	LanServerVersion            = "2.2.33" // it must notify client and update client version and VersionReadme.txt  when intermediate version is update
 	ClientBaseVersion           = "2.3"    // Deprecated: unused
 	ClientCaptureIndexVerSerial = 48       // the client build ClientIndex color block on verification dialog
 
@@ -34,4 +34,10 @@ const (
 	CLIENT_EVENT_MSG_RESERVED   ClientEventMsgType = 0
 	CLIENT_EVENT_MSG_SHOW_TOAST ClientEventMsgType = 1
 	CLIENT_EVENT_MSG_OPEN_GUIDE ClientEventMsgType = 2
+)
+
+const (
+	FuncCapFileDrag = 1 << 0
+	FuncCapOther1   = 1 << 1
+	FuncCapOther2   = 1 << 2
 )
