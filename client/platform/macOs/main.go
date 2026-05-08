@@ -552,6 +552,14 @@ func GetShareFeatAvailable() int {
 	return rtkPlatform.GoGetShareFeatAvailable()
 }
 
+//export GetIsSupportFileDrag
+func GetIsSupportFileDrag() int {
+	if rtkPlatform.GoGetIsSupportFileDrag() {
+		return int(1)
+	}
+	return int(0)
+}
+
 //export GetClientList
 func GetClientList() *C.char {
 	clientList := rtkUtils.GetClientListEx()

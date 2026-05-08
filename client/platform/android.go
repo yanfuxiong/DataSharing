@@ -349,6 +349,10 @@ func GoGetShareFeatAvailable() int {
 	return callbackGetShareFeatAvailable()
 }
 
+func GoGetIsSupportFileDrag() bool {
+	return rtkGlobal.IsSupportFileDrag
+}
+
 func GoFileDropResponse(id string, fileCmd rtkCommon.FileDropCmd, fileName string) {
 	callbackInstanceFileDropResponseCB(id, fileCmd, fileName)
 }
@@ -456,6 +460,11 @@ func GoDragFileListRequest(dragFileInfoJson string) rtkCommon.SendFilesRequestEr
 	if callbackDragFileListRequestCB == nil || callbackSendDragFileStart == nil {
 		log.Printf("[%s] callbackDragFileListRequestCB or callbackSendDragFileStart is null!", rtkMisc.GetFuncInfo())
 		return rtkCommon.SendFilesRequestCallbackNotSet
+	}
+
+	if !rtkGlobal.IsSupportFileDrag {
+		log.Printf("[%s] Mnt unsupport drag file, skit it!", rtkMisc.GetFuncInfo())
+		return rtkCommon.MntUnsupportDragFile
 	}
 
 	var dragFileInfo rtkCommon.DragFileListRequestInfo

@@ -524,6 +524,14 @@ func GetShareFeatAvailable() int {
 	return rtkPlatform.GoGetShareFeatAvailable()
 }
 
+//export GetIsSupportFileDrag
+func GetIsSupportFileDrag() int {
+	if rtkPlatform.GoGetIsSupportFileDrag() {
+		return int(1)
+	}
+	return int(0)
+}
+
 //export GetClientListEx
 func GetClientListEx() *C.char {
 	clientList := rtkUtils.GetClientListEx()
@@ -559,6 +567,11 @@ func SendMultiFilesDropRequest(multiFilesData string) int {
 func SetCancelFileTransfer(ipPort, clientID string, timeStamp uint64) {
 	log.Printf("[%s]  ID:[%s] IP:[%s]  timestamp[%d]", rtkMisc.GetFuncInfo(), clientID, ipPort, timeStamp)
 	rtkPlatform.GoCancelFileTrans(ipPort, clientID, timeStamp)
+}
+
+//export SetDragFileListRequest
+func SetDragFileListRequest(dragFileInfoJson string) int {
+	return int(rtkPlatform.GoDragFileListRequest(dragFileInfoJson))
 }
 
 //export SetNetWorkConnected

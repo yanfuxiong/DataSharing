@@ -271,7 +271,7 @@ func dealS2CMsgInitClient(id string, extData json.RawMessage) rtkMisc.CrossShare
 	rtkGlobal.NodeInfo.ClientIndex = initClientRsp.ClientIndex
 	scenario = initClientRsp.Scenario
 	rtkGlobal.IsSupportFileDrag = initClientRsp.IsSupportFileDrag
-	log.Printf("Init Client Response success, get Client Index:[%d], Scenario:[%d], IsSupportFileDrag:[%d]", initClientRsp.ClientIndex, scenario, initClientRsp.IsSupportFileDrag)
+	log.Printf("Init Client Response success, get Client Index:[%d], Scenario:[%d], IsSupportFileDrag:[%d]", initClientRsp.ClientIndex, scenario, rtkGlobal.IsSupportFileDrag)
 
 	if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformAndroid || rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformiOS { // mobile  client
 		errCode, authData := rtkPlatform.GetAuthData(rtkGlobal.NodeInfo.ClientIndex)

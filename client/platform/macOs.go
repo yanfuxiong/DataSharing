@@ -285,7 +285,7 @@ func SetGoGetShareFeatAvailableCallback(cb CallbackGetShareFeatAvailableFunc) {
 	callbackGetShareFeatAvailable = cb
 }
 
-/*======================================= Used  by ios API =======================================*/
+/*======================================= Used  by macOs API =======================================*/
 
 func SetupRootPath(path string) {
 	if path == "" {
@@ -428,6 +428,10 @@ func GoGetShareFeatAvailable() int {
 	}
 
 	return callbackGetShareFeatAvailable()
+}
+
+func GoGetIsSupportFileDrag() bool {
+	return rtkGlobal.IsSupportFileDrag
 }
 
 func GoFileDropResponse(id string, fileCmd rtkCommon.FileDropCmd, fileName string) {

@@ -62,6 +62,13 @@ func GetShareFeatAvailable() int {
 	return rtkPlatform.GoGetShareFeatAvailable()
 }
 
+func GetIsSupportFileDrag() int {
+	if rtkPlatform.GoGetIsSupportFileDrag() {
+		return 1
+	}
+	return 0
+}
+
 func GetClientListEx() string {
 	clientList := rtkUtils.GetClientListEx()
 	log.Printf("[%s] json Str:%s", rtkMisc.GetFuncInfo(), clientList)

@@ -157,6 +157,10 @@ func SetCopyXClipCallback(cb CallbackCopyXClipFunc) {
 	callbackCopyXClipDataCB = cb
 }
 
+func SetPasteXClipCallback(cb CallbackPasteXClipFunc) {
+	callbackPasteXClipDataCB = cb
+}
+
 func SetGoFileListDropRequestCallback(cb CallbackFileListDropRequestFunc) {
 	callbackFileListDropRequestCB = cb
 }

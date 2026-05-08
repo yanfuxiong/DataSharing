@@ -218,7 +218,6 @@ func init() {
 	rtkPlatform.SetNotiMessageFileTransCallback(GoTriggerCallbackNotiMessage)
 	rtkPlatform.SetReqClientUpdateVerCallback(GoTriggerCallbackReqClientUpdateVer)
 	rtkPlatform.SetNotifyErrEventCallback(GoTriggerCallbackNotifyErrEvent)
-	rtkPlatform.SetReadyReCtrlCallback(GoTriggerCallbackReadyReCtrl)
 
 	rtkPlatform.SetConfirmDocumentsAccept(false)
 }

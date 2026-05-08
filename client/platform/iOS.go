@@ -182,7 +182,7 @@ func SetCallbackDIASStatus(cb CallbackDIASStatusFunc) {
 	callbackDIASStatus = cb
 }
 
-func SetGoDetectPluginEventCallback(cb CallbackGoDetectPluginEventFunc) {
+func SetCallbackGoDetectPluginEvent(cb CallbackGoDetectPluginEventFunc) {
 	callbackGoDetectPluginEvent = cb
 }
 
@@ -241,11 +241,11 @@ func SetGoGetMacAddressCallback(cb CallbackGetMacAddressFunc) {
 	callbackGetMacAddress = cb
 }
 
-func SetPluginEventCallback(cb CallbackPluginEventFunc) {
-	callbackPluginEvent = cb
+func SetGoGetDisplayEventCallback(cb CallbackDisplayEventFunc) {
 }
 
-func SetGoGetDisplayEventCallback(cb CallbackDisplayEventFunc) {
+func SetPluginEventCallback(cb CallbackPluginEventFunc) {
+	callbackPluginEvent = cb
 }
 
 func SetGoAuthStatusCodeCallback(cb CallbackAuthStatusCodeFunc) {
@@ -441,6 +441,10 @@ func GoGetShareFeatAvailable() int {
 	return callbackGetShareFeatAvailable()
 }
 
+func GoGetIsSupportFileDrag() bool {
+	return rtkGlobal.IsSupportFileDrag
+}
+
 func GoFileDropResponse(id string, fileCmd rtkCommon.FileDropCmd, fileName string) {
 	callbackInstanceFileDropResponseCB(id, fileCmd, fileName)
 }
@@ -556,6 +560,11 @@ func GoDragFileListRequest(dragFileInfoJson string) rtkCommon.SendFilesRequestEr
 	if callbackDragFileListRequestCB == nil || callbackSendDragFileStart == nil {
 		log.Printf("[%s] callbackDragFileListRequestCB or callbackSendDragFileStart is null!", rtkMisc.GetFuncInfo())
 		return rtkCommon.SendFilesRequestCallbackNotSet
+	}
+
+	if !rtkGlobal.IsSupportFileDrag {
+		log.Printf("[%s] Mnt unsupport drag file, skit it!", rtkMisc.GetFuncInfo())
+		return rtkCommon.MntUnsupportDragFile
 	}
 
 	var dragFileInfo rtkCommon.DragFileListRequestInfo
