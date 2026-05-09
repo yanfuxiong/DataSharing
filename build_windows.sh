@@ -22,12 +22,24 @@ mkdir -p $buildFolder
 if [[ "$isBuildRelease" == "true" ]]; then
     echo "build release Dll ..."
     go build -ldflags "$ldflags_release" -buildmode=c-shared  -o "$buildFolder/$targetDLL_release"  $mainFile
+    echo "Compressing release Dll with UPX ..."
+    upx --best --lzma "$buildFolder/$targetDLL_release"
 fi
 
 if [[ "$isBuildDebug" == "true" ]]; then
     echo "build debug Dll ..."
     go build -ldflags "$ldflags_debug" -gcflags="all=-N -l" -buildmode=c-shared  -o "$buildFolder/$targetDLL_debug"  $mainFile
+    echo "Compressing debug Dll with UPX ..."
+    upx --best --lzma "$buildFolder/$targetDLL_debug"
 fi
 
 cd -
 echo "Compile Done"
+
+
+#下载：https://github.com/upx/upx/releases
+#解压到 C:\upx
+#添加到系统 PATH：
+#Win+R → sysdm.cpl → 高级 → 环境变量
+#编辑 Path → 新建 → C:\upx
+#命令行验证：upx --version，显示版本号即为安装成功。

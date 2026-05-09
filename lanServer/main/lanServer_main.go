@@ -26,7 +26,6 @@ import (
 	"github.com/grandcat/zeroconf"
 )
 
-var cancelServer = make(chan struct{})
 var acceptErrFlag = make(chan struct{})
 
 var (
@@ -162,7 +161,7 @@ func MainInit() {
 
 	var printErrNetwork = true
 	for {
-		if rtkMisc.IsNetworkConnected(rtkNetwork.SupInterfaces) {
+		if rtkMisc.IsNetworkConnected([]string{}) {
 			printErrNetwork = true
 			break
 		}
@@ -176,7 +175,6 @@ func MainInit() {
 
 	rtkGlobal.ServerIPAddr = ""
 
-	rtkIfaceMgr.GetInterfaceMgr().TriggerGetCapability()
 	rtkMisc.GoSafe(func() { rtkDebug.DebugCmdLine() })
 	rtkMisc.GoSafe(func() { rtkNetwork.WatchNetworkInfo(ctx) })
 	rtkMisc.GoSafe(func() { Run() })
@@ -186,9 +184,8 @@ func MainInit() {
 		case <-ctx.Done():
 			return
 		case <-acceptErrFlag:
-			rtkdbManager.UpdateAllClientOffline()
-			cancelServer <- struct{}{}
 			time.Sleep(5 * time.Second)
+			rtkdbManager.UpdateAllClientOffline()
 		}
 
 		log.Printf("registerMdns Server restart...\n\n")
@@ -242,79 +239,84 @@ func registerMdns(server **zeroconf.Server, serverForSearch **zeroconf.Server) [
 	var printErrIp = true
 	var printErrMdns = true
 	for {
-		for _, ifaceName := range rtkNetwork.SupInterfaces {
-			iface, err := rtkMisc.GetValidInterface(ifaceName)
-			if err != nil {
-				if printErrIface {
-					log.Printf("Err: Get network interface(%s) failed: %s", ifaceName, err.Error())
-					printErrIface = false
-				}
-				continue
-			}
+		time.Sleep(1 * time.Second)
 
-			// Use the perferred interface MAC address as mDNS ID, even the interface has no IP
-			if rtkGlobal.ServerMdnsId == "" {
-				mdnsId, err := getValidHarwdareAddr(iface)
-				if err != nil {
-					if printErrMac {
-						log.Printf("Err: Get server MAC address failed: %s", err.Error())
-						printErrMac = false
-					}
-					continue
-				}
-
-				rtkGlobal.ServerMdnsId = mdnsId
-			}
-			printErrMac = true
-
-			addrs, err := rtkMisc.GetValidAddrs(iface)
-			if err != nil {
-				if printErrIp {
-					log.Printf("Err: Get server IP address failed: %s", err.Error())
-					printErrIp = false
-				}
-				continue
-			}
-			printErrIp = true
-
-			var ipAddr = ""
-			for _, addr := range addrs {
-				if ipNet, ok := addr.(*net.IPNet); ok && !ipNet.IP.IsLoopback() {
-					if ipNet.IP.To4() != nil {
-						ipAddr = ipNet.IP.String()
-						break
-					}
-				}
-			}
-			// It's necessary be a contentText.
-			// If the contentText is null or empty, that iOS cannot discover service
-			// iOS use the IP in textRecord to skip the different IP from bonjour service
-			getTextRecord := func(key, value string) string {
-				return key + "=" + value
-			}
-			textRecordIp := getTextRecord(rtkMisc.TextRecordKeyIp, ipAddr)
-			textRecordMonitorName := getTextRecord(rtkMisc.TextRecordKeyMonitorName, rtkGlobal.ServerMonitorName)
-			textRecordProductName := getTextRecord(rtkMisc.TextRecordKeyProductName, rtkGlobal.ServerProductName)
-			textRecordTimestamp := getTextRecord(rtkMisc.TextRecordKeyTimestamp, strconv.FormatInt(time.Now().UnixMilli(), 10))
-			textRecordVersion := getTextRecord(rtkMisc.TextRecordKeyVersion, rtkGlobal.LanServerVersion)
-			textRecords := []string{textRecordIp, textRecordMonitorName, textRecordProductName, textRecordTimestamp, textRecordVersion}
-			*server, err = zeroconf.Register(rtkGlobal.ServerMdnsId, *service, *domain, *port, textRecords, []net.Interface{*iface})
-			*serverForSearch, _ = zeroconf.Register(rtkGlobal.ServerMdnsId, *serviceForServer, *domain, *port, []string{}, []net.Interface{*iface})
-			(*server).TTL(60)
-			(*serverForSearch).TTL(60)
-
-			if err != nil {
-				if printErrMdns {
-					log.Printf("Err: mDNS register failed: %s", err.Error())
-					printErrMdns = false
-				}
-				continue
-			}
-			printErrMdns = true
-			printErrIface = true
-			return addrs
+		interFace, err := rtkNetwork.GetValidInterface()
+		if err != nil {
+			continue
 		}
-		time.Sleep(100 * time.Millisecond)
+
+		iface, err := rtkMisc.GetValidInterface(interFace.Name)
+		if err != nil {
+			if printErrIface {
+				log.Printf("Err: Get network interface(%s) failed: %s", interFace.Name, err.Error())
+				printErrIface = false
+			}
+
+			continue
+		}
+
+		// Use the perferred interface MAC address as mDNS ID, even the interface has no IP
+		if rtkGlobal.ServerMdnsId == "" {
+			mdnsId, err := getValidHarwdareAddr(iface)
+			if err != nil {
+				if printErrMac {
+					log.Printf("Err: Get server MAC address failed: %s", err.Error())
+					printErrMac = false
+				}
+				continue
+			}
+
+			rtkGlobal.ServerMdnsId = mdnsId
+		}
+		printErrMac = true
+
+		addrs, err := rtkMisc.GetValidAddrs(iface)
+		if err != nil {
+			if printErrIp {
+				log.Printf("Err: Get server IP address failed: %s", err.Error())
+				printErrIp = false
+			}
+			continue
+		}
+		printErrIp = true
+
+		var ipAddr = ""
+		for _, addr := range addrs {
+			if ipNet, ok := addr.(*net.IPNet); ok && !ipNet.IP.IsLoopback() {
+				if ipNet.IP.To4() != nil {
+					ipAddr = ipNet.IP.String()
+					break
+				}
+			}
+		}
+		// It's necessary be a contentText.
+		// If the contentText is null or empty, that iOS cannot discover service
+		// iOS use the IP in textRecord to skip the different IP from bonjour service
+		getTextRecord := func(key, value string) string {
+			return key + "=" + value
+		}
+		textRecordIp := getTextRecord(rtkMisc.TextRecordKeyIp, ipAddr)
+		textRecordMonitorName := getTextRecord(rtkMisc.TextRecordKeyMonitorName, rtkGlobal.ServerMonitorName)
+		textRecordProductName := getTextRecord(rtkMisc.TextRecordKeyProductName, rtkGlobal.ServerProductName)
+		textRecordTimestamp := getTextRecord(rtkMisc.TextRecordKeyTimestamp, strconv.FormatInt(time.Now().UnixMilli(), 10))
+		textRecordVersion := getTextRecord(rtkMisc.TextRecordKeyVersion, rtkGlobal.LanServerVersion)
+		textRecords := []string{textRecordIp, textRecordMonitorName, textRecordProductName, textRecordTimestamp, textRecordVersion}
+		*server, err = zeroconf.Register(rtkGlobal.ServerMdnsId, *service, *domain, *port, textRecords, []net.Interface{*iface})
+		*serverForSearch, _ = zeroconf.Register(rtkGlobal.ServerMdnsId, *serviceForServer, *domain, *port, []string{}, []net.Interface{*iface})
+		(*server).TTL(60)
+		(*serverForSearch).TTL(60)
+
+		if err != nil {
+			if printErrMdns {
+				log.Printf("Err: mDNS register failed: %s", err.Error())
+				printErrMdns = false
+			}
+			continue
+		}
+		printErrMdns = true
+		printErrIface = true
+		return addrs
 	}
 }
 
@@ -402,62 +404,50 @@ func Run() {
 
 	log.Printf("%s is listening on %s:%d success ! \n", rtkBuildConfig.ServerName, rtkGlobal.ServerIPAddr, rtkGlobal.ServerPort)
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	rtkMisc.GoSafe(func() { browseOtherServer(ctx) })
 	rtkMisc.GoSafe(func() { rtkClientManager.PeriodicNotifyHandler(ctx) })
 	rtkMisc.GoSafe(func() { rtkClientManager.HandleClientSignalChecking(ctx) })
 
-	rtkMisc.GoSafe(func() {
-		defer listener.Close()
-		for {
-			conn, accErr := listener.Accept()
-			if accErr != nil {
-				log.Printf("Server %s:%d accepting connection Error:%+v", rtkGlobal.ServerIPAddr, rtkGlobal.ServerPort, accErr.Error())
-				if opErr, ok := err.(*net.OpError); ok {
-					log.Printf("[%s] Accept OpError: %v, Op: %s, Net: %s, Err: %v", rtkMisc.GetFuncInfo(), opErr, opErr.Op, opErr.Net, opErr.Err)
-					if opErr.Temporary() {
-						log.Println("Temporary error, continuing...")
-						continue
-					}
-				}
-				var errno syscall.Errno
-				if errors.As(accErr, &errno) {
-					log.Printf("Accept errno: %v", errno)
-					if errno == syscall.EINVAL {
-						log.Printf("EINVAL")
-					} else if errno == syscall.ECONNRESET {
-						log.Printf("ECONNRESET")
-					}
-				}
-
-				acceptErrFlag <- struct{}{}
-				log.Printf("%s  %s:%d listening is cancel!\n\n", rtkBuildConfig.ServerName, rtkGlobal.ServerIPAddr, rtkGlobal.ServerPort)
-				return
-			}
-			timestamp := time.Now().UnixMicro()
-			log.Printf("%s Accept a connect, RemoteAddr: %s \n", rtkBuildConfig.ServerName, conn.RemoteAddr().String())
-
-			tcpConn, _ := conn.(*net.TCPConn)
-			if tcpConn != nil {
-				tcpConn.SetKeepAlive(true)
-				tcpConn.SetKeepAlivePeriod(15 * time.Second)
-			}
-
-			rtkMisc.GoSafe(func() { rtkClientManager.HandleClient(ctx, conn, timestamp) })
-		}
-	})
-
+	defer listener.Close()
 	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-cancelServer:
-			log.Println("==============================================================================")
-			log.Printf("Cancel server. Close TCP and mDNS server in %s:%d", rtkGlobal.ServerIPAddr, rtkGlobal.ServerPort)
-			return
+		conn, accErr := listener.Accept()
+		if accErr != nil {
+			cancel()
+			log.Printf("Server %s:%d accepting connection Error:%+v", rtkGlobal.ServerIPAddr, rtkGlobal.ServerPort, accErr.Error())
+			if opErr, ok := err.(*net.OpError); ok {
+				log.Printf("[%s] Accept OpError: %v, Op: %s, Net: %s, Err: %v", rtkMisc.GetFuncInfo(), opErr, opErr.Op, opErr.Net, opErr.Err)
+				if opErr.Temporary() {
+					log.Println("Temporary error, continuing...")
+					continue
+				}
+			}
+			var errno syscall.Errno
+			if errors.As(accErr, &errno) {
+				log.Printf("Accept errno: %v", errno)
+				if errno == syscall.EINVAL {
+					log.Printf("EINVAL")
+				} else if errno == syscall.ECONNRESET {
+					log.Printf("ECONNRESET")
+				}
+			}
+
+			acceptErrFlag <- struct{}{}
+			log.Printf("%s  %s:%d listening is cancel!", rtkBuildConfig.ServerName, rtkGlobal.ServerIPAddr, rtkGlobal.ServerPort)
+			break
 		}
+		timestamp := time.Now().UnixMicro()
+		log.Printf("%s Accept a connect, RemoteAddr: %s \n", rtkBuildConfig.ServerName, conn.RemoteAddr().String())
+
+		tcpConn, _ := conn.(*net.TCPConn)
+		if tcpConn != nil {
+			tcpConn.SetKeepAlive(true)
+			tcpConn.SetKeepAlivePeriod(15 * time.Second)
+		}
+
+		rtkMisc.GoSafe(func() { rtkClientManager.HandleClient(ctx, conn, timestamp) })
 	}
+	log.Printf("Cancel server. Close TCP and mDNS server in %s:%d \n\n", rtkGlobal.ServerIPAddr, rtkGlobal.ServerPort)
 }
 
 func lockFile() error {

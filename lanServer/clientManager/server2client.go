@@ -118,7 +118,7 @@ func buildPeriodicNotify(reconnDirection rtkMisc.ReconnDirection) rtkMisc.CrossS
 			retErrCode = err
 		}
 	}
-	log.Printf("[%s] client count: %d connDirect: %d", rtkMisc.GetFuncInfo(), len(periodicNotifyReq.ClientList), periodicNotifyReq.ConnDirect)
+	//log.Printf("[%s] client count: %d connDirect: %d", rtkMisc.GetFuncInfo(), len(periodicNotifyReq.ClientList), periodicNotifyReq.ConnDirect)
 	return retErrCode
 }
 

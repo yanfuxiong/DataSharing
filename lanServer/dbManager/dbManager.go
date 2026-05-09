@@ -18,7 +18,7 @@ import (
 
 const (
 	g_KeppDBAliveInterval = 1 // minute
-	g_ReconnListInterval  = 2 // seconds
+	g_ReconnListInterval  = 5 // seconds
 	g_ReCreateDbRetry     = 5
 )
 
