@@ -237,20 +237,48 @@ func setupNode(ip string, port int) error {
 	rtkGlobal.NodeInfo.IPAddr.UpdPort = udpPort
 	rtkGlobal.NodeInfo.FileTransNodeID = tempFileNode.ID().String()
 
-	// filter IP by skip [0.0.0.0, 127.0.0.1]
-	filterAddr := func(addrs []ma.Multiaddr) (string, string) {
-		for _, addr := range addrs {
-			ip, port := rtkUtils.ExtractTCPIPandPort(addr)
-			if ip != rtkMisc.DefaultIp && ip != rtkMisc.LoopBackIp {
-				return ip, port
-			}
+	// get valid Addr,  skip [0.0.0.0, 127.0.0.1, 169.254.xxx.xxx]
+	getValidAddr := func(addrs []ma.Multiaddr) (string, string) {
+		isAPIPA := func(ip net.IP) bool {
+			return len(ip) >= 2 && ip[0] == 169 && ip[1] == 254
 		}
-		return rtkUtils.ExtractTCPIPandPort(addrs[0])
+ 		for _, addr := range addrs {
+			ip, err := manet.ToIP(addr)
+			if err != nil {
+				continue
+			}
+			switch {
+			case ip.IsLoopback():
+				continue
+			case ip.IsMulticast():
+				continue
+			case ip.IsLinkLocalUnicast():
+				continue
+			case ip.IsUnspecified():
+				continue
+			case isAPIPA(ip):
+				continue
+			}
+
+			if ip.To4() != nil || ip.IsGlobalUnicast() {
+				return rtkUtils.ExtractTCPIPandPort(addr)
+ 			}
+ 		}
+		return "", ""
 	}
+	publicIp, publicPort := getValidAddr(tempNode.Addrs())
+	if publicIp == "" {
+		tempNode.Close()
+		tempFileNode.Close()
+		return fmt.Errorf("get valid addr is null!")
+ 	}
+
 	publicIp, publicPort := filterAddr(tempNode.Addrs())
 	rtkGlobal.NodeInfo.IPAddr.PublicIP = publicIp
 	rtkGlobal.NodeInfo.IPAddr.PublicPort = publicPort
 	serviceVer := "v" + rtkGlobal.ClientVersion + " (" + rtkBuildConfig.BuildDate + ")"
+	ipAddr := rtkMisc.ConcatIP(rtkGlobal.NodeInfo.IPAddr.PublicIP, rtkGlobal.NodeInfo.IPAddr.PublicPort)
+	rtkPlatform.GoUpdateSystemInfo(ipAddr, serviceVer)
 
 	log.Println("=======================================================")
 	log.Println("Self ID: ", rtkGlobal.NodeInfo.ID)
@@ -265,9 +293,6 @@ func setupNode(ip string, port int) error {
 	log.Println("Self file node listen Addr: ", tempFileNode.Network().ListenAddresses())
 	log.Println("Self file node port: ", rtkGlobal.NodeInfo.IPAddr.UpdPort)
 	log.Println("=======================================================")
-
-	ipAddr := rtkMisc.ConcatIP(rtkGlobal.NodeInfo.IPAddr.PublicIP, rtkGlobal.NodeInfo.IPAddr.PublicPort)
-	rtkPlatform.GoUpdateSystemInfo(ipAddr, serviceVer)
 
 	nodeMutex.Lock()
 	node = tempNode
