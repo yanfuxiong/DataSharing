@@ -192,7 +192,8 @@ func getFileDataReceiveCancelErrCode(ctx context.Context, ipAddr string, timeSta
 	return getFileTransferCancelErrCode(ctx, ipAddr, timeStamp, false)
 }
 
-func getFileTransferCancelErrCode(ctx context.Context, ipAddr string, timeStamp uint64, isSrc bool) (errCode rtkMisc.CrossShareErr) {
+func getFileTransferCancelErrCode(ctx context.Context, ipAddr string, timeStamp uint64, isSrc bool) rtkMisc.CrossShareErr {
+	var errCode rtkMisc.CrossShareErr
 	if source, ok := rtkUtils.GetCancelSource(ctx); ok {
 		if isSrc {
 			log.Printf("(SRC) IP:[%s] timeStamp:[%d] file data transfer is cancel source:%d!", ipAddr, timeStamp, source)
@@ -217,7 +218,7 @@ func getFileTransferCancelErrCode(ctx context.Context, ipAddr string, timeStamp 
 		} else if source == rtkCommon.FileTransSrcGuiCancel {
 			errCode = rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_CANCEL_GUI
 		}
-		return
+		return errCode
 	} else {
 		log.Printf("[%s] IP:[%s] timeStamp:[%d] file data transfer is cancel, Unknown source!", rtkMisc.GetFuncInfo(), ipAddr, timeStamp)
 	}
@@ -227,7 +228,7 @@ func getFileTransferCancelErrCode(ctx context.Context, ipAddr string, timeStamp 
 	} else {
 		errCode = rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL
 	}
-	return
+	return errCode
 }
 
 func dealFilesCacheDataProcess(p2pCtx context.Context, id, ipAddr string, timeStamp uint64) {

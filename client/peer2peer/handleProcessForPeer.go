@@ -34,6 +34,7 @@ func SendFileTransCancelByGuiMsgToPeer(id, ipAddr string, fileTransDataId uint64
 		log.Printf("(SRC) [%s] IP:[%s] send cancel filesCachedata msg to dst, id:%d", rtkMisc.GetFuncInfo(), ipAddr, fileTransDataId)
 		sendFileTransInterruptMsgToPeer(id, COMM_FILE_TRANSFER_SRC_INTERRUPT, rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_CANCEL_GUI, fileTransDataId)
 		rtkPlatform.GoNotifyErrEvent(id, rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_CANCEL_GUI, ipAddr, strconv.Itoa(int(fileTransDataId)), "", "")
+		rtkConnection.HandleFmtTypeStreamReady(id, rtkCommon.FILE_DROP)
 	} else {
 		log.Printf("(DST) [%s] IP:[%s] send cancel filesCachedata msg to src, id:%d", rtkMisc.GetFuncInfo(), ipAddr, fileTransDataId)
 		sendFileTransInterruptMsgToPeer(id, COMM_FILE_TRANSFER_DST_INTERRUPT, rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL_GUI, fileTransDataId)

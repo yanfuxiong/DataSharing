@@ -859,7 +859,6 @@ func GoMonitorNameNotify(name string) {
 }
 
 func GoDIASStatusNotify(diasStatus uint32) {
-	log.Printf("[%s] diasStatus:%d", rtkMisc.GetFuncInfo(), diasStatus)
 	if callbackDIASStatus == nil {
 		log.Printf("[%s] callbackDIASStatus is nil, DIASStatusNotify failed!", rtkMisc.GetFuncInfo())
 		return
