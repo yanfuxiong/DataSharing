@@ -7,6 +7,7 @@
 
 import Foundation
 import AppKit
+import UserNotifications
 
 class GoCallbackManager {
     weak var delegate: CrossShareHelperXPCDelegate?
@@ -14,9 +15,11 @@ class GoCallbackManager {
     
     private var macToDisplayID: [String: CGDirectDisplayID] = [:]
     private var currentDIASMac: String?
+    var diasStatus: Int = 0
     
     init() {
-        
+        // Set up notification manager delegate
+        HelperNotificationManager.shared.delegate = self
     }
     
     static let shared = GoCallbackManager()
@@ -32,6 +35,7 @@ class GoCallbackManager {
     
     func handleDIASStatus(_ status: Int) {
         logger.log("Received DIAS status from Go service: \(status)", level: .info)
+        diasStatus = status
         DispatchQueue.main.async { [weak self] in
             self?.delegate?.didReceiveDIASStatus?(status)
         }
@@ -63,11 +67,6 @@ class GoCallbackManager {
         } catch {
             logger.log("Failed to parse client status JSON: \(error)", level: .error)
         }
-
-//        if let clientListData = GetClientList() {
-//            let clientListStr = String(cString: clientListData)
-//            logger.log("Client list from GetClientList: \(clientListStr)", level: .info)
-//        }
     }
     
     func handleSystemInfoUpdate(ipInfo: String, verInfo: String) {
@@ -85,6 +84,14 @@ class GoCallbackManager {
         }
     }
     
+    func handleThemeInfoUpdate(_ themeInfo: [String: Any]) {
+        logger.log("Received theme info:\(themeInfo)", level: .info)
+        DispatchQueue.main.async { [weak self] in
+            self?.delegate?.didReceiveThemeInfoUpdate?(themeInfo)
+            self?.logger.log("Sent theme info update to GUI through XPC", level: .info)
+        }
+    }
+
     func handleRequestSourceAndPort() {
         logger.log("Received request for source and port", level: .info)
         guard let displayID = getCurrentActiveDisplayID() else {
@@ -121,8 +128,8 @@ class GoCallbackManager {
         logger.log("Set current DIAS MAC: \(mac)", level: .info)
     }
     
-    func handleRemoteData(text: String?, imageBase64: String?, html: String?) {
-        logger.log("Received remote clipboard data - text: \(!text.isNilOrEmpty), image: \(!imageBase64.isNilOrEmpty), html: \(!html.isNilOrEmpty)", level: .info)
+    func handleRemoteData(text: String?, imageBase64: String?, html: String?, rtf: String?) {
+        logger.log("Received remote clipboard data - text: \(!text.isNilOrEmpty), image: \(!imageBase64.isNilOrEmpty), html: \(!html.isNilOrEmpty), rtf: \(!rtf.isNilOrEmpty)", level: .info)
 
         var imageData: Data? = nil
         if let base64 = imageBase64, !base64.isEmpty {
@@ -134,81 +141,27 @@ class GoCallbackManager {
             image = NSImage(data: data)
         }
 
-        let success = setMultipleTypesToClipboard(text: text, image: image, html: html)
+        // setupClipboard updates lastChangeCount internally, so ClipboardMonitor
+        // won't detect this write. We must send the notification here explicitly.
+        HelperNotificationManager.shared.sendClipboardNotification(text: text, image: image, html: html, rtf: rtf)
+
+        let success = ClipboardMonitor.shareInstance().setupClipboard(text: text, image: image, html: html, rtf: rtf)
 
         if success {
             logger.log("Successfully wrote remote data to clipboard with multiple types", level: .info)
         } else {
             logger.log("Failed to write remote data to clipboard", level: .error)
         }
-
-        DispatchQueue.main.async { [weak self] in
-            self?.delegate?.didReceiveRemoteClipboard?(text: text, imageData: imageData, html: html)
-        }
     }
-
-    private func setMultipleTypesToClipboard(text: String?, image: NSImage?, html: String?) -> Bool {
-        guard text != nil || image != nil || html != nil else {
-            logger.log("No valid clipboard content to set", level: .warn)
-            return false
-        }
-
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-
-        let pasteboardItem = NSPasteboardItem()
-        var hasData = false
-
-        if let text = text, !text.isEmpty {
-            pasteboardItem.setString(text, forType: .string)
-            hasData = true
-            logger.log("Added text to pasteboard item", level: .info)
-        }
-
-        if let image = image {
-            if let tiffData = image.tiffRepresentation {
-                pasteboardItem.setData(tiffData, forType: .tiff)
-                hasData = true
-                logger.log("Added image (TIFF) to pasteboard item", level: .info)
-            }
-            if let pngData = image.pngData {
-                pasteboardItem.setData(pngData, forType: .png)
-                logger.log("Added image (PNG) to pasteboard item", level: .info)
-            }
-        }
-
-        if let html = html, !html.isEmpty {
-            var wrappedHTML = html
-            if html.lowercased().range(of: #"<meta\s+[^>]*charset\s*=\s*["']?utf-8["']?"#, options: .regularExpression) == nil {
-                wrappedHTML = """
-                <!DOCTYPE html>
-                <html>
-                <head>
-                <meta charset="UTF-8">
-                <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-                </head>
-                <body>
-                \(html)
-                </body>
-                </html>
-                """
-            }
-
-            if let htmlData = wrappedHTML.data(using: .utf8) {
-                pasteboardItem.setData(htmlData, forType: .html)
-                hasData = true
-                logger.log("Added HTML to pasteboard item, length: \(wrappedHTML.count)", level: .info)
-            }
-        }
-
-        if hasData {
-            let result = pasteboard.writeObjects([pasteboardItem])
-            logger.log("Pasteboard write result: \(result)", level: .info)
-            return result
-        }
-
-        return false
+    
+    // MARK: - Clipboard Notification (Delegate to HelperNotificationManager)
+    
+    /// Send clipboard copy notification
+    func sendClipboardNotification(text: String?, image: NSImage?, html: String?, rtf: String? = nil) {
+        HelperNotificationManager.shared.sendClipboardNotification(text: text, image: image, html: html, rtf: rtf)
     }
+    
+    // MARK: - File Transfer
     
     func handleMultipleFileProgress(_ progress: MultipleFileTransferProgress) {
         logger.log("Processing file transfer: \(progress.currentFileName) (\(progress.receivedFileCount)/\(progress.totalFileCount)) - \(progress.receivedSize)/\(progress.totalSize) bytes", level: .info)
@@ -225,27 +178,6 @@ class GoCallbackManager {
         DispatchQueue.main.async { [weak self] in
             self?.delegate?.didReceiveTransferFilesDataUpdate?(userInfo)
         }
-
-//        let notificationName: Notification.Name
-//        if progress.isCompleted {
-//            notificationName = .fileTransferSessionCompleted
-//        } else if progress.receivedSize == 0 {
-//            notificationName = .fileTransferSessionStarted
-//        } else {
-//            notificationName = .fileTransferSessionUpdated
-//        }
-//
-//        NotificationCenter.default.post(
-//            name: notificationName,
-//            object: session,
-//            userInfo: [
-//                "session": session.toDictionary(),
-//                "sessionId": session.sessionId,
-//                "senderID": progress.senderID,
-//                "isCompleted": progress.isCompleted,
-//                "progress": progress.totalProgress
-//            ]
-//        )
 
         logger.log("File transfer session notification sent - \(session.sessionId) Progress: \(String(format: "%.1f", progress.totalProgress * 100))%", level: .info)
     }
@@ -277,6 +209,8 @@ class GoCallbackManager {
         handleMultipleFileProgress(multipleProgress)
     }
     
+    // MARK: - Error Handling
+    
     func handleErrEvent(id: String, errCode: UInt32, arg1: String, arg2: String, arg3: String, arg4: String) {
         logger.log("Error event - ID: \(id), ErrCode: \(errCode), Args: [\(arg1), \(arg2), \(arg3), \(arg4)]", level: .error)
         
@@ -293,8 +227,32 @@ class GoCallbackManager {
             self?.delegate?.didReceiveErrorEvent?(errorInfo)
         }
     }
-
+    
+    // MARK: - System Notification
+    
+    func handleNotiMessage(timestamp: UInt64, notiCode: UInt32, notiParam: [String]) {
+        logger.log("NotiMessage event - timestamp: \(timestamp), notiCode: \(notiCode), params: \(notiParam)", level: .info)
+        HelperNotificationManager.shared.sendSystemNotification(notiCode: notiCode, notiParam: notiParam)
+    }
+    
+    /// Check notification permission status for Helper process
+    /// - Returns: true if notification permission is authorized, false otherwise
+    func checkHelperNotiStatus() -> Bool {
+        return HelperNotificationManager.shared.checkNotificationStatus()
+    }
 }
+
+// MARK: - HelperNotificationManagerDelegate
+
+extension GoCallbackManager: HelperNotificationManagerDelegate {
+    func notificationManagerRequestOpenNotiAlert() {
+        DispatchQueue.main.async { [weak self] in
+            self?.delegate?.requestOpenNotiAlert?()
+        }
+    }
+}
+
+// MARK: - Extensions
 
 extension NSNotification.Name {
     static let authViaIndex = NSNotification.Name("CrossShareAuthViaIndex")
@@ -305,4 +263,3 @@ private extension Optional where Wrapped == String {
         return self == nil || self?.isEmpty == true
     }
 }
-

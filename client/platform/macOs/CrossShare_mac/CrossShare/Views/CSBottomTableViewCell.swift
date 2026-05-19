@@ -64,6 +64,25 @@ class CSBottomTableViewCell: NSTableCellView {
         return button
     }()
     
+    // Open folder button
+    private lazy var openFolderBtn: NSButton = {
+        let button = NSButton()
+        button.bezelStyle = .texturedRounded
+        button.setButtonType(.momentaryPushIn)
+        button.isBordered = false
+        if let image = NSImage(named: "openfolder") {
+            image.size = NSSize(width: 16, height: 16)
+            button.image = image
+        }
+        if let alternateImage = NSImage(named: "openfolder_h") {
+            alternateImage.size = NSSize(width: 16, height: 16)
+            button.alternateImage = alternateImage
+        }
+        button.target = self
+        button.action = #selector(handleOpenFolderButtonClick)
+        return button
+    }()
+    
     // Open button
     private lazy var openBtn: NSButton = {
         let button = NSButton()
@@ -107,8 +126,8 @@ class CSBottomTableViewCell: NSTableCellView {
         return view
     }()
     
-    private lazy var mainTextField: NSTextField = {
-        let textField = NSTextField()
+    private lazy var mainTextField: CSScrollTextField = {
+        let textField = CSScrollTextField()
         textField.isEditable = false
         textField.isBordered = false
         textField.backgroundColor = .clear
@@ -178,6 +197,7 @@ class CSBottomTableViewCell: NSTableCellView {
         contentView.addSubview(statusLabel)
         contentView.addSubview(receiveBtn)
         contentView.addSubview(customProgressView) // Add custom progress view
+        contentView.addSubview(openFolderBtn)
         contentView.addSubview(openBtn)
         contentView.addSubview(deleteBtn)
         
@@ -240,9 +260,15 @@ class CSBottomTableViewCell: NSTableCellView {
             make.width.height.equalTo(24)
         }
         
-        receiveBtn.snp.makeConstraints { make in
+        openFolderBtn.snp.makeConstraints { make in
             make.centerY.equalToSuperview()
             make.trailing.equalTo(openBtn.snp.leading).offset(-5)
+            make.width.height.equalTo(24)
+        }
+        
+        receiveBtn.snp.makeConstraints { make in
+            make.centerY.equalToSuperview()
+            make.trailing.equalTo(openFolderBtn.snp.leading).offset(-5)
             make.width.height.equalTo(24)
         }
         
@@ -259,6 +285,35 @@ class CSBottomTableViewCell: NSTableCellView {
             make.centerY.equalToSuperview()
             make.trailing.equalTo(receiveBtn.snp.leading).offset(-5)
             make.width.equalTo(160) // Fixed width
+        }
+    }
+    
+    // Handle open folder button click
+    @objc private func handleOpenFolderButtonClick() {
+        // Ensure currentFileInfo and file path are not empty
+        guard let filePath = self.currentFileInfo?.session.currentFileName, !filePath.isEmpty else {
+            CSAlertManager.shared.showInvalidFilePath()
+            return
+        }
+        
+        let url = URL(fileURLWithPath: filePath)
+        let folderURL: URL
+        
+        // Check if path is a directory or file
+        var isDirectory: ObjCBool = false
+        if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) {
+            if isDirectory.boolValue {
+                // It's a directory, open it directly
+                folderURL = url
+            } else {
+                // It's a file, open its parent directory
+                folderURL = url.deletingLastPathComponent()
+            }
+            
+            // Open folder in Finder
+            NSWorkspace.shared.open(folderURL)
+        } else {
+            CSAlertManager.shared.showFileNotFound(filePath: filePath)
         }
     }
     
@@ -359,8 +414,35 @@ class CSBottomTableViewCell: NSTableCellView {
             customProgressView.isHidden = true
             statusLabel.stringValue = "Transmission completed"
             statusLabel.isHidden = false
-            openBtn.isHidden = false
-            openBtn.isEnabled = true  // 允许点击
+            
+            // Determine whether to show Open file button based on file count
+            if fileInfo.session.totalFileCount == 1 {
+                // Single file: show Open file and Open folder buttons
+                openBtn.isHidden = false
+                openBtn.isEnabled = true  // Allow clicking
+                
+                // Update openFolderBtn constraints: to the left of openBtn
+                openFolderBtn.snp.remakeConstraints { make in
+                    make.centerY.equalToSuperview()
+                    make.trailing.equalTo(openBtn.snp.leading).offset(-5)
+                    make.width.height.equalTo(24)
+                }
+            } else {
+                // Multiple files/folder: hide Open file button
+                openBtn.isHidden = true
+                
+                // Update openFolderBtn constraints: directly to the left of deleteBtn
+                openFolderBtn.snp.remakeConstraints { make in
+                    make.centerY.equalToSuperview()
+                    make.trailing.equalTo(deleteBtn.snp.leading).offset(-5)
+                    make.width.height.equalTo(24)
+                }
+            }
+            
+            // Always show Open folder button
+            openFolderBtn.isHidden = false
+            openFolderBtn.isEnabled = true
+            
             receiveBtn.isHidden = false
             statusLabel.textColor = NSColor.gray
 
@@ -370,10 +452,20 @@ class CSBottomTableViewCell: NSTableCellView {
             }
 
             
-            // 恢复 openBtn 原来的图标
+            // Restore openBtn original icon
             if let openImage = NSImage(named: "open") {
                 openImage.size = NSSize(width: 16, height: 16)
                 openBtn.image = openImage
+            }
+            
+            // Set openFolderBtn icon
+            if let openFolderImage = NSImage(named: "openfolder") {
+                openFolderImage.size = NSSize(width: 16, height: 16)
+                openFolderBtn.image = openFolderImage
+            }
+            if let openFolderHImage = NSImage(named: "openfolder_h") {
+                openFolderHImage.size = NSSize(width: 16, height: 16)
+                openFolderBtn.alternateImage = openFolderHImage
             }
             
             // 设置为删除图标
@@ -401,6 +493,7 @@ class CSBottomTableViewCell: NSTableCellView {
                 statusLabel.textColor = NSColor.red
                 
                 openBtn.isHidden = true
+                openFolderBtn.isHidden = true
                 receiveBtn.isHidden = false
                 
                 if let receiveTickFailImage = NSImage(named: "receiveTickFail") {
@@ -415,6 +508,7 @@ class CSBottomTableViewCell: NSTableCellView {
                 
                 statusLabel.isHidden = true
                 openBtn.isHidden = true
+                openFolderBtn.isHidden = true
                 receiveBtn.isHidden = true
                 
                 // 设置为关闭图标
@@ -430,6 +524,7 @@ class CSBottomTableViewCell: NSTableCellView {
             statusLabel.stringValue = "Transmission start"
             statusLabel.isHidden = false
             openBtn.isHidden = true
+            openFolderBtn.isHidden = true
             receiveBtn.isHidden = true
             
             // 设置为关闭图标

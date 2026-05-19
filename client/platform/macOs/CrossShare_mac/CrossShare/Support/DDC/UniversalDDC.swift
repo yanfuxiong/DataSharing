@@ -64,6 +64,7 @@ class UniversalDDC{
                     service: self.arm64avService,
                     command: command,
                     value: value,
+                    numOfWriteCycles: 0,
                     numOfRetryAttemps: 0,
                     retrySleepTime: 50000
                 )

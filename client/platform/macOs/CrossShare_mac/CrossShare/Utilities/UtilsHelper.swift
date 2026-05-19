@@ -41,8 +41,8 @@ class UtilsHelper: NSObject {
     static func getVersionNumber() -> String {
         if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String,
            let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String {
-            logger.info("App 版本号: \(version)")
-            logger.info("App 构建号: \(build)")
+            logger.info("App marketing ver: \(version)")
+            logger.info("App building ver: \(build)")
             return "v\(version)"
         }
         return "1.0.0"
@@ -87,6 +87,69 @@ class UtilsHelper: NSObject {
         let unitIndex = min(Int(logValue), units.count - 1) // Prevent exceeding unit array range
         let size = Double(bytes) / pow(1024, Double(unitIndex))
         return String(format: "%.1f %@", size, units[unitIndex])
+    }
+    
+    // MARK: - File Size Calculation
+    
+    /// Calculate total size for file items (recursively for directories)
+    /// - Parameter items: Array of FileInfo items
+    /// - Returns: Total size in bytes
+    static func calculateTotalSize(for items: [FileInfo]) -> Int64 {
+        var totalSize: Int64 = 0
+        let fileManager = FileManager.default
+        
+        for item in items {
+            if item.isDirectory {
+                // Recursively calculate directory size
+                totalSize += calculateDirectorySize(at: item.path, fileManager: fileManager)
+            } else {
+                // Use fileSize from FileInfo, or calculate if nil
+                if let size = item.fileSize {
+                    totalSize += size
+                } else {
+                    // Fallback: calculate size from file system
+                    if let attributes = try? fileManager.attributesOfItem(atPath: item.path),
+                       let size = attributes[.size] as? Int64 {
+                        totalSize += size
+                    }
+                }
+            }
+        }
+        
+        return totalSize
+    }
+    
+    /// Recursively calculate directory size
+    /// - Parameters:
+    ///   - path: Directory path
+    ///   - fileManager: FileManager instance
+    /// - Returns: Total size of all files in the directory in bytes
+    static func calculateDirectorySize(at path: String, fileManager: FileManager) -> Int64 {
+        var totalSize: Int64 = 0
+        
+        guard let enumerator = fileManager.enumerator(atPath: path) else {
+            return 0
+        }
+        
+        for case let file as String in enumerator {
+            let filePath = (path as NSString).appendingPathComponent(file)
+            
+            // Check if it's a directory
+            var isDirectory: ObjCBool = false
+            guard fileManager.fileExists(atPath: filePath, isDirectory: &isDirectory) else {
+                continue
+            }
+            
+            // Only count files, not directories
+            if !isDirectory.boolValue {
+                if let attributes = try? fileManager.attributesOfItem(atPath: filePath),
+                   let size = attributes[.size] as? Int64 {
+                    totalSize += size
+                }
+            }
+        }
+        
+        return totalSize
     }
 
 }

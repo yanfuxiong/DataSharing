@@ -11,7 +11,7 @@ class HomeHeaderView: NSView {
     
     var tapMoreBtnBlock:(() -> ())?
     var tapDeviceListBtnBlock:(() -> ())?
-    private var imageName: String = "connStatus1"{
+    private var imageName: String = SharedDataManager.shared.getCustomizedImageName("connStatus1"){
         didSet {
             updateDeviceBtnImage(imageName)
         }
@@ -37,13 +37,17 @@ class HomeHeaderView: NSView {
         addSubview(moreBtn)
         addSubview(deviceBtn)
         deviceBtn.addSubview(badgeLabel)
-        
-        leftImgView.isHidden = true
+    
+        leftImgView.isHidden = SharedDataManager.shared.currentThemeIsRedAndBlack() ? false :true
         countBtn.isHidden = true
         leftImgView.snp.makeConstraints { make in
             make.centerY.equalToSuperview()
             make.left.equalToSuperview().offset(24)
-            make.size.equalTo(CGSize(width: 44, height: 44))
+            if(SharedDataManager.shared.currentThemeIsRedAndBlack()){
+                make.size.equalTo(CGSize(width: 160*1.5, height: 50*1.5))
+            }else{
+                make.size.equalTo(CGSize(width: 44, height: 44))
+            }
         }
         
         countBtn.snp.makeConstraints { make in
@@ -89,8 +93,9 @@ class HomeHeaderView: NSView {
     lazy var leftImgView: NSImageView = {
         let cview = NSImageView(frame: .zero)
         cview.wantsLayer = true
-        cview.image = NSImage(named: "Icons")
-        cview.imageScaling = .scaleAxesIndependently
+        let iamgeName = SharedDataManager.shared.getCustomizedImageName("Icons")
+        cview.image = NSImage(named: iamgeName)
+//        cview.imageScaling = .scaleAxesIndependently
         cview.layer?.backgroundColor = NSColor.clear.cgColor
         return cview
     }()
@@ -162,7 +167,8 @@ class HomeHeaderView: NSView {
         button.layer?.cornerRadius = 5
         
         // 设置图标
-        if let moreImage = NSImage(named: "moreBtn") {
+        let imgName = SharedDataManager.shared.getCustomizedImageName("moreBtn")
+        if let moreImage = NSImage(named: imgName) {
             moreImage.size = NSSize(width: 40, height: 40)
             button.image = moreImage
             button.imageScaling = .scaleProportionallyDown
@@ -197,10 +203,13 @@ class HomeHeaderView: NSView {
     private func updateUIForDiasStatus(_ diasStatus: Int) {
         // 根据DIAS状态更新UI
         if diasStatus == 6 || diasStatus == 7 {
-            self.imageName = "connStatus6"
+            self.imageName = SharedDataManager.shared.getCustomizedImageName("connStatus6")
             self.badgeLabel.isHidden = false
+        } else if (diasStatus == 8){
+            self.imageName = SharedDataManager.shared.getCustomizedImageName("connStatus2")
+            self.badgeLabel.isHidden = true
         } else {
-            self.imageName = "connStatus\(diasStatus)"
+            self.imageName = SharedDataManager.shared.getCustomizedImageName("connStatus\(diasStatus)")
             self.badgeLabel.isHidden = true
         }
     }
@@ -208,8 +217,10 @@ class HomeHeaderView: NSView {
     func updateDeviceBtnImage(_ imgName: String) {
         // Update deviceBtn image on main thread
         DispatchQueue.main.async {
-            logger.info("updateDeviceBtnImage:\(imgName)")
-            if let image = NSImage(named:imgName) {
+            // 根据 customerID 获取定制化的图片名称
+            let customizedImageName = SharedDataManager.shared.getCustomizedImageName(imgName)
+            // print("updateDeviceBtnImage: \(imgName) -> \(customizedImageName)")
+            if let image = NSImage(named: customizedImageName) {
                 image.size = NSSize(width: 48, height: 40)
                 self.deviceBtn.image = image
             }

@@ -71,4 +71,50 @@ class NetworkUtils {
         
         completion(result == 0)
     }
+    
+    // MARK: - UDP Port Management
+    
+    /// Check if a UDP port is available by attempting to bind
+    func checkUDPPortAvailability(port: UInt16) -> Bool {
+        let sock = Darwin.socket(AF_INET, SOCK_DGRAM, 0)
+        guard sock != -1 else { return false }
+        defer { Darwin.close(sock) }
+        
+        var addr = sockaddr_in()
+        addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+        addr.sin_family = sa_family_t(AF_INET)
+        addr.sin_addr.s_addr = INADDR_ANY.bigEndian
+        addr.sin_port = port.bigEndian
+        
+        let result = withUnsafePointer(to: &addr) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                bind(sock, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+            }
+        }
+        
+        return result == 0
+    }
+    
+    /// Find an available UDP port starting from the given port
+    func findAvailableUDPPort(startPort: UInt16 = 10000, endPort: UInt16 = 65000) -> UInt16? {
+        for port in startPort...endPort {
+            if checkUDPPortAvailability(port: port) {
+                return port
+            }
+        }
+        return nil
+    }
+    
+    /// Find a pair of available UDP ports (for mouse and keyboard)
+    /// Returns two consecutive available ports
+    func findAvailableUDPPortPair(startPort: UInt16 = 10000) -> (mousePort: UInt16, keyboardPort: UInt16)? {
+        var port = startPort
+        while port < 65000 {
+            if checkUDPPortAvailability(port: port) && checkUDPPortAvailability(port: port + 1) {
+                return (mousePort: port, keyboardPort: port + 1)
+            }
+            port += 2
+        }
+        return nil
+    }
 }

@@ -13,6 +13,7 @@ import Foundation
     func initializeGoService(config: [String: Any], completion: @escaping (Bool, String?) -> Void)
     func getServiceStatus(completion: @escaping (Bool, [String: Any]?) -> Void)
     func updateCount(_ count: Int, completion: @escaping (Int) -> Void)
+    func updateDiasStatus(completion: @escaping (Int) -> Void)
     func setDIASID(_ diasID: String, completion: @escaping (Bool, String?) -> Void)
     func setExtractDIAS(completion: @escaping (Bool, String?) -> Void)
     func updateDisplayMapping(mac: String, displayID: UInt32, completion: @escaping (Bool) -> Void)
@@ -25,17 +26,17 @@ import Foundation
     func sendMultiFilesDropRequest(multiFilesData: String, completion: @escaping (Bool, String?) -> Void)
     func setCancelFileTransfer(ipPort: String, clientID: String, timeStamp: UInt64, completion: @escaping (Bool, String?) -> Void)
     func setDragFileListRequest(multiFilesData: String, timestamp: UInt64, width: UInt16, height: UInt16, posX: Int16, posY: Int16, completion: @escaping (Bool, String?) -> Void)
+    func getIsSupportFileDrag(completion: @escaping (Bool) -> Void)
     func requestUpdateDownloadPath(downloadPath: String, completion: @escaping (Bool, String?) -> Void)
+    func askHelperCheckNotiStatus(completion: @escaping (Bool) -> Void)
 }
 
 @objc public protocol CrossShareHelperXPCDelegate: AnyObject {
     @objc optional func didUpdateCount(_ newCount: Int)
-    @objc optional func didDetectPluginEvent(eventType: String, eventData: [String: Any]?)
-    @objc optional func didSetDiasIDEvent(success: Bool, message: String?)
-    @objc optional func didSetExtractDIAS(success: Bool, message: String?)
+    @objc optional func didUpdateDiasStatus(_ status: Int)
     @objc optional func didReceiveAuthRequest(index: UInt32)
     @objc optional func didReceiveDeviceData(deviceData: [String: Any])
-    @objc optional func didReceiveRemoteClipboard(text: String?, imageData: Data?, html: String?)
+    @objc optional func didReceiveRemoteClipboard(text: String?, imageData: Data?, html: String?, rtf: String?)
     @objc optional func didDetectLocalClipboardChange(content: [String: Any])
     @objc optional func didDetectScreenCountChange(change: String, currentCount: Int, previousCount: Int)
     @objc optional func didReceiveFileTransferUpdate(_ sessionInfo: [String: Any])
@@ -45,4 +46,7 @@ import Foundation
     @objc optional func didReceiveDIASStatus(_ status: Int)
     @objc optional func didReceiveErrorEvent(_ errorInfo: [String: Any])
     @objc optional func didReceiveSystemInfoUpdate(_ systemInfo: [String: Any])
+    @objc optional func didReceiveThemeInfoUpdate(_ themeInfo: [String: Any])
+    @objc optional func didReceiveOpenNotiAlert()
+    @objc optional func requestOpenNotiAlert()
 }

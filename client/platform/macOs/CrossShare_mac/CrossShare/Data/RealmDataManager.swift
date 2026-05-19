@@ -19,7 +19,7 @@ class RealmDataManager {
     func setupRealm() {
         do {
             // Configure Realm
-            let config = Realm.Configuration(
+            var config = Realm.Configuration(
                 schemaVersion: RealmSchemaVersion.currentVersion,
                 migrationBlock: {
                     migration, oldSchemaVersion in
@@ -30,13 +30,55 @@ class RealmDataManager {
                     }
                 }
             )
+            
+            //Development mode: Auto-delete database when schema is incompatible
+            // This is useful when switching between branches with different model versions
+            #if DEBUG
+            config.deleteRealmIfMigrationNeeded = true
+            logger.info("DEBUG mode: deleteRealmIfMigrationNeeded enabled")
+            #endif
+            
             Realm.Configuration.defaultConfiguration = config
             
             // Initialize Realm instance
             realm = try Realm()
-            logger.info("Realm database path: \(realm?.configuration.fileURL?.absoluteString ?? "Unknown")")
+            logger.info("Realm initialized successfully")
+            logger.info("Database path: \(realm?.configuration.fileURL?.absoluteString ?? "Unknown")")
         } catch {
-            logger.info("Failed to initialize Realm: \(error.localizedDescription)")
+            logger.error("Failed to initialize Realm: \(error.localizedDescription)")
+            
+            // Fallback: Try to delete the database file and retry once
+            if let fileURL = Realm.Configuration.defaultConfiguration.fileURL {
+                logger.info("Attempting to delete database and retry...")
+                deleteRealmFiles(at: fileURL)
+                
+                do {
+                    realm = try Realm()
+                    logger.info("Realm reinitialized successfully after cleanup")
+                } catch {
+                    logger.error("Failed to reinitialize Realm even after cleanup: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+    
+    /// Delete Realm database files (for recovery purposes)
+    private func deleteRealmFiles(at fileURL: URL) {
+        let realmURLs = [
+            fileURL,
+            fileURL.appendingPathExtension("lock"),
+            fileURL.appendingPathExtension("note"),
+            fileURL.appendingPathExtension("management")
+        ]
+        
+        for url in realmURLs {
+            do {
+                try FileManager.default.removeItem(at: url)
+                logger.info("Deleted: \(url.lastPathComponent)")
+            } catch {
+                // File might not exist, which is fine
+                logger.debug("Could not delete \(url.lastPathComponent): \(error.localizedDescription)")
+            }
         }
     }
 
@@ -133,7 +175,23 @@ class RealmDataManager {
         } catch {
             logger.info("Failed to delete CSFileInfo records from Realm: \(error.localizedDescription)")
         }
-
+    }
+    
+    /// Reset Realm database completely (useful when switching branches)
+    /// This will delete the database file and reinitialize Realm
+    func resetDatabase() {
+        logger.info("Resetting Realm database...")
+        
+        // Close current realm instance
+        realm = nil
+        
+        // Delete database files
+        if let fileURL = Realm.Configuration.defaultConfiguration.fileURL {
+            deleteRealmFiles(at: fileURL)
+        }
+        
+        // Reinitialize
+        setupRealm()
     }
     
     // Update CSFileInfo and return UI operations via callback

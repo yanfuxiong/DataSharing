@@ -25,6 +25,19 @@ class HelperXPCService: NSObject, CrossShareHelperXPCProtocol, CrossShareHelperX
         }
     }
     
+    func updateDiasStatus(completion: @escaping (Int) -> Void) {
+        let status = GoCallbackManager.shared.diasStatus
+        logger.log("Returning DIAS status to main app: \(status)", level: .info)
+        
+        completion(status)
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            self?.notifyDelegates { delegate in
+                delegate.didUpdateDiasStatus?(status)
+            }
+        }
+    }
+    
     func setDIASID(_ diasID: String, completion: @escaping (Bool, String?) -> Void) {
         logger.log("Setting DiasID: \(diasID)", level: .info)
         GoCallbackManager.shared.setCurrentDIASMac(diasID)
@@ -103,18 +116,13 @@ class HelperXPCService: NSObject, CrossShareHelperXPCProtocol, CrossShareHelperX
     }
     
     func getServiceStatus(completion: @escaping (Bool, [String: Any]?) -> Void) {
-        logger.log("Getting service status", level: .info)
-        
         let isRunning = goBridge.isRunning
-        
-        logger.log("Service running state: \(isRunning)", level: .info)
         if isRunning {
-            logger.log("Fetching service info", level: .info)
             goBridge.getServiceInfo { [weak self] serviceInfo in
+                guard let _ = self else { return }
                 var status = serviceInfo ?? [:]
                 status["isRunning"] = true
                 status["helperPID"] = ProcessInfo.processInfo.processIdentifier
-                self?.logger.log("Service is running with info: \(status)", level: .info)
                 completion(true, status)
             }
         } else {
@@ -266,6 +274,22 @@ class HelperXPCService: NSObject, CrossShareHelperXPCProtocol, CrossShareHelperX
             delegate.didReceiveSystemInfoUpdate?(systemInfo)
         }
     }
+    
+    func didReceiveThemeInfoUpdate(_ themeInfo: [String: Any]) {
+        logger.log("didReceiveThemeInfoUpdate - themeInfo:\(themeInfo)", level: .info)
+        notifyDelegates { delegate in
+            delegate.didReceiveThemeInfoUpdate?(themeInfo)
+        }
+    }
+
+    func requestOpenNotiAlert() {
+        logger.log("Received requestOpenNotiAlert from GoCallbackManager", level: .info)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            self?.notifyDelegates { delegate in
+                delegate.didReceiveOpenNotiAlert?()
+            }
+        }
+    }
 
     func didDetectScreenCountChange(change: String, currentCount: Int, previousCount: Int) {
         logger.log("Screen count changed - \(change) (\(previousCount) -> \(currentCount))", level: .info)
@@ -320,14 +344,14 @@ class HelperXPCService: NSObject, CrossShareHelperXPCProtocol, CrossShareHelperX
     
     func sendTextToRemote(_ text: String, completion: @escaping (Bool, String?) -> Void) {
         logger.log("Sending text to remote: \(text.prefix(100))...", level: .info)
-        SendXClipData(text.toGoStringXPC(), "".toGoStringXPC(), "".toGoStringXPC())
+        SendXClipData(text.toGoStringXPC(), "".toGoStringXPC(), "".toGoStringXPC(), "".toGoStringXPC())
         completion(true, nil)
     }
     
     func sendImageToRemote(_ imageData: Data, completion: @escaping (Bool, String?) -> Void) {
         logger.log("Sending image to remote, size: \(imageData.count) bytes", level: .info)
         let base64String = imageData.base64EncodedString()
-        SendXClipData("".toGoStringXPC(), base64String.toGoStringXPC(), "".toGoStringXPC())
+        SendXClipData("".toGoStringXPC(), base64String.toGoStringXPC(), "".toGoStringXPC(), "".toGoStringXPC())
         completion(true, nil)
     }
     
@@ -376,9 +400,29 @@ class HelperXPCService: NSObject, CrossShareHelperXPCProtocol, CrossShareHelperX
         handleUpdateMousePosRequest(width: width, height: height, posX: posX, posY: posY)
     }
     
+    func getIsSupportFileDrag(completion: @escaping (Bool) -> Void) {
+        goBridge.getIsSupportFileDrag(completion: completion)
+    }
+    
     func requestUpdateDownloadPath(downloadPath: String, completion: @escaping (Bool, String?) -> Void) {
         logger.log("Updating download path: \(downloadPath)", level: .info)
         goBridge.requestUpdateDownloadPath(downloadPath: downloadPath, completion: completion)
+    }
+    
+    func askHelperCheckNotiStatus(completion: @escaping (Bool) -> Void) {
+        logger.log("Received request to check notification status", level: .info)
+
+        HelperNotificationManager.shared.checkAndRequestNotificationAuthorization { [weak self] isAuthorized in
+            guard let self = self else { return }
+            self.logger.log("Notification status check result: \(isAuthorized ? "authorized" : "not authorized")", level: .info)
+            completion(isAuthorized)
+
+            // If notification permission is not authorized, notify main app to show alert
+            if !isAuthorized {
+                self.logger.log("Notification permission not authorized, notifying main app to show alert", level: .warn)
+                self.requestOpenNotiAlert()
+            }
+        }
     }
 
     func clearDeviceList() {
@@ -410,12 +454,20 @@ class HelperXPCService: NSObject, CrossShareHelperXPCProtocol, CrossShareHelperX
 }
 
 extension HelperXPCService: ClipboardMonitorDelegate {
-    func clipboardDidChange(text: String?, image: NSImage?, html: String?) {
-        logger.log("Local clipboard changed", level: .info)
+    func clipboardDidChange(text: String?, image: NSImage?, html: String?, rtf: String?) {
+        logger.log("Clipboard changed", level: .info)
+        
+        GoCallbackManager.shared.sendClipboardNotification(
+            text: text,
+            image: image,
+            html: html,
+            rtf: rtf
+        )
 
         var textDataStr = ""
         var imageDataStr = ""
         var htmlDataStr = ""
+        var rtfDataStr = ""
 
         if let text = text, !text.isEmpty {
             textDataStr = text
@@ -437,13 +489,19 @@ extension HelperXPCService: ClipboardMonitorDelegate {
             logger.log("Found HTML data, length: \(htmlDataStr.count)", level: .info)
         }
 
-        if !textDataStr.isEmpty || !imageDataStr.isEmpty || !htmlDataStr.isEmpty {
+        if let rtf = rtf, !rtf.isEmpty {
+            rtfDataStr = rtf
+            logger.log("Found RTF data, length: \(rtfDataStr.count)", level: .info)
+        }
+
+        if !textDataStr.isEmpty || !imageDataStr.isEmpty || !htmlDataStr.isEmpty || !rtfDataStr.isEmpty {
             SendXClipData(
                 textDataStr.toGoStringXPC(),
                 imageDataStr.toGoStringXPC(),
-                htmlDataStr.toGoStringXPC()
+                htmlDataStr.toGoStringXPC(),
+                rtfDataStr.toGoStringXPC()
             )
-            logger.log("Sent clipboard data - text: \(!textDataStr.isEmpty), image: \(!imageDataStr.isEmpty), html: \(!htmlDataStr.isEmpty)", level: .info)
+            logger.log("Sent clipboard data - text: \(!textDataStr.isEmpty), image: \(!imageDataStr.isEmpty), html: \(!htmlDataStr.isEmpty), rtf: \(!rtfDataStr.isEmpty) rtfcount:\(rtfDataStr.count)", level: .info)
         } else {
             logger.log("No valid clipboard content to send", level: .warn)
         }

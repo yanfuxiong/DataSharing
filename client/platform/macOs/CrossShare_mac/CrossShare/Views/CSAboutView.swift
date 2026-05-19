@@ -186,6 +186,13 @@ class CSAboutView: NSView {
     private func setupUI() {
         wantsLayer = true
         layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
+        layer?.cornerRadius = 8
+        
+        // 在红黑主题下添加红色边框
+        if SharedDataManager.shared.currentThemeIsRedAndBlack() {
+            layer?.borderColor = NSColor.red.cgColor
+            layer?.borderWidth = 2.0
+        }
         
         // Add subviews
         addSubview(iconImageView)

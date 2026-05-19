@@ -31,7 +31,7 @@ private let updateSystemInfoCallback: @convention(c) (UnsafeMutablePointer<CChar
     globalGoServiceBridge?.handleUpdateSystemInfo(ipInfo: ipInfo, verInfo: verInfo)
 }
 
-private let pasteXClipDataCallback: @convention(c) (UnsafeMutablePointer<CChar>?, UnsafeMutablePointer<CChar>?, UnsafeMutablePointer<CChar>?) -> Void = { textPtr, imagePtr, htmlPtr in
+private let pasteXClipDataCallback: @convention(c) (UnsafeMutablePointer<CChar>?, UnsafeMutablePointer<CChar>?, UnsafeMutablePointer<CChar>?, UnsafeMutablePointer<CChar>?) -> Void = { textPtr, imagePtr, htmlPtr, rtfPtr in
     // Decode text with multiple encoding support
     var text: String? = nil
     if let textPtr = textPtr {
@@ -91,9 +91,37 @@ private let pasteXClipDataCallback: @convention(c) (UnsafeMutablePointer<CChar>?
         }
     }
 
+    // Decode RTF with multiple encoding support
+    var rtf: String? = nil
+    if let rtfPtr = rtfPtr {
+        let data = Data(bytes: rtfPtr, count: strlen(rtfPtr))
+
+        if let utf8String = String(data: data, encoding: .utf8),
+           !utf8String.contains("�") && !utf8String.contains("\u{FFFD}") {
+            rtf = utf8String
+        } else {
+            // Try GB18030 encoding
+            let encoding = CFStringConvertEncodingToNSStringEncoding(
+                CFStringEncoding(CFStringEncodings.GB_18030_2000.rawValue))
+            if let gb18030String = String(data: data, encoding: String.Encoding(rawValue: encoding)) {
+                rtf = gb18030String
+            } else if let utf16String = String(data: data, encoding: .utf16) {
+                rtf = utf16String
+            } else if let utf16LEString = String(data: data, encoding: .utf16LittleEndian) {
+                rtf = utf16LEString
+            } else if let utf16BEString = String(data: data, encoding: .utf16BigEndian) {
+                rtf = utf16BEString
+            } else if let latinString = String(data: data, encoding: .isoLatin1) {
+                rtf = latinString
+            } else {
+                rtf = String(cString: rtfPtr)
+            }
+        }
+    }
+
     // Handle clipboard data with new unified method
-    if text != nil || imageBase64 != nil || html != nil {
-        GoCallbackManager.shared.handleRemoteData(text: text, imageBase64: imageBase64, html: html)
+    if text != nil || imageBase64 != nil || html != nil || rtf != nil {
+        GoCallbackManager.shared.handleRemoteData(text: text, imageBase64: imageBase64, html: html, rtf: rtf)
     }
 }
 
@@ -109,14 +137,19 @@ private let notifyErrEventCallback: @convention(c) (Optional<UnsafeMutablePointe
     globalGoServiceBridge?.handleNotifyErrEvent(clientID: clientID, errCode: errCode, ipaddr: ipaddr, timestamp: timestamp, arg3: arg3, arg4: arg4)
 }
 
+private let notiMessageCallback: @convention(c) (UInt64, UInt32, Optional<UnsafeMutablePointer<Optional<UnsafeMutablePointer<Int8>>>>, Int32) -> Void = { timestamp, notiCode, notiParam, paramCount in
+    globalGoServiceBridge?.handleNotiMessage(timestamp: timestamp, notiCode: notiCode, notiParam: notiParam, paramCount: paramCount)
+}
+
 
 class GoServiceBridge: CrossShareHelperXPCDelegate {
     
-    private let logger = CSLogger.shared
+//    private let logger = CSLogger.shared
     private var isServiceRunning = false
     private var currentConfig: [String: Any] = [:]
     
     private var pendingDIASRequests: [(diasID: String, completion: (Bool, String?) -> Void)] = []
+    private var pendingDisplayEventRequests: [(jsonString: String, completion: (Bool, String?) -> Void)] = []
     private let pendingRequestsQueue = DispatchQueue(label: "com.crossshare.pending.requests", qos: .userInitiated)
     private var pendingRequestsTimer: Timer?
     
@@ -144,6 +177,7 @@ class GoServiceBridge: CrossShareHelperXPCDelegate {
         SetCallbackUpdateMultipleProgressBar(multipleProgressBarCallback)
         SetCallbackMethodFileListNotify(fileListNotifyCallback)
         SetCallbackNotifyErrEvent(notifyErrEventCallback)
+        SetCallbackNotiMessage(notiMessageCallback)
     }
     
     func startService(config: [String: Any], completion: @escaping (Bool, String?) -> Void) {
@@ -169,18 +203,18 @@ class GoServiceBridge: CrossShareHelperXPCDelegate {
                 return
             }
             
-            self?.logger.info("Gathering network interface information before MainInit...")
+            logger.info("Gathering network interface information before MainInit...")
             
             WifiManager.shareInstance().getNetInfoFromLocalIp { netName, mac, mtu, index, flags in
                 DispatchQueue.global(qos: .userInitiated).async { [weak self] in
                     if let netName = netName, let mac = mac, let mtu = mtu, let index = index, let flags = flags {
-                        self?.logger.info("Network interface: name=\(netName), mac=\(mac), mtu=\(mtu), index=\(index), flags=\(flags)")
+                        logger.info("Network interface: name=\(netName), mac=\(mac), mtu=\(mtu), index=\(index), flags=\(flags)")
                         self?.sendNetInterfaces(name: netName, mac: mac, mtu: mtu, index: index, flags: flags)
                     } else {
-                        self?.logger.warn("Failed to get network interface information, proceeding without it")
+                        logger.warn("Failed to get network interface information, proceeding without it")
                     }
                     
-                    self?.logger.info("Calling MainInit with: deviceName=\(deviceName),rootPath = \(rootPath) serverId=\(serverId), serverIpInfo=\(serverIpInfo), listenHost=\(listenHost), listenPort=\(listenPort)")
+                    logger.info("Calling MainInit with: deviceName=\(deviceName),rootPath = \(rootPath) serverId=\(serverId), serverIpInfo=\(serverIpInfo), listenHost=\(listenHost), listenPort=\(listenPort)")
                     
                     self?.callMainInit(
                         deviceName: deviceName,
@@ -202,21 +236,19 @@ class GoServiceBridge: CrossShareHelperXPCDelegate {
         let deviceNameGo = deviceName.toGoStringXPC()
         let rootPathGo = rootPath.toGoStringXPC()
         let downloadPathGo = downloadPath.toGoStringXPC()
-        let serverIdGo = serverId.toGoStringXPC()
-        let serverIpInfoGo = serverIpInfo.toGoStringXPC()
-        let listenHostGo = listenHost.toGoStringXPC()
         
         logger.info("Calling MainInit with Go strings...")
         logger.info("Parameters: deviceName=\(deviceName), rootPath=\(rootPath), serverId=\(serverId), serverIpInfo=\(serverIpInfo), listenHost=\(listenHost), listenPort=\(listenPort)")
         
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            self?.logger.info("Calling MainInit in background thread...")
-            MainInit(deviceNameGo, rootPathGo,downloadPathGo,serverIdGo, serverIpInfoGo, listenHostGo, GoInt(listenPort))
-            self?.logger.info("MainInit call returned (this may not be reached if MainInit runs indefinitely)")
+            logger.info("Calling MainInit in background thread...")
+            guard let _ = self else { return }
+            MainInit(deviceNameGo, rootPathGo,downloadPathGo)
+            logger.info("MainInit call returned (this may not be reached if MainInit runs indefinitely)")
         }
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-            self?.logger.info("Starting pending requests monitoring")
+            logger.info("Starting pending requests monitoring")
             self?.startPendingRequestsMonitoring()
             self?.isServiceRunning = true
             completion(true, nil)
@@ -263,7 +295,6 @@ class GoServiceBridge: CrossShareHelperXPCDelegate {
     
     
     func getServiceInfo(completion: @escaping ([String: Any]?) -> Void) {
-        logger.info("Fetching Go service info")
         
         guard isServiceRunning else {
             logger.warn("Service not running, returning basic info")
@@ -276,7 +307,6 @@ class GoServiceBridge: CrossShareHelperXPCDelegate {
             return
         }
         
-        logger.info("Current config: \(currentConfig)")
         var info = currentConfig
         info["isRunning"] = isServiceRunning
         info["startTime"] = Date().timeIntervalSince1970
@@ -321,7 +351,7 @@ class GoServiceBridge: CrossShareHelperXPCDelegate {
             if self.isServiceRunning {
                 self.executeDIASIDRequest(diasID: diasID, completion: completion)
             } else {
-                self.logger.info("Go service not ready, queuing DIAS ID request: \(diasID)")
+                logger.info("Go service not ready, queuing DIAS ID request: \(diasID)")
                 self.pendingDIASRequests.append((diasID: diasID, completion: completion))
             }
         }
@@ -336,9 +366,9 @@ class GoServiceBridge: CrossShareHelperXPCDelegate {
                         SetMacAddress(UnsafeMutablePointer(mutating: baseAddress.assumingMemoryBound(to: CChar.self)), 6)
                     }
                 }
-                self?.logger.info("SetMacAddress called with 6-byte MAC: \(diasID)")
+                logger.info("SetMacAddress called with 6-byte MAC: \(diasID)")
             } else {
-                self?.logger.error("Failed to parse MAC address: \(diasID)")
+                logger.error("Failed to parse MAC address: \(diasID)")
             }
             
             DispatchQueue.main.async {
@@ -367,22 +397,37 @@ class GoServiceBridge: CrossShareHelperXPCDelegate {
         return macBytes
     }
     
-    private func processPendingDIASRequests() {
+    private func processPendingRequests() {
         pendingRequestsQueue.async { [weak self] in
             guard let self = self else { return }
             
-            let requests = self.pendingDIASRequests
+            // Process pending DIAS ID requests
+            let diasRequests = self.pendingDIASRequests
             self.pendingDIASRequests.removeAll()
-            
-            self.logger.info("Processing \(requests.count) pending DIAS requests")
-            
-            for request in requests {
-                self.executeDIASIDRequest(diasID: request.diasID, completion: request.completion)
+            if !diasRequests.isEmpty {
+                logger.info("Processing \(diasRequests.count) pending DIAS requests")
+                for request in diasRequests {
+                    self.executeDIASIDRequest(diasID: request.diasID, completion: request.completion)
+                }
             }
             
-            if requests.count > 0 {
+            // Process pending display event requests
+            let displayEventRequests = self.pendingDisplayEventRequests
+            self.pendingDisplayEventRequests.removeAll()
+            if !displayEventRequests.isEmpty {
+                logger.info("Processing \(displayEventRequests.count) pending DisplayEvent requests")
+                for request in displayEventRequests {
+                    self.executeDisplayEventInfoRequest(jsonString: request.jsonString, completion: request.completion)
+                }
+            }
+            
+            // Stop monitoring only when both queues are empty
+            if !diasRequests.isEmpty || !displayEventRequests.isEmpty {
                 DispatchQueue.main.async { [weak self] in
-                    self?.stopPendingRequestsMonitoring()
+                    guard let self = self else { return }
+                    if self.pendingDIASRequests.isEmpty && self.pendingDisplayEventRequests.isEmpty {
+                        self.stopPendingRequestsMonitoring()
+                    }
                 }
             }
         }
@@ -406,9 +451,10 @@ class GoServiceBridge: CrossShareHelperXPCDelegate {
     private func tryProcessPendingRequests() {
         pendingRequestsQueue.async { [weak self] in
             guard let self = self else { return }
-            if !self.pendingDIASRequests.isEmpty {
-                self.logger.info("Attempting to process \(self.pendingDIASRequests.count) pending requests")
-                self.processPendingDIASRequests()
+            let totalPending = self.pendingDIASRequests.count + self.pendingDisplayEventRequests.count
+            if totalPending > 0 {
+                logger.info("Attempting to process \(totalPending) pending requests (DIAS: \(self.pendingDIASRequests.count), DisplayEvent: \(self.pendingDisplayEventRequests.count))")
+                self.processPendingRequests()
             }
         }
     }
@@ -423,7 +469,42 @@ class GoServiceBridge: CrossShareHelperXPCDelegate {
         }
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             SetExtractDIAS()
-            self?.logger.info("SetExtractDIAS called")
+            logger.info("SetExtractDIAS called")
+            guard let _ = self else { return }
+            DispatchQueue.main.async {
+                completion(true, nil)
+            }
+        }
+    }
+    
+    /// Send display event info JSON to Go service via SetDisplayEventInfo
+    /// If Go service is not ready, the request is queued and will be sent once the service starts.
+    func setDisplayEventInfo(jsonString: String, completion: @escaping (Bool, String?) -> Void) {
+        logger.info("Calling SetDisplayEventInfo with JSON: \(jsonString)")
+        
+        pendingRequestsQueue.async { [weak self] in
+            guard let self = self else { return }
+            if self.isServiceRunning {
+                self.executeDisplayEventInfoRequest(jsonString: jsonString, completion: completion)
+            } else {
+                logger.info("Go service not ready, queuing SetDisplayEventInfo request")
+                self.pendingDisplayEventRequests.append((jsonString: jsonString, completion: completion))
+            }
+        }
+    }
+    
+    private func executeDisplayEventInfoRequest(jsonString: String, completion: @escaping (Bool, String?) -> Void) {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let _ = self else { return }
+            let cString = jsonString.withCString { ptr -> UnsafeMutablePointer<CChar> in
+                let len = strlen(ptr)
+                let buf = UnsafeMutablePointer<CChar>.allocate(capacity: len + 1)
+                strcpy(buf, ptr)
+                return buf
+            }
+            SetDisplayEventInfo(cString)
+            cString.deallocate()
+            logger.info("SetDisplayEventInfo called successfully")
             DispatchQueue.main.async {
                 completion(true, nil)
             }
@@ -439,6 +520,7 @@ class GoServiceBridge: CrossShareHelperXPCDelegate {
         }
         logger.info("Sending multi-files drop request with data length: \(multiFilesData.count)")
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let _ = self else { return }
             let result = SendMultiFilesDropRequest(multiFilesData.toGoStringXPC())
             var statusString = ""
             switch result {
@@ -459,10 +541,10 @@ class GoServiceBridge: CrossShareHelperXPCDelegate {
             case 8:
                 statusString = "Cannot send: Too many pending requests"
             default:
-                self?.logger.info("Transfer request sent successfully:\(result))")
+                logger.info("Transfer request sent successfully:\(result))")
             }
             let success = result == 1
-            self?.logger.info("Multi-files drop request result: \(success) - \(statusString)")
+            logger.info("Multi-files drop request result: \(success) - \(statusString)")
             DispatchQueue.main.async {
                 completion(success, success ? nil : statusString)
             }
@@ -487,12 +569,13 @@ class GoServiceBridge: CrossShareHelperXPCDelegate {
         }
         
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let _ = self else { return }
             let ipPortGo = ipPort.toGoStringXPC()
             let clientIDGo = clientID.toGoStringXPC()
             
             SetCancelFileTransfer(ipPortGo, clientIDGo, GoUint64(timeStamp))
             
-            self?.logger.info("SetCancelFileTransfer called successfully for \(ipPort)")
+            logger.info("SetCancelFileTransfer called successfully for \(ipPort)")
             
             DispatchQueue.main.async {
                 completion(true, nil)
@@ -509,9 +592,27 @@ class GoServiceBridge: CrossShareHelperXPCDelegate {
         }
         logger.info("Sending multi-files drag request with data length: \(multiFilesData.count)")
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let _ = self else { return }
             SetDragFileListRequest(multiFilesData.toGoStringXPC(), timestamp)
             DispatchQueue.main.async {
                 completion(true, nil)
+            }
+        }
+    }
+    
+    func getIsSupportFileDrag(completion: @escaping (Bool) -> Void) {
+        guard isServiceRunning else {
+            logger.warn("Go service is not running, GetIsSupportFileDrag defaults to false")
+            completion(false)
+            return
+        }
+        
+        DispatchQueue.global(qos: .userInitiated).async {
+            let result = Int(GetIsSupportFileDrag())
+            let isSupported = (result != 0)
+            logger.info("GetIsSupportFileDrag() returned: \(result), interpreted as: \(isSupported)")
+            DispatchQueue.main.async {
+                completion(isSupported)
             }
         }
     }
@@ -534,12 +635,10 @@ class GoServiceBridge: CrossShareHelperXPCDelegate {
         }
         
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let _ = self else { return }
             let downloadPathGo = downloadPath.toGoStringXPC()
-            
             RequestUpdateDownloadPath(downloadPathGo)
-            
-            self?.logger.info("RequestUpdateDownloadPath called successfully with path: \(downloadPath)")
-            
+            logger.info("RequestUpdateDownloadPath called successfully with path: \(downloadPath)")
             DispatchQueue.main.async {
                 completion(true, nil)
             }
@@ -698,6 +797,25 @@ class GoServiceBridge: CrossShareHelperXPCDelegate {
         
         GoCallbackManager.shared.handleErrEvent(id: idString, errCode: errCode, arg1: arg1String, arg2: arg2String, arg3: arg3String, arg4: arg4String)
     }
+    
+    func handleNotiMessage(timestamp: UInt64, notiCode: UInt32, notiParam: Optional<UnsafeMutablePointer<Optional<UnsafeMutablePointer<Int8>>>>, paramCount: Int32) {
+        var paramStrings: [String] = []
+        
+        if let paramArray = notiParam, paramCount > 0 {
+            for i in 0..<Int(paramCount) {
+                if let paramPtr = paramArray[i] {
+                    paramStrings.append(String(cString: paramPtr))
+                } else {
+                    paramStrings.append("")
+                }
+            }
+        }
+        
+        logger.info("NotiMessage received - timestamp: \(timestamp), notiCode: \(notiCode), paramCount: \(paramCount), params: \(paramStrings)")
+        
+        GoCallbackManager.shared.handleNotiMessage(timestamp: timestamp, notiCode: notiCode, notiParam: paramStrings)
+    }
+    
 }
 
 private struct SwiftGoResult {

@@ -58,6 +58,7 @@ public class IntelDDC {
                 request.replyBytes = 0
                 if IntelDDC.send(request: &request, to: self.framebuffer, errorRecoveryWaitTime: errorRecoveryWaitTime) {
                     success = true
+                    break
                 }
             }
             result = success

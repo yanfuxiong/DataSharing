@@ -47,8 +47,8 @@ class CSDeviceManager {
         // 处理DIAS状态通知
         if let userInfo = notification.userInfo,
            let status = userInfo["diasStatus"] as? Int {
-            logger.info("CSDeviceManager received diasStatus: \(status)")
             DispatchQueue.main.async { [weak self] in
+                if self?.diasStatus != status { logger.info("CSDeviceManager received diasStatus: \(status)") }
                 self?.diasStatus = status
             }
         }

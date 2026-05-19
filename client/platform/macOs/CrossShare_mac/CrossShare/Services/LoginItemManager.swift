@@ -8,6 +8,7 @@
 import Foundation
 import ServiceManagement
 import Cocoa
+import UserNotifications
 
 class LoginItemManager {
     static let shared = LoginItemManager()
@@ -20,30 +21,22 @@ class LoginItemManager {
     private init() {}
     
     func checkAndRequestLoginItemPermissionIfFirstLaunch() {
-        // 如果是首次启动，直接静默安装 Helper
+        let runInBackgroundEnabled = helperCommunication.isRunInBackgroundEnabled
+        
+        // Default behavior: Run in Background is OFF, so do not auto-enable helper.
         if !hasRequestedLoginItemBefore() {
-            #if DEBUG
-            logger.info("首次启动，自动请求后台运行权限")
-            #endif
-
-            // 直接启用登录项，不显示对话框
-            self.enableLoginItem { [weak self] success in
-                if success {
-                    self?.showSuccessNotification()
-                    self?.markLoginItemRequested()
-                    #if DEBUG
-                    logger.info("后台权限请求成功")
-                    #endif
-                } else {
-                    #if DEBUG
-                    logger.info("后台权限请求失败")
-                    #endif
-                }
-            }
+            logger.info("First launch: keep RunInBackground default OFF, skip auto enabling helper")
+            markLoginItemRequested()
+            return
+        }
+        
+        // Do not show background permission dialogs when feature is currently OFF.
+        guard runInBackgroundEnabled else {
+            logger.info("RunInBackground is OFF, skipping login item permission checks")
             return
         }
 
-        // 非首次启动，检查是否被用户手动禁用
+        // Not first launch, check if user manually disabled
         if !isLoginItemEnabled {
             DispatchQueue.main.async { [weak self] in
                 if #available(macOS 13.0, *) {
@@ -53,7 +46,7 @@ class LoginItemManager {
                     logger.info("Helper status: \(status), isUserDisabled: \(isUserDisabled)")
                     #endif
 
-                    // 只有在用户手动禁用的情况下才显示对话框
+                    // Only show dialog if user manually disabled it
                     if isUserDisabled {
                         self?.showManualEnableDialog()
                     }
@@ -64,13 +57,14 @@ class LoginItemManager {
         #if DEBUG
         logger.info("=== LoginItemManager Debug Info ===")
         logger.info("Has requested before: \(hasRequestedLoginItemBefore())")
-        logger.info("Is login item enabled: \(isLoginItemEnabled)")
+        logger.info("Login item enabled (system): \(isLoginItemEnabled)")
         logger.info("Helper installed: \(helperCommunication.isHelperInstalled)")
-        logger.info("Helper running: \(helperCommunication.isHelperRunning)")
+        logger.info("Helper registered: \(helperCommunication.isHelperRegistered)")
+        logger.info("Helper process running: \(helperCommunication.isHelperRunning)")
         logger.info("Helper path: \(helperCommunication.helperPath ?? "nil")")
         if #available(macOS 13.0, *) {
             let (status, _) = helperCommunication.getHelperDetailedStatus()
-            logger.info("Helper detailed status: \(status)")
+            logger.info("Helper SMAppService status: \(status)")
         }
         logger.info("==================================")
         #endif
@@ -78,11 +72,11 @@ class LoginItemManager {
     
     private func showManualEnableDialog() {
         let alert = NSAlert()
-        alert.messageText = "需要在系统设置中启用后台权限"
-        alert.informativeText = "CrossShare 的后台权限已被系统禁用，需要您手动在系统设置中重新启用：\n\n1. 打开「系统设置」→「通用」→「登录项与扩展」\n2. 找到「CrossShare Helper」\n3. 开启右侧的开关\n4. 返回应用重新启动\n\n您也可以选择退出应用。"
-        alert.addButton(withTitle: "打开系统设置")
-        alert.addButton(withTitle: "稍后设置")
-        alert.addButton(withTitle: "退出应用")
+        alert.messageText = "Enable Background Permission in System Settings"
+        alert.informativeText = "CrossShare's background permission has been disabled by the system. Please manually enable it in System Settings:\n\n1. Open System Settings → General → Login Items & Extensions\n2. Find \"CrossShare\"\n3. Toggle the switch on the right\n4. Return to the app and restart\n\nYou can also choose to quit the app."
+        alert.addButton(withTitle: "Open System Settings")
+        alert.addButton(withTitle: "Later")
+        alert.addButton(withTitle: "Quit App")
         alert.alertStyle = .informational
         
         if let appIcon = NSApp.applicationIconImage {
@@ -108,10 +102,10 @@ class LoginItemManager {
     
     private func showMandatoryPermissionDialog() {
         let alert = NSAlert()
-        alert.messageText = "CrossShare 需要后台运行权限"
-        alert.informativeText = "为了提供最佳的文件分享体验，CrossShare 需要在后台运行。这样可以确保您随时可以快速分享文件，即使主窗口关闭也能正常工作。\n\n请允许 CrossShare 在后台运行，或选择退出应用。"
-        alert.addButton(withTitle: "允许并运行")
-        alert.addButton(withTitle: "退出应用")
+        alert.messageText = "CrossShare Requires Background Running Permission"
+        alert.informativeText = "To provide the best file sharing experience, CrossShare needs to run in the background. This ensures you can quickly share files at any time, even when the main window is closed.\n\nPlease allow CrossShare to run in the background, or quit the app."
+        alert.addButton(withTitle: "Allow and Run")
+        alert.addButton(withTitle: "Quit App")
         alert.alertStyle = .critical
         
         if let appIcon = NSApp.applicationIconImage {
@@ -138,10 +132,10 @@ class LoginItemManager {
     
     private func showPermissionFailedDialog() {
         let alert = NSAlert()
-        alert.messageText = "后台权限设置失败"
-        alert.informativeText = "无法设置 CrossShare 的后台运行权限。请检查系统设置或重新尝试。\n\n您可以重新尝试或退出应用。"
-        alert.addButton(withTitle: "重新尝试")
-        alert.addButton(withTitle: "退出应用")
+        alert.messageText = "Background Permission Setup Failed"
+        alert.informativeText = "Failed to set CrossShare's background running permission. Please check System Settings or try again.\n\nYou can retry or quit the app."
+        alert.addButton(withTitle: "Retry")
+        alert.addButton(withTitle: "Quit App")
         alert.alertStyle = .warning
         
         if let appIcon = NSApp.applicationIconImage {
@@ -172,14 +166,44 @@ class LoginItemManager {
         }
     }
     
-    /// launched successfully dialog
+    /// Show notification for successfully enabling background running
     private func showSuccessNotification() {
-        let notification = NSUserNotification()
-        notification.title = "CrossShare service has been launched"
-        notification.informativeText = "To use CrossShare service,\nconnect an CrossShare-compatible display."
-        notification.soundName = NSUserNotificationDefaultSoundName
-        NSUserNotificationCenter.default.deliver(notification)
-        logger.info("CrossShare service has been launched")
+        let center = UNUserNotificationCenter.current()
+        
+        // Request notification permission
+        center.requestAuthorization(options: [.alert, .sound]) { granted, error in
+            if let error = error {
+                logger.error("Notification permission request failed: \(error.localizedDescription)")
+                return
+            }
+            
+            guard granted else {
+                logger.info("User did not grant notification permission")
+                return
+            }
+            
+            // Create notification content
+            let content = UNMutableNotificationContent()
+            content.title = "CrossShare Background Running Enabled"
+            content.body = "The app can now run continuously in the background, allowing quick file sharing even when the main window is closed."
+            content.sound = .default
+            
+            // Create immediate notification request
+            let request = UNNotificationRequest(
+                identifier: UUID().uuidString,
+                content: content,
+                trigger: nil // nil means trigger immediately
+            )
+            
+            // Send notification
+            center.add(request) { error in
+                if let error = error {
+                    logger.error("Notification delivery failed: \(error.localizedDescription)")
+                } else {
+                    logger.info("Background running permission successfully enabled")
+                }
+            }
+        }
     }
     
     /// manual action dialog
@@ -204,10 +228,11 @@ class LoginItemManager {
         }
     }
     
-    /// Check if login item is currently enabled
+    /// SMAppService 登录项是否已注册（macOS 13+ 含 `.enabled` 与 `.requiresApproval`）。
+    /// 与 Helper 进程是否在跑不同；进程状态用 `HelperCommunication.isHelperRunning` / `isHelperProcessRunning`。
     var isLoginItemEnabled: Bool {
         get {
-            return helperCommunication.isHelperRunning
+            return helperCommunication.isHelperRegistered
         }
         set {
             if newValue {
@@ -230,10 +255,10 @@ class LoginItemManager {
     
     private func showLoginItemPermissionDialog(completion: @escaping (Bool) -> Void) {
         let alert = NSAlert()
-        alert.messageText = "允许 CrossShare 在后台运行"
-        alert.informativeText = "为了提供最佳的文件分享体验，CrossShare 需要在系统启动时自动运行，并在后台保持活跃状态。这样可以确保您随时可以快速分享文件。\n\n系统将安装一个后台帮助程序，您可以随时在系统设置中更改此选项。"
-        alert.addButton(withTitle: "允许")
-        alert.addButton(withTitle: "暂不")
+        alert.messageText = "Allow CrossShare to Run in the Background"
+        alert.informativeText = "To provide the best file sharing experience, CrossShare needs to launch automatically at system startup and remain active in the background. This ensures you can quickly share files at any time.\n\nThe system will install a background helper program. You can change this option in System Settings at any time."
+        alert.addButton(withTitle: "Allow")
+        alert.addButton(withTitle: "Not Now")
         alert.alertStyle = .informational
         
         // Set app icon if available
@@ -246,15 +271,24 @@ class LoginItemManager {
     }
     
     private func enableLoginItem(completion: @escaping (Bool) -> Void = { _ in }) {
-        helperCommunication.installHelper { [weak self] success in
+        helperCommunication.installHelper { [weak self] outcome in
             DispatchQueue.main.async {
-                if success {
-                    self?.userDefaults.set(true, forKey: self?.isLoginItemEnabledKey ?? "")
-                    logger.info("Helper installed and login item enabled successfully")
-                    
-                    self?.helperCommunication.notifyHelperAppStatus(isActive: true)
+                guard let self = self else { return }
+                switch outcome {
+                case .readyForXPC:
+                    self.userDefaults.set(true, forKey: self.isLoginItemEnabledKey)
+                    logger.info("Helper installed and process ready for XPC")
+                    self.helperCommunication.notifyHelperAppStatus(isActive: true)
                     completion(true)
-                } else {
+                case .needsUserApproval:
+                    self.userDefaults.set(true, forKey: self.isLoginItemEnabledKey)
+                    logger.info("Helper registered; user approval required in System Settings")
+                    completion(true)
+                case .registrationEnabledButProcessMissing:
+                    self.userDefaults.set(true, forKey: self.isLoginItemEnabledKey)
+                    logger.warn("Helper registered but process did not start in time")
+                    completion(true)
+                case .failed:
                     logger.info("Failed to install helper and enable login item")
                     completion(false)
                 }
@@ -281,25 +315,25 @@ extension LoginItemManager {
     func resetRequestedFlag() {
         userDefaults.removeObject(forKey: hasRequestedLoginItemKey)
         userDefaults.removeObject(forKey: isLoginItemEnabledKey)
-        logger.info("已重置权限请求状态，下次启动将重新请求")
+        logger.info("Permission request status has been reset, will request again on next launch")
     }
     
 
     func forceRequestPermission() {
-        logger.info("强制显示权限请求对话框")
+        logger.info("Forcing permission request dialog to show")
         requestLoginItemPermission()
     }
     
     /// Get a user-friendly status description
     var statusDescription: String {
         if isLoginItemEnabled {
-            return "CrossShare 后台助手已启用"
+            return "CrossShare background helper is enabled"
         } else {
-            return "CrossShare 后台助手未启用"
+            return "CrossShare background helper is disabled"
         }
     }
     
-    /// 打开系统设置的登录项页面
+    /// Open the Login Items page in System Settings
     private func openLoginItemsSettings() {
         if #available(macOS 13.0, *) {
             let url = URL(string: "x-apple.systempreferences:com.apple.LoginItems-Settings.extension")!
@@ -315,13 +349,6 @@ extension LoginItemManager {
             showSuccessNotification()
         } else {
             showManualEnableDialog()
-        }
-    }
-    
-    func checkHelperStatus() {
-        if !helperCommunication.isHelperInstalled && userDefaults.bool(forKey: isLoginItemEnabledKey) {
-            logger.info("Helper was enabled but not found, reinstalling...")
-            enableLoginItem()
         }
     }
 }

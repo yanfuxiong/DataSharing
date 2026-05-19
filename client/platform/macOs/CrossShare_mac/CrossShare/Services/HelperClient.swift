@@ -56,11 +56,11 @@ class HelperClient: NSObject {
         logger.info("Helper Service Name: \(helperServiceName)")
         logger.info("Checking if Helper is running...")
         
-        let helperRunning = HelperCommunication.shared.isHelperRunning
-        logger.info("Helper running status: \(helperRunning)")
+        let helperRunning = HelperCommunication.shared.isHelperProcessRunning
+        logger.info("Helper process running: \(helperRunning)")
         
         if !helperRunning {
-            logger.info("Helper is not running, attempting to start it...")
+            logger.info("Helper process is not running, attempting to start it...")
             #if DEBUG
             HelperCommunication.shared.launchHelper { success in
                 if success {
@@ -237,6 +237,16 @@ class HelperClient: NSObject {
                         self?.setupCallbacks()
                         logger.info("Helper client connected successfully")
 
+                        // Get DIAS status after connection established
+                        self?.updateDiasStatus { status in
+                            logger.info("Initial DIAS status retrieved: \(status)")
+                        }
+                        
+                        // Check notification status after connection established
+                        self?.askHelperCheckNotiStatus { isAuthorized in
+                            logger.info("Initial notification status check: \(isAuthorized ? "authorized" : "not authorized")")
+                        }
+
                         self?.processPendingRequests()
 
                         completion(true, nil)
@@ -266,6 +276,17 @@ class HelperClient: NSObject {
             self?.reconnectTimer?.invalidate()
             self?.reconnectTimer = nil
         }
+    }
+    
+    
+    var connectionStatus: Bool {
+        return isConnected
+    }
+    
+    /// 当前是否处于“已连接或连接中”的忙碌状态。
+    /// 用于上层去重触发 connect，避免出现 "Already connecting" 的无效报错。
+    var isConnectionBusy: Bool {
+        return isConnected || isConnecting
     }
     
     private func handleConnectionLost() {
@@ -329,6 +350,13 @@ class HelperClient: NSObject {
         executeWhenConnected("Update Count") { [weak self] in
             guard let proxy = self?.getRemoteProxy(completion: { completion(0) }) else { return }
             proxy.updateCount(count, completion: completion)
+        }
+    }
+    
+    func updateDiasStatus(completion: @escaping (Int) -> Void) {
+        executeWhenConnected("Update DIAS Status") { [weak self] in
+            guard let proxy = self?.getRemoteProxy(completion: { completion(0) }) else { return }
+            proxy.updateDiasStatus(completion: completion)
         }
     }
 
@@ -397,6 +425,13 @@ class HelperClient: NSObject {
             proxy.setDragFileListRequest(multiFilesData: multiFilesData, timestamp: timestamp, width: width, height: height, posX: posX, posY: posY, completion: completion)
         }
     }
+    
+    func getIsSupportFileDrag(completion: @escaping (Bool) -> Void) {
+        executeWhenConnected("Get IsSupportFileDrag") { [weak self] in
+            guard let proxy = self?.getRemoteProxy(completion: { completion(false) }) else { return }
+            proxy.getIsSupportFileDrag(completion: completion)
+        }
+    }
 
     func sendTextToRemote(_ text: String, completion: @escaping (Bool, String?) -> Void) {
         executeWhenConnected("Send Text to Remote") { [weak self] in
@@ -423,6 +458,13 @@ class HelperClient: NSObject {
         executeWhenConnected("Stop Clipboard Monitoring") { [weak self] in
             guard let proxy = self?.getRemoteProxy(completion: { completion(false) }) else { return }
             proxy.stopClipboardMonitoring(completion: completion)
+        }
+    }
+    
+    func askHelperCheckNotiStatus(completion: @escaping (Bool) -> Void) {
+        executeWhenConnected("Check Notification Status") { [weak self] in
+            guard let proxy = self?.getRemoteProxy(completion: { completion(false) }) else { return }
+            proxy.askHelperCheckNotiStatus(completion: completion)
         }
     }
 
@@ -571,6 +613,19 @@ extension HelperClient: CrossShareHelperXPCDelegate {
         }
     }
     
+    func didUpdateDiasStatus(_ status: Int) {
+        DispatchQueue.main.async {
+            logger.info("Helper: DIAS status updated - \(status)")
+            NotificationCenter.default.post(
+                name: .deviceDiasStatusNotification,
+                object: nil,
+                userInfo: [
+                    "diasStatus": status,
+                ]
+            )
+        }
+    }
+    
     func didReceiveAuthRequest(index: UInt32) {
         DispatchQueue.main.async {
             logger.info("Helper: Received auth request for index \(index)")
@@ -663,6 +718,13 @@ extension HelperClient: CrossShareHelperXPCDelegate {
     
     func didReceiveThemeInfoUpdate(_ themeInfo: [String: Any]) {
         logger.info("GUI HelperClient received theme info update: \(themeInfo)")
+    }
+    
+    func didReceiveOpenNotiAlert() {
+        DispatchQueue.main.async {
+            logger.info("Helper: Received notification alert request")
+            NotificationPermissionManager.shared.showNotificationPermissionAlert()
+        }
     }
 
     func didDetectScreenCountChange(change: String, currentCount: Int, previousCount: Int) {

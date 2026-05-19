@@ -7,6 +7,7 @@
 
 import Cocoa
 import UniformTypeIdentifiers
+import Darwin
 
 
 extension UserDefaults {
@@ -90,13 +91,80 @@ func getRootPath() -> String {
     let rootDir = appSupport.appendingPathComponent("CrossShare")
     if !fileManager.fileExists(atPath: rootDir.path) {
         do {
-            try fileManager.createDirectory(at: rootDir, withIntermediateDirectories: true)
+            // Set permissions to 777 (rwxrwxrwx) when creating directory to allow all users to read, write, and delete
+            let attributes: [FileAttributeKey: Any] = [
+                .posixPermissions: 0o777  // rwxrwxrwx
+            ]
+            try fileManager.createDirectory(at: rootDir, withIntermediateDirectories: true, attributes: attributes)
+            // Ensure directory owner is current user and fix permissions
+            fixDirectoryOwnership(at: rootDir)
         } catch {
             print("Create Application Support/CrossShare failed")
             return defRootPath
         }
+    } else {
+        // If directory already exists, also check and fix permissions
+        fixDirectoryOwnership(at: rootDir)
     }
     return rootDir.path
+}
+
+/// Fix directory and file ownership and permissions to ensure all users can read, write, and delete
+/// Set directory permissions to 777 (rwxrwxrwx), file permissions to 666 (rw-rw-rw-)
+func fixDirectoryOwnership(at url: URL) {
+    let fileManager = FileManager.default
+    
+    // Get current user's UID and GID
+    let currentUID = getuid()
+    let currentGID = getgid()
+    
+    // Check directory attributes
+    guard let attributes = try? fileManager.attributesOfItem(atPath: url.path),
+          let ownerUID = attributes[.ownerAccountID] as? UInt32 else {
+        return
+    }
+    
+    // If owner is not current user, try to fix
+    if ownerUID != currentUID {
+        // Use chown command to fix ownership (requires admin privileges, but only executed when necessary)
+        let chownTask = Process()
+        chownTask.launchPath = "/usr/sbin/chown"
+        chownTask.arguments = ["-R", "\(currentUID):\(currentGID)", url.path]
+        
+        let pipe = Pipe()
+        chownTask.standardOutput = pipe
+        chownTask.standardError = pipe
+        
+        do {
+            try chownTask.run()
+            chownTask.waitUntilExit()
+            if chownTask.terminationStatus == 0 {
+                print("Fixed ownership for directory: \(url.path)")
+            }
+        } catch {
+            // chown requires admin privileges, ignore if failed (may be normal)
+            print("Could not fix ownership (may require admin): \(error.localizedDescription)")
+        }
+    }
+    
+    // Set directory permissions to 777 to allow all users to read, write, and delete
+    let chmodTask = Process()
+    chmodTask.launchPath = "/bin/chmod"
+    chmodTask.arguments = ["-R", "777", url.path]
+    
+    let chmodPipe = Pipe()
+    chmodTask.standardOutput = chmodPipe
+    chmodTask.standardError = chmodPipe
+    
+    do {
+        try chmodTask.run()
+        chmodTask.waitUntilExit()
+        if chmodTask.terminationStatus == 0 {
+            print("Set permissions to 777 for directory: \(url.path)")
+        }
+    } catch {
+        print("Could not set permissions (may require admin): \(error.localizedDescription)")
+    }
 }
 
 func getLogPath() -> URL {

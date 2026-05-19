@@ -14,5 +14,6 @@ extension NSNotification.Name {
     //
     static let deviceDiasStatusNotification = Notification.Name("deviceDiasStatusNotification")
     static let didReceiveErrorEventNotification = Notification.Name("didReceiveErrorEventNotification")
+    static let themeInfoUpdateReceived = Notification.Name("CrossShareThemeInfoUpdateReceived")
 
 }

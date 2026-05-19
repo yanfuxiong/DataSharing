@@ -9,19 +9,28 @@ import Cocoa
 import SnapKit
 
 class CustomMenuItem:NSObject{
-    // 创建"No online devices"自定义菜单项
+    // Create custom "No online devices" menu item
     static func createNoDeviceMenuItem(_ status: Int) -> NSMenuItem {
-        // 创建菜单项
+        // Create menu item
         let menuItem = NSMenuItem()
         menuItem.isEnabled = false
         
-        // 创建菜单项视图
-        let menuItemView = NSView(frame: NSRect(x: 0, y: 0, width: 220, height: 36))
+        // Create menu item view (width adapts to status text)
+        let statusText = gainStatusTextDescribe(status)
+        let textAttributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 13, weight: .medium)
+        ]
+        let textWidth = ceil((statusText as NSString).size(withAttributes: textAttributes).width)
+        let contentWidth = 8 + 20 + 8 + textWidth + 8 + 10
+
+        let menuItemView = NSView(frame: NSRect(x: 0, y: 0, width: contentWidth, height: 27))
+        menuItemView.wantsLayer = true
+        menuItemView.layer?.backgroundColor = NSColor.white.cgColor
         
-        // 添加占位图标
+        // Add placeholder icon
         let placeholderIcon = NSImageView()
         if let deviceIcon = NSImage(named: gainStatusImageName(status)) {
-            deviceIcon.size = NSSize(width: 20, height: 20) // 设置图标大小
+            deviceIcon.size = NSSize(width: 20, height: 20) // Set icon size
             placeholderIcon.image = deviceIcon
         }
         menuItemView.addSubview(placeholderIcon)
@@ -34,11 +43,11 @@ class CustomMenuItem:NSObject{
             make.height.equalTo(20)
         }
         
-        // 添加"No online devices"文本
+        // Add "No online devices" text
         let noDeviceLabel = NSTextField()
-        noDeviceLabel.stringValue = gainStatusTextDescribe(status)
+        noDeviceLabel.stringValue = statusText
         noDeviceLabel.font = NSFont.systemFont(ofSize: 13, weight: .medium)
-        noDeviceLabel.textColor = NSColor.black
+        noDeviceLabel.textColor = NSColor.hex("666666")
         noDeviceLabel.isEditable = false
         noDeviceLabel.isSelectable = false
         noDeviceLabel.isBordered = false
@@ -51,7 +60,7 @@ class CustomMenuItem:NSObject{
             $0.height.equalTo(20)
         }
         
-        // 设置菜单项的视图
+        // Set menu item view
         menuItem.view = menuItemView
         
         return menuItem
@@ -69,6 +78,8 @@ class CustomMenuItem:NSObject{
             return "Authorization failed!"
         case 6,7:
             return "Connected"
+        case 8:
+            return "The connection is interrupted"
         default:
             return "Detecting monitor..."
         }
@@ -85,20 +96,20 @@ class CustomMenuItem:NSObject{
         }
     }
     
-    // 创建设备菜单项（左边图标，右边文字和IP地址）
+    // Create device menu item (icon on left, text and IP address on right)
     static func createDeviceMenuItem(title: String, imageName: String, target: AnyObject?, tag: Int, ipAddr: String) -> NSMenuItem {
-        // 创建菜单项
+        // Create menu item
         let menuItem = NSMenuItem()
         menuItem.target = target
         menuItem.tag = tag
         
-        // 创建菜单项视图
-        let menuItemView = NSView(frame: NSRect(x: 0, y: 0, width: 220, height: 50))
+        // Create menu item view
+        let menuItemView = NSView(frame: NSRect(x: 0, y: 0, width: 250, height: 50))
         
-        // 添加设备图标
+        // Add device icon
         let imageView = NSImageView()
         if let deviceIcon = NSImage(named: imageName) {
-            deviceIcon.size = NSSize(width: 35, height: 35) // 设置图标大小
+            deviceIcon.size = NSSize(width: 35, height: 35) // Set icon size
             imageView.image = deviceIcon
         }
         menuItemView.addSubview(imageView)
@@ -109,7 +120,7 @@ class CustomMenuItem:NSObject{
             make.height.equalTo(35)
         }
         
-        // 创建文本容器视图，用于放置titleLabel和ipAddrLabel
+        // Create text container view for titleLabel and ipAddrLabel
         let textContainerView = NSView()
         menuItemView.addSubview(textContainerView)
         textContainerView.snp.makeConstraints { make in
@@ -118,11 +129,11 @@ class CustomMenuItem:NSObject{
             make.right.equalToSuperview().offset(-8)
         }
         
-        // 添加设备名称文本
+        // Add device name text
         let titleLabel = NSTextField()
         titleLabel.stringValue = title
         titleLabel.font = NSFont.systemFont(ofSize: 13, weight: .medium)
-        titleLabel.textColor = NSColor.black
+        titleLabel.textColor =  NSColor.hex("666666")
         titleLabel.lineBreakMode = .byTruncatingTail
         titleLabel.isEditable = false
         titleLabel.isSelectable = false
@@ -135,24 +146,25 @@ class CustomMenuItem:NSObject{
             // make.height.equalTo(16)
         }
         
-        // 添加IP地址文本（12号字体，浅灰色）
+        // Add IP address text (12pt font, light gray)
         let ipAddrLabel = NSTextField()
         ipAddrLabel.stringValue = ipAddr
         ipAddrLabel.font = NSFont.systemFont(ofSize: 12)
         ipAddrLabel.textColor = NSColor.secondaryLabelColor
+        ipAddrLabel.textColor =  NSColor.hex("bababa")
         ipAddrLabel.isEditable = false
         ipAddrLabel.isSelectable = false
         ipAddrLabel.isBordered = false
         ipAddrLabel.backgroundColor = .clear
         textContainerView.addSubview(ipAddrLabel)
         ipAddrLabel.snp.makeConstraints { make in
-            make.top.equalTo(titleLabel.snp.bottom) // 间距为8
+            make.top.equalTo(titleLabel.snp.bottom) // Spacing is 8
             make.left.right.equalToSuperview()
             // make.height.equalTo(12)
             make.bottom.equalTo(imageView.snp.bottom)
         }
         
-        // 设置菜单项的视图
+        // Set menu item view
         menuItem.view = menuItemView
         return menuItem
     }

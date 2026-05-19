@@ -12,30 +12,34 @@
 	<string>6.0</string>
 	<key>CFBundleName</key>
 	<string>CrossShare Helper</string>
+	<key>CFBundleDisplayName</key>
+	<string>CrossShareHelper</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
-	<key>LSBackgroundOnly</key>
-	<true/>
+	<key>CFBundleIconName</key>
+	<string>HelperAppIcon</string>
+    <key>LSBackgroundOnly</key>
+    <true/>
 	<key>LSMinimumSystemVersion</key>
-	<string>12.4</string>
+	<string>14.6</string>
 	<key>LSUIElement</key>
 	<true/>
+	<key>MachServices</key>
+	<dict>
+		<key>com.realtek.crossshare.macos.helper</key>
+		<true/>
+	</dict>
 	<key>NSSupportsAutomaticTermination</key>
 	<false/>
 	<key>NSSupportsSuddenTermination</key>
 	<false/>
 	<key>SMAuthorizedClients</key>
 	<array>
-		<string>identifier &quot;com.realtek.crossshare.macos&quot; and anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.1] /* exists */ and certificate leaf[field.1.2.840.113635.100.6.1.9] /* exists */ and certificate leaf[subject.OU] = JZKQ3RMSQL</string>
+		<string>identifier "com.realtek.crossshare.macos" and anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.1] /* exists */ and certificate leaf[field.1.2.840.113635.100.6.1.9] /* exists */ and certificate leaf[subject.OU] = JZKQ3RMSQL</string>
 	</array>
-	<key>MachServices</key>
-	<dict>
-		<key>com.realtek.crossshare.macos.helper</key>
-		<true/>
-	</dict>
 </dict>
 </plist>

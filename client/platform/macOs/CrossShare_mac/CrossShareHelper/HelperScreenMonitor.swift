@@ -29,7 +29,7 @@ class HelperScreenMonitor {
     private func startMonitoring() {
         let queue = DispatchQueue(label: "com.crossShare.screen.queue", qos: .background)
         gcdTimer = DispatchSource.makeTimerSource(queue: queue)
-        gcdTimer?.schedule(deadline: .now(), repeating: 5.0)
+        gcdTimer?.schedule(deadline: .now(), repeating: 1.0)
         gcdTimer?.setEventHandler { [weak self] in
             self?.checkScreenChanges()
         }
@@ -39,7 +39,7 @@ class HelperScreenMonitor {
     
     private func checkScreenChanges() {
         let currentScreenCount =  HelperDisplayManager.shared.updateScreenCount()
-        logger.log("currentScreenCount:\(currentScreenCount) lastScreenCount:\(lastScreenCount)", level: .info)
+//        logger.log("currentScreenCount:\(currentScreenCount) lastScreenCount:\(lastScreenCount)", level: .info)
         if currentScreenCount != lastScreenCount {
             if currentScreenCount > lastScreenCount {
                 screenCountChangeStatus = .increased
@@ -92,14 +92,24 @@ class HelperScreenMonitor {
     }
     
     private func handleScreenDecrease() {
-        xpcService?.setExtractDIAS { [weak self] success, error in
-            if success {
-                self?.logger.log("SetExtractDIAS succeeded after screen decrease", level: .info)
-                // Clear the stored DIAS display ID after successful execution
-                HelperDisplayManager.shared.clearCurrentDIASDisplayID()
-            } else {
-                self?.logger.log("SetExtractDIAS failed after screen decrease: \(error ?? "Unknown error")", level: .error)
+        // Check if there are still any DIAS displays remaining
+        let remainingDIASCount = HelperDisplayManager.shared.getAllDIASDisplayIDs().count
+        logger.log("DIAS display removed. Remaining DIAS displays: \(remainingDIASCount)", level: .info)
+        
+        if remainingDIASCount == 0 {
+            CSWifiRemoteControlServer.shared.stopAllDisplayServers()
+            logger.log("All DIAS displays removed - WiFi remote control stopped", level: .info)
+            
+            xpcService?.setExtractDIAS { [weak self] success, error in
+                if success {
+                    self?.logger.log("SetExtractDIAS succeeded after all DIAS removed", level: .info)
+                    HelperDisplayManager.shared.clearCurrentDIASDisplayID()
+                } else {
+                    self?.logger.log("SetExtractDIAS failed after screen decrease: \(error ?? "Unknown error")", level: .error)
+                }
             }
+        } else {
+            logger.log("Some DIAS displays still connected (\(remainingDIASCount)), per-display servers for removed displays already stopped", level: .info)
         }
     }
 

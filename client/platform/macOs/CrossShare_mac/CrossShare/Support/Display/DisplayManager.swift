@@ -13,6 +13,7 @@ class DisplayManager {
     private var _gammaActivityEnforcer: NSWindow?
     var gammaInterferenceCounter = 0
     var gammaInterferenceWarningShown = false
+    private let logger = CSLogger.shared
     
     // Display monitoring
     private var displayReconfigurationCallback: CGDisplayReconfigurationCallBack?
@@ -526,18 +527,19 @@ class DisplayManager {
         } else if flags.contains(.unMirrorFlag) {
             os_log("Display unmirrored: %{public}@", type: .info, String(display))
         }
+        logger.info("Display changed event from system")
         
         // Cancel existing timer
         displayChangeTimer?.invalidate()
         
         // Set a short timer to batch multiple changes
-        displayChangeTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { _ in
+        displayChangeTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: false) { _ in
             self.refreshDisplayConfiguration()
         }
     }
     
     private func refreshDisplayConfiguration() {
-        os_log("Refreshing display configuration...", type: .info)
+        logger.info("Refreshing display configuration...")
         
         // Store previous display IDs for comparison
         let previousDisplayIDs = Set(displays.map { $0.identifier })
@@ -586,7 +588,7 @@ class DisplayManager {
             ]
         )
         
-        os_log("Display configuration refresh complete. Displays: %d", type: .info, displays.count)
+        logger.info("Display configuration refresh complete. Displays: \(displays.count)")
     }
     
     // Public method to manually trigger refresh

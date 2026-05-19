@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		5156D2F12E65C0140019CF0A /* DdcciHelper.app in Copy Files */ = {isa = PBXBuildFile; fileRef = 5156D2E22E65BF980019CF0A /* DdcciHelper.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		5177EBDA2E8A62AE009115F7 /* CSFileInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5177EBD82E8A62AE009115F7 /* CSFileInfo.swift */; };
 		5177EDBC2E8A6E80009115F7 /* RealmModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5177EDBB2E8A6E80009115F7 /* RealmModels.swift */; };
 		5187C1132E6679C000F9A557 /* OSD.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5187C10F2E6679C000F9A557 /* OSD.framework */; };
@@ -42,15 +41,6 @@
 			name = "Embed XPC Services";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		5156D2F62E65C2CC0019CF0A /* CopyFiles */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 8;
-			dstPath = /usr/share/man/man1;
-			dstSubfolderSpec = 0;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 1;
-		};
 		51BF19832E4F143B00941BA1 /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -66,7 +56,6 @@
 			dstPath = Contents/Library/LoginItems;
 			dstSubfolderSpec = 1;
 			files = (
-				5156D2F12E65C0140019CF0A /* DdcciHelper.app in Copy Files */,
 				51BF198F2E4F177E00941BA1 /* CrossShareHelper.app in Copy Files */,
 			);
 			name = "Copy Files";
@@ -88,7 +77,6 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		5156D2E22E65BF980019CF0A /* DdcciHelper.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DdcciHelper.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5177EBD82E8A62AE009115F7 /* CSFileInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSFileInfo.swift; sourceTree = "<group>"; };
 		5177EDBB2E8A6E80009115F7 /* RealmModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealmModels.swift; sourceTree = "<group>"; };
 		5187C10F2E6679C000F9A557 /* OSD.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = OSD.framework; path = /System/Library/PrivateFrameworks/OSD.framework; sourceTree = "<absolute>"; };
@@ -108,6 +96,13 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		06D5C2022EE2F3660014FDF9 /* Exceptions for "CrossShareHelper" folder in "CrossShareHelper" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 51BF19842E4F143B00941BA1 /* CrossShareHelper */;
+		};
 		5150DCE92E6EC317007A52DB /* Exceptions for "CrossShare" folder in "CrossShareHelper" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -127,16 +122,11 @@
 				Support/Display/OtherDisplay.swift,
 				Utilities/BundleIdentifiers.swift,
 				Utilities/CSUserPreferences.swift,
+				Utilities/GlobalLogger.swift,
+				Utilities/SharedDataManager.swift,
 				Utilities/Utils.swift,
 			);
 			target = 51BF19842E4F143B00941BA1 /* CrossShareHelper */;
-		};
-		5150DCEA2E6EC317007A52DB /* Exceptions for "CrossShare" folder in "DdcciHelper" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Utilities/BundleIdentifiers.swift,
-			);
-			target = 5156D2E12E65BF980019CF0A /* DdcciHelper */;
 		};
 		51846BDC2EAA1D7A00040781 /* Exceptions for "CrossShareHelper" folder in "CrossShare" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
@@ -177,6 +167,7 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				51846BDC2EAA1D7A00040781 /* Exceptions for "CrossShareHelper" folder in "CrossShare" target */,
+				06D5C2022EE2F3660014FDF9 /* Exceptions for "CrossShareHelper" folder in "CrossShareHelper" target */,
 			);
 			path = CrossShareHelper;
 			sourceTree = "<group>";
@@ -186,7 +177,6 @@
 			exceptions = (
 				51D407CB2E7A65C40087C6C3 /* Exceptions for "CrossShare" folder in "CrossShare" target */,
 				5150DCE92E6EC317007A52DB /* Exceptions for "CrossShare" folder in "CrossShareHelper" target */,
-				5150DCEA2E6EC317007A52DB /* Exceptions for "CrossShare" folder in "DdcciHelper" target */,
 			);
 			path = CrossShare;
 			sourceTree = "<group>";
@@ -194,13 +184,6 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		5156D2DF2E65BF980019CF0A /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		51BF19822E4F143B00941BA1 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -279,7 +262,6 @@
 			children = (
 				5B74C3342D78207300A623E0 /* CrossShare.app */,
 				51BF19852E4F143B00941BA1 /* CrossShareHelper.app */,
-				5156D2E22E65BF980019CF0A /* DdcciHelper.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -296,27 +278,6 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		5156D2E12E65BF980019CF0A /* DdcciHelper */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 5156D2F02E65BF990019CF0A /* Build configuration list for PBXNativeTarget "DdcciHelper" */;
-			buildPhases = (
-				5156D2DE2E65BF980019CF0A /* Sources */,
-				5156D2DF2E65BF980019CF0A /* Frameworks */,
-				5156D2E02E65BF980019CF0A /* Resources */,
-				5156D2F62E65C2CC0019CF0A /* CopyFiles */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				5156D2E32E65BF980019CF0A /* DdcciHelper */,
-			);
-			name = DdcciHelper;
-			productName = DdcciHelper;
-			productReference = 5156D2E22E65BF980019CF0A /* DdcciHelper.app */;
-			productType = "com.apple.product-type.application";
-		};
 		51BF19842E4F143B00941BA1 /* CrossShareHelper */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 51BF19892E4F143B00941BA1 /* Build configuration list for PBXNativeTarget "CrossShareHelper" */;
@@ -325,6 +286,7 @@
 				51BF19822E4F143B00941BA1 /* Frameworks */,
 				51BF19832E4F143B00941BA1 /* CopyFiles */,
 				51D407BC2E7A62520087C6C3 /* Embed Frameworks */,
+				06D5C2012EE2F3660014FDF9 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -358,8 +320,6 @@
 				5B74C3362D78207300A623E0 /* CrossShare */,
 			);
 			name = CrossShare;
-			packageProductDependencies = (
-			);
 			productName = CrossShare;
 			productReference = 5B74C3342D78207300A623E0 /* CrossShare.app */;
 			productType = "com.apple.product-type.application";
@@ -374,9 +334,6 @@
 				LastSwiftUpdateCheck = 1620;
 				LastUpgradeCheck = 1620;
 				TargetAttributes = {
-					5156D2E12E65BF980019CF0A = {
-						CreatedOnToolsVersion = 16.2;
-					};
 					51BF19842E4F143B00941BA1 = {
 						CreatedOnToolsVersion = 16.2;
 					};
@@ -395,8 +352,6 @@
 			);
 			mainGroup = 5B74C32B2D78207300A623E0;
 			minimizedProjectReferenceProxies = 1;
-			packageReferences = (
-			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 5B74C3352D78207300A623E0 /* Products */;
 			projectDirPath = "";
@@ -404,13 +359,12 @@
 			targets = (
 				5B74C3332D78207300A623E0 /* CrossShare */,
 				51BF19842E4F143B00941BA1 /* CrossShareHelper */,
-				5156D2E12E65BF980019CF0A /* DdcciHelper */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		5156D2E02E65BF980019CF0A /* Resources */ = {
+		06D5C2012EE2F3660014FDF9 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -473,13 +427,6 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		5156D2DE2E65BF980019CF0A /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		51BF19812E4F143B00941BA1 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -505,72 +452,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
-		5156D2EE2E65BF990019CF0A /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = DdcciHelper/DdcciHelper.entitlements;
-				CODE_SIGN_IDENTITY = "Mac Developer: Wei Cheng Lin (DBC29LJ7XP)";
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Mac Developer: Wei Cheng Lin (DBC29LJ7XP)";
-				CODE_SIGN_STYLE = Manual;
-				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = JZKQ3RMSQL;
-				"DEVELOPMENT_TEAM[sdk=macosx*]" = JZKQ3RMSQL;
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
-				MACOSX_DEPLOYMENT_TARGET = 12.4;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.realtek.crossshare.macos.ddcci;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				PROVISIONING_PROFILE_SPECIFIER = "";
-				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = "RTK ddcci App dev";
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
-			};
-			name = Debug;
-		};
-		5156D2EF2E65BF990019CF0A /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = DdcciHelper/DdcciHelper.entitlements;
-				CODE_SIGN_IDENTITY = "Developer ID Application: Wei Cheng Lin (JZKQ3RMSQL)";
-				CODE_SIGN_STYLE = Manual;
-				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = JZKQ3RMSQL;
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
-				MACOSX_DEPLOYMENT_TARGET = 12.4;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.realtek.crossshare.macos.ddcci;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				PROVISIONING_PROFILE_SPECIFIER = "";
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
-			};
-			name = Release;
-		};
 		51BF198A2E4F143B00941BA1 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = HelperAppIcon;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_IDENTITY = "Mac Developer: Wei Cheng Lin (DBC29LJ7XP)";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Mac Developer: Wei Cheng Lin (DBC29LJ7XP)";
 				CODE_SIGN_STYLE = Manual;
@@ -600,6 +486,8 @@
 		51BF198B2E4F143B00941BA1 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = HelperAppIcon;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_IDENTITY = "Developer ID Application: Wei Cheng Lin (JZKQ3RMSQL)";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Developer ID Application: Wei Cheng Lin (JZKQ3RMSQL)";
 				CODE_SIGN_STYLE = Manual;
@@ -758,7 +646,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Mac Developer: Wei Cheng Lin (DBC29LJ7XP)";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 17;
 				DEVELOPMENT_TEAM = JZKQ3RMSQL;
 				"DEVELOPMENT_TEAM[sdk=macosx*]" = JZKQ3RMSQL;
 				ENABLE_HARDENED_RUNTIME = NO;
@@ -782,7 +670,8 @@
 					"$(PROJECT_DIR)/CrossShare/Libraries",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 12.4;
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.0.17;
+				OTHER_CODE_SIGN_FLAGS = "--timestamp=none";
 				PRODUCT_BUNDLE_IDENTIFIER = com.realtek.crossshare.macos;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -810,7 +699,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Developer ID Application: Wei Cheng Lin (JZKQ3RMSQL)";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 17;
 				DEVELOPMENT_TEAM = JZKQ3RMSQL;
 				"DEVELOPMENT_TEAM[sdk=macosx*]" = JZKQ3RMSQL;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -833,7 +722,8 @@
 					"$(PROJECT_DIR)/CrossShare/Libraries",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 12.4;
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.0.17;
+				OTHER_CODE_SIGN_FLAGS = "--timestamp=none";
 				PRODUCT_BUNDLE_IDENTIFIER = com.realtek.crossshare.macos;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -851,15 +741,6 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		5156D2F02E65BF990019CF0A /* Build configuration list for PBXNativeTarget "DdcciHelper" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				5156D2EE2E65BF990019CF0A /* Debug */,
-				5156D2EF2E65BF990019CF0A /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 		51BF19892E4F143B00941BA1 /* Build configuration list for PBXNativeTarget "CrossShareHelper" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

@@ -84,6 +84,7 @@ const (
 	SendFilesRequestSizeOverRange
 	SendFilesRequestCacheOverRange
 	UnsupportMobileDragFile
+	MntUnsupportDragFile
 )
 
 type CancelBusinessSource int

@@ -20,11 +20,21 @@ class FileLogger {
     private let filePrefix: String // "app" or "helper"
     
     init(processName: String) {
-        // 根据进程名确定文件前缀
+        // Determine file prefix based on process name
         self.filePrefix = processName.lowercased()
         let logDir = getLogPath()
         
-        try? fileManager.createDirectory(at: logDir, withIntermediateDirectories: true)
+        // Create log directory with permissions 777 (rwxrwxrwx) to allow all users to read, write, and delete
+        do {
+            let attributes: [FileAttributeKey: Any] = [
+                .posixPermissions: 0o777  // rwxrwxrwx
+            ]
+            try fileManager.createDirectory(at: logDir, withIntermediateDirectories: true, attributes: attributes)
+            // Ensure directory owner is current user and fix permissions (using static method to avoid accessing self)
+            Self.fixLogDirectoryOwnership(at: logDir, filePrefix: filePrefix)
+        } catch {
+            print("[\(filePrefix.uppercased())] FileLogger: Failed to create log directory: \(error)")
+        }
         
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd"
@@ -38,13 +48,121 @@ class FileLogger {
         compressOldUncompressedLogs(currentDate: currentDate, logDir: logDir)
         
         if !fileManager.fileExists(atPath: logFileURL.path) {
-            fileManager.createFile(atPath: logFileURL.path, contents: nil, attributes: nil)
+            // Set permissions to 666 (rw-rw-rw-) when creating file to allow all users to read, write, and delete
+            let attributes: [FileAttributeKey: Any] = [
+                .posixPermissions: 0o666  // rw-rw-rw-
+            ]
+            fileManager.createFile(atPath: logFileURL.path, contents: nil, attributes: attributes)
+            // Ensure log file owner is current user (using static method to avoid accessing self)
+            Self.fixLogFileOwnership(at: logFileURL, filePrefix: filePrefix)
         }
         
         print("[\(filePrefix.uppercased())] FileLogger: Creating log file at \(logFileURL.path)")
         
         openLogFile()
         cleanupOldLogs()
+    }
+    
+    /// Fix log directory ownership and permissions to ensure all users can read, write, and delete
+    /// Set directory permissions to 777 (rwxrwxrwx)
+    /// - Parameters:
+    ///   - url: URL of the log directory
+    ///   - filePrefix: File prefix (for log output)
+    private static func fixLogDirectoryOwnership(at url: URL, filePrefix: String) {
+        let fileManager = FileManager.default
+        let currentUID = getuid()
+        let currentGID = getgid()
+        
+        guard let attributes = try? fileManager.attributesOfItem(atPath: url.path),
+              let ownerUID = attributes[.ownerAccountID] as? UInt32 else {
+            return
+        }
+        
+        // If owner is not current user, try to fix ownership
+        if ownerUID != currentUID {
+            let chownTask = Process()
+            chownTask.launchPath = "/usr/sbin/chown"
+            chownTask.arguments = ["-R", "\(currentUID):\(currentGID)", url.path]
+            
+            let pipe = Pipe()
+            chownTask.standardOutput = pipe
+            chownTask.standardError = pipe
+            
+            do {
+                try chownTask.run()
+                chownTask.waitUntilExit()
+                if chownTask.terminationStatus == 0 {
+                    print("[\(filePrefix.uppercased())] FileLogger: Fixed ownership for log directory")
+                }
+            } catch {
+                // chown requires admin privileges, ignore if failed
+                print("[\(filePrefix.uppercased())] FileLogger: Could not fix ownership: \(error.localizedDescription)")
+            }
+        }
+        
+        // Set directory permissions to 777 to allow all users to read, write, and delete
+        let chmodTask = Process()
+        chmodTask.launchPath = "/bin/chmod"
+        chmodTask.arguments = ["-R", "777", url.path]
+        
+        let chmodPipe = Pipe()
+        chmodTask.standardOutput = chmodPipe
+        chmodTask.standardError = chmodPipe
+        
+        do {
+            try chmodTask.run()
+            chmodTask.waitUntilExit()
+            if chmodTask.terminationStatus == 0 {
+                print("[\(filePrefix.uppercased())] FileLogger: Set log directory permissions to 777")
+            }
+        } catch {
+            print("[\(filePrefix.uppercased())] FileLogger: Could not set permissions: \(error.localizedDescription)")
+        }
+    }
+    
+    /// Fix log file ownership and permissions to ensure all users can read, write, and delete
+    /// Set file permissions to 666 (rw-rw-rw-)
+    /// - Parameters:
+    ///   - url: URL of the log file
+    ///   - filePrefix: File prefix (for log output)
+    private static func fixLogFileOwnership(at url: URL, filePrefix: String) {
+        let fileManager = FileManager.default
+        let currentUID = getuid()
+        let currentGID = getgid()
+        
+        guard let attributes = try? fileManager.attributesOfItem(atPath: url.path),
+              let ownerUID = attributes[.ownerAccountID] as? UInt32 else {
+            return
+        }
+        
+        // Fix ownership
+        if ownerUID != currentUID {
+            let chownTask = Process()
+            chownTask.launchPath = "/usr/sbin/chown"
+            chownTask.arguments = ["\(currentUID):\(currentGID)", url.path]
+            
+            do {
+                try chownTask.run()
+                chownTask.waitUntilExit()
+            } catch {
+                // Ignore error
+            }
+        }
+        
+        // Set file permissions to 666 to allow all users to read, write, and delete
+        let chmodTask = Process()
+        chmodTask.launchPath = "/bin/chmod"
+        chmodTask.arguments = ["666", url.path]
+        
+        do {
+            try chmodTask.run()
+            chmodTask.waitUntilExit()
+            if chmodTask.terminationStatus == 0 {
+                print("[\(filePrefix.uppercased())] FileLogger: Set log file permissions to 666")
+            }
+        } catch {
+            // Ignore error
+        }
     }
     
     deinit {
@@ -122,9 +240,14 @@ class FileLogger {
         let fileName = "\(filePrefix)-\(date).log"
         logFileURL = logFileURL.deletingLastPathComponent().appendingPathComponent(fileName)
         
-        // Create new log file
+        // Create new log file with permissions 666 (rw-rw-rw-)
         if !fileManager.fileExists(atPath: logFileURL.path) {
-            fileManager.createFile(atPath: logFileURL.path, contents: nil, attributes: nil)
+            let attributes: [FileAttributeKey: Any] = [
+                .posixPermissions: 0o666  // rw-rw-rw-
+            ]
+            fileManager.createFile(atPath: logFileURL.path, contents: nil, attributes: attributes)
+            // Ensure log file owner is current user (using static method)
+            Self.fixLogFileOwnership(at: logFileURL, filePrefix: filePrefix)
         }
         
         print("[\(filePrefix.uppercased())] FileLogger: Created new log file at \(logFileURL.path)")

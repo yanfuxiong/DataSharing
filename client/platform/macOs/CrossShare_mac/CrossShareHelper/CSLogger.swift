@@ -91,7 +91,11 @@ class CSLogger {
         guard level >= currentLogLevel else { return }
         
         let fileName = URL(fileURLWithPath: file).lastPathComponent
-        let timestamp = ISO8601DateFormatter().string(from: Date())
+        let isoFormatter = ISO8601DateFormatter()
+        isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        isoFormatter.timeZone = TimeZone.current
+
+        let timestamp = isoFormatter.string(from: Date())
         let logEntry = "\(timestamp) \(level.prefix) [\(processName)] [\(fileName):\(line)] \(function) - \(message)"
         
         // write to log files

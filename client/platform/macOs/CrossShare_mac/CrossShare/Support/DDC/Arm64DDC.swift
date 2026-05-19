@@ -14,7 +14,6 @@ class Arm64DDC: NSObject {
 #endif
     static let MAX_MATCH_SCORE: Int = 20
     private static let communicationQueue = DispatchQueue(label: "com.arm64ddc.DDCCommunicationQueue")
-
     
     struct IOregService {
         var edidUUID: String = ""
@@ -111,12 +110,12 @@ class Arm64DDC: NSObject {
         packet[packet.count - 1] = self.checksum(chk: send.count == 1 ? ARM64_DDC_7BIT_ADDRESS << 1 : ARM64_DDC_7BIT_ADDRESS << 1 ^ dataAddress, data: &packet, start: 0, end: packet.count - 2)
         for _ in 1 ... (numOfRetryAttemps ?? 4) + 1 {
             for _ in 1 ... max((numOfWriteCycles ?? 2) + 0, 1) {
-                usleep(writeSleepTime ?? 10000)
+                usleep(writeSleepTime ?? 50000)
                 success = IOAVServiceWriteI2C(service, UInt32(ARM64_DDC_7BIT_ADDRESS), UInt32(dataAddress), &packet, UInt32(packet.count)) == 0
             }
             if !reply.isEmpty {
                 usleep(readSleepTime ?? 50000)
-                if IOAVServiceReadI2C(service, UInt32(ARM64_DDC_7BIT_ADDRESS), 0, &reply, UInt32(reply.count)) == 0 {
+                if IOAVServiceReadI2C(service, UInt32(ARM64_DDC_7BIT_ADDRESS), UInt32(dataAddress), &reply, UInt32(reply.count)) == 0 {
                     success = self.checksum(chk: 0x50, data: &reply, start: 0, end: reply.count - 2) == reply[reply.count - 1]
                 }
             }
