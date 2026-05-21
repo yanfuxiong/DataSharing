@@ -22,40 +22,73 @@ func CancelFileTransfer(id, ipAddr string, timestamp uint64) {
 			return
 		}
 
-		for i, fileDataItem := range cacheData.filesTransferDataQueue {
-			if fileDataItem.TimeStamp == timestamp {
-				if fileDataItem.isInProgress {
-					if fileDataItem.cancelFn != nil {
-						if fileDataItem.FileTransDirection == FilesTransfer_As_Src {
-							fileDataItem.cancelFn(rtkCommon.FileTransSrcGuiCancel)
-						} else {
-							fileDataItem.cancelFn(rtkCommon.FileTransDstGuiCancel)
-						}
-						fileDataItem.cancelFn = nil
-						cacheData.filesTransferDataQueue[i] = fileDataItem
-						filesDataCacheMap[id] = cacheData
-						log.Printf("[%s] ID:[%s],IP:[%s] timestamp:[%d] CancelFileTransfer in progress success by platform GUI!", rtkMisc.GetFuncInfo(), id, ipAddr, timestamp)
-						return
-					} else {
-						log.Printf("[%s] ID:[%s] timestamp:[%d] Not fount cancelFn from cache map data\n\n", rtkMisc.GetFuncInfo(), id, timestamp)
-					}
+		if cacheData.filesTransferDataQueue[0].TimeStamp == timestamp {
+			if cacheData.cancelFn != nil {
+				if cacheData.filesTransferDataQueue[0].FileTransDirection == FilesTransfer_As_Src {
+					cacheData.cancelFn(rtkCommon.FileTransSrcGuiCancel)
 				} else {
-					if queue, asSrc, bOk := RemoveItemFromCacheQueue(cacheData.filesTransferDataQueue, timestamp); bOk {
-						cacheData.filesTransferDataQueue = queue
-						filesDataCacheMap[id] = cacheData
-						log.Printf("[%s] ID:[%s],IP:[%s] timestamp:[%d] CancelFileTransfer Remove cache data success by platform GUI!", rtkMisc.GetFuncInfo(), id, ipAddr, timestamp)
-						if callbackSendCancelFileTransferMsgToPeer != nil {
-							callbackSendCancelFileTransferMsgToPeer(id, ipAddr, timestamp, asSrc)
-						} else {
-							log.Println("callbackSendCancelFileTransferMsgToPeer is null!")
-						}
-					}
+					cacheData.cancelFn(rtkCommon.FileTransDstGuiCancel)
 				}
+				cacheData.cancelFn = nil
+				filesDataCacheMap[id] = cacheData
+				log.Printf("[%s] ID:[%s],IP:[%s] timestamp:[%d] CancelFileTransfer success by platform GUI!", rtkMisc.GetFuncInfo(), id, ipAddr, timestamp)
+			} else {
+				log.Printf("[%s] ID:[%s] Not fount cancelFn from cache map data\n\n", rtkMisc.GetFuncInfo(), id)
+			}
+		} else {
+			if queue, asSrc, bOk := RemoveItemFromCacheQueue(cacheData.filesTransferDataQueue, timestamp); bOk {
+				cacheData.filesTransferDataQueue = queue
+				filesDataCacheMap[id] = cacheData
+
+				log.Printf("[%s] ID:[%s],IP:[%s] timestamp:[%d] CancelFileTransfer Remove cache data success by platform GUI!", rtkMisc.GetFuncInfo(), id, ipAddr, timestamp)
+				if callbackSendCancelFileTransferMsgToPeer != nil {
+					callbackSendCancelFileTransferMsgToPeer(id, ipAddr, timestamp, asSrc)
+				} else {
+					log.Println("callbackSendCancelFileTransferMsgToPeer is null!")
+				}
+			} else {
+				log.Printf("[%s] ID:[%s],IP:[%s], timestamp:[%d] Not fount from cache map data! ", rtkMisc.GetFuncInfo(), id, ipAddr, timestamp)
 			}
 		}
 	} else {
 		log.Printf("[%s] ID:[%s],IP:[%s] Not fount cache map data!\n\n", rtkMisc.GetFuncInfo(), id, ipAddr)
 	}
+}
+
+// Used when the other end is exception or cancellation
+func IsCancelFileTransInProgress(id string, timestamp uint64, errCode rtkMisc.CrossShareErr) bool {
+	fileDropDataMutex.Lock()
+	defer fileDropDataMutex.Unlock()
+
+	if cacheData, ok := filesDataCacheMap[id]; ok {
+		if len(cacheData.filesTransferDataQueue) > 0 {
+			if cacheData.filesTransferDataQueue[0].TimeStamp == timestamp {
+				if cacheData.cancelFn != nil {
+					if cacheData.filesTransferDataQueue[0].FileTransDirection == FilesTransfer_As_Src {
+						if errCode == rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL_GUI {
+							cacheData.cancelFn(rtkCommon.FileTransSrcGuiCancel)
+						} else {
+							cacheData.cancelFn(rtkCommon.FileTransSrcCancel)
+						}
+					} else {
+						if errCode == rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_CANCEL_GUI {
+							cacheData.cancelFn(rtkCommon.FileTransDstGuiCancel)
+						} else {
+							cacheData.cancelFn(rtkCommon.FileTransDstCancel)
+						}
+					}
+					cacheData.cancelFn = nil
+					filesDataCacheMap[id] = cacheData
+					return true
+				} else {
+					log.Printf("[%s] ID:[%s] Not fount cancelFn from cache map data\n\n", rtkMisc.GetFuncInfo(), id)
+				}
+			}
+		} else {
+			log.Printf("[%s] ID:[%s] Not fount cache map data\n\n", rtkMisc.GetFuncInfo(), id)
+		}
+	}
+	return false
 }
 
 func SetFilesDataToCacheAsSrc(id string) uint64 {
