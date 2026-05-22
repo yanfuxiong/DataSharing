@@ -52,13 +52,14 @@ func HandleFileDropEvent(ctxMain context.Context, resultChan chan<- EventResult,
 		case fileDropId := <-resultReqId:
 			if fileDropId == id {
 				if data, ok := rtkFileDrop.GetFileDropData(id); ok {
-					resultChan <- EventResult{
-						Cmd: DispatchCmd{
-							FmtType: rtkCommon.FILE_DROP,
-							State:   STATE_INIT,
-							Command: COMM_SRC,
-						},
-						Data: rtkCommon.ExtDataFile{
+					var extData interface{}
+					if rtkUtils.GetPeerClientIsRmFCL(id) {
+						extData = rtkCommon.ExtDataFileRmFCL{
+							TimeStamp:          data.TimeStamp,
+							FileDataDetailsLen: rtkFileDrop.GetFileDropDataLen(id),
+						}
+					} else {
+						extData = rtkCommon.ExtDataFile{
 							SrcFileList:   rtkUtils.ClearSrcFileListFullPath(&data.SrcFileList),
 							ActionType:    data.ActionType,
 							FileType:      rtkCommon.P2PFile_Type_Multiple,
@@ -66,7 +67,15 @@ func HandleFileDropEvent(ctxMain context.Context, resultChan chan<- EventResult,
 							FolderList:    data.FolderList,
 							TotalDescribe: data.TotalDescribe,
 							TotalSize:     data.TotalSize,
+						}
+					}
+					resultChan <- EventResult{
+						Cmd: DispatchCmd{
+							FmtType: rtkCommon.FILE_DROP,
+							State:   STATE_INIT,
+							Command: COMM_SRC,
 						},
+						Data: extData,
 					}
 				}
 			}
@@ -194,13 +203,23 @@ func processInbandRead(buffer []byte, len int, msg *Peer2PeerMessage) rtkMisc.Cr
 			}
 			msg.ExtData = resultCode
 		} else {
-			var extDataFile rtkCommon.ExtDataFile
-			err = json.Unmarshal(temp.ExtData, &extDataFile)
-			if err != nil {
-				log.Printf("[%s] Err: decode ExtDataFile:%+v", rtkMisc.GetFuncInfo(), err)
-				return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
+			if rtkUtils.GetPeerClientIsRmFCL(msg.SourceID) {
+				var extDataFileRmFCL rtkCommon.ExtDataFileRmFCL
+				err = json.Unmarshal(temp.ExtData, &extDataFileRmFCL)
+				if err != nil {
+					log.Printf("[%s] Err: decode ExtDataFile:%+v", rtkMisc.GetFuncInfo(), err)
+					return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
+				}
+				msg.ExtData = extDataFileRmFCL
+			} else {
+				var extDataFile rtkCommon.ExtDataFile
+				err = json.Unmarshal(temp.ExtData, &extDataFile)
+				if err != nil {
+					log.Printf("[%s] Err: decode ExtDataFile:%+v", rtkMisc.GetFuncInfo(), err)
+					return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
+				}
+				msg.ExtData = extDataFile
 			}
-			msg.ExtData = extDataFile
 		}
 	case rtkCommon.IMAGE_CB:
 		if msg.Command == COMM_CB_TRANSFER_SRC_INTERRUPT || msg.Command == COMM_CB_TRANSFER_DST_INTERRUPT {
@@ -314,11 +333,9 @@ func HandleReadInbandFromSocket(ctxMain context.Context, resultChan chan<- Event
 				continue
 			} else if msg.Command == COMM_FILE_TRANSFER_RECOVER_REQ { // Src
 				if interruptInfo, ok := msg.ExtData.(rtkCommon.ExtDataFilesTransferInterruptInfo); ok {
-					reqErrCode := rtkMisc.SUCCESS
-					if !rtkFileDrop.SetFilesTransferDataInterrupt(id, interruptInfo.InterruptSrcFileName, "", "", interruptInfo.TimeStamp, interruptInfo.InterruptFileOffSet, interruptInfo.InterruptErrCode) {
-						reqErrCode = rtkMisc.ERR_BIZ_FT_INTERRUPT_INFO_INVALID
+					if rtkFileDrop.SetFilesTransferDataInterrupt(id, interruptInfo.InterruptSrcFileName, "", "", interruptInfo.TimeStamp, interruptInfo.InterruptFileOffSet, interruptInfo.InterruptErrCode) {
+						rtkMisc.GoSafe(func() { recoverFileTransferProcessAsSrc(ctxMain, id, ipAddr) })
 					}
-					rtkMisc.GoSafe(func() { recoverFileTransferProcessAsSrc(ctxMain, id, ipAddr, reqErrCode) })
 				}
 				continue
 			} else if msg.Command == COMM_FILE_TRANSFER_RECOVER_RSP { // Dst
@@ -327,7 +344,7 @@ func HandleReadInbandFromSocket(ctxMain context.Context, resultChan chan<- Event
 						rtkMisc.GoSafe(func() { recoverFileTransferProcessAsDst(ctxMain, id, ipAddr) })
 					} else {
 						log.Printf("[%s](DST) request recover file transfer failed, errCode:[%d]", rtkMisc.GetFuncInfo(), recoverRspCode)
-						clearCacheFileDataList(id, ipAddr, recoverRspCode)
+						clearFilesTransferCacheList(id, ipAddr, recoverRspCode)
 					}
 				}
 				continue
@@ -476,14 +493,25 @@ func buildMessage(msg *Peer2PeerMessage, id string, event EventResult) bool {
 			}
 		} else if event.Cmd.Command == COMM_SRC {
 			if extData, ok := rtkFileDrop.GetFileDropData(id); ok {
-				msg.ExtData = rtkCommon.ExtDataFile{
-					SrcFileList:   rtkUtils.ClearSrcFileListFullPath(&extData.SrcFileList),
-					ActionType:    extData.ActionType,
-					FileType:      rtkCommon.P2PFile_Type_Multiple,
-					TimeStamp:     extData.TimeStamp,
-					FolderList:    extData.FolderList,
-					TotalDescribe: extData.TotalDescribe,
-					TotalSize:     extData.TotalSize,
+				if rtkUtils.GetPeerClientIsRmFCL(id) {
+					fileDetailsLen := rtkFileDrop.GetFileDropDataLen(id)
+					if fileDetailsLen <= 0 {
+						return false
+					}
+					msg.ExtData = rtkCommon.ExtDataFileRmFCL{
+						TimeStamp:          extData.TimeStamp,
+						FileDataDetailsLen: fileDetailsLen,
+					}
+				} else {
+					msg.ExtData = rtkCommon.ExtDataFile{
+						SrcFileList:   rtkUtils.ClearSrcFileListFullPath(&extData.SrcFileList),
+						ActionType:    extData.ActionType,
+						FileType:      rtkCommon.P2PFile_Type_Multiple,
+						TimeStamp:     extData.TimeStamp,
+						FolderList:    extData.FolderList,
+						TotalDescribe: extData.TotalDescribe,
+						TotalSize:     extData.TotalSize,
+					}
 				}
 				return true
 			} else {
@@ -607,32 +635,54 @@ func processFileDrop(ctx context.Context, id, ipAddr string, event EventResult) 
 			log.Printf("[%s %d] Invalid file drop response: %+v", rtkMisc.GetFuncName(), rtkMisc.GetLine(), extData)
 		}
 	} else if nextState == STATE_TRANS && nextCommand == COMM_DST {
-		if extData, ok := event.Data.(rtkCommon.ExtDataFile); ok {
-			log.Printf("[%s] Ready to accept file,ActionType:[%s]", rtkMisc.GetFuncInfo(), extData.ActionType)
-			// [Dst]: Setup file drop Data and DO NOT send msg
-
-			if len(extData.SrcFileList) == 0 && len(extData.FolderList) == 0 {
-				log.Printf("[%s] ID[%s] get file drop data is null", rtkMisc.GetFuncInfo(), id)
-				return false
-			}
-
-			if extData.ActionType == rtkCommon.P2PFileActionType_Drop {
-				rtkFileDrop.SetupDstFileListDrop(id, ipAddr, "", extData.TotalDescribe, extData.SrcFileList, extData.FolderList, extData.TotalSize, extData.TimeStamp)
-			} else if extData.ActionType == rtkCommon.P2PFileActionType_Drag {
-				rtkFileDrop.SetupDstDragFileList(id, ipAddr, extData.SrcFileList, extData.FolderList, extData.TotalSize, extData.TimeStamp, extData.TotalDescribe)
+		if rtkUtils.GetPeerClientIsRmFCL(id) {
+			if extData, ok := event.Data.(rtkCommon.ExtDataFileRmFCL); ok {
+				log.Printf("[%s] Ready to accept file, timestamp:[%d] details Len:[%d]", rtkMisc.GetFuncInfo(), extData.TimeStamp, extData.FileDataDetailsLen)
+				rtkMisc.GoSafe(func() {
+					errCode := readItemFileDataDetailsFromSocket(ctx, id, ipAddr, extData.TimeStamp, extData.FileDataDetailsLen)
+					if errCode != rtkMisc.SUCCESS {
+						if errCode == rtkMisc.ERR_BIZ_FT_DST_OPEN_STREAM {
+							SendFileTransOpenStreamErrToSrc(id, ipAddr, extData.TimeStamp)
+						} else {
+							SendFileTransCopyDetailsErrToSrc(id, ipAddr, extData.TimeStamp)
+						}
+					}
+				})
 			} else {
-				log.Printf("[%s] ID[%s] IP:[%s] get file unknown ActionType:[%s] ", rtkMisc.GetFuncInfo(), id, ipAddr, extData.ActionType)
+				log.Printf("[%s] Err: Setup file drop failed", rtkMisc.GetFuncInfo())
 				return false
 			}
 		} else {
-			log.Printf("[%s %d] Err: Setup file drop failed", rtkMisc.GetFuncName(), rtkMisc.GetLine())
-			return false
+			if extData, ok := event.Data.(rtkCommon.ExtDataFile); ok {
+				log.Printf("[%s] Ready to accept file,ActionType:[%s]", rtkMisc.GetFuncInfo(), extData.ActionType)
+				// [Dst]: Setup file drop Data and DO NOT send msg
+
+				if len(extData.SrcFileList) == 0 && len(extData.FolderList) == 0 {
+					log.Printf("[%s] ID[%s] get file drop data is null", rtkMisc.GetFuncInfo(), id)
+					return false
+				}
+
+				if extData.ActionType == rtkCommon.P2PFileActionType_Drop {
+					rtkFileDrop.SetupDstFileListDrop(id, ipAddr, "", extData.TotalDescribe, extData.SrcFileList, extData.FolderList, extData.TotalSize, extData.TimeStamp)
+				} else if extData.ActionType == rtkCommon.P2PFileActionType_Drag {
+					rtkFileDrop.SetupDstDragFileList(id, ipAddr, extData.SrcFileList, extData.FolderList, extData.TotalSize, extData.TimeStamp, extData.TotalDescribe)
+				} else {
+					log.Printf("[%s] ID[%s] IP:[%s] get file unknown ActionType:[%s] ", rtkMisc.GetFuncInfo(), id, ipAddr, extData.ActionType)
+					return false
+				}
+			} else {
+				log.Printf("[%s %d] Err: Setup file drop failed", rtkMisc.GetFuncName(), rtkMisc.GetLine())
+				return false
+			}
 		}
 	} else {
 		if nextState == STATE_TRANS && nextCommand == COMM_SRC {
 			if rtkUtils.GetPeerClientIsSupportQueueTrans(id) {
 				if fileDropInfo, ok := rtkFileDrop.GetFileDropData(id); ok {
 					rtkConnection.BuildFileDropItemStreamListener(fileDropInfo.TimeStamp)
+					if rtkUtils.GetPeerClientIsRmFCL(id) {
+						rtkMisc.GoSafe(func() { writeItemFileDataDetailsToSocket(ctx, id, ipAddr, fileDropInfo.TimeStamp) })
+					}
 				} else {
 					log.Printf("[%s] ID:[%s] Not found fileDrop data", rtkMisc.GetFuncInfo(), id)
 					return false
@@ -643,19 +693,22 @@ func processFileDrop(ctx context.Context, id, ipAddr string, event EventResult) 
 				fileDropInfo, ok := rtkFileDrop.GetFileDropData(id)
 				if !ok {
 					log.Printf("[%s] ID:[%s] Not found fileDrop data", rtkMisc.GetFuncInfo(), id)
-					return 0, rtkMisc.ERR_BIZ_FT_DATA_EMPTY
+					return 0, rtkMisc.ERR_BIZ_FD_DATA_EMPTY
 				}
 
 				if rtkUtils.GetPeerClientIsSupportQueueTrans(id) {
- 					if errCode := rtkConnection.NewFileDropItemStream(ctx, id, fileDropInfo.TimeStamp); errCode != rtkMisc.SUCCESS {
- 						return fileDropInfo.TimeStamp, errCode
- 					}
+					if !rtkUtils.GetPeerClientIsRmFCL(id) {
+						if errCode := rtkConnection.NewFileDropItemStream(ctx, id, fileDropInfo.TimeStamp); errCode != rtkMisc.SUCCESS {
+							log.Printf("[%s] new File Drop Item stream errCode:%+v ", rtkMisc.GetFuncInfo(), errCode)
+							return fileDropInfo.TimeStamp, errCode
+						}
+					}
 				} else {
 					if errCode := rtkConnection.BuildFmtTypeTalker(ctx, id, event.Cmd.FmtType); errCode != rtkMisc.SUCCESS {
 						log.Printf("[%s]BuildFmtTypeTalker errCode:%+v ", rtkMisc.GetFuncInfo(), errCode)
 						return fileDropInfo.TimeStamp, errCode
 					}
- 				}
+				}
 				return fileDropInfo.TimeStamp, rtkMisc.SUCCESS
 			}
 

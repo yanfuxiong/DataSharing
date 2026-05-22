@@ -44,15 +44,16 @@ type FileDropData struct {
 	TotalSize     uint64
 
 	// Resp data
-	DstFilePath string
+	DstFilePath string //DownloadPath
 	Cmd         rtkCommon.FileDropCmd
 
-	// Trans Info
-	InterruptSrcFileName string // Src fileName
-	InterruptDstFileName string // Dst fileName
-	InterruptDstFullPath string // Dst full path
-	InterruptFileOffSet  int64
-	InterruptLastErrCode rtkMisc.CrossShareErr
+	// Transfer Interrupt Info
+	InterruptSrcFileName        string                `json:"-"` // Src fileName
+	InterruptDstFileName        string                `json:"-"` // Dst fileName
+	InterruptDstFullPath        string                `json:"-"` // Dst fullPath
+	InterruptFileOffSet         int64                 `json:"-"`
+	InterruptLastErrCode        rtkMisc.CrossShareErr `json:"-"`
+	RecoverFileTransTimerCancel func()                `json:"-"`
 }
 
 type FileInfoEx struct {

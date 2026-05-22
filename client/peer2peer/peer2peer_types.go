@@ -2,7 +2,6 @@ package peer2peer
 
 import (
 	rtkCommon "rtk-cross-share/client/common"
-	"sync"
 )
 
 type Peer2PeerMessage struct {
@@ -52,5 +51,3 @@ type EventResult struct {
 	Cmd  DispatchCmd
 	Data interface{}
 }
-
-var recoverFileTransferTimerMap sync.Map

@@ -16,19 +16,21 @@ func updateFileListDrop(id string, fileInfoList []rtkCommon.FileInfo, folderList
 	defer fileDropDataMutex.Unlock()
 
 	fileDropDataMap[id] = FileDropData{
-		SrcFileList:          fileInfoList,
-		ActionType:           rtkCommon.P2PFileActionType_Drop,
-		TimeStamp:            timeStamp,
-		FolderList:           folderList,
-		SrcRootPath:   	      srcRootPath,
-		TotalDescribe:        totalDesc,
-		TotalSize:            total,
-		DstFilePath:          "",
-		Cmd:                  rtkCommon.FILE_DROP_REQUEST,
-		InterruptSrcFileName: "",
-		InterruptDstFileName: "",
-		InterruptFileOffSet:  0,
-		InterruptLastErrCode: rtkMisc.SUCCESS,
+		SrcFileList:                 fileInfoList,
+		ActionType:                  rtkCommon.P2PFileActionType_Drop,
+		TimeStamp:                   timeStamp,
+		FolderList:                  folderList,
+		SrcRootPath:                 srcRootPath,
+		TotalDescribe:               totalDesc,
+		TotalSize:                   total,
+		DstFilePath:                 "",
+		Cmd:                         rtkCommon.FILE_DROP_REQUEST,
+		InterruptSrcFileName:        "",
+		InterruptDstFileName:        "",
+		InterruptDstFullPath:        "",
+		InterruptFileOffSet:         0,
+		InterruptLastErrCode:        rtkMisc.SUCCESS,
+		RecoverFileTransTimerCancel: nil,
 	}
 }
 
@@ -115,6 +117,40 @@ func GetFileDropData(id string) (FileDropData, bool) {
 	fileDropData, ok := fileDropDataMap[id]
 	fileDropDataMutex.RUnlock()
 	return fileDropData, ok
+}
+
+func GetFileDropDataLen(id string) int {
+	fileDropDataMutex.RLock()
+	fileDropData, ok := fileDropDataMap[id]
+	fileDropDataMutex.RUnlock()
+	if ok {
+		encodedData, err := json.Marshal(fileDropData)
+		if err != nil {
+			log.Printf("[%s] Failed to Marshal fileDropData data, err: %+v", rtkMisc.GetFuncInfo(), err)
+		} else {
+			return len(encodedData)
+		}
+	} else {
+		log.Printf("[%s], ID[%s] Not fount file data", rtkMisc.GetFuncInfo(), id)
+	}
+	return 0
+}
+
+func GetFileDropDataDetailsData(id string) []byte {
+	fileDropDataMutex.RLock()
+	fileDropData, ok := fileDropDataMap[id]
+	fileDropDataMutex.RUnlock()
+	if ok {
+		encodedData, err := json.Marshal(fileDropData)
+		if err != nil {
+			log.Printf("[%s] Failed to Marshal fileDropData data, err: %+v", rtkMisc.GetFuncInfo(), err)
+		} else {
+			return encodedData
+		}
+	} else {
+		log.Printf("[%s], ID[%s] Not fount file data", rtkMisc.GetFuncInfo(), id)
+	}
+	return nil
 }
 
 func getFileDropDataDetails(id, ipAddr string) string {
@@ -252,4 +288,42 @@ func SetupDstFileListDrop(id, ip, platform, totalDesc string, fileList []rtkComm
 		UpdateFileDropRespDataFromDst(id, rtkCommon.FILE_DROP_ACCEPT, rtkPlatform.GetDownloadPath())
 		rtkPlatform.GoFileListReceiveNotify(ip, id, nFileCount, totalSize, timestamp, firstFileName, firstFileSize, getFileDropDataDetails(id, ip)) //No need to confirm
 	}
+}
+
+func SetupDstFileDropDataDetails(id, ipAddr string, details []byte) rtkMisc.CrossShareErr {
+	var fileDataInfo FileDropData
+	err := json.Unmarshal(details, &fileDataInfo)
+	if err != nil {
+		log.Printf("[%s] Unmarshal details[%s] err:%+v", rtkMisc.GetFuncInfo(), string(details), err)
+		return rtkMisc.ERR_BIZ_JSON_UNMARSHAL
+	}
+
+	if len(fileDataInfo.SrcFileList) == 0 && len(fileDataInfo.FolderList) == 0 {
+		log.Printf("[%s] ID[%s] IP:[%s] get file drop data is null", rtkMisc.GetFuncInfo(), id, ipAddr)
+		return rtkMisc.ERR_BIZ_FD_DATA_INVALID
+	}
+
+	if len(fileDataInfo.FolderList) > 0 {
+		fileDataInfo.SrcFileList, fileDataInfo.FolderList = rtkUtils.GetTargetFileList(rtkPlatform.GetDownloadPath(), fileDataInfo.SrcFileList, fileDataInfo.FolderList)
+	}
+
+	if !rtkPlatform.GetConfirmDocumentsAccept() { //No need to confirm
+		UpdateFileListDropReqDataFromDst(id, fileDataInfo.SrcFileList, fileDataInfo.FolderList, fileDataInfo.TotalSize, fileDataInfo.TimeStamp, fileDataInfo.TotalDescribe)
+
+		nFileCount := uint32(len(fileDataInfo.SrcFileList))
+		firstFileSize := uint64(0)
+		firstFileName := string("")
+		if nFileCount > 0 {
+			firstFileSize = uint64(fileDataInfo.SrcFileList[0].FileSize_.SizeHigh)<<32 | uint64(fileDataInfo.SrcFileList[0].FileSize_.SizeLow)
+			firstFileName = filepath.Join(rtkPlatform.GetDownloadPath(), rtkMisc.AdaptationPath(fileDataInfo.SrcFileList[0].FileName))
+		} else {
+			firstFileName = filepath.Join(rtkMisc.AdaptationPath(fileDataInfo.FolderList[0]))
+		}
+
+		firstFileName, _ = rtkUtils.GetTargetDstPathName(firstFileName, "")
+		UpdateFileDropRespDataFromDst(id, rtkCommon.FILE_DROP_ACCEPT, rtkPlatform.GetDownloadPath())
+		rtkPlatform.GoFileListReceiveNotify(ipAddr, id, nFileCount, fileDataInfo.TotalSize, fileDataInfo.TimeStamp, firstFileName, firstFileSize, getFileDropDataDetails(id, ipAddr))
+	}
+
+	return rtkMisc.SUCCESS
 }
