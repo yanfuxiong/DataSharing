@@ -276,45 +276,38 @@ func dealFilesCacheDataProcess(p2pCtx context.Context, id, ipAddr string, timeSt
 		}
 
 		if cacheData.FileTransDirection == rtkFileDrop.FilesTransfer_As_Src {
-			resultCode, reTry := writeFileDataItemToSocket(p2pCtx, id, ipAddr, cacheData)
+			resultCode = writeItemFileDataToSocket(p2pCtx, id, ipAddr, cacheData)
 			if resultCode != rtkMisc.SUCCESS {
-				if !reTry {
-					log.Printf("(SRC) ID[%s] IP[%s] Copy file data To Socket failed, timestamp:%d, ERR code:[%d],  and not resend!", id, ipAddr, cacheData.TimeStamp, resultCode)
-
-					// need notify to dst
-					if resultCode != rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL_GUI {
-						sendFileTransInterruptMsgToPeer(id, COMM_FILE_TRANSFER_SRC_INTERRUPT, resultCode, cacheData.TimeStamp)
-					}
-
-					rtkPlatform.GoNotifyErrEvent(id, resultCode, ipAddr, strconv.Itoa(int(cacheData.TimeStamp)), "", "")
-				} else {
+				if resultCode == rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_CANCEL_BUSINESS {
 					log.Printf("(SRC) ID[%s] IP[%s] Copy file data To Socket is interrupt, timestamp:[%d], wait to resend...", id, ipAddr, cacheData.TimeStamp)
 					rtkConnection.CloseAllFileDropStream(id)
-					rtkMisc.GoSafe(func() { checkRecoverProcessEventsForPeerAsSrc(id, ipAddr, resultCode) })
+					rtkMisc.GoSafe(func() { watchRecoverFileTransferCacheTimeoutAsSrc(id, ipAddr, cacheData.TimeStamp, resultCode) })
 					return
+				} else {
+					log.Printf("(SRC) ID[%s] IP[%s] Copy file data To Socket failed, timestamp:%d, ERR code:[%d],  and not resend!", id, ipAddr, cacheData.TimeStamp, resultCode)
+					sendFileTransInterruptMsgToPeer(id, COMM_FILE_TRANSFER_SRC_INTERRUPT, resultCode, cacheData.TimeStamp)
+					rtkPlatform.GoNotifyErrEvent(id, resultCode, ipAddr, strconv.Itoa(int(cacheData.TimeStamp)), "", "")
 				}
 			}
 			rtkConnection.CloseFileDropItemStream(id, cacheData.TimeStamp)
-			rtkConnection.CloseFmtTypeStream(id, rtkCommon.FILE_DROP)
+			rtkConnection.CloseFmtTypeStream(id, rtkCommon.FILE_DROP) //  keep for support old version
 			rtkConnection.RemoveFileDropItemStreamListener(cacheData.TimeStamp)
 		} else if cacheData.FileTransDirection == rtkFileDrop.FilesTransfer_As_Dst {
-			resultCode, reTry := readFileDataItemFromSocket(p2pCtx, id, ipAddr, cacheData)
+			resultCode = readItemFileDataFromSocket(p2pCtx, id, ipAddr, cacheData)
 			if resultCode != rtkMisc.SUCCESS {
-				if !reTry { // any exceptions and user cancellation need to Notify to platfrom
-					log.Printf("(DST) ID[%s] IP[%s] Copy file data To Socket failed, timestamp:%d, ERR code:[%d]  and not retry", id, ipAddr, cacheData.TimeStamp, resultCode)
-
-					// need notify to src
-					sendFileTransInterruptMsgToPeer(id, COMM_FILE_TRANSFER_DST_INTERRUPT, resultCode, cacheData.TimeStamp)
-					rtkPlatform.GoNotifyErrEvent(id, resultCode, ipAddr, strconv.Itoa(int(cacheData.TimeStamp)), "", "")
-				} else {
+				if resultCode == rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL_BUSINESS {
 					log.Printf("(DST) ID[%s] IP[%s] Copy file data To Socket is interrupt, timestamp:[%d], wait to retry...", id, ipAddr, cacheData.TimeStamp)
 					rtkConnection.CloseAllFileDropStream(id)
-					//rtkMisc.GoSafe(func() { checkRecoverProcessEventsForPeerAsDst(id, ipAddr, resultCode) })
+					rtkMisc.GoSafe(func() { watchRecoverFileTransferCacheTimeoutAsDst(id, ipAddr, cacheData.TimeStamp, resultCode) })
 					return
+				} else {
+					log.Printf("(DST) ID[%s] IP[%s] Copy file data To Socket failed, timestamp:%d, ERR code:[%d]  and not retry", id, ipAddr, cacheData.TimeStamp, resultCode)
+					sendFileTransInterruptMsgToPeer(id, COMM_FILE_TRANSFER_DST_INTERRUPT, resultCode, cacheData.TimeStamp)
+					rtkPlatform.GoNotifyErrEvent(id, resultCode, ipAddr, strconv.Itoa(int(cacheData.TimeStamp)), "", "")
 				}
 			}
 			rtkConnection.CloseFileDropItemStream(id, cacheData.TimeStamp)
-			rtkConnection.CloseFmtTypeStream(id, rtkCommon.FILE_DROP)
+			rtkConnection.CloseFmtTypeStream(id, rtkCommon.FILE_DROP) //  keep for support old version
 		} else {
 			log.Printf("[%s] ID:[%s] Invalid direction type:[%s], skit it!", rtkMisc.GetFuncInfo(), id, cacheData.FileTransDirection)
 		}
@@ -325,9 +318,18 @@ func dealFilesCacheDataProcess(p2pCtx context.Context, id, ipAddr string, timeSt
 
 func writeItemFileDataToSocket(p2pCtx context.Context, id, ipAddr string, fileDropReqData *rtkFileDrop.FilesTransferDataItem) rtkMisc.CrossShareErr {
 	startTime := time.Now().UnixMilli()
-	rtkConnection.HandleFmtTypeStreamReady(id, rtkCommon.FILE_DROP) // wait for file drop stream Ready
-	if p2pCtx.Err() != nil {                                        // deal file cache Data must return errCode and clear cache when p2p business is canceled
+	if !rtkUtils.GetPeerClientIsRmFCL(id) {
+		rtkConnection.HandleFmtTypeStreamReady(id, rtkCommon.FILE_DROP) // wait for file drop stream Ready
+	}
+
+	if p2pCtx.Err() != nil { // deal file cache Data must return errCode and clear cache when p2p business is canceled
 		return getFileDataSendCancelErrCode(p2pCtx, ipAddr, fileDropReqData.TimeStamp)
+	}
+
+	isResend := false
+	if fileDropReqData.InterruptSrcFileName != "" && fileDropReqData.InterruptLastErrCode != rtkMisc.SUCCESS { //InterruptFileOffSet maybe is 0
+		isResend = true
+		rtkConnection.HandleFmtTypeStreamReady(id, rtkCommon.FILE_DROP) // wait for file drop stream Ready
 	}
 
 	var sFileDrop network.Stream
@@ -351,12 +353,17 @@ func writeItemFileDataToSocket(p2pCtx context.Context, id, ipAddr string, fileDr
 
 	ctx, cancel := rtkUtils.WithCancelSource(p2pCtx)
 	defer cancel(rtkCommon.FileTransDone)
-	SetFileTransferInfo(id, cancel)                   //Used when the receiving end is exception or cancellation
-	rtkFileDrop.SetCancelFileTransferFunc(id, fileDropReqData.TimeStamp, cancel) //Used when the user cancels
+	rtkFileDrop.SetCancelFileTransferFunc(id, cancel)
+
+	if isResend {
+		log.Printf("(SRC) Retry Copy file data to IP:[%s], id:[%d] file count:[%d] folder count:[%d] totalSize:[%d] TotalDescribe:[%s]...", ipAddr, fileDropReqData.TimeStamp, nTotalFileCnt, nTotalFolderCnt, fileDropReqData.TotalSize, fileDropReqData.TotalDescribe)
+	} else {
+		log.Printf("(SRC) Start Copy file data to IP:[%s], id:[%d] file count:[%d] folder count:[%d] totalSize:[%d] TotalDescribe:[%s]...", ipAddr, fileDropReqData.TimeStamp, nTotalFileCnt, nTotalFolderCnt, fileDropReqData.TotalSize, fileDropReqData.TotalDescribe)
+	}
 
 	progressBar := New64(int64(fileDropReqData.TotalSize))
-	var curFileName string
-	curFileSize := uint64(0)
+	var curFilePath string
+	var curFileSize uint64
 	fileDoneCnt := uint32(0)
 
 	rtkMisc.GoSafe(func() {
@@ -375,7 +382,7 @@ func writeItemFileDataToSocket(p2pCtx context.Context, id, ipAddr string, fileDr
 			case <-barTicker.C:
 				barCurrentBytes := progressBar.GetCurrentBytes()
 				if barLastBytes != barCurrentBytes {
-					rtkPlatform.GoUpdateSendProgressBar(ipAddr, id, curFileName, fileDoneCnt, nTotalFileCnt, curFileSize, fileDropReqData.TotalSize, uint64(barCurrentBytes), fileDropReqData.TimeStamp)
+					rtkPlatform.GoUpdateSendProgressBar(ipAddr, id, curFilePath, fileDoneCnt, nTotalFileCnt, curFileSize, fileDropReqData.TotalSize, uint64(barCurrentBytes), fileDropReqData.TimeStamp)
 					barLastBytes = barCurrentBytes
 					timeoutBarCnt = 0
 				} else {
@@ -403,48 +410,41 @@ func writeItemFileDataToSocket(p2pCtx context.Context, id, ipAddr string, fileDr
 	}
 
 	copyBuffer := make([]byte, copyBufSize)
-	isResend := false
-	if fileDropReqData.InterruptSrcFileName != "" && fileDropReqData.InterruptLastErrCode != rtkMisc.SUCCESS {
-		isResend = true
-		log.Printf("(SRC) Retry Copy file data to IP:[%s], id:[%d] file count:[%d] folder count:[%d] totalSize:[%d] TotalDescribe:[%s]...", ipAddr, fileDropReqData.TimeStamp, fileCount, folderCount, fileDropReqData.TotalSize, fileDropReqData.TotalDescribe)
-	} else {
-		log.Printf("(SRC) Start Copy file data to IP:[%s], id:[%d] file count:[%d] folder count:[%d] totalSize:[%d] TotalDescribe:[%s]...", ipAddr, fileDropReqData.TimeStamp, fileCount, folderCount, fileDropReqData.TotalSize, fileDropReqData.TotalDescribe)
-	}
-
 	getInterruptFile := false
 	offSet := int64(0)
-	for _, fileInfo := range fileDropReqData.SrcFileList {
-		fileSize := uint64(fileInfo.FileSize_.SizeHigh)<<32 | uint64(fileInfo.FileSize_.SizeLow)
-
+	for i, fileInfo := range fileDropReqData.SrcFileList {
+		curFileSize = uint64(fileInfo.FileSize_.SizeHigh)<<32 | uint64(fileInfo.FileSize_.SizeLow)
+		curFilePath = fileInfo.FilePath
 		if isResend && fileInfo.FileName != fileDropReqData.InterruptSrcFileName && !getInterruptFile {
+			progressBar.Add64(int64(curFileSize))
+			fileDoneCnt++
 			continue
 		}
 
+		fileSize := curFileSize
 		if isResend && fileInfo.FileName == fileDropReqData.InterruptSrcFileName {
 			getInterruptFile = true
 			offSet = fileDropReqData.InterruptFileOffSet
-			if fileDropReqData.InterruptFileOffSet < 0 || fileDropReqData.InterruptFileOffSet > int64(fileSize) {
-				log.Printf("[%s] Retry Copy file data to IP:[%s], id:[%d], get invalid interrupt offset:[%d]!", rtkMisc.GetFuncInfo(), ipAddr, fileDropReqData.TimeStamp, fileDropReqData.InterruptFileOffSet)
-				needReTry = false
-				errCode = rtkMisc.ERR_BIZ_FT_INTERRUPT_INFO_INVALID
-				return
+			if fileDropReqData.InterruptFileOffSet < 0 || fileDropReqData.InterruptFileOffSet > int64(curFileSize) {
+				log.Printf("[%s] Retry Copy file data to IP:[%s], id:[%d], get invalid interrupt offset:[%d]!", rtkMisc.GetFuncInfo(), ipAddr, fileDropReqData.TimeStamp, offSet)
+				return rtkMisc.ERR_BIZ_FT_INTERRUPT_INFO_INVALID
 			}
-			fileSize = fileSize - uint64(fileDropReqData.InterruptFileOffSet)
-			log.Printf("(SRC) Retry Copy file data to IP:[%s], id:[%d], Starting from this file:[%s], offset:[%d] ...", ipAddr, fileDropReqData.TimeStamp, fileInfo.FileName, fileDropReqData.InterruptFileOffSet)
+			progressBar.Add64(fileDropReqData.InterruptFileOffSet)
+			sendBytes := progressBar.GetCurrentBytes()
+			rounded := float64(sendBytes) / float64(fileDropReqData.TotalSize) * 100
+			fileSize = curFileSize - uint64(fileDropReqData.InterruptFileOffSet)
+			log.Printf("(SRC) Retry Copy file data to IP:[%s], id:[%d], already send:[%d], percentage:[%.2f%%], Starting from this file:[%s], offset:[%d] ...", ipAddr, fileDropReqData.TimeStamp, sendBytes, rounded, fileInfo.FileName, offSet)
 		} else {
 			offSet = int64(0)
 		}
 
-		srcTransResult := writeFileToSocket(id, ipAddr, &cancelableWrite, &cancelableRead, &progressBar, fileInfo.FileName, fileInfo.FilePath, fileSize, fileDropReqData.TimeStamp, offSet, &copyBuffer)
-		if srcTransResult != rtkMisc.SUCCESS {
-			if srcTransResult == rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_CANCEL_BUSINESS ||
-				srcTransResult == rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL_BUSINESS ||
-				srcTransResult == rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_CANCEL_GUI ||
-				srcTransResult == rtkMisc.ERR_BIZ_FT_FILE_NOT_EXISTS {
-				needReTry = false
-			}
-
-			return srcTransResult
+		errCode := writeFileToSocket(id, ipAddr, &cancelableWrite, &cancelableRead, &progressBar, fileInfo.FileName, fileInfo.FilePath, fileSize, fileDropReqData.TimeStamp, offSet, &copyBuffer)
+		if errCode != rtkMisc.SUCCESS {
+			return errCode
+		}
+		fileDoneCnt++
+		if uint32(i) != (nTotalFileCnt - 1) {
+			rtkPlatform.GoUpdateSendProgressBar(ipAddr, id, curFilePath, fileDoneCnt, nTotalFileCnt, curFileSize, fileDropReqData.TotalSize, uint64(progressBar.GetCurrentBytes()), fileDropReqData.TimeStamp)
 		}
 	}
 
