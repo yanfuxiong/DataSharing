@@ -49,6 +49,13 @@ func SendFileTransOpenStreamErrToSrc(id, ipAddr string, fileTransDataId uint64) 
 	rtkPlatform.GoNotifyErrEvent(id, rtkMisc.ERR_BIZ_FT_DST_OPEN_STREAM, ipAddr, strconv.Itoa(int(fileTransDataId)), "", "")
 }
 
+func SendFileTransCopyDetailsErrToSrc(id, ipAddr string, fileTransDataId uint64) {
+	log.Printf("(DST) [%s] IP:[%s] timestamp:[%d] Copy file data details error!", rtkMisc.GetFuncInfo(), ipAddr, fileTransDataId)
+	sendFileTransInterruptMsgToPeer(id, COMM_FILE_TRANSFER_DST_INTERRUPT, rtkMisc.ERR_BIZ_FT_DST_COPY_DETAILS, fileTransDataId)
+	rtkPlatform.GoNotifyErrEvent(id, rtkMisc.ERR_BIZ_FT_DST_COPY_DETAILS, ipAddr, strconv.Itoa(int(fileTransDataId)), "", "")
+	rtkConnection.CloseFileDropItemStream(id, fileTransDataId)
+}
+
 func sendFileTransInterruptMsgToPeer(id string, cmd CommandType, errCode rtkMisc.CrossShareErr, timestamp uint64) {
 	extData := rtkCommon.ExtDataFilesTransferInterrupt{
 		Code:      errCode,
@@ -75,7 +82,7 @@ func sendCmdMsgToPeer(id string, cmd CommandType, fmtType rtkCommon.TransFmtType
 	writeToSocket(&msg, id)
 }
 
-func requestFileTransRecoverMsgToSrc(id, srcFileName string, timestamp uint64, offset int64, errCode rtkMisc.CrossShareErr) rtkMisc.CrossShareErr {
+func sendFileTransRecoverRequestToSrc(id, srcFileName string, timestamp uint64, offset int64, errCode rtkMisc.CrossShareErr) rtkMisc.CrossShareErr {
 	extData := rtkCommon.ExtDataFilesTransferInterruptInfo{
 		InterruptSrcFileName: srcFileName,
 		InterruptFileOffSet:  offset,
@@ -92,7 +99,7 @@ func requestFileTransRecoverMsgToSrc(id, srcFileName string, timestamp uint64, o
 	return writeToSocket(&msg, id)
 }
 
-func responseFileTransRecoverMsgToDst(id string, errCode rtkMisc.CrossShareErr) rtkMisc.CrossShareErr {
+func sendFileTransRecoverResponseToDst(id string, errCode rtkMisc.CrossShareErr) rtkMisc.CrossShareErr {
 	var msg Peer2PeerMessage
 	msg.SourceID = rtkGlobal.NodeInfo.ID
 	msg.SourcePlatform = rtkGlobal.NodeInfo.Platform

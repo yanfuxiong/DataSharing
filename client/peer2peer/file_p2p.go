@@ -345,7 +345,7 @@ func writeItemFileDataToSocket(p2pCtx context.Context, id, ipAddr string, fileDr
 	}
 
 	nTotalFileCnt := uint32(len(fileDropReqData.SrcFileList))
-	nTotalFolderCnt := len(fileDropReqData.FolderList)
+	nTotalFolderCnt := uint32(len(fileDropReqData.FolderList))
 	if (nTotalFileCnt == 0 && nTotalFolderCnt == 0) || fileDropReqData.TimeStamp == 0 {
 		log.Printf("[%s] get file data is invalid! fileCount:[%d] folderCount:[%d] TimeStamp:[%d] ", rtkMisc.GetFuncInfo(), nTotalFileCnt, nTotalFolderCnt, fileDropReqData.TimeStamp)
 		return rtkMisc.ERR_BIZ_FD_DATA_INVALID
@@ -874,53 +874,36 @@ func recoverFileTransferProcessAsSrc(ctx context.Context, id, ipAddr string) {
 		}
 	}
 
-	responseFileTransRecoverMsgToDst(id, errCode)
-	if errCode != rtkMisc.SUCCESS {
-		log.Printf("(SRC) [%s] ID:[%s] request recover file transfer failed, errCode:[%d]", rtkMisc.GetFuncInfo(), id, errCode)
-		clearCacheFileDataList(id, ipAddr, errCode)
+	if sendFileTransRecoverResponseToDst(id, errCode) != rtkMisc.SUCCESS || errCode != rtkMisc.SUCCESS {
 		return
 	}
-
-	dealFilesCacheDataProcess(ctx, id, ipAddr,0)
-}
-
-func setFileDataItemProtocolListener(id string) rtkMisc.CrossShareErr {
-	/*cacheList := rtkFileDrop.GetFilesTransferDataList(id)
-	if cacheList == nil {
-		return rtkMisc.ERR_BIZ_FT_DATA_EMPTY
-	}
-	for _, cacheData := range cacheList {
-		if cacheData.FileTransDirection == rtkFileDrop.FilesTransfer_As_Src {
-			rtkConnection.BuildFileDropItemStreamListener(cacheData.TimeStamp)
-		}
-	}*/
-
-	return rtkMisc.SUCCESS
+	cacheData.RecoverFileTransTimerCancel()
+	dealFilesCacheDataProcess(ctx, id, ipAddr)
 }
 
 func buildFileDropItemStream(ctx context.Context, id string) rtkMisc.CrossShareErr {
-	/*cacheList := rtkFileDrop.GetFilesTransferDataList(id)
+	cacheList := rtkFileDrop.GetFilesTransferDataList(id)
 	if cacheList == nil {
-		return rtkMisc.ERR_BIZ_FT_DATA_EMPTY
+		return rtkMisc.ERR_BIZ_FD_DATA_EMPTY
 	}
 	for _, cacheData := range cacheList {
 		if cacheData.FileTransDirection == rtkFileDrop.FilesTransfer_As_Dst {
 			errCode := rtkConnection.NewFileDropItemStream(ctx, id, cacheData.TimeStamp)
 			if errCode != rtkMisc.SUCCESS {
-				log.Printf("[%s] ID:[%s] new File Drop Item stream err, errCode:%+v ", rtkMisc.GetFuncInfo(), id, errCode)
+				log.Printf("[%s] ID:[%s] TimeStamp:[%d]  new File Drop Item stream err, errCode:%+v ", rtkMisc.GetFuncInfo(), id, cacheData.TimeStamp, errCode)
 				return errCode
 			}
 		}
-	}*/
+	}
 	return rtkMisc.SUCCESS
 }
 
-func clearCacheFileDataList(id, ipAddr string, code rtkMisc.CrossShareErr) {
-	rtkConnection.CloseAllFileDropStream(id)      // close all file data transfer stream
+func clearFilesTransferCacheList(id, ipAddr string, code rtkMisc.CrossShareErr) {
+	rtkConnection.CloseAllFileDropStream(id) // close all file data transfer stream
 
 	i := 0
 	for rtkFileDrop.GetFilesTransferDataCacheCount(id) > 0 {
-		cacheData := rtkFileDrop.GetFilesTransferDataItem(id,0)
+		cacheData := rtkFileDrop.GetFilesTransferDataItem(id)
 		if cacheData == nil {
 			break
 		}
