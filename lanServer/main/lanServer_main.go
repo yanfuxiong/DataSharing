@@ -29,11 +29,9 @@ import (
 var acceptErrFlag = make(chan struct{})
 
 var (
-	service       = flag.String("service", rtkMisc.LanServiceType, "Set the service type of the new service.")
-	domain        = flag.String("domain", rtkMisc.LanServerDomain, "Set the network domain. Default should be fine.")
-	port          = flag.Int("port", rtkMisc.LanServerPort, "Set the port the service is listening to.")
-	interfaceName = flag.String("interface", rtkNetwork.SupInterfaces[0], "Set the network interface name. Default WLAN.")
-
+	service          = flag.String("service", rtkMisc.LanServiceType, "Set the service type of the new service.")
+	domain           = flag.String("domain", rtkMisc.LanServerDomain, "Set the network domain. Default should be fine.")
+	port             = flag.Int("port", rtkMisc.LanServerPort, "Set the port the service is listening to.")
 	serviceForServer = flag.String("serviceForServer", rtkMisc.LanServiceTypeForServer, "Set the service type of the new service.")
 
 	g_foundOtherServer bool     = false
@@ -161,7 +159,7 @@ func MainInit() {
 
 	var printErrNetwork = true
 	for {
-		if rtkMisc.IsNetworkConnected([]string{}) {
+		if rtkMisc.IsNetworkConnected() {
 			printErrNetwork = true
 			break
 		}
@@ -175,8 +173,8 @@ func MainInit() {
 
 	rtkGlobal.ServerIPAddr = ""
 
+	rtkIfaceMgr.GetInterfaceMgr().TriggerGetCapability()
 	rtkMisc.GoSafe(func() { rtkDebug.DebugCmdLine() })
-	rtkMisc.GoSafe(func() { rtkNetwork.WatchNetworkInfo(ctx) })
 	rtkMisc.GoSafe(func() { Run() })
 
 	for {
@@ -184,8 +182,8 @@ func MainInit() {
 		case <-ctx.Done():
 			return
 		case <-acceptErrFlag:
-			time.Sleep(5 * time.Second)
 			rtkdbManager.UpdateAllClientOffline()
+			time.Sleep(5 * time.Second)
 		}
 
 		log.Printf("registerMdns Server restart...\n\n")
@@ -238,21 +236,25 @@ func registerMdns(server **zeroconf.Server, serverForSearch **zeroconf.Server) [
 	var printErrMac = true
 	var printErrIp = true
 	var printErrMdns = true
+	index := 0
 	for {
-		time.Sleep(1 * time.Second)
-
-		interFace, err := rtkNetwork.GetValidInterface()
+		time.Sleep(100 * time.Millisecond)
+		interfaceList, err := rtkNetwork.GetValidInterfaceList()
 		if err != nil {
+			time.Sleep(5 * time.Second)
 			continue
 		}
+		if index >= len(interfaceList) {
+			index = 0
+		}
 
-		iface, err := rtkMisc.GetValidInterface(interFace.Name)
+		iface, err := rtkMisc.GetValidInterface(interfaceList[index])
 		if err != nil {
 			if printErrIface {
-				log.Printf("Err: Get network interface(%s) failed: %s", interFace.Name, err.Error())
+				log.Printf("Err: Get network interface(%s) failed: %s", interfaceList[index], err.Error())
 				printErrIface = false
 			}
-
+			index++
 			continue
 		}
 
@@ -264,6 +266,7 @@ func registerMdns(server **zeroconf.Server, serverForSearch **zeroconf.Server) [
 					log.Printf("Err: Get server MAC address failed: %s", err.Error())
 					printErrMac = false
 				}
+				index++
 				continue
 			}
 
@@ -277,6 +280,7 @@ func registerMdns(server **zeroconf.Server, serverForSearch **zeroconf.Server) [
 				log.Printf("Err: Get server IP address failed: %s", err.Error())
 				printErrIp = false
 			}
+			index++
 			continue
 		}
 		printErrIp = true
@@ -312,6 +316,7 @@ func registerMdns(server **zeroconf.Server, serverForSearch **zeroconf.Server) [
 				log.Printf("Err: mDNS register failed: %s", err.Error())
 				printErrMdns = false
 			}
+			index++
 			continue
 		}
 		printErrMdns = true
@@ -321,11 +326,6 @@ func registerMdns(server **zeroconf.Server, serverForSearch **zeroconf.Server) [
 }
 
 func Run() {
-	/*ipAddress, bExisted := checkLanServerExists()
-	if bExisted {
-		log.Printf("an other %s IPAddr:[%s] is already running! so exit!", rtkBuildConfig.ServerName, ipAddress)
-		log.Fatal(fmt.Sprintf("%s is already exist!", rtkBuildConfig.ServerName))
-	}*/
 	var server *zeroconf.Server = nil
 	var serverForSearch *zeroconf.Server = nil
 	defer func() {
@@ -413,15 +413,15 @@ func Run() {
 	for {
 		conn, accErr := listener.Accept()
 		if accErr != nil {
-			cancel()
 			log.Printf("Server %s:%d accepting connection Error:%+v", rtkGlobal.ServerIPAddr, rtkGlobal.ServerPort, accErr.Error())
-			if opErr, ok := err.(*net.OpError); ok {
+			if opErr, ok := accErr.(*net.OpError); ok {
 				log.Printf("[%s] Accept OpError: %v, Op: %s, Net: %s, Err: %v", rtkMisc.GetFuncInfo(), opErr, opErr.Op, opErr.Net, opErr.Err)
 				if opErr.Temporary() {
 					log.Println("Temporary error, continuing...")
 					continue
 				}
 			}
+			cancel()
 			var errno syscall.Errno
 			if errors.As(accErr, &errno) {
 				log.Printf("Accept errno: %v", errno)

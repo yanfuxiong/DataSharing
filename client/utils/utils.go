@@ -3,7 +3,6 @@ package utils
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"crypto/md5"
 	"encoding/base64"
 	"encoding/json"
@@ -13,6 +12,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	rtkCommon "rtk-cross-share/client/common"
 	rtkGlobal "rtk-cross-share/client/global"
 	rtkMisc "rtk-cross-share/misc"
@@ -281,8 +281,9 @@ func InsertClientInfoMap(id, ipAddr, platform, name, srcPortType, ver, fileTrans
 	peerVerSerial := rtkMisc.GetVersionSerialValue(ver)
 	isSupportXClip := peerVerSerial >= rtkGlobal.ClientXClipVerSerial
 	isSupportQueueFileTrans := peerVerSerial >= rtkGlobal.ClientQueueFileTransVerSerial
+	isRmFileCountLimit := peerVerSerial >= rtkGlobal.ClientRmFileLimitVerSerial
 
-	log.Printf("ID:[%s] version:[%s] Supported: XClip[%s], QueueFileTrans[%s]", id, ver, boolToString(isSupportXClip), boolToString(isSupportQueueFileTrans))
+	log.Printf("ID:[%s] version:[%s] Supported: XClip[%s], QueueFileTrans[%s], RmFileCountLimit:[%s]", id, ver, boolToString(isSupportXClip), boolToString(isSupportQueueFileTrans), boolToString(isRmFileCountLimit))
 
 	rtkGlobal.ClientInfoMap[id] = rtkCommon.ClientInfoEx{
 		ClientInfo: rtkMisc.ClientInfo{
@@ -295,6 +296,7 @@ func InsertClientInfoMap(id, ipAddr, platform, name, srcPortType, ver, fileTrans
 		},
 		IsSupportXClip:      isSupportXClip,
 		IsSupportQueueTrans: isSupportQueueFileTrans,
+		IsRmFileCntLimit:    isRmFileCountLimit,
 		FileTransNodeID:     fileTransId,
 		UpdPort:             udpPort,
 	}
@@ -394,6 +396,18 @@ func GetPeerClientIsSupportQueueTrans(id string) bool {
 	}
 
 	return clientInfo.IsSupportQueueTrans
+}
+
+func GetPeerClientIsRmFCL(id string) bool {
+	rtkGlobal.ClientListRWMutex.RLock()
+	defer rtkGlobal.ClientListRWMutex.RUnlock()
+	clientInfo, ok := rtkGlobal.ClientInfoMap[id]
+	if !ok {
+		log.Printf("[%s] not found ClientInfo by id:%s", rtkMisc.GetFuncInfo(), id)
+		return false
+	}
+
+	return clientInfo.IsRmFileCntLimit
 }
 
 func WalkPath(dirPath string, pathList *[]string, fileInfoList *[]rtkCommon.FileInfo, totalSize *uint64) error {

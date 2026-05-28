@@ -1,87 +1,85 @@
 package network
 
 import (
-	"context"
+	"errors"
 	"log"
-	rtkBuildConfig "rtk-cross-share/lanServer/buildConfig"
-	rtkGlobal "rtk-cross-share/lanServer/global"
+	"net"
 	rtkMisc "rtk-cross-share/misc"
-
-	"time"
+	"sort"
+	"strconv"
+	"strings"
 )
 
-var (
-	SupInterfaces = []string{"wlan0", "eth0"} // e.g., "en0", "wlan0", "lo0", "eth0.100"
-)
+// get interfaces priority order from high to low : eth0, eth1, eth2, eth3, eth4...., wlan0,wlan1,wlan2,wlan3,wlan4....
+func GetValidInterfaceList() ([]string, error) {
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		log.Printf("[%s]Failed to get network interfaces: %v", rtkMisc.GetFuncInfo(), err)
+		return nil, err
+	}
 
-// var availableChanFlag = make(chan bool)
-var networkSwitchSignalChan = make(chan struct{})
+	ifaceNameWlan := make([]string, 0)
+	ifaceNameEth := make([]string, 0)
+	for _, iface := range interfaces {
+		if (iface.Flags&net.FlagUp) == 0 || (iface.Flags&net.FlagLoopback) != 0 {
+			continue
+		}
 
-func WatchNetworkConnected(ctx context.Context) {
-	lastStatus := true
-	// TODO: measure the polling time (5s) is suitable or not
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
 
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			if !rtkMisc.IsNetworkConnected(SupInterfaces) {
-				if lastStatus {
-					lastStatus = false
-					//availableChanFlag <- false
-				}
-				log.Printf("[%s] Network is unavailable!", rtkMisc.GetFuncInfo())
-			} else {
-				if !lastStatus {
-					lastStatus = true
-					//availableChanFlag <- true
-					log.Printf("[%s] Network is reconnected!  try to login lan server...", rtkMisc.GetFuncInfo())
+		for _, addr := range addrs {
+			if ipNet, ok := addr.(*net.IPNet); ok && !ipNet.IP.IsLoopback() {
+				if ipNet.IP.To4() != nil {
+					//log.Printf("[%s] name :%s, IP:%s ", rtkMisc.GetFuncInfo(), iface.Name, ipNet.IP.String())
+
+					if strings.HasPrefix(iface.Name, "wlan") {
+						ifaceNameWlan = append(ifaceNameWlan, iface.Name)
+					} else if strings.HasPrefix(iface.Name, "eth") {
+						ifaceNameEth = append(ifaceNameEth, iface.Name)
+					}
 				}
 			}
-
 		}
 	}
 
-}
+	sort.Slice(ifaceNameWlan, func(i, j int) bool {
+		//priority order: wlan0 > wlan1 > wlan2 > wlan4 ...
+		return isIfaceNameSuffixBigger("wlan", ifaceNameWlan[i], ifaceNameWlan[j])
+	})
 
-// Depreacted: Use listener.Accept error as network changed
-func WatchNetworkInfo(ctx context.Context) {
-	var lastIp string
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
+	sort.Slice(ifaceNameEth, func(i, j int) bool {
+		//priority order: eth0 > eth1 > eth2 > eth4 ...
+		return isIfaceNameSuffixBigger("eth", ifaceNameEth[i], ifaceNameEth[j])
+	})
 
-	printNetError := true
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			currentIpList, ok := rtkMisc.GetNetworkIP(SupInterfaces)
-			if !ok {
-				if printNetError {
-					log.Printf("[%s] GetNetworkIP error!", rtkMisc.GetFuncInfo())
-					printNetError = false
-				}
-				continue
-			}
-
-			lastIp = rtkGlobal.ServerIPAddr
-			printNetError = true
-			// FIXME: it will trigger few times even it already got new IP
-			if lastIp != "" && !rtkMisc.IsInTheList(lastIp, currentIpList) && rtkMisc.IsNetworkConnected(SupInterfaces) {
-				log.Println("==============================================================================")
-				log.Printf("%s Network  old IP:[%s] new IP:[%+v]!", rtkBuildConfig.ServerName, lastIp, currentIpList)
-				log.Printf("******** %s Network is Switch, cancel old business! ******** ", rtkBuildConfig.ServerName)
-				// networkSwitchSignalChan <- struct{}{}
-			}
-		}
+	ifaceNameEth = append(ifaceNameEth, ifaceNameWlan...)
+	if len(ifaceNameEth) == 0 {
+		return nil, errors.New("GetValidInterfaceList is nil!")
 	}
+
+	return ifaceNameEth, nil
 }
 
-// Deprecated: Unused
-func GetNetworkSwitchFlag() <-chan struct{} {
-	return networkSwitchSignalChan
+func isIfaceNameSuffixBigger(prefix, ethSmall, ethBig string) bool {
+	if !strings.HasPrefix(ethBig, prefix) || !strings.HasPrefix(ethSmall, prefix) {
+		return false
+	}
+	bigNumStr := strings.TrimPrefix(ethBig, prefix)
+	smallNumStr := strings.TrimPrefix(ethSmall, prefix)
+	if bigNumStr == "" || smallNumStr == "" {
+		return false
+	}
+	bigNum, err := strconv.Atoi(bigNumStr)
+	if err != nil {
+		return false
+	}
+	smallNum, err := strconv.Atoi(smallNumStr)
+	if err != nil {
+		return false
+	}
+
+	return bigNum > smallNum
 }

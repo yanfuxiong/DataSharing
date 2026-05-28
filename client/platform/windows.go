@@ -468,6 +468,11 @@ func GoDragFileListRequest(fileStrList *[]string, timeStamp uint64) rtkCommon.Se
 		return rtkCommon.SendFilesRequestCallbackNotSet
 	}
 
+	if !rtkGlobal.IsSupportFileDrag {
+		log.Printf("[%s] Mnt unsupport drag file, skit it!", rtkMisc.GetFuncInfo())
+		return rtkCommon.MntUnsupportDragFile
+	}
+
 	fileList := make([]rtkCommon.FileInfo, 0)
 	folderList := make([]string, 0)
 	totalSize := uint64(0)

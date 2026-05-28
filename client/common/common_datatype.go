@@ -57,6 +57,11 @@ type ExtDataFile struct {
 	TotalSize     uint64
 }
 
+type ExtDataFileRmFCL struct {
+	TimeStamp          uint64
+	FileDataDetailsLen int //FileDropData json length
+}
+
 type ExtDataImg struct {
 	Size   FileSize
 	Header ImgHeader
