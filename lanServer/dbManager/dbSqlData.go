@@ -23,15 +23,15 @@ const (
 			DeviceName		TEXT,
 			Platform		TEXT,
 			Version			TEXT NOT NULL,
-			UpdateTime		DATETIME NOT NULL DEFAULT (datetime('now','localtime')),
-			CreateTime		DATETIME NOT NULL DEFAULT (datetime('now','localtime'))
+			UpdateTime		DATETIME NOT NULL DEFAULT (datetime('now')),
+			CreateTime		DATETIME NOT NULL DEFAULT (datetime('now'))
 		);
 		CREATE TABLE IF NOT EXISTS t_auth_info (
 			PkIndex			INTEGER PRIMARY KEY,
 			ClientIndex		INTEGER UNIQUE,
 			AuthStatus		BOOLEAN NOT NULL DEFAULT TRUE,
-			UpdateTime		DATETIME NOT NULL DEFAULT (datetime('now','localtime')),
-			CreateTime		DATETIME NOT NULL DEFAULT (datetime('now','localtime')),
+			UpdateTime		DATETIME NOT NULL DEFAULT (datetime('now')),
+			CreateTime		DATETIME NOT NULL DEFAULT (datetime('now')),
 			LastAuthTime		DATETIME DEFAULT NULL
 		);
 		CREATE TABLE IF NOT EXISTS t_timing_info (
@@ -40,15 +40,15 @@ const (
 			Width			INTEGER,
 			Height			INTEGER,
 			Framerate		INTEGER,
-			UpdateTime		DATETIME NOT NULL DEFAULT (datetime('now','localtime')),
-			CreateTime		DATETIME NOT NULL DEFAULT (datetime('now','localtime')),
+			UpdateTime		DATETIME NOT NULL DEFAULT (datetime('now')),
+			CreateTime		DATETIME NOT NULL DEFAULT (datetime('now')),
 			PRIMARY KEY (source, port)
 		);
 		CREATE TABLE IF NOT EXISTS t_link_info (
 			ClientIndex		INTEGER PRIMARY KEY,
 			Link			TEXT,
-			UpdateTime		DATETIME NOT NULL DEFAULT (datetime('now','localtime')),
-			CreateTime		DATETIME NOT NULL DEFAULT (datetime('now','localtime'))
+			UpdateTime		DATETIME NOT NULL DEFAULT (datetime('now')),
+			CreateTime		DATETIME NOT NULL DEFAULT (datetime('now'))
 		);
 		CREATE TABLE IF NOT EXISTS t_srcport_info (
 			Source			INTEGER NOT NULL,
@@ -56,8 +56,8 @@ const (
 			ClientIndex		INTEGER NOT NULL,
 			UdpMousePort		INTEGER NOT NULL,
 			UdpKeyboardPort		INTEGER NOT NULL,
-			UpdateTime		DATETIME NOT NULL DEFAULT (datetime('now','localtime')),
-			CreateTime		DATETIME NOT NULL DEFAULT (datetime('now','localtime')),
+			UpdateTime		DATETIME NOT NULL DEFAULT (datetime('now')),
+			CreateTime		DATETIME NOT NULL DEFAULT (datetime('now')),
 			PRIMARY KEY (Source, Port)
 		);`
 
@@ -65,7 +65,7 @@ const (
 
 	SqlDataUpsertClientInfo SqlData = `
 		INSERT INTO t_client_info (ClientId, Host, IPAddr, DeviceName, Platform, Version, UpdateTime)
-		VALUES (?, ?, ?, ?, ?, ?, (datetime('now','localtime')))
+		VALUES (?, ?, ?, ?, ?, ?, (datetime('now')))
 		ON CONFLICT (ClientId)
 		DO UPDATE SET
 			Host		= excluded.Host,
@@ -80,27 +80,27 @@ const (
 
 	SqlDataUpsertAuthInfo SqlData = `
 		INSERT INTO t_auth_info (ClientIndex, AuthStatus, UpdateTime, LastAuthTime)
-		VALUES (?, ?, (datetime('now','localtime')), (datetime('now','localtime')))
+		VALUES (?, ?, (datetime('now')), (datetime('now')))
 		ON CONFLICT (ClientIndex)
 		DO UPDATE SET AuthStatus=excluded.AuthStatus, UpdateTime=excluded.UpdateTime, LastAuthTime=excluded.LastAuthTime
 		RETURNING t_auth_info.PkIndex;`
 
 	SqlDataUpsertUnauthInfo SqlData = `
 		INSERT INTO t_auth_info (ClientIndex, AuthStatus, UpdateTime)
-		VALUES (?, ?, (datetime('now','localtime')))
+		VALUES (?, ?, (datetime('now')))
 		ON CONFLICT (ClientIndex)
 		DO UPDATE SET AuthStatus=excluded.AuthStatus, UpdateTime=excluded.UpdateTime
 		RETURNING t_auth_info.PkIndex;`
 
 	SqlDataUpdateClientInfo SqlData = `
 		UPDATE t_client_info
-		SET %s, UpdateTime=(datetime('now','localtime'))
+		SET %s, UpdateTime=(datetime('now'))
 		WHERE %s
 		RETURNING t_client_info.PkIndex;`
 
 	SqlDataResetAuthInfo SqlData = `
 		UPDATE t_auth_info
-		SET AuthStatus=0, UpdateTime=(datetime('now','localtime'))
+		SET AuthStatus=0, UpdateTime=(datetime('now'))
 		WHERE AuthStatus=1;`
 
 	SqlDataQueryClientInfo SqlData = `
@@ -115,7 +115,7 @@ const (
 
 	SqlDataUpsertTimingInfo SqlData = `
 		INSERT INTO t_timing_info (Source, Port, Width, Height, Framerate, UpdateTime)
-		VALUES (?, ?, ?, ?, ?, (datetime('now','localtime')))
+		VALUES (?, ?, ?, ?, ?, (datetime('now')))
 		ON CONFLICT(Source, Port)
 		DO UPDATE SET
 			Width		= excluded.Width,
@@ -125,7 +125,7 @@ const (
 
 	SqlDataUpsertLinkInfo SqlData = `
 		INSERT INTO t_link_info (ClientIndex, Link, UpdateTime)
-		VALUES (?, ?, (datetime('now','localtime')))
+		VALUES (?, ?, (datetime('now')))
 		ON CONFLICT(ClientIndex)
 		DO UPDATE SET
 			Link		= excluded.Link,
@@ -140,7 +140,7 @@ const (
 
 	SqlDataUpsertSrcPortInfo SqlData = `
 		INSERT INTO t_srcport_info (Source, Port, ClientIndex,UdpMousePort,UdpKeyboardPort,UpdateTime)
-		VALUES (?, ?, ?, ?, ?,(datetime('now','localtime')))
+		VALUES (?, ?, ?, ?, ?,(datetime('now')))
 		ON CONFLICT(Source, Port)
 		DO UPDATE SET
 			ClientIndex		= excluded.ClientIndex,
@@ -150,7 +150,7 @@ const (
 
 	SqlDataResetSrcPortInfo SqlData = `
 		UPDATE t_srcport_info
-		SET ClientIndex=0,UdpMousePort=0,UdpKeyboardPort=0, UpdateTime=(datetime('now','localtime'))
+		SET ClientIndex=0,UdpMousePort=0,UdpKeyboardPort=0, UpdateTime=(datetime('now'))
 		WHERE %s ;`
 
 	SqlDataQuerySrcPortInfo SqlData = `
@@ -257,8 +257,8 @@ const (
 			ClientIndex		INTEGER NOT NULL,
 			UdpMousePort		INTEGER NOT NULL,
 			UdpKeyboardPort		INTEGER NOT NULL,
-			UpdateTime		DATETIME NOT NULL DEFAULT (datetime('now','localtime')),
-			CreateTime		DATETIME NOT NULL DEFAULT (datetime('now','localtime')),
+			UpdateTime		DATETIME NOT NULL DEFAULT (datetime('now')),
+			CreateTime		DATETIME NOT NULL DEFAULT (datetime('now')),
 			PRIMARY KEY (Source, Port)
 		);`
 )
