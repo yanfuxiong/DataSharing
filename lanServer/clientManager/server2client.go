@@ -199,7 +199,7 @@ func dealC2SMsgInitClient(ext *json.RawMessage) (uint32, interface{}) {
 	return initClientRsp.ClientIndex, initClientRsp
 }
 
-func dealC2SMsgMobileAuthDataIndex(id string, clientIndex uint32, ext *json.RawMessage) interface{} {
+func dealC2SMsgMobileAuthDataIndex(ctx context.Context, id string, clientIndex uint32, ext *json.RawMessage) interface{} {
 	authDataIndexMobileRsp := rtkMisc.AuthDataIndexMobileResponse{Response: rtkMisc.GetResponse(rtkMisc.SUCCESS), AuthStatus: false}
 	var extData rtkMisc.AuthDataIndexMobileReq
 	err := json.Unmarshal(*ext, &extData)
@@ -226,7 +226,7 @@ func dealC2SMsgMobileAuthDataIndex(id string, clientIndex uint32, ext *json.RawM
 	if (extData.AuthData.Type == rtkMisc.DisplayModeUsbC) && (len(rtkCommon.GetUsbCPort()) > 1) {
 		if rtkMisc.GetVersionSerialValue(clientInfo.Version) >= int(rtkGlobal.ClientCaptureIndexVerSerial) {
 			log.Printf("[%s] Get capture result. Index[%d]", rtkMisc.GetFuncInfo(), clientIndex)
-			authStatus, source, port = checkCaptureResult(captrueMaxRetryCnt, int(clientIndex))
+			authStatus, source, port = checkCaptureResult(ctx, captrueMaxRetryCnt, int(clientIndex))
 			maxRetryCnt -= captrueMaxRetryCnt
 		}
 	}
@@ -234,7 +234,7 @@ func dealC2SMsgMobileAuthDataIndex(id string, clientIndex uint32, ext *json.RawM
 	if authStatus == false {
 		// Compare timing with TimingData & AuthData
 		log.Printf("[%s] Width[%d] Height[%d] Type[%d] Framerate[%d]  DisplayName:[%s]", rtkMisc.GetFuncInfo(), extData.AuthData.Width, extData.AuthData.Height, extData.AuthData.Type, extData.AuthData.Framerate, extData.AuthData.DisplayName)
-		authStatus, source, port = checkMobileTiming(maxRetryCnt, int(clientIndex), extData.AuthData)
+		authStatus, source, port = checkMobileTiming(ctx, maxRetryCnt, int(clientIndex), extData.AuthData)
 	}
 
 	errCode := rtkdbManager.UpdateAuthAndSrcPort(int(clientIndex), authStatus, source, port)

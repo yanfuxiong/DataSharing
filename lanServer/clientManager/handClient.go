@@ -20,13 +20,6 @@ const (
 	periodicNotifyInternal = 5 * time.Second
 )
 
-type asynMsgInfo struct {
-	msg       rtkMisc.C2SMessage
-	timestamp int64
-}
-
-var asynC2SMsg = make(chan asynMsgInfo)
-
 // =============================
 // CaptureColorData get event
 // =============================
@@ -49,7 +42,7 @@ func SetNotifyGetTimingDataCallback(cb NotifyGetTimingDataCallback) {
 	notifyGetTimingDataCallback = cb
 }
 
-func handleReadFromClientMsg(buffer []byte, IPAddr string, MsgRsp *rtkMisc.C2SMessage, timeStamp int64) rtkMisc.CrossShareErr {
+func handleReadFromClientMsg(ctx context.Context, buffer []byte, IPAddr string, MsgRsp *rtkMisc.C2SMessage) rtkMisc.CrossShareErr {
 	if len(buffer) == 0 {
 		log.Printf("[%s] buffer is null!", rtkMisc.GetFuncInfo())
 		return rtkMisc.ERR_BIZ_S2C_READ_EMPTY_DATA
@@ -78,24 +71,10 @@ func handleReadFromClientMsg(buffer []byte, IPAddr string, MsgRsp *rtkMisc.C2SMe
 
 	switch msg.MsgType {
 	case rtkMisc.C2SMsg_CLIENT_HEARTBEAT:
-	//rtkdbManager.UpdateHeartBeat(msg.ClientIndex)
-	case rtkMisc.C2SMsg_RESET_CLIENT:
-		resetRsp := rtkMisc.ResetClientResponse{Response: rtkMisc.GetResponse(rtkMisc.SUCCESS)}
-		errCode := rtkdbManager.UpdateClientOnline(int(msg.ClientIndex))
-		if errCode != rtkMisc.SUCCESS {
-			resetRsp = rtkMisc.ResetClientResponse{Response: rtkMisc.GetResponse(errCode)}
-		}
-		MsgRsp.ExtData = resetRsp
 	case rtkMisc.C2SMsg_INIT_CLIENT:
 		MsgRsp.ClientIndex, MsgRsp.ExtData = dealC2SMsgInitClient(&msg.ExtData)
 	case rtkMisc.C2SMsg_AUTH_DATA_INDEX_MOBILE:
-		rtkMisc.GoSafe(func() {
-			MsgRsp.ExtData = dealC2SMsgMobileAuthDataIndex(msg.ClientID, msg.ClientIndex, &msg.ExtData)
-			asynC2SMsg <- asynMsgInfo{
-				msg:       *MsgRsp,
-				timestamp: timeStamp,
-			}
-		})
+		MsgRsp.ExtData = dealC2SMsgMobileAuthDataIndex(ctx, msg.ClientID, msg.ClientIndex, &msg.ExtData)
 	case rtkMisc.C2SMsg_REQ_CLIENT_LIST:
 		MsgRsp.ExtData = dealC2SMsgReqClientList(msg.ClientIndex)
 	case rtkMisc.CS2Msg_MESSAGE_EVENT:
@@ -112,48 +91,56 @@ func handleReadFromClientMsg(buffer []byte, IPAddr string, MsgRsp *rtkMisc.C2SMe
 	return rtkMisc.SUCCESS
 }
 
-func checkCaptureResult(maxRetryCnt int, clientIndex int) (bool, int, int) {
+func checkCaptureResult(ctx context.Context, maxRetryCnt int, clientIndex int) (bool, int, int) {
 	// TODO: discuss max count and interval
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 
 	retryCnt := 0
 	for {
-		<-ticker.C
-		src := rtkGlobal.Src_DP
-		for port := range rtkCommon.GetUsbCPort() {
-			ret := notifyCaptureIndexCallback(src, port, clientIndex)
-			if ret {
-				return true, src, port
-			}
-		}
-
-		retryCnt++
-		if retryCnt >= maxRetryCnt {
-			log.Printf("[%s] Not found index(%d) in src(%d), Retry:(%d/%d)",
-				rtkMisc.GetFuncInfo(), clientIndex, src, retryCnt, maxRetryCnt)
+		select {
+		case <-ctx.Done():
 			return false, 0, 0
+		case <-ticker.C:
+			src := rtkGlobal.Src_DP
+			for port := range rtkCommon.GetUsbCPort() {
+				ret := notifyCaptureIndexCallback(src, port, clientIndex)
+				if ret {
+					return true, src, port
+				}
+			}
+
+			retryCnt++
+			if retryCnt >= maxRetryCnt {
+				log.Printf("[%s] Not found index(%d) in src(%d), Retry:(%d/%d)",
+					rtkMisc.GetFuncInfo(), clientIndex, src, retryCnt, maxRetryCnt)
+				return false, 0, 0
+			}
 		}
 	}
 }
 
-func checkMobileTiming(maxRetryCnt int, clientIndex int, authData rtkMisc.AuthDataInfo) (bool, int, int) {
+func checkMobileTiming(ctx context.Context, maxRetryCnt int, clientIndex int, authData rtkMisc.AuthDataInfo) (bool, int, int) {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 
 	retryCnt := 0
 	for {
-		<-ticker.C
-		src, port := getMobileTimingSrcPort(clientIndex, authData)
-		if (src > 0) || (port > 0) {
-			return true, src, port
-		}
-
-		retryCnt++
-		if retryCnt >= maxRetryCnt {
-			log.Printf("[%s] Not found timing(%dx%d@%d), Retry:(%d/%d)",
-				rtkMisc.GetFuncInfo(), authData.Width, authData.Height, authData.Framerate, retryCnt, maxRetryCnt)
+		select {
+		case <-ctx.Done():
 			return false, 0, 0
+		case <-ticker.C:
+			src, port := getMobileTimingSrcPort(clientIndex, authData)
+			if (src > 0) || (port > 0) {
+				return true, src, port
+			}
+
+			retryCnt++
+			if retryCnt >= maxRetryCnt {
+				log.Printf("[%s] Not found timing(%dx%d@%d), Retry:(%d/%d)",
+					rtkMisc.GetFuncInfo(), authData.Width, authData.Height, authData.Framerate, retryCnt, maxRetryCnt)
+				return false, 0, 0
+			}
 		}
 	}
 }
@@ -228,7 +215,7 @@ func getMobileTimingSrcPort(clientIndex int, authData rtkMisc.AuthDataInfo) (int
 	return 0, 0
 }
 
-func HandleClient(ctx context.Context, conn net.Conn, timestamp int64) {
+func HandleClient(mainCtx context.Context, conn net.Conn, timestamp int64) {
 	clientIndex := uint32(0)
 	clientID := ""
 
@@ -244,18 +231,29 @@ func HandleClient(ctx context.Context, conn net.Conn, timestamp int64) {
 		err    error
 	}, 5)
 
+	ctx, cancel := context.WithCancel(mainCtx)
+
 	rtkMisc.GoSafe(func() {
+		defer func() {
+			close(readResult)
+			conn.Close()
+			cancel()
+		}()
+		errCnt := 0
 		for {
 			select {
 			case <-ctx.Done():
 				log.Printf("IPAddr:[%s] connect cancel by context! ", conn.RemoteAddr().String())
-				close(readResult)
 				return
 			default:
 				err := conn.SetDeadline(time.Now().Add(time.Duration(rtkMisc.ClientHeartbeatInterval+5) * time.Second))
 				if err != nil {
 					log.Printf("IPAddr:[%s] connect SetDeadline err:%+v !", conn.RemoteAddr().String(), err)
 					time.Sleep(100 * time.Millisecond)
+					if errCnt >= 3 {
+						return
+					}
+					errCnt++
 					continue
 				}
 
@@ -287,48 +285,34 @@ func HandleClient(ctx context.Context, conn net.Conn, timestamp int64) {
 							log.Printf("[%s] Read errno: %v", rtkMisc.GetFuncInfo(), errno)
 						}
 					}
-					conn.Close()
 					return
 				}
 			}
 		}
 	})
 
-	for {
-		select {
-		case <-ctx.Done():
+	for readData := range readResult {
+		if readData.err != nil {
 			return
-		case rspMsgInfo, _ := <-asynC2SMsg:
-			writeMsg(&rspMsgInfo.msg, rspMsgInfo.timestamp)
-		case readData, ok := <-readResult:
-			if !ok {
-				continue
-			}
-			if readData.err != nil {
-				return
-			}
+		}
 
-			buffer := make([]byte, 1024)
-			buffer = []byte(readData.buffer)
+		buffer := make([]byte, 1024)
+		buffer = []byte(readData.buffer)
 
-			var C2SRsp rtkMisc.C2SMessage
-			errCode := handleReadFromClientMsg(buffer, conn.RemoteAddr().String(), &C2SRsp, timestamp)
-			if errCode != rtkMisc.SUCCESS {
-				continue
-			}
+		var C2SRsp rtkMisc.C2SMessage
+		errCode := handleReadFromClientMsg(ctx, buffer, conn.RemoteAddr().String(), &C2SRsp)
+		if errCode != rtkMisc.SUCCESS {
+			continue
+		}
 
-			if clientIndex == 0 {
-				clientIndex = C2SRsp.ClientIndex
-				clientID = C2SRsp.ClientID
-				updateConn(clientID, timestamp, conn)
-			}
+		if clientIndex == 0 {
+			clientIndex = C2SRsp.ClientIndex
+			clientID = C2SRsp.ClientID
+			updateConn(clientID, timestamp, conn)
+		}
 
-			if C2SRsp.MsgType != rtkMisc.C2SMsg_AUTH_DATA_INDEX_MOBILE { // asynchronous response message
-				if writeMsg(&C2SRsp, timestamp) != rtkMisc.SUCCESS {
-					return
-				}
-			}
-
+		if writeMsg(&C2SRsp, timestamp) != rtkMisc.SUCCESS {
+			return
 		}
 
 	}
