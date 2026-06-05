@@ -30,6 +30,7 @@ import (
 	peer "github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	ma "github.com/multiformats/go-multiaddr"
+	manet "github.com/multiformats/go-multiaddr/net"
 )
 
 func getMutex(id string) *sync.Mutex {
@@ -52,7 +53,7 @@ func ConnectionInit(ctx context.Context) bool {
 	ticker := time.NewTicker(3 * time.Second)
 	defer ticker.Stop()
 	for {
-		if setupNode(rtkGlobal.ListenHost, rtkGlobal.ListenPort) == nil {
+		if setupNode(ctx, rtkGlobal.ListenHost, rtkGlobal.ListenPort) == nil {
 			break
 		}
 		select {
@@ -72,25 +73,24 @@ func ConnectionInit(ctx context.Context) bool {
 	return true
 }
 
-func cancelHostNode() {
+func cancelHostNode(ctxMain context.Context) {
 	nodeMutex.Lock()
 	defer nodeMutex.Unlock()
 	if node != nil {
 		log.Println("begin close p2p node info!")
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(ctxMain, 30*time.Second)
 		defer cancel()
 		done := make(chan struct{})
 		rtkMisc.GoSafe(func() {
 			for _, c := range node.Network().Conns() {
 				for _, s := range c.GetStreams() {
-					_ = s.SetDeadline(time.Now().Add(100 * time.Millisecond))
 					s.Reset()
 				}
 				_ = c.Close()
 			}
 			node.Network().Close()
-			node.Peerstore().Close()
 			node.ConnManager().Close()
+			node.Peerstore().Close()
 			node.Close()
 			node = nil
 
@@ -105,8 +105,8 @@ func cancelHostNode() {
 	}
 
 	if fileTransNode != nil {
-		fileTransNode.Peerstore().Close()
 		fileTransNode.Network().Close()
+		fileTransNode.Peerstore().Close()
 		fileTransNode.Close()
 		fileTransNode = nil
 		log.Println("close p2p file Node info success!")
@@ -115,8 +115,7 @@ func cancelHostNode() {
 
 func Run(ctx context.Context) {
 	defer func() {
-		CancelAllStream(false)
-		cancelHostNode()
+		cancelHostNode(ctx)
 		condGroupDone()
 	}()
 
@@ -144,10 +143,10 @@ func Run(ctx context.Context) {
 	}
 }
 
-func setupNode(ip string, port int) error {
+func setupNode(ctx context.Context, ip string, port int) error {
 	priv := rtkPlatform.GenKey()
 
-	cancelHostNode()
+	cancelHostNode(ctx)
 
 	tcpAddr, err := ma.NewMultiaddr(fmt.Sprintf("/ip4/%s/tcp/%d", ip, port))
 	if err != nil {
@@ -238,10 +237,7 @@ func setupNode(ip string, port int) error {
 
 	// get valid Addr,  skip [0.0.0.0, 127.0.0.1, 169.254.xxx.xxx]
 	getValidAddr := func(addrs []ma.Multiaddr) (string, string) {
-		isAPIPA := func(ip net.IP) bool {
-			return len(ip) >= 2 && ip[0] == 169 && ip[1] == 254
-		}
- 		for _, addr := range addrs {
+		for _, addr := range addrs {
 			ip, err := manet.ToIP(addr)
 			if err != nil {
 				continue
@@ -255,14 +251,13 @@ func setupNode(ip string, port int) error {
 				continue
 			case ip.IsUnspecified():
 				continue
-			case isAPIPA(ip):
-				continue
 			}
 
-			if ip.To4() != nil || ip.IsGlobalUnicast() {
+			if ip.To4() != nil && ip.IsGlobalUnicast() {
 				return rtkUtils.ExtractTCPIPandPort(addr)
- 			}
- 		}
+			}
+		}
+		log.Printf("[%s] getValidAddr: no valid addr found, all addrs: %v", rtkMisc.GetFuncInfo(), addrs)
 		return "", ""
 	}
 	publicIp, publicPort := getValidAddr(tempNode.Addrs())
@@ -270,9 +265,7 @@ func setupNode(ip string, port int) error {
 		tempNode.Close()
 		tempFileNode.Close()
 		return fmt.Errorf("get valid addr is null!")
- 	}
-
-	publicIp, publicPort := filterAddr(tempNode.Addrs())
+	}
 	rtkGlobal.NodeInfo.IPAddr.PublicIP = publicIp
 	rtkGlobal.NodeInfo.IPAddr.PublicPort = publicPort
 	serviceVer := "v" + rtkGlobal.ClientVersion + " (" + rtkBuildConfig.BuildDate + ")"
@@ -462,12 +455,11 @@ func buildTalker(ctxMain context.Context, client rtkMisc.ClientInfo) rtkMisc.Cro
 		log.Printf("[%s] node is nil!", rtkMisc.GetFuncInfo())
 		return rtkMisc.ERR_BIZ_P2P_NODE_NULL
 	}
-
+	startTime := time.Now().UnixMilli()
 	ctx, cancel := context.WithTimeout(ctxMain, ctxTimeout_normal)
 	defer cancel()
 
 	if node.Network().Connectedness(peer.ID) != network.Connected {
-		startTime := time.Now().UnixMilli()
 		node.Network().ClosePeer(peer.ID)
 		log.Printf("begin to connect %+v ...", peer)
 		if err = node.Connect(ctx, peer); err != nil {
