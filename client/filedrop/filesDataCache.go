@@ -117,16 +117,27 @@ func setFilesDataToCache(id string, isSrc bool) uint64 {
 	if !exist {
 		filesDataCacheMap[id] = filesDataTransferCache{
 			filesTransferDataQueue: []FilesTransferDataItem{FilesTransferDataItem{
-				FileDropData:       filesDataItem,
-				FileTransDirection: directType,
-				isInProgress:       false,
+				FileDropData:                filesDataItem,
+				FileTransDirection:          directType,
+				InterruptSrcFileName:        "",
+				InterruptDstFileName:        "",
+				InterruptDstFullPath:        "",
+				InterruptFileOffSet:         0,
+				InterruptLastErrCode:        rtkMisc.SUCCESS,
+				RecoverFileTransTimerCancel: nil,
 			}},
+			cancelFn: nil,
 		}
 	} else {
 		cacheData.filesTransferDataQueue = append(cacheData.filesTransferDataQueue, FilesTransferDataItem{
-			FileDropData:       filesDataItem,
-			FileTransDirection: directType,
-			isInProgress:       false,
+			FileDropData:                filesDataItem,
+			FileTransDirection:          directType,
+			InterruptSrcFileName:        "",
+			InterruptDstFileName:        "",
+			InterruptDstFullPath:        "",
+			InterruptFileOffSet:         0,
+			InterruptLastErrCode:        rtkMisc.SUCCESS,
+			RecoverFileTransTimerCancel: nil,
 		})
 
 		filesDataCacheMap[id] = cacheData

@@ -46,14 +46,6 @@ type FileDropData struct {
 	// Resp data
 	DstFilePath string //DownloadPath
 	Cmd         rtkCommon.FileDropCmd
-
-	// Transfer Interrupt Info
-	InterruptSrcFileName        string                `json:"-"` // Src fileName
-	InterruptDstFileName        string                `json:"-"` // Dst fileName
-	InterruptDstFullPath        string                `json:"-"` // Dst fullPath
-	InterruptFileOffSet         int64                 `json:"-"`
-	InterruptLastErrCode        rtkMisc.CrossShareErr `json:"-"`
-	RecoverFileTransTimerCancel func()                `json:"-"`
 }
 
 type FileInfoEx struct {
@@ -78,8 +70,14 @@ type FileDataTransDetails struct {
 type FilesTransferDataItem struct {
 	FileDropData
 	FileTransDirection FilesTransferDirectionType
-	isInProgress       bool
-	cancelFn           func(rtkCommon.CancelBusinessSource)
+
+	// Transfer Interrupt Info
+	InterruptSrcFileName        string                `json:"-"` // Src fileName
+	InterruptDstFileName        string                `json:"-"` // Dst fileName
+	InterruptDstFullPath        string                `json:"-"` // Dst fullPath
+	InterruptFileOffSet         int64                 `json:"-"`
+	InterruptLastErrCode        rtkMisc.CrossShareErr `json:"-"`
+	RecoverFileTransTimerCancel func()                `json:"-"`
 }
 
 type filesDataTransferCache struct {
