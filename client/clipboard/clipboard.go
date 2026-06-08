@@ -96,7 +96,6 @@ func updateXClipData(id string, cbText, cbImage, cbHtml, cbRtf []byte) {
 }
 
 func init() {
-
 	rtkPlatform.SetCopyXClipCallback(updateClipboardFromPlatform)
 }
 

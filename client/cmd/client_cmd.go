@@ -275,7 +275,6 @@ func businessProcess(ctx context.Context) {
 				sonCtx, cancelBusinessFunc = rtkUtils.WithCancelSource(ctx)
 				rtkMisc.GoSafe(func() { businessStart(sonCtx) })
 			} else {
-				rtkConnection.Wait()
 				rtkLogin.BrowseInstance()
 				log.Printf("******** Client Network is Switch, business is not start! ******** ")
 				log.Println("===========================================================================\n\n")

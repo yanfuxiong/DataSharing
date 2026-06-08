@@ -92,9 +92,14 @@ type ExtDataFilesTransferInterrupt struct {
 	TimeStamp uint64
 }
 
-type ExtDataFilesTransferInterruptInfo struct {
+type ExtDataFilesTransferRecoverReq struct {
 	TimeStamp            uint64
 	InterruptSrcFileName string // Src fileName
 	InterruptFileOffSet  int64
 	InterruptErrCode     rtkMisc.CrossShareErr
+}
+
+type ExtDataFilesTransferRecoverRsp struct {
+	ReqResultCode rtkMisc.CrossShareErr
+	TimeStamp     uint64
 }

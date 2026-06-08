@@ -187,7 +187,7 @@ func processInbandRead(buffer []byte, len int, msg *Peer2PeerMessage) rtkMisc.Cr
 				msg.ExtData = resultCode
 			}
 		} else if msg.Command == COMM_FILE_TRANSFER_RECOVER_REQ {
-			var extData rtkCommon.ExtDataFilesTransferInterruptInfo
+			var extData rtkCommon.ExtDataFilesTransferRecoverReq
 			err = json.Unmarshal(temp.ExtData, &extData)
 			if err != nil {
 				log.Printf("[%s] Err: decode ExtDataFile:%+v", rtkMisc.GetFuncInfo(), err)
@@ -195,13 +195,13 @@ func processInbandRead(buffer []byte, len int, msg *Peer2PeerMessage) rtkMisc.Cr
 			}
 			msg.ExtData = extData
 		} else if msg.Command == COMM_FILE_TRANSFER_RECOVER_RSP {
-			var resultCode rtkMisc.CrossShareErr
-			err = json.Unmarshal(temp.ExtData, &resultCode)
+			var extData rtkCommon.ExtDataFilesTransferRecoverRsp
+			err = json.Unmarshal(temp.ExtData, &extData)
 			if err != nil {
 				log.Printf("[%s] Err: decode ExtDataFile:%+v", rtkMisc.GetFuncInfo(), err)
 				return rtkMisc.ERR_BIZ_JSON_EXTDATA_UNMARSHAL
 			}
-			msg.ExtData = resultCode
+			msg.ExtData = extData
 		} else {
 			if rtkUtils.GetPeerClientIsRmFCL(msg.SourceID) {
 				var extDataFileRmFCL rtkCommon.ExtDataFileRmFCL
@@ -332,19 +332,19 @@ func HandleReadInbandFromSocket(ctxMain context.Context, resultChan chan<- Event
 				}
 				continue
 			} else if msg.Command == COMM_FILE_TRANSFER_RECOVER_REQ { // Src
-				if interruptInfo, ok := msg.ExtData.(rtkCommon.ExtDataFilesTransferInterruptInfo); ok {
-					if rtkFileDrop.SetFilesTransferDataInterrupt(id, interruptInfo.InterruptSrcFileName, "", "", interruptInfo.TimeStamp, interruptInfo.InterruptFileOffSet, interruptInfo.InterruptErrCode) {
+				if recoverInfo, ok := msg.ExtData.(rtkCommon.ExtDataFilesTransferRecoverReq); ok {
+					if rtkFileDrop.SetFilesTransferDataInterrupt(id, recoverInfo.InterruptSrcFileName, "", "", recoverInfo.TimeStamp, recoverInfo.InterruptFileOffSet, recoverInfo.InterruptErrCode) {
 						rtkMisc.GoSafe(func() { recoverFileTransferProcessAsSrc(ctxMain, id, ipAddr) })
 					}
 				}
 				continue
 			} else if msg.Command == COMM_FILE_TRANSFER_RECOVER_RSP { // Dst
-				if recoverRspCode, ok := msg.ExtData.(rtkMisc.CrossShareErr); ok {
-					if recoverRspCode == rtkMisc.SUCCESS {
-						rtkMisc.GoSafe(func() { recoverFileTransferProcessAsDst(ctxMain, id, ipAddr) })
+				if recoverRsp, ok := msg.ExtData.(rtkCommon.ExtDataFilesTransferRecoverRsp); ok {
+					if recoverRsp.ReqResultCode == rtkMisc.SUCCESS {
+						rtkMisc.GoSafe(func() { recoverFileTransferProcessAsDst(ctxMain, id, ipAddr, recoverRsp.TimeStamp) })
 					} else {
-						log.Printf("[%s](DST) request recover file transfer failed, errCode:[%d]", rtkMisc.GetFuncInfo(), recoverRspCode)
-						clearFilesTransferCacheList(id, ipAddr, recoverRspCode)
+						log.Printf("[%s](DST) request recover file transfer failed, errCode:[%d]", rtkMisc.GetFuncInfo(), recoverRsp.ReqResultCode)
+						clearFilesTransferCacheList(id, ipAddr, recoverRsp.ReqResultCode)
 					}
 				}
 				continue
