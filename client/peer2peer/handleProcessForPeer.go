@@ -43,17 +43,17 @@ func SendFileTransCancelByGuiMsgToPeer(id, ipAddr string, fileTransDataId uint64
 	rtkConnection.CloseFileDropItemStream(id, fileTransDataId)
 }
 
-func SendFileTransOpenStreamErrToSrc(id, ipAddr string, fileTransDataId uint64) {
-	log.Printf("(DST) [%s] IP:[%s] timestamp:[%d] open file drop Item stream error!", rtkMisc.GetFuncInfo(), ipAddr, fileTransDataId)
-	sendFileTransInterruptMsgToPeer(id, COMM_FILE_TRANSFER_DST_INTERRUPT, rtkMisc.ERR_BIZ_FT_DST_OPEN_STREAM, fileTransDataId)
-	rtkPlatform.GoNotifyErrEvent(id, rtkMisc.ERR_BIZ_FT_DST_OPEN_STREAM, ipAddr, strconv.Itoa(int(fileTransDataId)), "", "")
+func SendFileTransOpenStreamErrToSrc(id, ipAddr string, timeStamp uint64) {
+	log.Printf("(DST) [%s] IP:[%s] timestamp:[%d] open file drop Item stream error!", rtkMisc.GetFuncInfo(), ipAddr, timeStamp)
+	sendFileTransInterruptMsgToPeer(id, COMM_FILE_TRANSFER_DST_INTERRUPT, rtkMisc.ERR_BIZ_FT_DST_OPEN_STREAM, timeStamp)
+	rtkPlatform.GoNotifyErrEvent(id, rtkMisc.ERR_BIZ_FT_DST_OPEN_STREAM, ipAddr, strconv.Itoa(int(timeStamp)), "", "")
 }
 
-func SendFileTransCopyDetailsErrToSrc(id, ipAddr string, fileTransDataId uint64) {
-	log.Printf("(DST) [%s] IP:[%s] timestamp:[%d] Copy file data details error!", rtkMisc.GetFuncInfo(), ipAddr, fileTransDataId)
-	sendFileTransInterruptMsgToPeer(id, COMM_FILE_TRANSFER_DST_INTERRUPT, rtkMisc.ERR_BIZ_FT_DST_COPY_DETAILS, fileTransDataId)
-	rtkPlatform.GoNotifyErrEvent(id, rtkMisc.ERR_BIZ_FT_DST_COPY_DETAILS, ipAddr, strconv.Itoa(int(fileTransDataId)), "", "")
-	rtkConnection.CloseFileDropItemStream(id, fileTransDataId)
+func SendFileTransCopyDetailsErrToSrc(id, ipAddr string, timeStamp uint64) {
+	log.Printf("(DST) [%s] IP:[%s] timestamp:[%d] Copy file data details error!", rtkMisc.GetFuncInfo(), ipAddr, timeStamp)
+	sendFileTransInterruptMsgToPeer(id, COMM_FILE_TRANSFER_DST_INTERRUPT, rtkMisc.ERR_BIZ_FT_DST_COPY_DETAILS, timeStamp)
+	rtkPlatform.GoNotifyErrEvent(id, rtkMisc.ERR_BIZ_FT_DST_COPY_DETAILS, ipAddr, strconv.Itoa(int(timeStamp)), "", "")
+	rtkConnection.CloseFileDropItemStream(id, timeStamp)
 }
 
 func sendFileTransInterruptMsgToPeer(id string, cmd CommandType, errCode rtkMisc.CrossShareErr, timestamp uint64) {
@@ -83,7 +83,7 @@ func sendCmdMsgToPeer(id string, cmd CommandType, fmtType rtkCommon.TransFmtType
 }
 
 func sendFileTransRecoverRequestToSrc(id, srcFileName string, timestamp uint64, offset int64, errCode rtkMisc.CrossShareErr) rtkMisc.CrossShareErr {
-	extData := rtkCommon.ExtDataFilesTransferInterruptInfo{
+	extData := rtkCommon.ExtDataFilesTransferRecoverReq{
 		InterruptSrcFileName: srcFileName,
 		InterruptFileOffSet:  offset,
 		TimeStamp:            timestamp,
@@ -99,13 +99,16 @@ func sendFileTransRecoverRequestToSrc(id, srcFileName string, timestamp uint64, 
 	return writeToSocket(&msg, id)
 }
 
-func sendFileTransRecoverResponseToDst(id string, errCode rtkMisc.CrossShareErr) rtkMisc.CrossShareErr {
+func sendFileTransRecoverResponseToDst(id string, timestamp uint64, errCode rtkMisc.CrossShareErr) rtkMisc.CrossShareErr {
 	var msg Peer2PeerMessage
 	msg.SourceID = rtkGlobal.NodeInfo.ID
 	msg.SourcePlatform = rtkGlobal.NodeInfo.Platform
 	msg.FmtType = rtkCommon.FILE_DROP
 	msg.TimeStamp = uint64(time.Now().UnixMilli())
 	msg.Command = COMM_FILE_TRANSFER_RECOVER_RSP
-	msg.ExtData = errCode
+	msg.ExtData = rtkCommon.ExtDataFilesTransferRecoverRsp{
+		ReqResultCode: errCode,
+		TimeStamp:     timestamp,
+	}
 	return writeToSocket(&msg, id)
 }
