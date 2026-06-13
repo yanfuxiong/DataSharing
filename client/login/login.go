@@ -486,7 +486,6 @@ func NotifyDIASStatus(status CrossShareDiasStatus) {
 	if currentDiasStatus != status {
 		currentDiasStatus = status
 		rtkPlatform.GoDIASStatusNotify(uint32(status))
-		
 	}
 }
 

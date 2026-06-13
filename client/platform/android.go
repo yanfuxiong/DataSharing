@@ -482,9 +482,11 @@ func GoDragFileListRequest(dragFileInfoJson string) rtkCommon.SendFilesRequestEr
 	nFileCnt := 0
 	nFolderCnt := 0
 	nPathSize := uint64(0)
+	srcRootPath := ""
 
 	for _, file := range dragFileInfo.PathList {
 		if rtkMisc.FolderExists(file) {
+			srcRootPath = filepath.Dir(file)
 			nFileCnt = len(fileList)
 			nFolderCnt = len(folderList)
 			nPathSize = totalSize
@@ -534,7 +536,7 @@ func GoDragFileListRequest(dragFileInfoJson string) rtkCommon.SendFilesRequestEr
 		return rtkCommon.SendFilesRequestLengthOverRange
 	}
 
-	callbackDragFileListRequestCB(fileList, folderList, totalSize, timestamp, totalDesc)
+	callbackDragFileListRequestCB(fileList, folderList, totalSize, timestamp, totalDesc, srcRootPath)
 
 	return callbackSendDragFileStart(&dragFileInfo.DragFileStartInfo)
 }

@@ -805,6 +805,10 @@ func GetHostIDPath() string {
 	return hostID
 }
 
+func GetPlatform() string {
+	return rtkMisc.PlatformiOS
+}
+
 func LockFile() error {
 	var err error
 	lockFd, err = os.OpenFile(lockFile, os.O_CREATE|os.O_RDWR, 0666)
