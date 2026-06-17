@@ -149,12 +149,12 @@ func mobileInitLanServer(instance string) {
 	initLanServerMutex.Lock()
 	defer initLanServerMutex.Unlock()
 
+	log.Printf("[%s][mobile] connect LanServer, Instance:%s", rtkMisc.GetFuncInfo(), instance)
+
 	if !lanServerRunning.Load() {
 		log.Printf("[%s] ConnectLanServerRun is not running!", rtkMisc.GetFuncInfo())
 		return
 	}
-
-	log.Printf("[%s][mobile] connect LanServer, Instance:%s", rtkMisc.GetFuncInfo(), instance)
 
 	mapValue, ok := serverInstanceMap.Load(instance)
 	if !ok {
@@ -163,10 +163,6 @@ func mobileInitLanServer(instance string) {
 		return
 	}
 
-	if currentDiasStatus == DIAS_Status_Wait_screenCasting {
-		log.Printf("[%s][mobile] currentDiasStatus:%d, init LanServer is in progress, skip it! ", rtkMisc.GetFuncInfo(), currentDiasStatus)
-		return
-	}
 
 	if lanServerInstance != "" {
 		if lanServerInstance == instance &&
