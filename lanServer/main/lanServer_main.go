@@ -26,7 +26,7 @@ import (
 	"github.com/grandcat/zeroconf"
 )
 
-var acceptErrFlag = make(chan struct{})
+var acceptErrFlag = make(chan struct{}, 1)
 
 var (
 	service          = flag.String("service", rtkMisc.LanServiceType, "Set the service type of the new service.")
@@ -139,7 +139,7 @@ func browseOtherServer(ctx context.Context) {
 	}
 }
 
-func MainInit() {
+func MainInit(shutdownCtx context.Context) {
 	log.Println("=====================================================")
 	log.Printf("%s LanServer Version: %s ", rtkBuildConfig.ServerName, rtkGlobal.LanServerVersion)
 	log.Printf("%s Build Date: %s", rtkBuildConfig.ServerName, rtkBuildConfig.BuildDate)
@@ -152,9 +152,9 @@ func MainInit() {
 	}
 	defer unLockFile()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	rtkdbManager.InitSqlite(ctx)
+	runCtx, runCancel := context.WithCancel(shutdownCtx)
+	defer runCancel()
+	rtkdbManager.InitSqlite(runCtx)
 	initDpSrcType()
 
 	var printErrNetwork = true
@@ -168,26 +168,34 @@ func MainInit() {
 			log.Printf("******** the network is unavailable! %s is not start! ******** ", rtkBuildConfig.ServerName)
 			printErrNetwork = false
 		}
-		time.Sleep(5 * time.Second)
+		select {
+		case <-runCtx.Done():
+			return
+		case <-time.After(5 * time.Second):
+		}
 	}
 
 	rtkGlobal.ServerIPAddr = ""
 
 	rtkIfaceMgr.GetInterfaceMgr().TriggerGetCapability()
 	rtkMisc.GoSafe(func() { rtkDebug.DebugCmdLine() })
-	rtkMisc.GoSafe(func() { Run() })
+	rtkMisc.GoSafe(func() { Run(runCtx) })
 
 	for {
 		select {
-		case <-ctx.Done():
+		case <-runCtx.Done():
 			return
 		case <-acceptErrFlag:
 			rtkdbManager.UpdateAllClientOffline()
-			time.Sleep(5 * time.Second)
+			select {
+			case <-runCtx.Done():
+				return
+			case <-time.After(5 * time.Second):
+			}
 		}
 
 		log.Printf("registerMdns Server restart...\n\n")
-		rtkMisc.GoSafe(func() { Run() })
+		rtkMisc.GoSafe(func() { Run(runCtx) })
 	}
 }
 
@@ -325,7 +333,12 @@ func registerMdns(server **zeroconf.Server, serverForSearch **zeroconf.Server) [
 	}
 }
 
-func Run() {
+func Run(runCtx context.Context) {
+	/*ipAddress, bExisted := checkLanServerExists()
+	if bExisted {
+		log.Printf("an other %s IPAddr:[%s] is already running! so exit!", rtkBuildConfig.ServerName, ipAddress)
+		log.Fatal(fmt.Sprintf("%s is already exist!", rtkBuildConfig.ServerName))
+	}*/
 	var server *zeroconf.Server = nil
 	var serverForSearch *zeroconf.Server = nil
 	defer func() {
@@ -399,15 +412,24 @@ func Run() {
 		if err == nil {
 			break
 		}
-		time.Sleep(5 * time.Second)
+		select {
+		case <-runCtx.Done():
+			return
+		case <-time.After(5 * time.Second):
+		}
 	}
 
 	log.Printf("%s is listening on %s:%d success ! \n", rtkBuildConfig.ServerName, rtkGlobal.ServerIPAddr, rtkGlobal.ServerPort)
-	ctx, cancel := context.WithCancel(context.Background())
+	sessCtx, sessCancel := context.WithCancel(runCtx)
+	defer sessCancel()
+	rtkMisc.GoSafe(func() {
+		<-sessCtx.Done()
+		listener.Close()
+	})
 
-	rtkMisc.GoSafe(func() { browseOtherServer(ctx) })
-	rtkMisc.GoSafe(func() { rtkClientManager.PeriodicNotifyHandler(ctx) })
-	rtkMisc.GoSafe(func() { rtkClientManager.HandleClientSignalChecking(ctx) })
+	rtkMisc.GoSafe(func() { browseOtherServer(sessCtx) })
+	rtkMisc.GoSafe(func() { rtkClientManager.PeriodicNotifyHandler(sessCtx) })
+	rtkMisc.GoSafe(func() { rtkClientManager.HandleClientSignalChecking(sessCtx) })
 
 	defer listener.Close()
 	for {
@@ -421,7 +443,7 @@ func Run() {
 					continue
 				}
 			}
-			cancel()
+			sessCancel()
 			var errno syscall.Errno
 			if errors.As(accErr, &errno) {
 				log.Printf("Accept errno: %v", errno)
@@ -445,7 +467,7 @@ func Run() {
 			tcpConn.SetKeepAlivePeriod(15 * time.Second)
 		}
 
-		rtkMisc.GoSafe(func() { rtkClientManager.HandleClient(ctx, conn, timestamp) })
+		rtkMisc.GoSafe(func() { rtkClientManager.HandleClient(sessCtx, conn, timestamp) })
 	}
 	log.Printf("Cancel server. Close TCP and mDNS server in %s:%d \n\n", rtkGlobal.ServerIPAddr, rtkGlobal.ServerPort)
 }

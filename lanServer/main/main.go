@@ -123,9 +123,11 @@ static int onGetCapabilityCb() {
 */
 import "C"
 import (
+	"context"
 	"log"
 	"os"
 	"reflect"
+	"sync"
 	rtkCommon "rtk-cross-share/lanServer/common"
 	rtkGlobal "rtk-cross-share/lanServer/global"
 	rtkIfaceMgr "rtk-cross-share/lanServer/interfaceMgr"
@@ -137,6 +139,11 @@ import (
 )
 
 const tag = "main"
+
+var (
+	gShutdownCtx, gShutdownCancel = context.WithCancel(context.Background())
+	gShutdownOnce                 sync.Once
+)
 
 //export SetUpdateDeviceNameCb
 func SetUpdateDeviceNameCb(cb C.UpdateDeviceNameCb) {
@@ -309,6 +316,12 @@ func NotifyEvent(cEventType C.int, cArg1, cArg2, cArg3, cArg4 *C.char) {
 	rtkIfaceMgr.GetInterfaceMgr().NotifyEvent(eventType, arg1, arg2, arg3, arg4)
 }
 
+//export Shutdown
+func Shutdown() {
+	log.Printf("[%s][%s]", tag, rtkMisc.GetFuncInfo())
+	gShutdownOnce.Do(gShutdownCancel)
+}
+
 //export Init
 func Init() {
 	initFunc()
@@ -337,11 +350,16 @@ func initFunc() {
 		goSendMsgEventCb,
 		goGetCapabilityCb)
 
+	mainInitDone := make(chan struct{})
 	rtkMisc.GoSafe(func() {
-		MainInit()
+		MainInit(gShutdownCtx)
+		close(mainInitDone)
 	})
 
-	select {}
+	<-gShutdownCtx.Done()
+	log.Printf("[%s] initFunc: shutdown signal received, waiting for MainInit...", tag)
+	<-mainInitDone
+	log.Printf("[%s] CrossShare server exited", tag)
 }
 
 func goUpdateDeviceNameCb(source, port int, name string) {
