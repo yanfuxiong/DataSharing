@@ -355,8 +355,8 @@ func resizeMobileRect(srcPort rtkMisc.SourcePort, width, height, x, y int) (int,
 		return width, height, x, y
 	}
 
-	retX := x * (timingData.Width / width)
-	retY := y * (timingData.Height / height)
+	retX := int(float64(x) * float64(timingData.Width) / float64(width))
+	retY := int(float64(y) * float64(timingData.Height) / float64(height))
 	return timingData.Width, timingData.Height, retX, retY
 }
 

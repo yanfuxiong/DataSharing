@@ -42,7 +42,7 @@ func SetNotifyGetTimingDataCallback(cb NotifyGetTimingDataCallback) {
 	notifyGetTimingDataCallback = cb
 }
 
-func handleReadFromClientMsg(ctx context.Context, buffer []byte, IPAddr string, MsgRsp *rtkMisc.C2SMessage) rtkMisc.CrossShareErr {
+func handleReadFromClientMsg(ctx context.Context, buffer []byte, IPAddr string, MsgRsp *rtkMisc.C2SMessage, timeStamp int64) rtkMisc.CrossShareErr {
 	if len(buffer) == 0 {
 		log.Printf("[%s] buffer is null!", rtkMisc.GetFuncInfo())
 		return rtkMisc.ERR_BIZ_S2C_READ_EMPTY_DATA
@@ -74,7 +74,10 @@ func handleReadFromClientMsg(ctx context.Context, buffer []byte, IPAddr string, 
 	case rtkMisc.C2SMsg_INIT_CLIENT:
 		MsgRsp.ClientIndex, MsgRsp.ExtData = dealC2SMsgInitClient(&msg.ExtData)
 	case rtkMisc.C2SMsg_AUTH_DATA_INDEX_MOBILE:
-		MsgRsp.ExtData = dealC2SMsgMobileAuthDataIndex(ctx, msg.ClientID, msg.ClientIndex, &msg.ExtData)
+		rtkMisc.GoSafe(func() {
+			MsgRsp.ExtData = dealC2SMsgMobileAuthDataIndex(ctx, msg.ClientID, msg.ClientIndex, &msg.ExtData)
+			writeMsg(MsgRsp, timeStamp)
+		})
 	case rtkMisc.C2SMsg_REQ_CLIENT_LIST:
 		MsgRsp.ExtData = dealC2SMsgReqClientList(msg.ClientIndex)
 	case rtkMisc.CS2Msg_MESSAGE_EVENT:
@@ -218,6 +221,7 @@ func getMobileTimingSrcPort(clientIndex int, authData rtkMisc.AuthDataInfo) (int
 func HandleClient(mainCtx context.Context, conn net.Conn, timestamp int64) {
 	clientIndex := uint32(0)
 	clientID := ""
+	clientIPAddr := conn.RemoteAddr().String()
 
 	defer func() {
 		if closeConn(clientID, timestamp) {
@@ -243,12 +247,12 @@ func HandleClient(mainCtx context.Context, conn net.Conn, timestamp int64) {
 		for {
 			select {
 			case <-ctx.Done():
-				log.Printf("IPAddr:[%s] connect cancel by context! ", conn.RemoteAddr().String())
+				log.Printf("IPAddr:[%s] connect cancel by context! ", clientIPAddr)
 				return
 			default:
 				err := conn.SetDeadline(time.Now().Add(time.Duration(rtkMisc.ClientHeartbeatInterval+5) * time.Second))
 				if err != nil {
-					log.Printf("IPAddr:[%s] connect SetDeadline err:%+v !", conn.RemoteAddr().String(), err)
+					log.Printf("IPAddr:[%s] connect SetDeadline err:%+v !", clientIPAddr, err)
 					time.Sleep(100 * time.Millisecond)
 					if errCnt >= 3 {
 						return
@@ -277,9 +281,9 @@ func HandleClient(mainCtx context.Context, conn net.Conn, timestamp int64) {
 
 				if err != nil {
 					if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
-						log.Printf("IPAddr:[%s] ClientIndex:[%d] ReadString timeout: %+v", conn.RemoteAddr().String(), clientIndex, err)
+						log.Printf("IPAddr:[%s] ClientIndex:[%d] ReadString timeout: %+v", clientIPAddr, clientIndex, err)
 					} else {
-						log.Printf("IPAddr:[%s] ClientIndex:[%d] ReadString error:%+v", conn.RemoteAddr().String(), clientIndex, err)
+						log.Printf("IPAddr:[%s] ClientIndex:[%d] ReadString error:%+v", clientIPAddr, clientIndex, err)
 						var errno syscall.Errno
 						if errors.As(err, &errno) {
 							log.Printf("[%s] Read errno: %v", rtkMisc.GetFuncInfo(), errno)
@@ -300,7 +304,7 @@ func HandleClient(mainCtx context.Context, conn net.Conn, timestamp int64) {
 		buffer = []byte(readData.buffer)
 
 		var C2SRsp rtkMisc.C2SMessage
-		errCode := handleReadFromClientMsg(ctx, buffer, conn.RemoteAddr().String(), &C2SRsp)
+		errCode := handleReadFromClientMsg(ctx, buffer, clientIPAddr, &C2SRsp, timestamp)
 		if errCode != rtkMisc.SUCCESS {
 			continue
 		}
@@ -311,10 +315,11 @@ func HandleClient(mainCtx context.Context, conn net.Conn, timestamp int64) {
 			updateConn(clientID, timestamp, conn)
 		}
 
-		if writeMsg(&C2SRsp, timestamp) != rtkMisc.SUCCESS {
-			return
+		if C2SRsp.MsgType != rtkMisc.C2SMsg_AUTH_DATA_INDEX_MOBILE { // asynchronous response message
+			if writeMsg(&C2SRsp, timestamp) != rtkMisc.SUCCESS {
+				return
+			}
 		}
-
 	}
 }
 
