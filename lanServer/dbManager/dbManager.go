@@ -108,21 +108,20 @@ func createDb() error {
 		if err = tx.Commit(); err != nil {
 			log.Printf("[%s] Commit Err: %s", rtkMisc.GetFuncInfo(), err.Error())
 		}
- 		return err
- 	}
+		return err
+	}
 
 	initErr := initDB()
 	if initErr != nil {
 		db.Close()
 		return initErr
- 	}
- 
+	}
+
 	dbMutex.Lock()
 	g_SqlInstance = db
 	dbMutex.Unlock()
 	return nil
 }
-
 
 func InitSqlite(ctx context.Context) {
 	err := createDb()
