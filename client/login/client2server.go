@@ -452,7 +452,7 @@ func dealS2CMsgUpdatePlugEventReq(id string, extData json.RawMessage) rtkMisc.Cr
 	}
 
 	if rtkGlobal.NodeInfo.Platform == rtkMisc.PlatformiOS {
-		log.Printf("[%s] UpdatePlugEvent request success, plug:[%d] !", rtkMisc.GetFuncInfo(), updatePlugEventReq.PlugEvent)
+		log.Printf("[%s] UpdatePlugEvent request success, plug:[%v] !", rtkMisc.GetFuncInfo(), updatePlugEventReq.PlugEvent)
 		if !updatePlugEventReq.PlugEvent { // only cable out event need Call ios Platfrom
 			rtkPlatform.GoTriggerDetectPluginEvent(updatePlugEventReq.PlugEvent)
 		}
@@ -559,7 +559,7 @@ func checkPingServerTimeout() {
 	if pingServerTimeStamp != 0 && (time.Now().UnixMilli()-pingServerTimeStamp) > rtkCommon.PingTimeoutMilli { // time out
 		pingServerErrCnt++
 		log.Printf("Update Ping Server err cnt:[%d]", pingServerErrCnt)
-		if pingServerErrCnt >= rtkCommon.PingErrMaxCnt {
+		if pingServerErrCnt >= rtkCommon.PingServerErrMaxCnt {
 			pSafeConnect.Close()
 		}
 	}

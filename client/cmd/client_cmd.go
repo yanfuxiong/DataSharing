@@ -190,8 +190,7 @@ func MainInit(serverId, serverIpInfo, listenHost string, listentPort int) {
 	log.Println("=======================================================\n\n")
 
 	rtkLogin.NotifyDIASStatus(rtkLogin.DIAS_Status_Wait_DiasMonitor)
-	if len(serverId) > 0 && len(serverIpInfo) > 0 &&
-		listenHost != "" &&
+	if listenHost != "" &&
 		listenHost != rtkMisc.DefaultIp &&
 		listenHost != rtkMisc.LoopBackIp &&
 		listentPort > rtkGlobal.DefaultPort {

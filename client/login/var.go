@@ -90,6 +90,8 @@ func NewHeartBeatTicker(interval time.Duration) *HeartBeatTicker {
 	return &HeartBeatTicker{
 		interval: interval,
 		proxyCh:  make(chan time.Time),
+		cancel:   nil,
+		mu:       sync.Mutex{},
 	}
 }
 

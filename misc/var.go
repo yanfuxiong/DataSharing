@@ -10,7 +10,7 @@ const (
 
 	LanServiceTypeForServer = "_rtkcsser._tcp" // Service for other server
 
-	ClientHeartbeatInterval = 10 // second
+	ClientHeartbeatInterval = 30 // second
 
 	TextRecordKeyIp          = "ip"
 	TextRecordKeyProductName = "productName"

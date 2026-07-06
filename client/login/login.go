@@ -148,7 +148,6 @@ func computerInitLanServer(ctx context.Context) {
 func mobileInitLanServer(instance string) {
 	initLanServerMutex.Lock()
 	defer initLanServerMutex.Unlock()
-
 	log.Printf("[%s][mobile] connect LanServer, Instance:%s", rtkMisc.GetFuncInfo(), instance)
 
 	if !lanServerRunning.Load() {
@@ -162,7 +161,6 @@ func mobileInitLanServer(instance string) {
 		NotifyDIASStatus(DIAS_Status_Connected_DiasService_Failed)
 		return
 	}
-
 
 	if lanServerInstance != "" {
 		if lanServerInstance == instance &&
@@ -228,6 +226,7 @@ func ConnectLanServerRun(ctx context.Context) {
 
 	rtkMisc.GoSafe(func() {
 		var printNetworkErr = true
+		errCnt := 0
 		for {
 			select {
 			case <-ctx.Done():
@@ -245,6 +244,18 @@ func ConnectLanServerRun(ctx context.Context) {
 				}
 
 				printNetworkErr = true
+				err := conn.SetDeadline(time.Now().Add(time.Duration(rtkMisc.ClientHeartbeatInterval+5) * time.Second))
+				if err != nil {
+					log.Printf("[%s] LanServer IPAddr:[%s] connect SetDeadline err:%+v !", rtkMisc.GetFuncInfo(), pSafeConnect.ConnectIPAddr(), err)
+					time.Sleep(100 * time.Millisecond)
+					if errCnt >= 3 {
+						pSafeConnect.Close()
+					}
+					errCnt++
+					continue
+				}
+				errCnt = 0
+
 				errCode := rtkMisc.SUCCESS
 				readStrLine, err := bufio.NewReader(conn).ReadString('\n')
 				// _, err = pSafeConnect.Read(&buffer)  //this cause dead lock
@@ -296,7 +307,7 @@ func heartBeatFunc(ctx context.Context) {
 	checkPingServerTimeout()
 
 	if !pSafeConnect.IsAlive() {
-		rtkMisc.GoSafe(func() { ReConnectLanServer(ctx) })
+		rtkMisc.GoSafe(func() { reConnectLanServer(ctx) })
 		return
 	}
 
@@ -398,7 +409,7 @@ func initLanServer(ctx context.Context, bPrintErr bool) rtkMisc.CrossShareErr {
 	return sendReqInitClientToLanServer()
 }
 
-func ReConnectLanServer(ctx context.Context) {
+func reConnectLanServer(ctx context.Context) {
 	stopLanServerBusiness()
 	time.Sleep(100 * time.Millisecond) // Delay 100ms between "disconnect all client" and "start reconnect lan server"
 
@@ -409,7 +420,7 @@ func ReConnectLanServer(ctx context.Context) {
 	for {
 		errCode := initLanServer(ctx, bPrintErrLog)
 		if errCode == rtkMisc.SUCCESS {
-			log.Printf("ReConnectLanServer success!")
+			log.Printf("reConnectLanServer success!")
 			break
 		}
 
