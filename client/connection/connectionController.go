@@ -95,6 +95,7 @@ func cancelHostNode(ctxMain context.Context) {
 			node = nil
 
 			done <- struct{}{}
+			close(done)
 			log.Println("close p2p node info success!")
 		})
 		select {
@@ -206,6 +207,7 @@ func setupNode(ctx context.Context, ip string, port int) error {
 	if len(tempNode.Addrs()) == 0 {
 		log.Printf("Failed to create tcp node, Addrs is null!")
 		tempNode.Close()
+		tempFileNode.Close()
 		return fmt.Errorf("tcp node addr is null!")
 	}
 
