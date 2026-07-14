@@ -266,14 +266,6 @@ func GetClientIp(id string) (string, bool) {
 	return "", false
 }
 
-func boolToString(b bool) string {
-	if b {
-		return "true"
-	} else {
-		return "false"
-	}
-}
-
 func InsertClientInfoMap(id, ipAddr, platform, name, srcPortType, ver, fileTransId, udpPort string) {
 	rtkGlobal.ClientListRWMutex.Lock()
 	defer rtkGlobal.ClientListRWMutex.Unlock()
@@ -283,7 +275,7 @@ func InsertClientInfoMap(id, ipAddr, platform, name, srcPortType, ver, fileTrans
 	isSupportQueueFileTrans := peerVerSerial >= rtkGlobal.ClientQueueFileTransVerSerial
 	isRmFileCountLimit := peerVerSerial >= rtkGlobal.ClientRmFileLimitVerSerial
 
-	log.Printf("ID:[%s] version:[%s] Supported: XClip[%s], QueueFileTrans[%s], RmFileCountLimit:[%s]", id, ver, boolToString(isSupportXClip), boolToString(isSupportQueueFileTrans), boolToString(isRmFileCountLimit))
+	log.Printf("ID:[%s] version:[%s] Supported: XClip[%v], QueueFileTrans[%v], RmFileCountLimit:[%v]", id, ver, isSupportXClip, isSupportQueueFileTrans, isRmFileCountLimit)
 
 	rtkGlobal.ClientInfoMap[id] = rtkCommon.ClientInfoEx{
 		ClientInfo: rtkMisc.ClientInfo{
