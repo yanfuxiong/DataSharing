@@ -80,7 +80,7 @@ func cancelHostNode(ctxMain context.Context) {
 		log.Println("begin close p2p node info!")
 		ctx, cancel := context.WithTimeout(ctxMain, 30*time.Second)
 		defer cancel()
-		done := make(chan struct{})
+		done := make(chan struct{}, 1)
 		rtkMisc.GoSafe(func() {
 			for _, c := range node.Network().Conns() {
 				for _, s := range c.GetStreams() {
@@ -107,6 +107,7 @@ func cancelHostNode(ctxMain context.Context) {
 
 	if fileTransNode != nil {
 		fileTransNode.Network().Close()
+		fileTransNode.ConnManager().Close()
 		fileTransNode.Peerstore().Close()
 		fileTransNode.Close()
 		fileTransNode = nil
@@ -329,7 +330,7 @@ func BuildFileDropItemStreamListener(timestamp uint64) {
 		log.Printf("[%s] node is nil! set protocol handler failed!, timestamp:[%d]", rtkMisc.GetFuncInfo(), timestamp)
 		return
 	}
-	fileTransNode.SetStreamHandler(protocol.ID(getFileDropStreamProtocol(timestamp)), handlerFileDropItemStream)
+	fileTransNode.SetStreamHandler(protocol.ID(getFileDropStreamProtocol(timestamp)), network.StreamHandler(handlerFileDropItemStream))
 	log.Printf("[%s] set protocol handler success, timestamp:[%d]", rtkMisc.GetFuncInfo(), timestamp)
 }
 
@@ -361,51 +362,16 @@ func NewFileDropItemStream(ctxMain context.Context, id string, timestamp uint64)
 	ctx, cancel := context.WithTimeout(ctxMain, ctxTimeout_short)
 	defer cancel()
 
-	clientInfo, err := rtkUtils.GetClientInfo(id)
-	if err != nil {
-		log.Printf("[%s] ID:[%s] Not found Client Info data", rtkMisc.GetFuncInfo(), id)
-		return rtkMisc.ERR_BIZ_GET_CLIENT_INFO_EMPTY
-	}
-	ip, _ := rtkUtils.SplitIPAddr(clientInfo.IpAddr)
-	quicAddr := fmt.Sprintf("/ip4/%s/udp/%s/quic-v1", ip, clientInfo.UpdPort)
-	addr := ma.StringCast(quicAddr)
-	idB58, err := peer.Decode(clientInfo.FileTransNodeID)
-	if err != nil {
-		log.Printf("[%s] ID decode failed: %s", rtkMisc.GetFuncInfo(), clientInfo.ID)
-		return rtkMisc.ERR_BIZ_P2P_PEER_DECODE
-	}
-	fileTransPeer := peer.AddrInfo{
-		ID:    idB58,
-		Addrs: []ma.Multiaddr{addr},
-	}
-
 	startTime := time.Now().UnixMilli()
-	nodeMutex.RLock()
-	defer nodeMutex.RUnlock()
-	if fileTransNode.Network().Connectedness(fileTransPeer.ID) != network.Connected {
-		fileTransNode.Network().ClosePeer(fileTransPeer.ID)
-		log.Printf("begin  to connect %+v ...", fileTransPeer)
-		if err = fileTransNode.Connect(ctx, fileTransPeer); err != nil {
-			log.Printf("[%s] Connect peer%+v failed:%+v", rtkMisc.GetFuncInfo(), fileTransPeer, err)
-			if errors.Is(err, context.DeadlineExceeded) {
-				return rtkMisc.ERR_NETWORK_P2P_CONNECT_DEADLINE
-			} else if errors.Is(err, context.Canceled) {
-				return rtkMisc.ERR_NETWORK_P2P_CONNECT_CANCEL
-			} else if netErr, ok := err.(net.Error); ok {
-				log.Printf("[Socket][%s] Err: Read fail network error(%v)", rtkMisc.GetFuncInfo(), netErr.Error())
-				if netErr.Timeout() {
-					return rtkMisc.ERR_NETWORK_P2P_TIMEOUT
-				}
-			}
-			return rtkMisc.ERR_NETWORK_P2P_CONNECT
-		}
-		log.Printf("connect %s success! use [%d] ms", fileTransPeer.ID.String(), time.Now().UnixMilli()-startTime)
+	quicNodePeer, errCode := buildQuicTalker(ctx, id)
+	if errCode != rtkMisc.SUCCESS {
+		return errCode
 	}
 
 	protocolId := getFileDropStreamProtocol(timestamp)
-	stream, err := fileTransNode.NewStream(ctx, fileTransPeer.ID, protocol.ID(protocolId))
+	stream, err := fileTransNode.NewStream(ctx, quicNodePeer.ID, protocol.ID(protocolId))
 	if err != nil {
-		log.Printf("[%s] ID:[%s] IP:[%+v] open protocolId:%s stream failed:%+v", rtkMisc.GetFuncInfo(), id, fileTransPeer.Addrs, protocolId, err)
+		log.Printf("[%s] ID:[%s] IP:[%+v] open protocolId:%s stream failed:%+v", rtkMisc.GetFuncInfo(), id, quicNodePeer.Addrs, protocolId, err)
 		if errors.Is(err, context.DeadlineExceeded) {
 			return rtkMisc.ERR_NETWORK_P2P_OPEN_STREAM_DEADLINE
 		} else if errors.Is(err, context.Canceled) {
@@ -532,7 +498,15 @@ func BuildFmtTypeTalker(ctx context.Context, id string, fmtType rtkCommon.TransF
 			return rtkMisc.ERR_NETWORK_P2P_OPEN_STREAM
 		}
 	} else if fmtType == rtkCommon.XCLIP_CB {
-		fmtTypeStream, err = node.NewStream(ctx, sInfo.s.Conn().RemotePeer(), protocol.ID(rtkGlobal.ProtocolImageTransmission))
+		if rtkUtils.GetPeerClientIsSupportQuicXClip(id) {
+			quicNodePeer, errCode := buildQuicTalker(ctx, id)
+			if errCode != rtkMisc.SUCCESS {
+				return errCode
+			}
+			fmtTypeStream, err = fileTransNode.NewStream(ctx, quicNodePeer.ID, protocol.ID(rtkGlobal.ProtocolImageTransmission))
+		} else {
+			fmtTypeStream, err = node.NewStream(ctx, sInfo.s.Conn().RemotePeer(), protocol.ID(rtkGlobal.ProtocolImageTransmission))
+		}
 		if err != nil {
 			log.Printf("[%s] ID:[%s] IP:[%s] open %s stream failed:%+v", rtkMisc.GetFuncInfo(), id, sInfo.ipAddr, fmtType, err)
 			if errors.Is(err, context.DeadlineExceeded) {
@@ -547,7 +521,7 @@ func BuildFmtTypeTalker(ctx context.Context, id string, fmtType rtkCommon.TransF
 		return rtkMisc.ERR_BIZ_UNKNOWN_FMTTYPE
 	}
 
-	updateFmtTypeStreamDst(fmtTypeStream, fmtType)
+	updateFmtTypeStreamDst(id, fmtTypeStream, fmtType)
 	return rtkMisc.SUCCESS
 }
 
@@ -835,4 +809,50 @@ func handleNotice(s network.Stream, platForm, name, srcPortType, ver, fileTransI
 	}
 
 	return rtkMisc.SUCCESS
+}
+
+func buildQuicTalker(ctx context.Context, id string) (*peer.AddrInfo, rtkMisc.CrossShareErr) {
+	startTime := time.Now().UnixMilli()
+	clientInfo, err := rtkUtils.GetClientInfo(id)
+	if err != nil {
+		log.Printf("[%s] ID:[%s] Not found Client Info data", rtkMisc.GetFuncInfo(), id)
+		return nil, rtkMisc.ERR_BIZ_GET_CLIENT_INFO_EMPTY
+	}
+	ip, _ := rtkUtils.SplitIPAddr(clientInfo.IpAddr)
+	quicAddr := fmt.Sprintf("/ip4/%s/udp/%s/quic-v1", ip, clientInfo.UpdPort)
+	addr := ma.StringCast(quicAddr)
+	idB58, err := peer.Decode(clientInfo.FileTransNodeID)
+	if err != nil {
+		log.Printf("[%s] ID decode failed: %s", rtkMisc.GetFuncInfo(), clientInfo.ID)
+		return nil, rtkMisc.ERR_BIZ_P2P_PEER_DECODE
+	}
+	quicNodePeer := peer.AddrInfo{
+		ID:    idB58,
+		Addrs: []ma.Multiaddr{addr},
+	}
+
+	nodeMutex.RLock()
+	defer nodeMutex.RUnlock()
+
+	if fileTransNode.Network().Connectedness(quicNodePeer.ID) != network.Connected {
+		fileTransNode.Network().ClosePeer(quicNodePeer.ID)
+		log.Printf("begin  to connect %+v ...", quicNodePeer)
+		if err = fileTransNode.Connect(ctx, quicNodePeer); err != nil {
+			log.Printf("[%s] Connect peer%+v failed:%+v", rtkMisc.GetFuncInfo(), quicNodePeer, err)
+			if errors.Is(err, context.DeadlineExceeded) {
+				return nil, rtkMisc.ERR_NETWORK_P2P_CONNECT_DEADLINE
+			} else if errors.Is(err, context.Canceled) {
+				return nil, rtkMisc.ERR_NETWORK_P2P_CONNECT_CANCEL
+			} else if netErr, ok := err.(net.Error); ok {
+				log.Printf("[Socket][%s] Err: Read fail network error(%v)", rtkMisc.GetFuncInfo(), netErr.Error())
+				if netErr.Timeout() {
+					return nil, rtkMisc.ERR_NETWORK_P2P_TIMEOUT
+				}
+			}
+			return nil, rtkMisc.ERR_NETWORK_P2P_CONNECT
+		}
+		log.Printf("connect %s success! use [%d] ms", quicNodePeer.ID.String(), time.Now().UnixMilli()-startTime)
+	}
+
+	return &quicNodePeer, rtkMisc.SUCCESS
 }
