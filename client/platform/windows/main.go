@@ -532,6 +532,15 @@ func GetIsSupportFileDrag() C.int {
 	return cIsSupport
 }
 
+//export GetIsDebugMode
+func GetIsDebugMode() C.int {
+	cIsDebugMode := C.int(0)
+	if rtkPlatform.GetIsDebugMode() {
+		cIsDebugMode = C.int(1)
+	}
+	return cIsDebugMode
+}
+
 //export SetFileDropResponse
 func SetFileDropResponse(statusCode C.int, ipPort *C.char, clientID *C.char, fileSize C.uint64_t, timestamp C.uint64_t, fileName *C.wchar_t) {
 	fmt.Printf("SetFileDropResponse(%d, %q, %q, %d, %d, %q)\n",

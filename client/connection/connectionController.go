@@ -304,23 +304,23 @@ func buildListener(ctx context.Context) {
 		log.Fatalf("[%s] node is nil!", rtkMisc.GetFuncInfo())
 	}
 
-	node.SetStreamHandler(protocol.ID(rtkGlobal.ProtocolDirectID), func(stream network.Stream) {
+	node.SetStreamHandler(protocol.ID(rtkGlobal.ProtocolDirectID), network.StreamHandler(func(stream network.Stream) {
 		onlineEvent(ctx, stream, true, nil)
-	})
+	})）
 
-	node.SetStreamHandler(protocol.ID(rtkGlobal.ProtocolImageTransmission), func(stream network.Stream) {
+	node.SetStreamHandler(protocol.ID(rtkGlobal.ProtocolImageTransmission), network.StreamHandler(func(stream network.Stream) {
 		id := stream.Conn().RemotePeer().String()
 		if isLastXClipStreamExisted(id) {
 			time.Sleep(50 * time.Millisecond)
 		}
 		updateFmtTypeStreamSrc(stream, rtkCommon.XCLIP_CB)
 		noticeFmtTypeStreamReady(stream.Conn().RemotePeer().String(), rtkCommon.XCLIP_CB)
-	})
+	})）
 
-	node.SetStreamHandler(protocol.ID(rtkGlobal.ProtocolFileTransmission), func(stream network.Stream) {
+	node.SetStreamHandler(protocol.ID(rtkGlobal.ProtocolFileTransmission), network.StreamHandler(func(stream network.Stream) {
 		updateFmtTypeStreamSrc(stream, rtkCommon.FILE_DROP)
 		noticeFmtTypeStreamReady(stream.Conn().RemotePeer().String(), rtkCommon.FILE_DROP)
-	})
+	}))
 }
 
 func BuildFileDropItemStreamListener(timestamp uint64) {
@@ -530,24 +530,32 @@ func buildClientListTalker(ctx context.Context, clientList []rtkMisc.ClientInfo)
 		return
 	}
 
-	for _, client := range clientList {
-		if client.ID == "" || client.IpAddr == "" {
-			log.Printf("ClientListFromLanServer get ID:[%s] IPAddr:[%s] , continue!", client.ID, client.IpAddr)
+	for _, value := range clientList {
+		clientInfo := rtkMisc.ClientInfo{
+			ID:             value.ID,
+			IpAddr:         value.IpAddr,
+			Platform:       value.Platform,
+			DeviceName:     value.DeviceName,
+			SourcePortType: value.SourcePortType,
+			Version:        value.Version,
+		}
+		if clientInfo.ID == "" || clientInfo.IpAddr == "" {
+			log.Printf("ClientListFromLanServer get ID:[%s] IPAddr:[%s] , continue!", clientInfo.ID, clientInfo.IpAddr)
 			continue
 		}
 
-		ip, port := rtkUtils.SplitIPAddr(client.IpAddr)
+		ip, port := rtkUtils.SplitIPAddr(clientInfo.IpAddr)
 		if ip == "" || port == "" || ip == rtkMisc.DefaultIp || ip == rtkMisc.LoopBackIp {
-			log.Printf("ClientListFromLanServer get ID:[%s] IPAddr:[%s] , continue!", client.ID, client.IpAddr)
+			log.Printf("ClientListFromLanServer get ID:[%s] IPAddr:[%s] , continue!", clientInfo.ID, clientInfo.IpAddr)
 			continue
 		}
 
 		rtkMisc.GoSafeWithParam(func(args ...any) {
-			errCode := buildTalker(ctx, client)
+			errCode := buildTalker(ctx, clientInfo)
 			if errCode != rtkMisc.SUCCESS {
-				log.Printf("[%s] ID:[%s] IPAddr:[%s] buildTalker failed, errCode:%d ", rtkMisc.GetFuncInfo(), client.ID, client.IpAddr, errCode)
+				log.Printf("[%s] ID:[%s] IPAddr:[%s] buildTalker failed, errCode:%d ", rtkMisc.GetFuncInfo(), clientInfo.ID, clientInfo.IpAddr, errCode)
 			}
-		}, client)
+		}, clientInfo)
 	}
 }
 

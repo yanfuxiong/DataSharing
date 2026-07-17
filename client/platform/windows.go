@@ -553,6 +553,14 @@ func GoGetIsSupportFileDrag() bool {
 	return rtkGlobal.IsSupportFileDrag
 }
 
+func GetIsDebugMode() bool {
+	log.Printf("[%s] Debug:%s", rtkMisc.GetFuncInfo(), rtkBuildConfig.Debug)
+	if rtkBuildConfig.Debug == "1" {
+		return true
+	}
+	return false
+}
+
 /*======================================= Used by GO business =======================================*/
 
 func GetDownloadPath() string {
