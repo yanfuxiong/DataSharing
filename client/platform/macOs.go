@@ -434,6 +434,18 @@ func GoGetIsSupportFileDrag() bool {
 	return rtkGlobal.IsSupportFileDrag
 }
 
+func GetIsDebugMode() bool {
+	log.Printf("[%s] Debug:%s", rtkMisc.GetFuncInfo(), rtkBuildConfig.Debug)
+	if rtkBuildConfig.Debug == "1" {
+		return true
+	}
+	return false
+}
+
+func GoGetClientVersion() string {
+	return rtkGlobal.ClientVersion
+}
+
 func GoFileDropResponse(id string, fileCmd rtkCommon.FileDropCmd, fileName string) {
 	callbackInstanceFileDropResponseCB(id, fileCmd, fileName)
 }

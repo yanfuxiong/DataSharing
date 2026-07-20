@@ -128,7 +128,6 @@ import (
 	rtkBuildConfig "rtk-cross-share/client/buildConfig"
 	rtkCmd "rtk-cross-share/client/cmd"
 	rtkCommon "rtk-cross-share/client/common"
-	rtkGlobal "rtk-cross-share/client/global"
 	rtkPlatform "rtk-cross-share/client/platform"
 	rtkUtils "rtk-cross-share/client/utils"
 	rtkMisc "rtk-cross-share/misc"
@@ -607,20 +606,6 @@ func SetNetWorkConnected(isConnect bool) { // Deprecated: unused
 //export SetHostListenAddr
 func SetHostListenAddr(listenHost string, listenPort int) {
 	log.Printf("[%s] SetHostListAddr:[%s][%d]", rtkMisc.GetFuncInfo(), listenHost, listenPort)
-	/*if listenHost == "" || listenHost == rtkMisc.DefaultIp || listenHost == rtkMisc.LoopBackIp || listenPort <= rtkGlobal.DefaultPort {
-		return
-	}
-	if rtkGlobal.ListenHost != rtkMisc.DefaultIp &&
-		rtkGlobal.ListenHost != "" &&
-		rtkGlobal.ListenPort != rtkGlobal.DefaultPort &&
-		(listenHost != rtkGlobal.ListenHost || listenPort != rtkGlobal.ListenPort) {
-
-		log.Printf("[%s] The previous host Addr:[%s:%d], new host Addr:[%s:%d] ", rtkMisc.GetFuncInfo(), rtkGlobal.ListenHost, rtkGlobal.ListenPort, listenHost, listenPort)
-		log.Println("**************** Attention please, the host listen addr is switch! ********************\n\n")
-		rtkGlobal.ListenHost = listenHost
-		rtkGlobal.ListenPort = listenPort
-		rtkPlatform.GoTriggerNetworkSwitch()
-	}*/
 }
 
 //export SetMacAddress
@@ -684,7 +669,7 @@ func SetDIASSourceAndPort(cSource, cPort uint32) {
 
 //export GetVersion
 func GetVersion() *C.char {
-	return C.CString(rtkGlobal.ClientVersion)
+	return C.CString(rtkPlatform.GoGetClientVersion())
 }
 
 //export GetBuildDate
