@@ -445,6 +445,10 @@ func GoGetIsSupportFileDrag() bool {
 	return rtkGlobal.IsSupportFileDrag
 }
 
+func GoGetClientVersion() string {
+	return rtkGlobal.ClientVersion
+}
+
 func GoFileDropResponse(id string, fileCmd rtkCommon.FileDropCmd, fileName string) {
 	callbackInstanceFileDropResponseCB(id, fileCmd, fileName)
 }

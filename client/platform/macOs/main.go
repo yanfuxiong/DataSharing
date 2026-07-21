@@ -200,6 +200,8 @@ type MultiFilesDragRequestInfo struct {
 	PathList []string
 }
 
+/*======================================= Go Call MacOs API =======================================*/
+
 func GoTriggerCallbackUpdateSystemInfo(ipAddr, versionInfo string) {
 	cIpAddr := C.CString(ipAddr)
 	defer C.free(unsafe.Pointer(cIpAddr))
@@ -422,6 +424,8 @@ func GoTriggerCallbackNotifyBrowseResult(monitorName, instance, ipAddr, version 
 	C.invokeCallbackNotifyBrowseResult(cMonitorName, cInstance, cIpAddr, cVersion, cTimeStamp)
 }
 
+/*======================================= MacOs set Go Callback =======================================*/
+
 //export SetCallbackUpdateSystemInfo
 func SetCallbackUpdateSystemInfo(cb C.CallbackUpdateSystemInfo) {
 	C.setCallbackUpdateSystemInfo(cb)
@@ -515,6 +519,8 @@ func SetCallbackNotifyBrowseResult(cb C.CallbackNotifyBrowseResult) {
 	C.setCallbackNotifyBrowseResult(cb)
 }
 
+/*======================================= MacOs Call Go API =======================================*/
+
 //export MainInit
 func MainInit(deviceName, rootPath, downloadPath string) {
 	rtkPlatform.SetDeviceName(deviceName)
@@ -557,6 +563,14 @@ func GetIsSupportFileDrag() int {
 		return int(1)
 	}
 	return int(0)
+}
+
+//export GetIsDebugMode
+func GetIsDebugMode() int {
+	if rtkPlatform.GetIsDebugMode() {
+		return 1
+	}
+	return 0
 }
 
 //export GetClientList
