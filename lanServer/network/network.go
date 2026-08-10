@@ -1,16 +1,16 @@
 package network
 
 import (
-	"errors"
 	"log"
 	"net"
+	rtkGlobal "rtk-cross-share/lanServer/global"
 	rtkMisc "rtk-cross-share/misc"
 	"sort"
 	"strconv"
 	"strings"
 )
 
-// get interfaces priority order from high to low : eth0, eth1, eth2, eth3, eth4...., wlan0,wlan1,wlan2,wlan3,wlan4....
+// get interfaces priority order from high to low :br0, eth0, eth1, eth2, eth3, eth4...., wlan0,wlan1,wlan2,wlan3,wlan4....
 func GetValidInterfaceList() ([]string, error) {
 	interfaces, err := net.Interfaces()
 	if err != nil {
@@ -47,39 +47,39 @@ func GetValidInterfaceList() ([]string, error) {
 
 	sort.Slice(ifaceNameWlan, func(i, j int) bool {
 		//priority order: wlan0 > wlan1 > wlan2 > wlan4 ...
-		return isIfaceNameSuffixBigger("wlan", ifaceNameWlan[i], ifaceNameWlan[j])
+		return isIfaceNameSuffixSmaller("wlan", ifaceNameWlan[i], ifaceNameWlan[j])
 	})
 
 	sort.Slice(ifaceNameEth, func(i, j int) bool {
 		//priority order: eth0 > eth1 > eth2 > eth4 ...
-		return isIfaceNameSuffixBigger("eth", ifaceNameEth[i], ifaceNameEth[j])
+		return isIfaceNameSuffixSmaller("eth", ifaceNameEth[i], ifaceNameEth[j])
 	})
 
-	ifaceNameEth = append(ifaceNameEth, ifaceNameWlan...)
-	if len(ifaceNameEth) == 0 {
-		return nil, errors.New("GetValidInterfaceList is nil!")
-	}
+	ifaceNameList := make([]string, 0)
+	ifaceNameList = append(ifaceNameList, rtkGlobal.BridgeInterfaceName)
+	ifaceNameList = append(ifaceNameList, ifaceNameEth...)
+	ifaceNameList = append(ifaceNameList, ifaceNameWlan...)
 
-	return ifaceNameEth, nil
+	return ifaceNameList, nil
 }
 
-func isIfaceNameSuffixBigger(prefix, ethSmall, ethBig string) bool {
-	if !strings.HasPrefix(ethBig, prefix) || !strings.HasPrefix(ethSmall, prefix) {
+func isIfaceNameSuffixSmaller(prefix, ifaceI, ifaceJ string) bool {
+	if !strings.HasPrefix(ifaceI, prefix) || !strings.HasPrefix(ifaceJ, prefix) {
 		return false
 	}
-	bigNumStr := strings.TrimPrefix(ethBig, prefix)
-	smallNumStr := strings.TrimPrefix(ethSmall, prefix)
-	if bigNumStr == "" || smallNumStr == "" {
+	numStrI := strings.TrimPrefix(ifaceI, prefix)
+	numStrJ := strings.TrimPrefix(ifaceJ, prefix)
+	if numStrI == "" || numStrJ == "" {
 		return false
 	}
-	bigNum, err := strconv.Atoi(bigNumStr)
+	numI, err := strconv.Atoi(numStrI)
 	if err != nil {
 		return false
 	}
-	smallNum, err := strconv.Atoi(smallNumStr)
+	numJ, err := strconv.Atoi(numStrJ)
 	if err != nil {
 		return false
 	}
 
-	return bigNum > smallNum
+	return numI < numJ
 }

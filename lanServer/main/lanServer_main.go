@@ -16,10 +16,10 @@ import (
 	rtkDebug "rtk-cross-share/lanServer/debug"
 	rtkGlobal "rtk-cross-share/lanServer/global"
 	rtkIfaceMgr "rtk-cross-share/lanServer/interfaceMgr"
+	rtkNetwork "rtk-cross-share/lanServer/network"
 	"strconv"
 	"syscall"
 
-	rtkNetwork "rtk-cross-share/lanServer/network"
 	rtkMisc "rtk-cross-share/misc"
 	"time"
 
@@ -247,6 +247,7 @@ func registerMdns(server **zeroconf.Server, serverForSearch **zeroconf.Server) [
 	index := 0
 	for {
 		time.Sleep(100 * time.Millisecond)
+
 		interfaceList, err := rtkNetwork.GetValidInterfaceList()
 		if err != nil {
 			time.Sleep(5 * time.Second)
@@ -260,7 +261,9 @@ func registerMdns(server **zeroconf.Server, serverForSearch **zeroconf.Server) [
 		if err != nil {
 			if printErrIface {
 				log.Printf("Err: Get network interface(%s) failed: %s", interfaceList[index], err.Error())
-				printErrIface = false
+				if index == len(interfaceList)-1 {
+					printErrIface = false
+				}
 			}
 			index++
 			continue
