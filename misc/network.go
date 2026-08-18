@@ -147,3 +147,25 @@ func GetNetworkIP(forceInterfaces []string) ([]string, bool) {
 
 	return ipStrList, bCheckOk
 }
+
+func IsIPActive(ipStr string) bool {
+	ip := net.ParseIP(ipStr)
+	if ip == nil {
+		return false
+	}
+
+	interfaces, _ := net.Interfaces()
+	for _, iface := range interfaces {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+
+		addrs, _ := iface.Addrs()
+		for _, addr := range addrs {
+			if netIP, _, _ := net.ParseCIDR(addr.String()); netIP.Equal(ip) {
+				return true
+			}
+		}
+	}
+	return false
+}

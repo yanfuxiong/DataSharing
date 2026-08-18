@@ -161,8 +161,6 @@ type AuthDataInfo struct {
 	Framerate   int
 	Type        int // 0:Miracast, 1:USBC
 	DisplayName string
-	CenterX     uint32
-	CenterY     uint32
 }
 
 const (

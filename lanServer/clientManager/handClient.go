@@ -259,6 +259,10 @@ func HandleClient(mainCtx context.Context, conn net.Conn, timestamp int64) {
 					}
 					errCnt++
 					continue
+				} else {
+					if errCnt > 0 {
+						errCnt = 0
+					}
 				}
 
 				// TODO: refine this flow
