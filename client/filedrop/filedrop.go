@@ -11,25 +11,28 @@ import (
 	rtkMisc "rtk-cross-share/misc"
 )
 
-func updateFileListDrop(id string, fileInfoList []rtkCommon.FileInfo, folderList []string, total, timeStamp uint64, totalDesc, srcRootPath string) {
+func updateFileListDrop(id string, srcFileList []rtkCommon.FileInfo, folderList []string, total, timeStamp uint64, totalDesc, srcRootPath string, dstFileList []rtkCommon.FileInfoEx) {
 	fileDropDataMutex.Lock()
 	defer fileDropDataMutex.Unlock()
 
 	fileDropDataMap[id] = FileDropData{
-		SrcFileList:   fileInfoList,
+		SrcFileList:   srcFileList,
 		ActionType:    rtkCommon.P2PFileActionType_Drop,
 		TimeStamp:     timeStamp,
 		FolderList:    folderList,
 		SrcRootPath:   srcRootPath,
 		TotalDescribe: totalDesc,
 		TotalSize:     total,
-		DstFilePath:   "",
-		Cmd:           rtkCommon.FILE_DROP_REQUEST,
+
+		DstFilePath: "",
+		Cmd:         rtkCommon.FILE_DROP_REQUEST,
+		DstFileList: dstFileList,
 	}
+
 }
 
 func UpdateFileListDropReqDataFromLocal(id string, fileInfoList []rtkCommon.FileInfo, folderList []string, total, timeStamp uint64, totalDesc, srcRootPath string) {
-	updateFileListDrop(id, fileInfoList, folderList, total, timeStamp, totalDesc, srcRootPath)
+	updateFileListDrop(id, fileInfoList, folderList, total, timeStamp, totalDesc, srcRootPath, nil)
 
 	clientListMap := rtkUtils.GetClientMap()
 	ipAddr := string("")
@@ -57,8 +60,8 @@ func UpdateFileListDropReqDataFromLocal(id string, fileInfoList []rtkCommon.File
 	rtkPlatform.GoFileListSendNotify(ipAddr, id, uint32(len(fileInfoList)), total, timeStamp, firstFileName, firstFileSize, getFileDropDataDetails(id, ipAddr))
 }
 
-func UpdateFileListDropReqDataFromDst(id string, fileInfoList []rtkCommon.FileInfo, folderList []string, total, timeStamp uint64, totalDesc string) {
-	updateFileListDrop(id, fileInfoList, folderList, total, timeStamp, totalDesc, "")
+func UpdateFileListDropReqDataFromDst(id string, fileInfoList []rtkCommon.FileInfo, folderList []string, total, timeStamp uint64, totalDesc string, dstFileList []rtkCommon.FileInfoEx) {
+	updateFileListDrop(id, fileInfoList, folderList, total, timeStamp, totalDesc, "", dstFileList)
 }
 
 func UpdateFileDropRespDataFromLocal(id string, cmd rtkCommon.FileDropCmd, filePath string) {
@@ -161,28 +164,9 @@ func getFileDropDataDetails(id, ipAddr string) string {
 		ID:            id,
 		IPAddr:        ipAddr,
 		TimeStamp:     fileDropData.TimeStamp,
-		FileList:      make([]FileInfoEx, 0),
+		FileList:      make([]rtkCommon.FileInfoEx, 0),
 		TotalSize:     fileDropData.TotalSize,
 		TotalDescribe: fileDropData.TotalDescribe,
-	}
-
-	for i, fileInfo := range fileDropData.SrcFileList {
-		var fileInfoEx FileInfoEx
-		fileInfoEx.FileSize = uint64(fileInfo.FileSize_.SizeHigh)<<32 | uint64(fileInfo.FileSize_.SizeLow)
-		if fileDropData.Cmd == rtkCommon.FILE_DROP_ACCEPT && fileDropData.DstFilePath != "" { // as Dst Notify,  update dst full path
-			fileName := rtkMisc.AdaptationPath(fileInfo.FileName)
-			fileInfoEx.FilePath, fileInfoEx.FileName = rtkUtils.GetTargetDstPathName(filepath.Join(fileDropData.DstFilePath, fileName), fileName)
-		} else {
-			fileInfoEx.FilePath = fileInfo.FilePath
-			fileInfoEx.FileName = fileInfo.FileName
-		}
-
-		if i == 0 {
-			notifyInfo.FirstFileSize = fileInfoEx.FileSize
-			notifyInfo.FirstFileName = fileInfoEx.FileName
-		}
-
-		notifyInfo.FileList = append(notifyInfo.FileList, fileInfoEx)
 	}
 
 	if fileDropData.Cmd == rtkCommon.FILE_DROP_ACCEPT && fileDropData.DstFilePath != "" { // DST
@@ -191,7 +175,26 @@ func getFileDropDataDetails(id, ipAddr string) string {
 			notifyInfo.FolderList = append(notifyInfo.FolderList, rtkMisc.AdaptationPath(folder))
 		}
 		notifyInfo.RootPath = fileDropData.DstFilePath
+
+		for i, fileItem := range fileDropData.DstFileList {
+			if i == 0 {
+				notifyInfo.FirstFileSize = fileItem.FileSize
+				notifyInfo.FirstFileName = fileItem.FileName
+			}
+			notifyInfo.FileList = append(notifyInfo.FileList, fileItem)
+		}
 	} else { // SRC
+		var fileInfo rtkCommon.FileInfoEx
+		for i, fileItem := range fileDropData.SrcFileList {
+			fileInfo.FileSize = uint64(fileItem.FileSize_.SizeHigh)<<32 | uint64(fileItem.FileSize_.SizeLow)
+			fileInfo.FileName = fileItem.FileName
+			fileInfo.FilePath = fileItem.FilePath
+			if i == 0 {
+				notifyInfo.FirstFileSize = fileInfo.FileSize
+				notifyInfo.FirstFileName = fileInfo.FileName
+			}
+			notifyInfo.FileList = append(notifyInfo.FileList, fileInfo)
+		}
 		notifyInfo.FolderList = fileDropData.FolderList
 		notifyInfo.RootPath = fileDropData.SrcRootPath
 	}
@@ -217,12 +220,30 @@ func ResetFileDropData(id string) {
 	dragTotalDesc = ""
 }
 
+func ClearFileDropData(id string, timestamp uint64) {
+	if fileDropData, ok := fileDropDataMap[id]; ok {
+		if fileDropData.TimeStamp == timestamp {
+			delete(fileDropDataMap, id)
+		}
+	}
+
+	if dragFileTimeStamp == timestamp {
+		dragFileInfoList = nil
+		dragFolderList = nil
+		dragFileTimeStamp = 0
+		dragTotalSize = 0
+		dragTotalDesc = ""
+		dragDstFileList = nil
+	}
+}
+
 func init() {
 	dragFileInfoList = nil
 	dragFolderList = nil
 	dragFileTimeStamp = 0
 	dragTotalSize = 0
 	dragTotalDesc = ""
+	dragDstFileList = nil
 
 	rtkPlatform.SetGoFileDropResponseCallback(UpdateFileDropRespDataFromLocal) //pop-up confirmation
 	rtkPlatform.SetGoFileListDropRequestCallback(UpdateFileListDropReqDataFromLocal)

@@ -306,20 +306,38 @@ func buildListener(ctx context.Context) {
 
 	node.SetStreamHandler(protocol.ID(rtkGlobal.ProtocolDirectID), network.StreamHandler(func(stream network.Stream) {
 		onlineEvent(ctx, stream, true, nil)
-	})）
+	}))
 
 	node.SetStreamHandler(protocol.ID(rtkGlobal.ProtocolImageTransmission), network.StreamHandler(func(stream network.Stream) {
 		id := stream.Conn().RemotePeer().String()
 		if isLastXClipStreamExisted(id) {
 			time.Sleep(50 * time.Millisecond)
 		}
-		updateFmtTypeStreamSrc(stream, rtkCommon.XCLIP_CB)
-		noticeFmtTypeStreamReady(stream.Conn().RemotePeer().String(), rtkCommon.XCLIP_CB)
-	})）
+		updateFmtTypeStreamSrc(id, stream, rtkCommon.XCLIP_CB)
+		noticeFmtTypeStreamReady(stream.Conn().RemotePeer().String(), 0, rtkCommon.XCLIP_CB)
+	}))
 
 	node.SetStreamHandler(protocol.ID(rtkGlobal.ProtocolFileTransmission), network.StreamHandler(func(stream network.Stream) {
-		updateFmtTypeStreamSrc(stream, rtkCommon.FILE_DROP)
-		noticeFmtTypeStreamReady(stream.Conn().RemotePeer().String(), rtkCommon.FILE_DROP)
+		updateFmtTypeStreamSrc(stream.Conn().RemotePeer().String(), stream, rtkCommon.FILE_DROP)
+		noticeFmtTypeStreamReady(stream.Conn().RemotePeer().String(), 0, rtkCommon.FILE_DROP)
+	}))
+
+	if fileTransNode == nil {
+		log.Printf("[%s] fileTransNode is nil !", rtkMisc.GetFuncInfo())
+		return
+	}
+	fileTransNode.SetStreamHandler(protocol.ID(rtkGlobal.ProtocolImageTransmission), network.StreamHandler(func(stream network.Stream) {
+		id := rtkUtils.GetClientMainID(stream.Conn().RemotePeer().String())
+		if id == "" {
+			stream.Reset()
+			return
+		}
+
+		if isLastXClipStreamExisted(id) {
+			time.Sleep(50 * time.Millisecond)
+		}
+		updateFmtTypeStreamSrc(id, stream, rtkCommon.XCLIP_CB)
+		noticeFmtTypeStreamReady(id, 0, rtkCommon.XCLIP_CB)
 	}))
 }
 
@@ -355,7 +373,7 @@ func handlerFileDropItemStream(stream network.Stream) {
 	}
 	reqMsg.StreamId = stream.ID()
 	addFileDropItemStreamAsSrc(reqMsg.ID, reqMsg.Timestamp, stream)
-	noticeFmtTypeStreamReady(reqMsg.ID, rtkCommon.FILE_DROP)
+	noticeFmtTypeStreamReady(reqMsg.ID, reqMsg.Timestamp, rtkCommon.FILE_DROP)
 }
 
 func NewFileDropItemStream(ctxMain context.Context, id string, timestamp uint64) rtkMisc.CrossShareErr {
@@ -368,6 +386,12 @@ func NewFileDropItemStream(ctxMain context.Context, id string, timestamp uint64)
 		return errCode
 	}
 
+	nodeMutex.RLock()
+	defer nodeMutex.RUnlock()
+	if fileTransNode == nil {
+		log.Printf("[%s] self fileTransNode is nil !", rtkMisc.GetFuncInfo())
+		return rtkMisc.ERR_BIZ_P2P_NODE_NULL
+	}
 	protocolId := getFileDropStreamProtocol(timestamp)
 	stream, err := fileTransNode.NewStream(ctx, quicNodePeer.ID, protocol.ID(protocolId))
 	if err != nil {
@@ -386,7 +410,7 @@ func NewFileDropItemStream(ctxMain context.Context, id string, timestamp uint64)
 		StreamId:  stream.ID(),
 	}
 	if err = json.NewEncoder(Writer).Encode(registMsg); err != nil {
-		log.Println("failed to send register message: %w", err)
+		log.Printf("failed to send register message: %+v", err)
 		return rtkMisc.ERR_NETWORK_P2P_WRITER
 	}
 	if err = Writer.Flush(); err != nil {
@@ -429,7 +453,7 @@ func buildTalker(ctxMain context.Context, client rtkMisc.ClientInfo) rtkMisc.Cro
 
 	if node.Network().Connectedness(peer.ID) != network.Connected {
 		node.Network().ClosePeer(peer.ID)
-		log.Printf("begin to connect %+v ...", peer)
+		log.Printf("begin to build tcp connect %+v ...", peer)
 		if err = node.Connect(ctx, peer); err != nil {
 			log.Printf("[%s] Connect peer%+v failed:%+v", rtkMisc.GetFuncInfo(), peer, err)
 			if errors.Is(err, context.DeadlineExceeded) {
@@ -841,10 +865,14 @@ func buildQuicTalker(ctx context.Context, id string) (*peer.AddrInfo, rtkMisc.Cr
 
 	nodeMutex.RLock()
 	defer nodeMutex.RUnlock()
+	if fileTransNode == nil {
+		log.Printf("[%s] self fileTransNode is nil !", rtkMisc.GetFuncInfo())
+		return nil, rtkMisc.ERR_BIZ_P2P_NODE_NULL
+	}
 
 	if fileTransNode.Network().Connectedness(quicNodePeer.ID) != network.Connected {
 		fileTransNode.Network().ClosePeer(quicNodePeer.ID)
-		log.Printf("begin  to connect %+v ...", quicNodePeer)
+		log.Printf("begin to build quic connect %+v ...", quicNodePeer)
 		if err = fileTransNode.Connect(ctx, quicNodePeer); err != nil {
 			log.Printf("[%s] Connect peer%+v failed:%+v", rtkMisc.GetFuncInfo(), quicNodePeer, err)
 			if errors.Is(err, context.DeadlineExceeded) {

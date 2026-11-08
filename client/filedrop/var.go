@@ -30,6 +30,7 @@ var (
 	dragFileTimeStamp uint64
 	dragTotalSize     uint64
 	dragTotalDesc     string
+	dragDstFileList   []rtkCommon.FileInfoEx
 	dragSrcRootPath   string
 )
 
@@ -44,21 +45,16 @@ type FileDropData struct {
 	TotalSize     uint64
 
 	// Resp data
-	DstFilePath string //DownloadPath
+	DstFilePath string
 	Cmd         rtkCommon.FileDropCmd
-}
-
-type FileInfoEx struct {
-	FileSize uint64
-	FilePath string //full path
-	FileName string //this must start with folder name, eg: folderName/aaa/bbb/ccc.txt
+	DstFileList []rtkCommon.FileInfoEx
 }
 
 type FileDataTransDetails struct {
 	ID            string
 	IPAddr        string
 	TimeStamp     uint64
-	FileList      []FileInfoEx
+	FileList      []rtkCommon.FileInfoEx
 	FolderList    []string // must start with folder name and end with '/'.  eg: folderName/aaa/bbb/
 	RootPath      string   // dst:downloadPath  ; src:rootPath
 	TotalSize     uint64
@@ -70,6 +66,8 @@ type FileDataTransDetails struct {
 type FilesTransferDataItem struct {
 	FileDropData
 	FileTransDirection FilesTransferDirectionType
+	IsInProgress       bool
+	cancelFn           func(rtkCommon.CancelBusinessSource)
 
 	// Transfer Interrupt Info
 	InterruptSrcFileName        string                `json:"-"` // Src fileName

@@ -26,6 +26,12 @@ type FileInfo struct {
 	FileName  string //this must start with folder name, eg: folderName/aaa/bbb/ccc.txt
 }
 
+type FileInfoEx struct {
+	FileSize uint64
+	FilePath string //full path
+	FileName string //this must start with folder name, eg: folderName/aaa/bbb/ccc.txt
+}
+
 type ImgHeader struct {
 	Width       int32
 	Height      int32

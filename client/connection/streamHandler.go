@@ -11,6 +11,7 @@ import (
 	rtkPlatform "rtk-cross-share/client/platform"
 	rtkUtils "rtk-cross-share/client/utils"
 	rtkMisc "rtk-cross-share/misc"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -329,10 +330,9 @@ func CloseAllFileDropStream(id string) {
 	log.Printf("[%s] ID:[%s] Unknown clientFileDataStreamMap info", rtkMisc.GetFuncInfo(), id)
 }
 
-func updateFmtTypeStreamInternal(stream network.Stream, fmtType rtkCommon.TransFmtType, isDst bool) {
+func updateFmtTypeStreamInternal(id string, stream network.Stream, fmtType rtkCommon.TransFmtType, isDst bool) {
 	streamPoolMutex.Lock()
 	defer streamPoolMutex.Unlock()
-	id := stream.Conn().RemotePeer().String()
 	if sInfo, ok := streamPoolMap[id]; ok {
 		if fmtType == rtkCommon.XCLIP_CB {
 			if sInfo.sImage != nil {
@@ -362,12 +362,12 @@ func updateFmtTypeStreamInternal(stream network.Stream, fmtType rtkCommon.TransF
 		log.Printf("[%s] cannot found stream Info from streamPoolMap by ID:[%s]", rtkMisc.GetFuncInfo(), id)
 	}
 }
-func updateFmtTypeStreamSrc(stream network.Stream, fmtType rtkCommon.TransFmtType) {
-	updateFmtTypeStreamInternal(stream, fmtType, false)
+func updateFmtTypeStreamSrc(id string, stream network.Stream, fmtType rtkCommon.TransFmtType) {
+	updateFmtTypeStreamInternal(id, stream, fmtType, false)
 }
 
-func updateFmtTypeStreamDst(stream network.Stream, fmtType rtkCommon.TransFmtType) {
-	updateFmtTypeStreamInternal(stream, fmtType, true)
+func updateFmtTypeStreamDst(id string, stream network.Stream, fmtType rtkCommon.TransFmtType) {
+	updateFmtTypeStreamInternal(id, stream, fmtType, true)
 }
 
 func LastXClipStreamReset(id string) {
@@ -448,52 +448,36 @@ func GetFileTransErrCode(id string) rtkCommon.SendFilesRequestErrCode {
 	return rtkCommon.SendFilesRequestSuccess
 }
 
-func noticeFmtTypeStreamReady(id string, fmtType rtkCommon.TransFmtType) {
+func noticeFmtTypeStreamReady(id string, timestamp uint64, fmtType rtkCommon.TransFmtType) {
 	key := id + string(fmtType)
 	nReadyChanQueueCount := int(1)
 	if fmtType == rtkCommon.FILE_DROP {
-		nReadyChanQueueCount = rtkGlobal.SendFilesRequestMaxQueueSize - 1
+		if rtkUtils.GetClientIsSupportConcurrentTrans(id) {
+			key = key + strconv.Itoa(int(timestamp))
+		} else {
+			nReadyChanQueueCount = rtkGlobal.SendFilesRequestMaxQueueSize - 1
+		}
 	}
 	noticeChan, _ := noticeFmtTypeSteamReadyChanMap.LoadOrStore(key, make(chan struct{}, nReadyChanQueueCount))
 	noticeChan.(chan struct{}) <- struct{}{}
 }
 
-func HandleFmtTypeStreamReady(id string, fmtType rtkCommon.TransFmtType) {
+func HandleFmtTypeStreamReady(id string, timestamp uint64, fmtType rtkCommon.TransFmtType) {
 	key := id + string(fmtType)
 	nReadyChanQueueCount := int(1)
 	if fmtType == rtkCommon.FILE_DROP {
-		nReadyChanQueueCount = rtkGlobal.SendFilesRequestMaxQueueSize - 1
-	}
-	noticeChan, _ := noticeFmtTypeSteamReadyChanMap.LoadOrStore(key, make(chan struct{}, nReadyChanQueueCount))
-	<-noticeChan.(chan struct{})
-}
-
-func clearFmtTypeStreamReadyFlag(id, fmtType string) int {
-	key := id + fmtType
-	nCount := int(0)
-	if noticeChan, ok := noticeFmtTypeSteamReadyChanMap.Load(key); ok {
-		flagChan := noticeChan.(chan struct{})
-		for {
-			select {
-			case <-flagChan:
-				nCount++
-			default:
-				return nCount
-			}
+		if rtkUtils.GetClientIsSupportConcurrentTrans(id) {
+			key = key + strconv.Itoa(int(timestamp))
+		} else {
+			nReadyChanQueueCount = rtkGlobal.SendFilesRequestMaxQueueSize - 1
 		}
 	}
-	return nCount
-}
-
-func ClearFmtTypeStreamReadyFlag(id string) {
-	nFlagCount := 0
-	fmtList := []string{string(rtkCommon.XCLIP_CB), string(rtkCommon.FILE_DROP)}
-	for _, key := range fmtList {
-		nFlagCount += clearFmtTypeStreamReadyFlag(id, key)
-	}
-
-	if nFlagCount > 0 {
-		log.Printf("ID[%s] ClearFmtTypeStreamReadyFlag count:[%d]", id, nFlagCount)
+	mapValue, _ := noticeFmtTypeSteamReadyChanMap.LoadOrStore(key, make(chan struct{}, nReadyChanQueueCount))
+	noticeChan := mapValue.(chan struct{})
+	<-noticeChan
+	if fmtType == rtkCommon.FILE_DROP && rtkUtils.GetClientIsSupportConcurrentTrans(id) {
+		close(noticeChan)
+		noticeFmtTypeSteamReadyChanMap.Delete(key)
 	}
 }
 

@@ -43,29 +43,14 @@ func GetValidInterface(ifaceName string) (*net.Interface, error) {
 var printErrIface = true
 var printErrIp = true
 
-func IsNetworkConnected(forceInterfaces []string) bool {
-	var interfaces []*net.Interface = make([]*net.Interface, 0)
-	if len(forceInterfaces) > 0 {
-		for _, ifaceName := range forceInterfaces {
-			iface, err := GetValidInterface(ifaceName)
-			if err != nil {
-				continue
-			}
-			interfaces = append(interfaces, iface)
+func IsNetworkConnected() bool {
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		if printErrIface {
+			log.Printf("[%s]Failed to get network interfaces: %v", GetFuncInfo(), err)
+			printErrIface = false
 		}
-	} else {
-		tmpInterfaces, err := net.Interfaces()
-		if err != nil {
-			if printErrIface {
-				log.Printf("[%s]Failed to get network interfaces: %v", GetFuncInfo(), err)
-				printErrIface = false
-			}
-			return false
-		}
-
-		for i := range tmpInterfaces {
-			interfaces = append(interfaces, &tmpInterfaces[i])
-		}
+		return false
 	}
 
 	for _, iface := range interfaces {
@@ -74,7 +59,7 @@ func IsNetworkConnected(forceInterfaces []string) bool {
 			continue
 		}
 
-		addrs, err := GetValidAddrs(iface)
+		addrs, err := GetValidAddrs(&iface)
 		if err != nil {
 			if printErrIp {
 				log.Printf("Err: Failed to get addresses for interface %s: %v", iface.Name, err)

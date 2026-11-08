@@ -24,7 +24,6 @@ var lastClipboardData atomic.Value
 var copyXClipEventChan = make(chan struct{}, 5)
 
 func updateLastClipboardData(cbData rtkCommon.ClipBoardData) {
-	lastClipboardData.Store(kDefClipboardData)
 	log.Printf("updateLastClipboardData from ID:[%s] fmt =[%s] ", cbData.SourceID, cbData.FmtType)
 	lastClipboardData.Store(cbData)
 }
