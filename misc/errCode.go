@@ -104,6 +104,7 @@ const ( // public business error code
 	ERR_BIZ_GET_CALLBACK_INSTANCE_NULL
 	ERR_BIZ_VERSION_INVALID
 	ERR_BIZ_SOURCE_PORT_INVALID
+	ERR_BIZ_DISPLAY_EVENT_EMPTY
 )
 
 // client to lan server business error code

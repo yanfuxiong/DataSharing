@@ -65,6 +65,7 @@ type ExtDataFile struct {
 
 type ExtDataFileRmFCL struct {
 	TimeStamp          uint64
+	ActionType         FileActionType
 	FileDataDetailsLen int //FileDropData json length
 }
 

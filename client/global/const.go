@@ -1,16 +1,18 @@
 package global
 
 const (
-	ClientVersion = "2.3.74"
+	ClientVersion = "2.3.82"
 
-	ClientDefaultVersion          = "2.3.0" // when the other client is an old version and cannot obtain the version number, use this default version
-	ClientXClipVerSerial          = 46      // the client support XClip since third version(serial number) 46
-	ClientCaptureIndexVerSerial   = 48      // the client build ClientIndex color block on verification dialog
-	ClientQueueFileTransVerSerial = 50      // the client file drop queue transfer since third version(serial number) 50
+	ClientDefaultVersion             = "2.3.0" // when the other client is an old version and cannot obtain the version number, use this default version
+	ClientXClipVerSerial             = 46      // the client support XClip since third version(serial number) 46
+	ClientCaptureIndexVerSerial      = 48      // the client build ClientIndex color block on verification dialog
+	ClientQueueFileTransVerSerial    = 50      // the client support file drop queue transfer since third version(serial number) 50
+	ClientXClipQuicTransVerSerial    = 80      // the client XClip data use QUIC stream transmission since third version(serial number) 80
+	ClientConcurrentTransVerSerial   = 81      // the client support concurrent transmission and remove quantity restriction each time since third version(serial number) 81
+	LanServerMobileDragFileVerSerial = 31      // the lanserver support mobile drag file since third version(serial number) 31
 
-	LanServerMobileDragFileVerSerial = 31 //  the lanserver support mobile drag file since third version(serial number) 31
-	ProtocolID                       = "/libp2p/dcutr"
-	HostProtocolID                   = "host_register"
+	ProtocolID     = "/libp2p/dcutr"
+	HostProtocolID = "host_register"
 
 	HOST_ID                   = "12345" // This HOST ID is pseudo to test
 	ProtocolDirectID          = "/instruction/cross_share/1.0.0"
@@ -34,9 +36,9 @@ const (
 	//The maximum size for sending documents each time,   10GB
 	SendFilesRequestMaxSize = 10 * 1024 * 1024 * 1024
 
-	//The maximum size for file data cache queue size 5
+	//The maximum size for cache queue size 5
 	SendFilesRequestMaxQueueSize = 5
 
-	//Concurrent transmission file data max size
-	FilesConcurrentTransferMaxSize = 3
+	//Concurrent transmission file data max count
+	FilesConcurrentTransferMaxCnt = 3
 )

@@ -133,22 +133,82 @@ func GetNetworkIP(forceInterfaces []string) ([]string, bool) {
 	return ipStrList, bCheckOk
 }
 
+// isIPActiveByUDP 通过 UDP Dial 验证 IP 是否属于本机
+// 原理：Dial 一个不可达地址，从本地地址推断出用于该子网的本机 IP
+func isIPActiveByUDP(ip net.IP) bool {
+	// 构造一个目标地址，让内核选择路由
+	var target string
+	if ip.To4() != nil {
+		target = ip.String() + ":9" // discard 端口
+	} else {
+		target = "[" + ip.String() + "]:9"
+	}
+
+	// 使用 UDP 不需要真实可达，只需内核做路由选择
+	conn, err := net.Dial("udp", target)
+	if err != nil {
+		log.Printf("[isIPActiveByUDP] dial failed: %v", err)
+		return false
+	}
+	defer conn.Close()
+
+	// 获取本地地址
+	localAddr, ok := conn.LocalAddr().(*net.UDPAddr)
+	if !ok || localAddr == nil {
+		return false
+	}
+
+	// 如果本地地址等于待验证 IP，说明是本机地址
+	if localAddr.IP.Equal(ip) {
+		log.Printf("[isIPActiveByUDP] UDP fallback matched: %s", ip.String())
+		return true
+	}
+
+	log.Printf("[isIPActiveByUDP] local %s != target %s", localAddr.IP, ip)
+	return false
+}
+
 func IsIPActive(ipStr string) bool {
 	ip := net.ParseIP(ipStr)
 	if ip == nil {
 		return false
 	}
 
-	interfaces, _ := net.Interfaces()
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		log.Printf("[IsIPActive] net.Interfaces() failed: %v, fallback to UDP check", err)
+		return isIPActiveByUDP(ip)
+	}
+
 	for _, iface := range interfaces {
-		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+		// Android 上不要严格过滤 FlagUp，某些有效接口标志位不完整
+		// 只跳过明确是 loopback 的
+		if iface.Flags&net.FlagLoopback != 0 {
 			continue
 		}
 
-		addrs, _ := iface.Addrs()
+		addrs, err := iface.Addrs()
+		if err != nil {
+			log.Printf("[%s] iface %s Addrs() err: %v", GetFuncInfo(), iface.Name, err)
+			continue
+		}
+
 		for _, addr := range addrs {
 			if netIP, _, _ := net.ParseCIDR(addr.String()); netIP.Equal(ip) {
+				log.Printf("[%s] matched on interface %s: %s", GetFuncInfo(), iface.Name, ipStr)
 				return true
+			}
+			switch v := addr.(type) {
+			case *net.IPNet:
+				if v.IP.Equal(ip) {
+					log.Printf("[%s] matched on interface %s: %s", GetFuncInfo(), iface.Name, ipStr)
+					return true
+				}
+			case *net.IPAddr:
+				if v.IP.Equal(ip) {
+					log.Printf("[%s] matched on interface %s: %s", GetFuncInfo(), iface.Name, ipStr)
+					return true
+				}
 			}
 		}
 	}
