@@ -493,13 +493,14 @@ func buildMessage(msg *Peer2PeerMessage, id string, event EventResult) bool {
 			}
 		} else if event.Cmd.Command == COMM_SRC {
 			if extData, ok := rtkFileDrop.GetFileDropData(id); ok {
-				if rtkUtils.GetPeerClientIsRmFCL(id) {
+				if rtkUtils.GetClientIsSupportConcurrentTrans(id) {
 					fileDetailsLen := rtkFileDrop.GetFileDropDataLen(id)
 					if fileDetailsLen <= 0 {
 						return false
 					}
 					msg.ExtData = rtkCommon.ExtDataFileRmFCL{
 						TimeStamp:          extData.TimeStamp,
+						ActionType:         extData.ActionType,
 						FileDataDetailsLen: fileDetailsLen,
 					}
 				} else {
@@ -570,10 +571,24 @@ func writeToSocket(msg *Peer2PeerMessage, id string) rtkMisc.CrossShareErr {
 	return errCode
 }
 
-func processIoWrite(ctx context.Context, id, ipAddr string, fmtType rtkCommon.TransFmtType, timeStamp uint64) {
+func processIoWrite(ctx context.Context, id, ipAddr string, fmtType rtkCommon.TransFmtType) {
 	resultCode := rtkMisc.SUCCESS
 	if fmtType == rtkCommon.FILE_DROP {
-		dealFilesCacheDataProcess(ctx, id, ipAddr, timeStamp)
+		timeStamp, fileDataInCacheCnt := rtkFileDrop.SetFilesDataToCacheAsSrc(id)
+		if timeStamp == 0 {
+			log.Printf("[%s], ID[%s] SetFilesDataToCacheAsSrc faild!", rtkMisc.GetFuncInfo(), id)
+			return
+		}
+		isConcurrentTrans := rtkUtils.GetClientIsSupportConcurrentTrans(id)
+		if (!isConcurrentTrans && fileDataInCacheCnt == 1) || (isConcurrentTrans && fileDataInCacheCnt <= rtkGlobal.FilesConcurrentTransferMaxCnt) {
+			dealFilesCacheDataProcess(ctx, id, ipAddr, timeStamp)
+		} else {
+			concurrentCnt := 1
+			if isConcurrentTrans {
+				concurrentCnt = rtkGlobal.FilesConcurrentTransferMaxCnt
+			}
+			log.Printf("(SRC) [%s] ID:[%s] timeStamp:[%d] there are %d file data transfer in progress, queue up and wait ...", rtkMisc.GetFuncInfo(), id, timeStamp, concurrentCnt)
+		}
 	} else if fmtType == rtkCommon.XCLIP_CB {
 		resultCode = writeXClipDataToSocket(id, ipAddr)
 		if resultCode != rtkMisc.SUCCESS {
@@ -585,10 +600,24 @@ func processIoWrite(ctx context.Context, id, ipAddr string, fmtType rtkCommon.Tr
 	}
 }
 
-func processIoRead(ctx context.Context, id, ipAddr string, fmtType rtkCommon.TransFmtType, timeStamp uint64) {
+func processIoRead(ctx context.Context, id, ipAddr string, fmtType rtkCommon.TransFmtType) {
 	resultCode := rtkMisc.SUCCESS
 	if fmtType == rtkCommon.FILE_DROP {
-		dealFilesCacheDataProcess(ctx, id, ipAddr, timeStamp)
+		timeStamp, fileDataInCacheCnt := rtkFileDrop.SetFilesDataToCacheAsDst(id)
+		if timeStamp == 0 {
+			log.Printf("[%s], ID[%s] SetFilesDataToCacheAsDst faild!", rtkMisc.GetFuncInfo(), id)
+			return
+		}
+		isConcurrentTrans := rtkUtils.GetClientIsSupportConcurrentTrans(id)
+		if (!isConcurrentTrans && fileDataInCacheCnt == 1) || (isConcurrentTrans && fileDataInCacheCnt <= rtkGlobal.FilesConcurrentTransferMaxCnt) {
+			dealFilesCacheDataProcess(ctx, id, ipAddr, timeStamp)
+		} else {
+			concurrentCnt := 1
+			if isConcurrentTrans {
+				concurrentCnt = rtkGlobal.FilesConcurrentTransferMaxCnt
+			}
+			log.Printf("(DST) [%s] ID:[%s] timeStamp:[%d] there are %d file data transfer in progress, queue up and wait...", rtkMisc.GetFuncInfo(), id, timeStamp, concurrentCnt)
+		}
 	} else if fmtType == rtkCommon.XCLIP_CB {
 		resultCode = handleXClipDataFromSocket(id, ipAddr)
 		if resultCode != rtkMisc.SUCCESS {
@@ -619,12 +648,7 @@ func processFileDrop(ctx context.Context, id, ipAddr string, event EventResult) 
 		// Receive response from dst
 		if extData, ok := event.Data.(rtkCommon.FileDropCmd); ok {
 			if extData == rtkCommon.FILE_DROP_ACCEPT {
-				timeStamp := rtkFileDrop.SetFilesDataToCacheAsSrc(id)
-				if rtkFileDrop.GetFilesTransferDataCacheCount(id) <= rtkGlobal.FilesConcurrentTransferMaxSize {
-					rtkMisc.GoSafe(func() { processIoWrite(ctx, id, ipAddr, event.Cmd.FmtType, timeStamp) }) // [Src]: Start to trans file
-				} else {
-					log.Printf("[%s] ID:[%s] there are file data transfer is in progress, queue up and wait!", rtkMisc.GetFuncInfo(), id)
-				}
+				rtkMisc.GoSafe(func() { processIoWrite(ctx, id, ipAddr, event.Cmd.FmtType) }) // [Src]: Start to trans file
 			} else if extData == rtkCommon.FILE_DROP_REJECT {
 				// TODO: send response to platform (accept or reject)
 				rtkFileDrop.ResetFileDropData(id)
@@ -635,18 +659,11 @@ func processFileDrop(ctx context.Context, id, ipAddr string, event EventResult) 
 			log.Printf("[%s %d] Invalid file drop response: %+v", rtkMisc.GetFuncName(), rtkMisc.GetLine(), extData)
 		}
 	} else if nextState == STATE_TRANS && nextCommand == COMM_DST {
-		if rtkUtils.GetPeerClientIsRmFCL(id) {
+		if rtkUtils.GetClientIsSupportConcurrentTrans(id) {
 			if extData, ok := event.Data.(rtkCommon.ExtDataFileRmFCL); ok {
-				log.Printf("[%s] Ready to accept file, timestamp:[%d] details Len:[%d]", rtkMisc.GetFuncInfo(), extData.TimeStamp, extData.FileDataDetailsLen)
+				log.Printf("[%s] Ready to accept file, timestamp:[%d] details len:[%d],ActionType:[%s]", rtkMisc.GetFuncInfo(), extData.TimeStamp, extData.FileDataDetailsLen, extData.ActionType)
 				rtkMisc.GoSafe(func() {
-					errCode := readItemFileDataDetailsFromSocket(ctx, id, ipAddr, extData.TimeStamp, extData.FileDataDetailsLen)
-					if errCode != rtkMisc.SUCCESS {
-						if errCode == rtkMisc.ERR_BIZ_FT_DST_OPEN_STREAM {
-							SendFileTransOpenStreamErrToSrc(id, ipAddr, extData.TimeStamp)
-						} else {
-							SendFileTransCopyDetailsErrToSrc(id, ipAddr, extData.TimeStamp)
-						}
-					}
+					readItemFileDataDetailsFromSocket(ctx, id, ipAddr, extData.TimeStamp, extData.FileDataDetailsLen)
 				})
 			} else {
 				log.Printf("[%s] Err: Setup file drop failed", rtkMisc.GetFuncInfo())
@@ -663,7 +680,7 @@ func processFileDrop(ctx context.Context, id, ipAddr string, event EventResult) 
 				}
 
 				if extData.ActionType == rtkCommon.P2PFileActionType_Drop {
-					rtkFileDrop.SetupDstFileListDrop(id, ipAddr, "", extData.TotalDescribe, extData.SrcFileList, extData.FolderList, extData.TotalSize, extData.TimeStamp)
+					rtkFileDrop.SetupDstFileListDrop(id, ipAddr, extData.TotalDescribe, extData.SrcFileList, extData.FolderList, extData.TotalSize, extData.TimeStamp)
 				} else if extData.ActionType == rtkCommon.P2PFileActionType_Drag {
 					rtkFileDrop.SetupDstDragFileList(id, ipAddr, extData.SrcFileList, extData.FolderList, extData.TotalSize, extData.TimeStamp, extData.TotalDescribe)
 				} else {
@@ -671,7 +688,7 @@ func processFileDrop(ctx context.Context, id, ipAddr string, event EventResult) 
 					return false
 				}
 			} else {
-				log.Printf("[%s %d] Err: Setup file drop failed", rtkMisc.GetFuncName(), rtkMisc.GetLine())
+				log.Printf("[%s] Err: Setup file drop failed", rtkMisc.GetFuncInfo())
 				return false
 			}
 		}
@@ -680,7 +697,7 @@ func processFileDrop(ctx context.Context, id, ipAddr string, event EventResult) 
 			if rtkUtils.GetPeerClientIsSupportQueueTrans(id) {
 				if fileDropInfo, ok := rtkFileDrop.GetFileDropData(id); ok {
 					rtkConnection.BuildFileDropItemStreamListener(fileDropInfo.TimeStamp)
-					if rtkUtils.GetPeerClientIsRmFCL(id) {
+					if rtkUtils.GetClientIsSupportConcurrentTrans(id) {
 						rtkMisc.GoSafe(func() { writeItemFileDataDetailsToSocket(ctx, id, ipAddr, fileDropInfo.TimeStamp) })
 					}
 				} else {
@@ -697,7 +714,7 @@ func processFileDrop(ctx context.Context, id, ipAddr string, event EventResult) 
 				}
 
 				if rtkUtils.GetPeerClientIsSupportQueueTrans(id) {
-					if !rtkUtils.GetPeerClientIsRmFCL(id) {
+					if !rtkUtils.GetClientIsSupportConcurrentTrans(id) {
 						if errCode := rtkConnection.NewFileDropItemStream(ctx, id, fileDropInfo.TimeStamp); errCode != rtkMisc.SUCCESS {
 							log.Printf("[%s] new File Drop Item stream errCode:%+v ", rtkMisc.GetFuncInfo(), errCode)
 							return fileDropInfo.TimeStamp, errCode
@@ -714,16 +731,11 @@ func processFileDrop(ctx context.Context, id, ipAddr string, event EventResult) 
 
 			fileTransDataId, errCode := buildItemFileDropStream()
 			if errCode != rtkMisc.SUCCESS {
+				log.Printf("(DST) [%s] IP:[%s] timeStamp:[%d] open file drop Item stream errcode:%d ", rtkMisc.GetFuncInfo(), ipAddr, fileTransDataId, errCode)
 				SendFileTransOpenStreamErrToSrc(id, ipAddr, fileTransDataId)
 				return false
- 			}
-			
-			timeStamp := rtkFileDrop.SetFilesDataToCacheAsDst(id)
-			if rtkFileDrop.GetFilesTransferDataCacheCount(id) <= rtkGlobal.FilesConcurrentTransferMaxSize {
-				rtkMisc.GoSafe(func() { processIoRead(ctx, id, ipAddr, event.Cmd.FmtType, timeStamp) }) // [Dst]: be ready to receive file drop raw data
-			} else {
-				log.Printf("[%s] ID:[%s] there are file data transfer is in progress, queue up and wait!", rtkMisc.GetFuncInfo(), id)
 			}
+			rtkMisc.GoSafe(func() { processIoRead(ctx, id, ipAddr, event.Cmd.FmtType) }) // [Dst]: be ready to receive file drop raw data
 		}
 		var msg Peer2PeerMessage
 		if buildMessage(&msg, id, event) {
@@ -742,7 +754,7 @@ func processXClip(ctx context.Context, id, ipAddr string, event EventResult) boo
 
 	if nextState == STATE_IO && nextCommand == COMM_SRC {
 		// [Src]: Start to trans XClip
-		rtkMisc.GoSafe(func() { processIoWrite(ctx, id, ipAddr, event.Cmd.FmtType, 0) })
+		rtkMisc.GoSafe(func() { processIoWrite(ctx, id, ipAddr, event.Cmd.FmtType) })
 	} else {
 		if nextState == STATE_INFO && nextCommand == COMM_DST && !rtkUtils.GetPeerClientIsSupportXClip(id) { // not support XClip
 			if extData, ok := event.Data.(rtkCommon.ExtDataXClip); ok {
@@ -766,7 +778,7 @@ func processXClip(ctx context.Context, id, ipAddr string, event EventResult) boo
 				return false
 			}
 			// [Dst]: Start to trans XClip
-			rtkMisc.GoSafe(func() { processIoRead(ctx, id, ipAddr, event.Cmd.FmtType, 0) })
+			rtkMisc.GoSafe(func() { processIoRead(ctx, id, ipAddr, event.Cmd.FmtType) })
 		}
 
 		var msg Peer2PeerMessage
@@ -849,13 +861,12 @@ func isValidState(curState StateType, curCommand CommandType, nextState StateTyp
 }
 
 func ProcessEventsForPeer(ctx context.Context, id, ipAddr string) {
-
 	curState := STATE_INIT
 	curCommand := COMM_INIT
 
 	eventResultClipboard := make(chan EventResult)
 	eventResultFileDrop := make(chan EventResult)
-	eventResultSocket := make(chan EventResult)
+	eventResultSocket := make(chan EventResult, 3)
 	rtkMisc.GoSafe(func() { HandleClipboardEvent(ctx, eventResultClipboard, id) })
 	rtkMisc.GoSafe(func() { HandleFileDropEvent(ctx, eventResultFileDrop, id) })
 	rtkMisc.GoSafe(func() { HandleReadInbandFromSocket(ctx, eventResultSocket, id, ipAddr) })

@@ -239,16 +239,28 @@ func writeItemFileDataDetailsToSocket(ctx context.Context, id, ipAddr string, ti
 	log.Printf("(SRC) Copy file details to IP:[%s] success, timestamp:[%d] details size:[%d] total use [%d] ms", ipAddr, timeStamp, nCopy, time.Now().UnixMilli()-startTime)
 }
 
-func readItemFileDataDetailsFromSocket(ctx context.Context, id, ipAddr string, timeStamp uint64, detailsLen int) rtkMisc.CrossShareErr {
+func readItemFileDataDetailsFromSocket(ctx context.Context, id, ipAddr string, timeStamp uint64, detailsLen int) {
+	errCode := rtkMisc.SUCCESS
+	defer func() {
+		if errCode != rtkMisc.SUCCESS {
+			if errCode == rtkMisc.ERR_BIZ_FT_DST_OPEN_STREAM {
+				SendFileTransOpenStreamErrToSrc(id, ipAddr, timeStamp)
+			} else {
+				SendFileTransCopyDetailsErrToSrc(id, ipAddr, timeStamp)
+			}
+		}
+	}()
 	startTime := time.Now().UnixMilli()
-	if errCode := rtkConnection.NewFileDropItemStream(ctx, id, timeStamp); errCode != rtkMisc.SUCCESS {
-		log.Printf("[%s] new File Drop Item stream errCode:%+v ", rtkMisc.GetFuncInfo(), errCode)
-		return rtkMisc.ERR_BIZ_FT_DST_OPEN_STREAM
+	if openStreamCode := rtkConnection.NewFileDropItemStream(ctx, id, timeStamp); openStreamCode != rtkMisc.SUCCESS {
+		log.Printf("[%s] new File Drop Item stream errCode:%+v ", rtkMisc.GetFuncInfo(), openStreamCode)
+		errCode = rtkMisc.ERR_BIZ_FT_DST_OPEN_STREAM
+		return
 	}
 	sFileDrop, ok := rtkConnection.GetFileDropItemStream(id, timeStamp)
 	if !ok {
 		log.Printf("[%s] Err: Not found file stream by ID:[%s]", rtkMisc.GetFuncInfo(), id)
-		return rtkMisc.ERR_BIZ_FD_GET_STREAM_EMPTY
+		errCode = rtkMisc.ERR_BIZ_FD_GET_STREAM_EMPTY
+		return
 	}
 
 	reader := cancelableReader{
@@ -262,15 +274,17 @@ func readItemFileDataDetailsFromSocket(ctx context.Context, id, ipAddr string, t
 	nCopy, err := io.CopyN(&detailsBuffer, &reader, int64(detailsLen))
 	if err != nil {
 		log.Printf("(DST) [%s] IP:[%s] timeStamp:[%d] Copy file details Error:%+v", rtkMisc.GetFuncInfo(), ipAddr, timeStamp, err)
-		return rtkMisc.ERR_BIZ_FT_COPY_DETAILS
+		errCode = rtkMisc.ERR_BIZ_FT_COPY_DETAILS
+		return
 	}
 	log.Printf("(DST) Copy file details from IP:[%s] success, timestamp:[%d] details size:[%d] total use [%d] ms", ipAddr, timeStamp, nCopy, time.Now().UnixMilli()-startTime)
-	return rtkFileDrop.SetupDstFileDropDataDetails(id, ipAddr, detailsBuffer.Bytes())
+	errCode = rtkFileDrop.SetupDstFileDropDataDetails(id, ipAddr, detailsBuffer.Bytes())
 }
 
 func dealFilesCacheDataProcess(p2pCtx context.Context, id, ipAddr string, timeStamp uint64) {
-	for rtkFileDrop.GetFilesTransferDataCacheCount(id) > 0 {
-		cacheData := rtkFileDrop.GetFilesTransferDataItem(id, timeStamp)
+	resultCode := rtkMisc.SUCCESS
+	for {
+		cacheData := rtkFileDrop.SetFilesTransferDataItemStart(id, timeStamp)
 		if cacheData == nil {
 			break
 		}
@@ -309,19 +323,19 @@ func dealFilesCacheDataProcess(p2pCtx context.Context, id, ipAddr string, timeSt
 			rtkConnection.CloseFileDropItemStream(id, cacheData.TimeStamp)
 			rtkConnection.CloseFmtTypeStream(id, rtkCommon.FILE_DROP) //  keep for support old version
 		} else {
-			log.Printf("[%s] ID:[%s] Invalid direction type:[%s], skit it!", rtkMisc.GetFuncInfo(), id, cacheData.FileTransDirection)
+			log.Printf("[%s] ID:[%s] Unknown direction type:[%s], skit it!", rtkMisc.GetFuncInfo(), id, cacheData.FileTransDirection)
 		}
 
-		rtkFileDrop.SetFilesCacheItemComplete(id, cacheData.TimeStamp)
+		timeStamp = 0
+		rtkFileDrop.SetFilesCacheItemEnd(id, cacheData.TimeStamp)
 	}
 }
 
 func writeItemFileDataToSocket(p2pCtx context.Context, id, ipAddr string, fileDropReqData *rtkFileDrop.FilesTransferDataItem) rtkMisc.CrossShareErr {
 	startTime := time.Now().UnixMilli()
-	if !rtkUtils.GetPeerClientIsRmFCL(id) {
+	if !rtkUtils.GetClientIsSupportConcurrentTrans(id) {
 		rtkConnection.HandleFmtTypeStreamReady(id, rtkCommon.FILE_DROP) // wait for file drop stream Ready
 	}
-
 	if p2pCtx.Err() != nil { // deal file cache Data must return errCode and clear cache when p2p business is canceled
 		return getFileDataSendCancelErrCode(p2pCtx, ipAddr, fileDropReqData.TimeStamp)
 	}

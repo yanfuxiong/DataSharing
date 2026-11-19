@@ -29,18 +29,18 @@ func SendDisconnectMsgToPeer(id string) {
 	sendCmdMsgToPeer(id, COMM_DISCONNECT, rtkCommon.TEXT_CB, rtkMisc.SUCCESS)
 }
 
-func SendFileTransCancelByGuiMsgToPeer(id, ipAddr string, fileTransDataId uint64, asSrc bool) {
+func SendFileTransCancelByGuiMsgToPeer(id, ipAddr string, timeStamp uint64, asSrc bool) {
 	if asSrc {
-		log.Printf("(SRC) [%s] IP:[%s] send cancel filesCachedata msg to dst, id:%d", rtkMisc.GetFuncInfo(), ipAddr, fileTransDataId)
-		sendFileTransInterruptMsgToPeer(id, COMM_FILE_TRANSFER_SRC_INTERRUPT, rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_CANCEL_GUI, fileTransDataId)
-		rtkPlatform.GoNotifyErrEvent(id, rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_CANCEL_GUI, ipAddr, strconv.Itoa(int(fileTransDataId)), "", "")
+		log.Printf("(SRC) [%s] IP:[%s] send cancel filesCachedata msg to dst, id:%d", rtkMisc.GetFuncInfo(), ipAddr, timeStamp)
+		sendFileTransInterruptMsgToPeer(id, COMM_FILE_TRANSFER_SRC_INTERRUPT, rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_CANCEL_GUI, timeStamp)
+		rtkPlatform.GoNotifyErrEvent(id, rtkMisc.ERR_BIZ_FD_SRC_COPY_FILE_CANCEL_GUI, ipAddr, strconv.Itoa(int(timeStamp)), "", "")
 		rtkConnection.HandleFmtTypeStreamReady(id, rtkCommon.FILE_DROP)
 	} else {
-		log.Printf("(DST) [%s] IP:[%s] send cancel filesCachedata msg to src, id:%d", rtkMisc.GetFuncInfo(), ipAddr, fileTransDataId)
-		sendFileTransInterruptMsgToPeer(id, COMM_FILE_TRANSFER_DST_INTERRUPT, rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL_GUI, fileTransDataId)
-		rtkPlatform.GoNotifyErrEvent(id, rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL_GUI, ipAddr, strconv.Itoa(int(fileTransDataId)), "", "")
+		log.Printf("(DST) [%s] IP:[%s] send cancel filesCachedata msg to src, id:%d", rtkMisc.GetFuncInfo(), ipAddr, timeStamp)
+		sendFileTransInterruptMsgToPeer(id, COMM_FILE_TRANSFER_DST_INTERRUPT, rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL_GUI, timeStamp)
+		rtkPlatform.GoNotifyErrEvent(id, rtkMisc.ERR_BIZ_FD_DST_COPY_FILE_CANCEL_GUI, ipAddr, strconv.Itoa(int(timeStamp)), "", "")
 	}
-	rtkConnection.CloseFileDropItemStream(id, fileTransDataId)
+	rtkConnection.CloseFileDropItemStream(id, timeStamp)
 }
 
 func SendFileTransOpenStreamErrToSrc(id, ipAddr string, timeStamp uint64) {
@@ -49,11 +49,11 @@ func SendFileTransOpenStreamErrToSrc(id, ipAddr string, timeStamp uint64) {
 	rtkPlatform.GoNotifyErrEvent(id, rtkMisc.ERR_BIZ_FT_DST_OPEN_STREAM, ipAddr, strconv.Itoa(int(timeStamp)), "", "")
 }
 
-func SendFileTransCopyDetailsErrToSrc(id, ipAddr string, timeStamp uint64) {
-	log.Printf("(DST) [%s] IP:[%s] timestamp:[%d] Copy file data details error!", rtkMisc.GetFuncInfo(), ipAddr, timeStamp)
-	sendFileTransInterruptMsgToPeer(id, COMM_FILE_TRANSFER_DST_INTERRUPT, rtkMisc.ERR_BIZ_FT_DST_COPY_DETAILS, timeStamp)
-	rtkPlatform.GoNotifyErrEvent(id, rtkMisc.ERR_BIZ_FT_DST_COPY_DETAILS, ipAddr, strconv.Itoa(int(timeStamp)), "", "")
-	rtkConnection.CloseFileDropItemStream(id, timeStamp)
+func SendFileTransCopyDetailsErrToSrc(id, ipAddr string, fileTransDataId uint64) {
+	log.Printf("(DST) [%s] IP:[%s] timestamp:[%d] Copy file data details error!", rtkMisc.GetFuncInfo(), ipAddr, fileTransDataId)
+	sendFileTransInterruptMsgToPeer(id, COMM_FILE_TRANSFER_DST_INTERRUPT, rtkMisc.ERR_BIZ_FT_DST_COPY_DETAILS, fileTransDataId)
+	rtkPlatform.GoNotifyErrEvent(id, rtkMisc.ERR_BIZ_FT_DST_COPY_DETAILS, ipAddr, strconv.Itoa(int(fileTransDataId)), "", "")
+	rtkConnection.CloseFileDropItemStream(id, fileTransDataId)
 }
 
 func sendFileTransInterruptMsgToPeer(id string, cmd CommandType, errCode rtkMisc.CrossShareErr, timestamp uint64) {
